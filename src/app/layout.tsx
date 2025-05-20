@@ -5,6 +5,7 @@ import { Geist } from "next/font/google";
 
 import { TRPCReactProvider } from "~/trpc/react";
 import { Header } from "~/components/layout/header";
+import { SchoolYearProvider } from "~/contexts/school-year-context";
 
 export const metadata: Metadata = {
   title: "Wechselplan",
@@ -24,10 +25,12 @@ export default function RootLayout({
     <html lang="en" className={`${geist.variable}`}>
       <body>
         <TRPCReactProvider>
-          <Header />
-          <main className="pt-16">
-            {children}
-          </main>
+          <SchoolYearProvider>
+            <Header />
+            <main className="pt-16">
+              {children}
+            </main>
+          </SchoolYearProvider>
         </TRPCReactProvider>
       </body>
     </html>
