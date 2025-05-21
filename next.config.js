@@ -5,6 +5,6 @@
 import "./src/env.js";
 
 /** @type {import("next").NextConfig} */
-const config = {};
+const nextConfig = {};
 
-export default config;
+export default nextConfig;

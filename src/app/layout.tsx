@@ -1,38 +1,33 @@
 import "~/styles/globals.css";
 
-import { type Metadata } from "next";
-import { Geist } from "next/font/google";
+import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
+import { TRPCReactProvider } from '~/trpc/react'
+import { SchoolYearProvider } from '~/contexts/school-year-context'
 
-import { TRPCReactProvider } from "~/trpc/react";
-import { Header } from "~/components/layout/header";
-import { SchoolYearProvider } from "~/contexts/school-year-context";
+const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: "Wechselplan",
-  description: "Student Schedule Management System",
-  icons: [{ rel: "icon", url: "/favicon.ico" }],
-};
-
-const geist = Geist({
-  subsets: ["latin"],
-  variable: "--font-geist-sans",
-});
+  title: 'Wechselplan',
+  description: 'Wechselplan Application',
+}
 
 export default function RootLayout({
   children,
-}: Readonly<{ children: React.ReactNode }>) {
+}: {
+  children: React.ReactNode
+}) {
   return (
-    <html lang="en" className={`${geist.variable}`}>
-      <body>
+    <html lang="en">
+      <body className={inter.className}>
         <TRPCReactProvider>
           <SchoolYearProvider>
-            <Header />
-            <main className="pt-16">
+            <div className="pt-16">
               {children}
-            </main>
+            </div>
           </SchoolYearProvider>
         </TRPCReactProvider>
       </body>
     </html>
-  );
+  )
 }

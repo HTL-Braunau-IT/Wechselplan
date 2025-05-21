@@ -4,9 +4,28 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Menu } from 'lucide-react'
 import { SchoolYearSelector } from '../school-year-selector'
+import { LanguageSwitcher } from '../language-switcher'
+import { useParams } from 'next/navigation'
 
-export function Header() {
+interface HeaderProps {
+  dict: {
+    common: {
+      schoolYear: string
+    }
+    navigation: {
+      home: string
+      schedules: string
+      students: string
+      menu: string
+      closeMenu: string
+    }
+  }
+}
+
+export function Header({ dict }: HeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const params = useParams()
+  const lang = params.lang as string
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen)
@@ -19,22 +38,27 @@ export function Header() {
           <button
             onClick={toggleMenu}
             className="p-2 rounded-md hover:bg-gray-100 focus:outline-none"
-            aria-label="Toggle menu"
+            aria-label={dict.navigation.menu}
           >
             <Menu className="h-6 w-6" />
           </button>
           
           {/* Logo */}
-          <Link href="/" className="text-xl font-bold">
+          <Link href={`/${lang}`} className="text-xl font-bold">
             Wechselplan
           </Link>
 
-          {/* School Year Selector */}
-          <div className="flex items-center">
-          <p className='mr-4'>School Year:</p>
-          <div className="flex items-center">
-            <SchoolYearSelector />
-          </div>
+          <div className="flex items-center space-x-4">
+            {/* Language Switcher */}
+            <LanguageSwitcher />
+
+            {/* School Year Selector */}
+            <div className="flex items-center">
+              <p className='mr-4'>{dict.common.schoolYear}:</p>
+              <div className="flex items-center">
+                <SchoolYearSelector />
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -50,7 +74,7 @@ export function Header() {
             <button
               onClick={toggleMenu}
               className="p-2 rounded-md hover:bg-gray-100 focus:outline-none"
-              aria-label="Close menu"
+              aria-label={dict.navigation.closeMenu}
             >
               <Menu className="h-6 w-6" />
             </button>
@@ -59,29 +83,29 @@ export function Header() {
             <ul className="space-y-4">
               <li>
                 <Link
-                  href="/"
+                  href={`/${lang}`}
                   className="block py-2 hover:text-blue-600"
                   onClick={() => setIsMenuOpen(false)}
                 >
-                  Home
+                  {dict.navigation.home}
                 </Link>
               </li>
               <li>
                 <Link
-                  href="/schedules"
+                  href={`/${lang}/schedules`}
                   className="block py-2 hover:text-blue-600"
                   onClick={() => setIsMenuOpen(false)}
                 >
-                  Schedules
+                  {dict.navigation.schedules}
                 </Link>
               </li>
               <li>
                 <Link
-                  href="/students"
+                  href={`/${lang}/students`}
                   className="block py-2 hover:text-blue-600"
                   onClick={() => setIsMenuOpen(false)}
                 >
-                  Students
+                  {dict.navigation.students}
                 </Link>
               </li>
             </ul>
