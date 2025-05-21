@@ -5,13 +5,10 @@ import Link from 'next/link'
 import { Menu } from 'lucide-react'
 import { SchoolYearSelector } from '../school-year-selector'
 import { LanguageSwitcher } from '../language-switcher'
-import { useParams } from 'next/navigation'
 import { useTranslation } from 'react-i18next'
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const params = useParams()
-  const lang = params.lang as string
   const { t } = useTranslation()
 
   const toggleMenu = () => {
@@ -31,7 +28,7 @@ export function Header() {
           </button>
           
           {/* Logo */}
-          <Link href={`/${lang}`} className="text-xl font-bold">
+          <Link href="/" className="text-xl font-bold">
             {t('common.appName')}
           </Link>
 
@@ -70,7 +67,7 @@ export function Header() {
             <ul className="space-y-4">
               <li>
                 <Link
-                  href={`/${lang}`}
+                  href="/"
                   className="block py-2 hover:text-blue-600"
                   onClick={() => setIsMenuOpen(false)}
                 >
@@ -79,7 +76,7 @@ export function Header() {
               </li>
               <li>
                 <Link
-                  href={`/${lang}/schedules`}
+                  href="/schedules"
                   className="block py-2 hover:text-blue-600"
                   onClick={() => setIsMenuOpen(false)}
                 >
@@ -88,7 +85,7 @@ export function Header() {
               </li>
               <li>
                 <Link
-                  href={`/${lang}/students`}
+                  href="/students"
                   className="block py-2 hover:text-blue-600"
                   onClick={() => setIsMenuOpen(false)}
                 >
@@ -97,7 +94,7 @@ export function Header() {
               </li>
               <li>
                 <Link
-                  href={`/${lang}/schedule/create`}
+                  href="/schedule/create"
                   className="block py-2 hover:text-blue-600"
                   onClick={() => setIsMenuOpen(false)}
                 >
@@ -106,7 +103,7 @@ export function Header() {
               </li>
               <li>
                 <Link
-                  href={`/${lang}/admin/students`}
+                  href="/admin/students"
                   className="block py-2 hover:text-blue-600"
                   onClick={() => setIsMenuOpen(false)}
                 >

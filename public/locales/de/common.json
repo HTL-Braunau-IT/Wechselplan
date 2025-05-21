@@ -9,7 +9,8 @@
     "system": "System",
     "schoolYear": "Schuljahr",
     "appName": "Wechselplan",
-    "selectSchoolYear": "Schuljahr auswählen"
+    "selectSchoolYear": "Schuljahr auswählen",
+    "cancel": "Abbrechen"
   },
   "navigation": {
     "home": "Startseite",
@@ -51,11 +52,22 @@
   "admin": {
     "title": "Administration",
     "studentAdministration": "Schülerverwaltung",
-    "deleteAllData": "Alle Daten löschen",
     "importFromAD": "Aus AD importieren",
     "students": {
       "title": "Schülerverwaltung",
       "description": "Hier können Sie alle schülerbezogenen Daten verwalten. Nutzen Sie das Menü auf der linken Seite zur Navigation.",
+      "deleteAllData": {
+        "title": "Alle Daten löschen",
+        "warning": "Warnung: Diese Aktion kann nicht rückgängig gemacht werden",
+        "description": "Dies wird alle Schülerdaten dauerhaft aus dem System löschen. Diese Aktion kann nicht rückgängig gemacht werden.",
+        "button": "Alle Daten löschen",
+        "deleting": "Wird gelöscht...",
+        "confirmTitle": "Sind Sie sicher?",
+        "confirmDescription": "Dies wird alle Schülerdaten dauerhaft löschen. Diese Aktion kann nicht rückgängig gemacht werden.",
+        "confirmButton": "Ja, alle Daten löschen",
+        "success": "Alle Daten wurden erfolgreich gelöscht",
+        "error": "Daten konnten nicht gelöscht werden"
+      },
       "import": {
         "title": "Schüler importieren",
         "ldapConfig": "LDAP-Konfiguration",

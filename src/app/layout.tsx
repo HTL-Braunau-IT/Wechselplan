@@ -8,6 +8,13 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'Wechselplan',
   description: 'Wechselplan - School Schedule Management',
+  metadataBase: new URL('http://localhost:3000'),
+  alternates: {
+    languages: {
+      'en': '/en',
+      'de': '/de',
+    },
+  },
 }
 
 export default function RootLayout({
@@ -16,7 +23,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html>
+    <html lang="en">
       <body className={inter.className}>
         <Providers>
           {children}

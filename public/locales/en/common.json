@@ -9,7 +9,8 @@
     "system": "System",
     "schoolYear": "School Year",
     "appName": "Wechselplan",
-    "selectSchoolYear": "Select school year"
+    "selectSchoolYear": "Select school year",
+    "cancel": "Cancel"
   },
   "navigation": {
     "home": "Home",
@@ -51,11 +52,22 @@
   "admin": {
     "title": "Administration",
     "studentAdministration": "Student Administration",
-    "deleteAllData": "Delete All Data",
     "importFromAD": "Import from AD",
     "students": {
       "title": "Student Administration",
       "description": "Here you can manage all student-related data. Use the menu on the left to navigate through different options.",
+      "deleteAllData": {
+        "title": "Delete All Data",
+        "warning": "Warning: This action cannot be undone",
+        "description": "This will permanently delete all student data from the system. This action cannot be undone.",
+        "button": "Delete All Data",
+        "deleting": "Deleting...",
+        "confirmTitle": "Are you sure?",
+        "confirmDescription": "This will permanently delete all student data. This action cannot be undone.",
+        "confirmButton": "Yes, delete all data",
+        "success": "All data has been successfully deleted",
+        "error": "Failed to delete data"
+      },
       "import": {
         "title": "Import Students",
         "ldapConfig": "LDAP Configuration",

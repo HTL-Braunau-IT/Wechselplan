@@ -16,7 +16,7 @@ interface LDAPConfig {
 }
 
 export default function SettingsPage() {
-  const { t } = useTranslation()
+  const { t } = useTranslation(['admin', 'common'])
   const [config, setConfig] = useState<LDAPConfig>({
     url: '',
     baseDN: '',
@@ -33,7 +33,7 @@ export default function SettingsPage() {
     fetch('/api/admin/ldap-config')
       .then(res => res.json())
       .then(data => setConfig(data as LDAPConfig))
-      .catch(() => setError(t('admin.settings.errors.loadConfig')))
+      .catch(() => setError(t('settings.errors.loadConfig')))
   }, [t])
 
   const handleSaveConfig = async (e: React.FormEvent) => {
@@ -50,90 +50,90 @@ export default function SettingsPage() {
       })
 
       if (!response.ok) throw new Error()
-      setSuccess(t('admin.settings.success.configSaved'))
+      setSuccess(t('settings.success.configSaved'))
     } catch {
-      setError(t('admin.settings.errors.saveConfig'))
+      setError(t('settings.errors.saveConfig'))
     } finally {
       setIsLoading(false)
     }
   }
 
   return (
-    <div className="container mx-auto p-4 space-y-8">
-      <h1 className="text-2xl font-bold mb-6">{t('admin.settings.title')}</h1>
+    <>
+      <h1 className="text-2xl font-bold mb-6">{t('settings.title')}</h1>
 
       <div className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>{t('admin.settings.ldapConfig')}</CardTitle>
+            <CardTitle>{t('settings.ldapConfig')}</CardTitle>
             <CardDescription>
-              {t('admin.settings.ldapConfigDescription')}
+              {t('settings.ldapConfigDescription')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSaveConfig} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="url">{t('admin.settings.ldapUrl')}</Label>
+                  <Label htmlFor="url">{t('settings.ldapUrl')}</Label>
                   <Input
                     id="url"
                     value={config.url}
                     onChange={e => setConfig(prev => ({ ...prev, url: e.target.value }))}
-                    placeholder={t('admin.settings.ldapUrlPlaceholder')}
+                    placeholder={t('settings.ldapUrlPlaceholder')}
                     className="w-full"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="baseDN">{t('admin.settings.baseDN')}</Label>
+                  <Label htmlFor="baseDN">{t('settings.baseDN')}</Label>
                   <Input
                     id="baseDN"
                     value={config.baseDN}
                     onChange={e => setConfig(prev => ({ ...prev, baseDN: e.target.value }))}
-                    placeholder={t('admin.settings.baseDNPlaceholder')}
+                    placeholder={t('settings.baseDNPlaceholder')}
                     className="w-full"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="username">{t('admin.settings.username')}</Label>
+                  <Label htmlFor="username">{t('settings.username')}</Label>
                   <Input
                     id="username"
                     value={config.username}
                     onChange={e => setConfig(prev => ({ ...prev, username: e.target.value }))}
-                    placeholder={t('admin.settings.usernamePlaceholder')}
+                    placeholder={t('settings.usernamePlaceholder')}
                     className="w-full"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password">{t('admin.settings.password')}</Label>
+                  <Label htmlFor="password">{t('settings.password')}</Label>
                   <Input
                     id="password"
                     type="password"
                     value={config.password}
                     onChange={e => setConfig(prev => ({ ...prev, password: e.target.value }))}
-                    placeholder={t('admin.settings.passwordPlaceholder')}
+                    placeholder={t('settings.passwordPlaceholder')}
                     className="w-full"
                   />
                 </div>
                 <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="studentsOU">{t('admin.settings.studentsOU')}</Label>
+                  <Label htmlFor="studentsOU">{t('settings.studentsOU')}</Label>
                   <Input
                     id="studentsOU"
                     value={config.studentsOU}
                     onChange={e => setConfig(prev => ({ ...prev, studentsOU: e.target.value }))}
-                    placeholder={t('admin.settings.studentsOUPlaceholder')}
+                    placeholder={t('settings.studentsOUPlaceholder')}
                     className="w-full"
                   />
                 </div>
               </div>
               <div className="flex justify-end">
                 <Button type="submit" disabled={isLoading}>
-                  {isLoading ? t('admin.settings.saving') : t('admin.settings.saveConfig')}
+                  {isLoading ? t('settings.saving') : t('settings.saveConfig')}
                 </Button>
               </div>
             </form>
           </CardContent>
         </Card>
       </div>
-    </div>
+    </>
   )
 } 

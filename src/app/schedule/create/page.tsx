@@ -184,7 +184,7 @@ export default function ScheduleClassSelectPage() {
 
 	function handleNext() {
 		// Navigate to the next step in schedule creation
-		router.push(`/${lang}/schedule/create/subjects?class=${selectedClass}`)
+		router.push(`/schedule/create/subjects?class=${selectedClass}`)
 	}
 
 	function handleDragStart(event: DragStartEvent) {

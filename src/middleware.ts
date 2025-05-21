@@ -1,24 +1,8 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { match as matchLocale } from '@formatjs/intl-localematcher'
-import Negotiator from 'negotiator'
 
 const locales = ['en', 'de']
 const defaultLocale = 'en'
-
-function getLocale(request: NextRequest): string {
-  const negotiatorHeaders: Record<string, string> = {}
-  request.headers.forEach((value, key) => (negotiatorHeaders[key] = value))
-
-  const languages = new Negotiator({ headers: negotiatorHeaders }).languages()
-  const locales = ['en', 'de']
-
-  try {
-    return matchLocale(languages, locales, defaultLocale)
-  } catch {
-    return defaultLocale
-  }
-}
 
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
@@ -28,17 +12,18 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  const pathnameIsMissingLocale = locales.every(
-    (locale) => !pathname.startsWith(`/${locale}/`) && pathname !== `/${locale}`
-  )
+  // Get the stored language preference from the cookie
+  const storedLanguage = request.cookies.get('language')?.value
+  const locale = storedLanguage && locales.includes(storedLanguage) ? storedLanguage : defaultLocale
 
-  // Redirect if there is no locale
-  if (pathnameIsMissingLocale) {
-    const locale = getLocale(request)
-    return NextResponse.redirect(
-      new URL(`/${locale}${pathname}`, request.url)
-    )
+  // If the path starts with a locale, redirect to the same path without the locale
+  const localePrefix = `/${locale}`
+  if (pathname.startsWith(localePrefix)) {
+    const newPathname = pathname.replace(localePrefix, '')
+    return NextResponse.redirect(new URL(newPathname || '/', request.url))
   }
+
+  return NextResponse.next()
 }
 
 export const config = {

@@ -4,34 +4,30 @@ import Link from 'next/link'
 import { Settings, Users, Trash2, Download } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-interface AdminMenuProps {
-  lang: string
-}
-
-export function AdminMenu({ lang }: AdminMenuProps) {
+export function AdminMenu() {
   const { t } = useTranslation(['admin', 'common'])
 
   return (
     <div className="w-64 bg-white border-r border-gray-200 p-4 min-h-screen">
       <nav className="space-y-2">
         <Link
-          href={`/${lang}/admin/students`}
+          href="/admin/students"
           className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-lg"
-          aria-label={t('admin.studentAdministration')}
+          aria-label={t('studentAdministration')}
         >
           <Users className="h-5 w-5" />
-          <span>{t('admin.studentAdministration')}</span>
+          <span>{t('studentAdministration')}</span>
         </Link>
         <Link
-          href={`/${lang}/admin/students/import`}
+          href="/admin/students/import"
           className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-lg"
-          aria-label={t('admin.importStudents')}
+          aria-label={t('importStudents')}
         >
           <Download className="h-5 w-5" />
-          <span>{t('admin.importStudents')}</span>
+          <span>{t('importStudents')}</span>
         </Link>
         <Link
-          href={`/${lang}/admin/settings`}
+          href="/admin/settings"
           className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-lg"
           aria-label={t('common.settings')}
         >
@@ -39,12 +35,12 @@ export function AdminMenu({ lang }: AdminMenuProps) {
           <span>{t('common.settings')}</span>
         </Link>
         <Link
-          href={`/${lang}/admin/students/delete-all`}
+          href="/admin/students/delete-all"
           className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-lg w-full text-left text-red-600"
-          aria-label={t('admin.deleteAllData')}
+          aria-label={t('deleteAllData')}
         >
           <Trash2 className="h-5 w-5" />
-          <span>{t('admin.deleteAllData')}</span>
+          <span>{t('deleteAllData')}</span>
         </Link>
       </nav>
     </div>

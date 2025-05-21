@@ -1,0 +1,34 @@
+{
+  "studentAdministration": "Student Administration",
+  "importStudents": "Import Students",
+  "deleteAllData": "Delete All Data",
+  "students": {
+    "title": "Student Administration",
+    "description": "Manage your students here. You can add, edit, and delete students."
+  },
+  "settings": {
+    "title": "Settings",
+    "description": "Configure your application settings here.",
+    "ldapConfig": "LDAP Configuration",
+    "ldapConfigDescription": "Configure your LDAP server settings for student synchronization.",
+    "ldapUrl": "LDAP Server URL",
+    "ldapUrlPlaceholder": "ldap://your-server:389",
+    "baseDN": "Base DN",
+    "baseDNPlaceholder": "dc=example,dc=com",
+    "username": "Username",
+    "usernamePlaceholder": "cn=admin,dc=example,dc=com",
+    "password": "Password",
+    "passwordPlaceholder": "Enter LDAP password",
+    "studentsOU": "Students OU",
+    "studentsOUPlaceholder": "ou=students,dc=example,dc=com",
+    "saveConfig": "Save Configuration",
+    "saving": "Saving...",
+    "success": {
+      "configSaved": "Configuration saved successfully"
+    },
+    "errors": {
+      "loadConfig": "Failed to load configuration",
+      "saveConfig": "Failed to save configuration"
+    }
+  }
+} 

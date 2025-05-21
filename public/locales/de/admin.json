@@ -1,0 +1,34 @@
+{
+  "studentAdministration": "Schülerverwaltung",
+  "importStudents": "Schüler importieren",
+  "deleteAllData": "Alle Daten löschen",
+  "students": {
+    "title": "Schülerverwaltung",
+    "description": "Verwalten Sie hier Ihre Schüler. Sie können Schüler hinzufügen, bearbeiten und löschen."
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "description": "Konfigurieren Sie hier Ihre Anwendungseinstellungen.",
+    "ldapConfig": "LDAP-Konfiguration",
+    "ldapConfigDescription": "Konfigurieren Sie Ihre LDAP-Servereinstellungen für die Schülersynchronisation.",
+    "ldapUrl": "LDAP-Server-URL",
+    "ldapUrlPlaceholder": "ldap://ihr-server:389",
+    "baseDN": "Base DN",
+    "baseDNPlaceholder": "dc=beispiel,dc=de",
+    "username": "Benutzername",
+    "usernamePlaceholder": "cn=admin,dc=beispiel,dc=de",
+    "password": "Passwort",
+    "passwordPlaceholder": "LDAP-Passwort eingeben",
+    "studentsOU": "Schüler OU",
+    "studentsOUPlaceholder": "ou=schueler,dc=beispiel,dc=de",
+    "saveConfig": "Konfiguration speichern",
+    "saving": "Wird gespeichert...",
+    "success": {
+      "configSaved": "Konfiguration erfolgreich gespeichert"
+    },
+    "errors": {
+      "loadConfig": "Konfiguration konnte nicht geladen werden",
+      "saveConfig": "Konfiguration konnte nicht gespeichert werden"
+    }
+  }
+} 

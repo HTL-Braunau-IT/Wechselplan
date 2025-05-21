@@ -15,7 +15,7 @@ export default function ScheduleSubjectsPage() {
 
 	useEffect(() => {
 		if (!className) {
-			router.push(`/${lang}/schedule/create`)
+			router.push('/schedule/create')
 		}
 	}, [className, lang, router])
 
