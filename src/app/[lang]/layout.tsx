@@ -11,20 +11,13 @@ export const metadata: Metadata = {
   description: 'Wechselplan Application',
 }
 
-export default async function LangLayout({
+export default function LangLayout({
   children,
   params,
 }: {
   children: React.ReactNode
   params: { lang: string }
 }) {
-  const resolvedParams = await Promise.resolve(params)
-  
-  // Set the lang attribute on the html element
-  if (typeof document !== 'undefined') {
-    document.documentElement.lang = resolvedParams.lang
-  }
-
   return (
     <I18nProvider>
       <Header />
