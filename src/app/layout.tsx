@@ -9,7 +9,7 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'Wechselplan',
-  description: 'Wechselplan Application',
+  description: 'Wechselplan für die Schule',
 }
 
 export default function RootLayout({
@@ -18,13 +18,11 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html>
       <body className={inter.className}>
         <TRPCReactProvider>
           <SchoolYearProvider>
-            <div className="pt-16">
-              {children}
-            </div>
+            {children}
           </SchoolYearProvider>
         </TRPCReactProvider>
       </body>

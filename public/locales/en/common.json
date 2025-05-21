@@ -52,7 +52,7 @@
     "title": "Administration",
     "studentAdministration": "Student Administration",
     "deleteAllData": "Delete All Data",
-    "importFromAD": "Import from AD",
+    "importStudents": "Import Students",
     "students": {
       "title": "Student Administration",
       "description": "Here you can manage all student-related data. Use the menu on the left to navigate through different options.",
@@ -90,8 +90,70 @@
           "generic": "An error occurred",
           "saveConfig": "Could not save LDAP configuration",
           "fetchStudents": "Could not fetch students",
-          "importStudents": "Could not import students"
-        }
+          "importStudents": "Could not import students",
+          "downloadSample": "Could not download sample file",
+          "invalidCSV": "Invalid CSV format. Please check the file structure.",
+          "noClassesSelected": "Please select at least one class to import",
+          "importFailed": "Failed to import students"
+        },
+        "ldapTab": "LDAP Import",
+        "csvTab": "CSV Import",
+        "downloadSample": "Download Sample CSV",
+        "uploadCSV": "Upload CSV File"
+      }
+    },
+    "settings": {
+      "title": "Settings",
+      "description": "Configure your application settings",
+      "ldapConfig": "LDAP Configuration",
+      "ldapConfigDescription": "Configure your LDAP connection settings for student import",
+      "ldapUrl": "LDAP Server URL",
+      "ldapUrlPlaceholder": "ldap://your-domain-controller",
+      "baseDN": "Base DN",
+      "baseDNPlaceholder": "DC=your,DC=domain,DC=com",
+      "username": "Username",
+      "usernamePlaceholder": "service-account@domain.com",
+      "password": "Password",
+      "passwordPlaceholder": "••••••••",
+      "studentsOU": "Students OU",
+      "studentsOUPlaceholder": "OU=Students,DC=your,DC=domain,DC=com",
+      "saveConfig": "Save Configuration",
+      "saving": "Saving...",
+      "success": {
+        "configSaved": "LDAP configuration saved successfully"
+      },
+      "errors": {
+        "loadConfig": "Could not load LDAP configuration",
+        "saveConfig": "Could not save LDAP configuration"
+      },
+      "ldap": {
+        "title": "LDAP Configuration",
+        "description": "Configure your LDAP connection settings for student import",
+        "url": "LDAP Server URL",
+        "urlPlaceholder": "ldap://your-domain-controller",
+        "baseDN": "Base DN",
+        "baseDNPlaceholder": "DC=your,DC=domain,DC=com",
+        "username": "Username",
+        "usernamePlaceholder": "service-account@domain.com",
+        "password": "Password",
+        "passwordPlaceholder": "••••••••",
+        "studentsOU": "Students OU",
+        "studentsOUPlaceholder": "OU=Students,DC=your,DC=domain,DC=com",
+        "save": "Save Configuration",
+        "saving": "Saving...",
+        "success": "LDAP configuration saved successfully",
+        "error": "Could not save LDAP configuration"
+      },
+      "general": {
+        "title": "General Settings",
+        "description": "Configure general application settings",
+        "language": "Language",
+        "theme": "Theme",
+        "schoolYear": "School Year",
+        "save": "Save Settings",
+        "saving": "Saving...",
+        "success": "Settings saved successfully",
+        "error": "Could not save settings"
       }
     }
   }

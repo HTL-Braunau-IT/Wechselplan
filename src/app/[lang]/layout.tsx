@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
-import { Header } from '@/components/layout/header'
-import { I18nProvider } from '@/components/providers/i18n-provider'
+import { Header } from '~/components/layout/header'
+import { I18nProvider } from '~/components/providers/i18n-provider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -19,14 +19,18 @@ export default async function LangLayout({
   params: { lang: string }
 }) {
   const resolvedParams = await Promise.resolve(params)
+  
+  // Set the lang attribute on the html element
+  if (typeof document !== 'undefined') {
+    document.documentElement.lang = resolvedParams.lang
+  }
+
   return (
-    <html lang={resolvedParams.lang}>
-      <body className={inter.className}>
-        <I18nProvider>
-          <Header />
-          {children}
-        </I18nProvider>
-      </body>
-    </html>
+    <I18nProvider>
+      <Header />
+      <div className="pt-16">
+        {children}
+      </div>
+    </I18nProvider>
   )
 } 

@@ -1,12 +1,10 @@
 'use client'
 
-import type { PropsWithChildren } from 'react'
-import { useEffect, useState } from 'react'
-import { I18nextProvider } from 'react-i18next'
 import { useParams } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import i18n from '@/lib/i18n'
 
-export function I18nProvider({ children }: PropsWithChildren) {
+export function I18nProvider({ children }: { children: React.ReactNode }) {
   const params = useParams()
   const lang = params.lang as string
   const [isReady, setIsReady] = useState(false)
@@ -18,9 +16,10 @@ export function I18nProvider({ children }: PropsWithChildren) {
         setIsReady(true)
       } catch (error) {
         console.error('Failed to initialize i18n:', error)
-        setIsReady(true) // Set ready even on error to not block rendering
+        setIsReady(true) // Still set ready to avoid blocking the app
       }
     }
+
     initI18n()
   }, [lang])
 
@@ -28,5 +27,5 @@ export function I18nProvider({ children }: PropsWithChildren) {
     return null
   }
 
-  return <I18nextProvider i18n={i18n}>{children}</I18nextProvider>
+  return <>{children}</>
 } 
