@@ -108,6 +108,15 @@ export function Header({ dict }: HeaderProps) {
                   {dict.navigation.students}
                 </Link>
               </li>
+              <li>
+                <Link
+                  href={`/${lang}/schedule/create`}
+                  className="block py-2 hover:text-blue-600"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Plan erstellen
+                </Link>
+              </li>
             </ul>
           </nav>
         </div>

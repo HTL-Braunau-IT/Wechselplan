@@ -10,3 +10,31 @@ datasource db {
     url      = env("DATABASE_URL")
 }
 
+model Student {
+    id        Int      @id @default(autoincrement())
+    firstName String
+    lastName  String
+    class     String   // e.g., "1AHITS", "2AFELC", "3BHME"
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+    schedules Schedule[]
+
+    @@index([class])
+}
+
+model Schedule {
+    id        Int      @id @default(autoincrement())
+    class     String   // e.g., "1AHITS", "2AFELC", "3BHME"
+    weekDay   Int      // 1-5 for Monday-Friday
+    period    Int      // Period number in the day
+    subject   String
+    teacher   String
+    room      String
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+    students  Student[]
+
+    @@index([class])
+    @@unique([class, weekDay, period])
+}
+
