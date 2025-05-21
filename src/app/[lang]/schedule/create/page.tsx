@@ -17,6 +17,35 @@ interface Group {
 	students: Student[]
 }
 
+const translations = {
+	en: {
+		schedule: {
+			selectClass: 'Select Class',
+			loadingClasses: 'Loading classes...',
+			loadingStudents: 'Loading students...',
+			class: 'Class',
+			pleaseSelect: 'Please select...',
+			next: 'Next',
+			studentsOfClass: 'Students of class {{class}}',
+			numberOfGroups: 'Number of Groups',
+			group: 'Group'
+		}
+	},
+	de: {
+		schedule: {
+			selectClass: 'Klasse auswählen',
+			loadingClasses: 'Lade Klassen...',
+			loadingStudents: 'Lade Schüler...',
+			class: 'Klasse',
+			pleaseSelect: 'Bitte wählen...',
+			next: 'Weiter',
+			studentsOfClass: 'Schüler der Klasse {{class}}',
+			numberOfGroups: 'Anzahl Gruppen',
+			group: 'Gruppe'
+		}
+	}
+}
+
 function StudentItem({ student, index }: { student: Student, index: number }) {
 	const { attributes, listeners, setNodeRef, transform } = useDraggable({
 		id: student.id.toString()
@@ -40,10 +69,12 @@ function StudentItem({ student, index }: { student: Student, index: number }) {
 	)
 }
 
-function GroupContainer({ group, children, dict }: { group: Group, children: React.ReactNode, dict: any }) {
+function GroupContainer({ group, children, lang }: { group: Group, children: React.ReactNode, lang: string }) {
 	const { setNodeRef, isOver } = useDroppable({
 		id: group.id.toString()
 	})
+
+	const t = translations[lang as keyof typeof translations]
 
 	return (
 		<div 
@@ -52,7 +83,7 @@ function GroupContainer({ group, children, dict }: { group: Group, children: Rea
 				isOver ? 'bg-blue-50 border-blue-300' : ''
 			}`}
 		>
-			<h3 className="font-semibold mb-2">{dict.schedule.group} {group.id}</h3>
+			<h3 className="font-semibold mb-2">{t.schedule.group} {group.id}</h3>
 			{children}
 		</div>
 	)
@@ -62,20 +93,7 @@ export default function ScheduleClassSelectPage() {
 	const params = useParams<{ lang: string }>()
 	const router = useRouter()
 	const lang = params?.lang || 'de'
-	const [dict, setDict] = useState<any>(null)
-
-	useEffect(() => {
-		async function loadDictionary() {
-			try {
-				const response = await fetch(`/api/translations?lang=${lang}`)
-				const data = await response.json()
-				setDict(data)
-			} catch (error) {
-				console.error('Failed to load translations:', error)
-			}
-		}
-		loadDictionary()
-	}, [lang])
+	const t = translations[lang as keyof typeof translations]
 
 	const [classes, setClasses] = useState<string[]>([])
 	const [selectedClass, setSelectedClass] = useState('')
@@ -222,20 +240,18 @@ export default function ScheduleClassSelectPage() {
 		setActiveStudent(null)
 	}
 
-	if (!dict) return null
-
 	return (
 		<div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
 			<div className="bg-white rounded shadow p-8 w-full max-w-4xl">
-				<h1 className="text-2xl font-bold mb-6 text-center">{dict.schedule.selectClass}</h1>
+				<h1 className="text-2xl font-bold mb-6 text-center">{t.schedule.selectClass}</h1>
 				{loading && !selectedClass ? (
-					<p>{dict.schedule.loadingClasses}</p>
+					<p>{t.schedule.loadingClasses}</p>
 				) : error ? (
 					<p className="text-red-500">{error}</p>
 				) : (
 					<div className="space-y-6">
 						<form onSubmit={e => { e.preventDefault(); handleNext() }} className="mb-8">
-							<label htmlFor="class-select" className="block mb-2 font-medium">{dict.schedule.class}</label>
+							<label htmlFor="class-select" className="block mb-2 font-medium">{t.schedule.class}</label>
 							<select
 								id="class-select"
 								value={selectedClass}
@@ -243,7 +259,7 @@ export default function ScheduleClassSelectPage() {
 								className="w-full border rounded px-3 py-2 mb-4"
 								required
 							>
-								<option value="" disabled>{dict.schedule.pleaseSelect}</option>
+								<option value="" disabled>{t.schedule.pleaseSelect}</option>
 								{classes.map(cls => (
 									<option key={cls} value={cls}>{cls}</option>
 								))}
@@ -253,17 +269,17 @@ export default function ScheduleClassSelectPage() {
 								disabled={!selectedClass}
 								className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition"
 							>
-								{dict.schedule.next}
+								{t.schedule.next}
 							</button>
 						</form>
 
 						{selectedClass && (
 							<div>
 								<div className="flex justify-between items-center mb-4">
-									<h2 className="text-xl font-semibold">{dict.schedule.studentsOfClass.replace('{{class}}', selectedClass)}</h2>
+									<h2 className="text-xl font-semibold">{t.schedule.studentsOfClass.replace('{{class}}', selectedClass)}</h2>
 									<div className="flex items-center gap-2">
 										<label htmlFor="group-size" className="text-sm font-medium">
-											{dict.schedule.numberOfGroups}:
+											{t.schedule.numberOfGroups}:
 										</label>
 										<select
 											id="group-size"
@@ -278,7 +294,7 @@ export default function ScheduleClassSelectPage() {
 									</div>
 								</div>
 								{loading ? (
-									<p>{dict.schedule.loadingStudents}</p>
+									<p>{t.schedule.loadingStudents}</p>
 								) : (
 									<DndContext
 										sensors={sensors}
@@ -293,7 +309,7 @@ export default function ScheduleClassSelectPage() {
 													: 'grid-cols-2 justify-items-center'
 										}`}>
 											{groups.map((group) => (
-												<GroupContainer key={group.id} group={group} dict={dict}>
+												<GroupContainer key={group.id} group={group} lang={lang}>
 													<div className="space-y-2">
 														{group.students.map((student, index) => (
 															<StudentItem 
