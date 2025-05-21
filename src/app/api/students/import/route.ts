@@ -3,11 +3,11 @@ import * as ldap from 'ldapjs'
 
 // LDAP Configuration
 const LDAP_CONFIG = {
-  url: process.env.LDAP_URL || 'ldap://your-domain-controller',
-  baseDN: process.env.LDAP_BASE_DN || 'DC=your,DC=domain,DC=com',
-  username: process.env.LDAP_USERNAME || '',
-  password: process.env.LDAP_PASSWORD || '',
-  studentsOU: process.env.LDAP_STUDENTS_OU || 'OU=Students,DC=your,DC=domain,DC=com'
+  url: process.env.LDAP_URL ?? 'ldap://your-domain-controller',
+  baseDN: process.env.LDAP_BASE_DN ?? 'DC=your,DC=domain,DC=com',
+  username: process.env.LDAP_USERNAME ?? '',
+  password: process.env.LDAP_PASSWORD ?? '',
+  studentsOU: process.env.LDAP_STUDENTS_OU ?? 'OU=Students,DC=your,DC=domain,DC=com'
 }
 
 interface LDAPClass {
@@ -18,6 +18,22 @@ interface LDAPClass {
 interface LDAPStudent {
   givenName: string
   sn: string
+}
+
+interface LDAPAttribute {
+  type: string
+  values: string[]
+}
+
+interface LDAPEntry {
+  attributes: LDAPAttribute[]
+}
+
+interface LDAPSearchResponse {
+  on(event: 'searchEntry', callback: (entry: LDAPEntry) => void): void
+  on(event: 'page', callback: (result: unknown) => void): void
+  on(event: 'end', callback: (result: unknown) => void): void
+  on(event: 'error', callback: (err: Error) => void): void
 }
 
 interface ImportData {
@@ -55,12 +71,12 @@ export async function POST() {
     console.log('Searching in:', LDAP_CONFIG.studentsOU)
 
     // First, verify the Students OU exists
-    const studentsOUExists = await new Promise<boolean>((resolve, reject) => {
+    const studentsOUExists = await new Promise<boolean>((resolve) => {
       client.search(LDAP_CONFIG.studentsOU, {
         filter: '(objectClass=*)',
         scope: 'base',
         attributes: ['ou']
-      }, (err: Error | null, res: any) => {
+      }, (err: Error | null, res: LDAPSearchResponse) => {
         if (err) {
           console.error('Error checking Students OU:', err)
           resolve(false)
@@ -89,7 +105,7 @@ export async function POST() {
         filter: '(objectClass=organizationalUnit)',
         scope: 'sub', // Changed from 'one' to 'sub' to search recursively
         attributes: ['ou', 'distinguishedName']
-      }, (err: Error | null, res: any) => {
+      }, (err: Error | null, res: LDAPSearchResponse) => {
         if (err) {
           console.error('Error searching for class OUs:', err)
           reject(err)
@@ -97,13 +113,13 @@ export async function POST() {
         }
 
         const classes: LDAPClass[] = []
-        res.on('searchEntry', (entry: any) => {
-          const ou = entry.attributes.find((attr: any) => attr.type === 'ou')?.values[0]
-          const dn = entry.attributes.find((attr: any) => attr.type === 'distinguishedName')?.values[0]
+        res.on('searchEntry', (entry: LDAPEntry) => {
+          const ou = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'ou')?.values[0]
+          const dn = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'distinguishedName')?.values[0]
           console.log('Found class OU:', { ou, dn })
           // Only include OUs that are direct children of the Students OU and start with a number
-          if (dn && dn.includes(LDAP_CONFIG.studentsOU) && /^\d/.test(ou)) {
-            classes.push({ ou, distinguishedName: dn })
+          if (dn && dn.includes(LDAP_CONFIG.studentsOU) && /^\d/.test(ou ?? '')) {
+            classes.push({ ou: ou ?? '', distinguishedName: dn ?? '' })
           }
         })
         res.on('end', () => {
@@ -133,7 +149,7 @@ export async function POST() {
 
       const students = await new Promise<LDAPStudent[]>((resolve, reject) => {
         const students: LDAPStudent[] = []
-        let searchOptions: ldap.SearchOptions = {
+        const searchOptions: ldap.SearchOptions = {
           filter: '(objectClass=user)',
           scope: 'sub' as const,
           attributes: ['givenName', 'sn'],
@@ -141,26 +157,26 @@ export async function POST() {
           sizeLimit: 1000
         }
 
-        client.search(studentsOU, searchOptions, (err: Error | null, res: any) => {
+        client.search(studentsOU, searchOptions, (err: Error | null, res: LDAPSearchResponse) => {
           if (err) {
             console.error(`Error searching for students in ${studentsOU}:`, err)
             reject(err)
             return
           }
 
-          res.on('searchEntry', (entry: any) => {
-            const givenName = entry.attributes.find((attr: any) => attr.type === 'givenName')?.values[0]
-            const sn = entry.attributes.find((attr: any) => attr.type === 'sn')?.values[0]
+          res.on('searchEntry', (entry: LDAPEntry) => {
+            const givenName = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'givenName')?.values[0]
+            const sn = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'sn')?.values[0]
             if (givenName && sn) {
               students.push({ givenName, sn })
             }
           })
 
-          res.on('page', (result: any) => {
+          res.on('page', () => {
             console.log(`Received page of results for ${className}`)
           })
 
-          res.on('end', (result: any) => {
+          res.on('end', () => {
             console.log(`Found ${students.length} students in class ${className}`)
             resolve(students)
           })

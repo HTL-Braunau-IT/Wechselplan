@@ -3,6 +3,15 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
+interface ScheduleInput {
+  class: string
+  weekDay: number
+  period: number
+  subject: string
+  teacher: string
+  room: string
+}
+
 // GET /api/schedules - Get all schedules for a class
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
@@ -39,7 +48,7 @@ export async function GET(request: Request) {
 // POST /api/schedules - Create a new schedule entry
 export async function POST(request: Request) {
     try {
-        const body = await request.json()
+        const body = await request.json() as ScheduleInput
         const { class: className, weekDay, period, subject, teacher, room } = body
 
         // Validate required fields

@@ -123,15 +123,15 @@ export default function ScheduleClassSelectPage() {
 			try {
 				const res = await fetch('/api/classes')
 				if (!res.ok) throw new Error('Failed to fetch classes')
-				const data = await res.json()
+				const data = await res.json() as string[]
 				setClasses(data)
-			} catch (err) {
+			} catch {
 				setError('Fehler beim Laden der Klassen.')
 			} finally {
 				setLoading(false)
 			}
 		}
-		fetchClasses()
+		void fetchClasses()
 	}, [])
 
 	useEffect(() => {
@@ -142,15 +142,15 @@ export default function ScheduleClassSelectPage() {
 			try {
 				const res = await fetch(`/api/students?class=${selectedClass}`)
 				if (!res.ok) throw new Error('Failed to fetch students')
-				const data = await res.json()
+				const data = await res.json() as Student[]
 				setStudents(data)
-			} catch (err) {
+			} catch {
 				setError('Fehler beim Laden der Schüler.')
 			} finally {
 				setLoading(false)
 			}
 		}
-		fetchStudents()
+		void fetchStudents()
 	}, [selectedClass])
 
 	// Split students into groups whenever students or numberOfGroups changes

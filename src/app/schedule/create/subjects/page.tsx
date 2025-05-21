@@ -10,8 +10,8 @@ export default function ScheduleSubjectsPage() {
 	const lang = params?.lang || 'de'
 	const className = searchParams.get('class')
 
-	const [loading, setLoading] = useState(true)
-	const [error, setError] = useState('')
+	const [loading] = useState(true)
+	const [error] = useState('')
 
 	useEffect(() => {
 		if (!className) {

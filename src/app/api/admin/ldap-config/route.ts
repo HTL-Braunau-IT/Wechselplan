@@ -4,16 +4,23 @@ import path from 'path'
 
 const envFilePath = path.join(process.cwd(), '.env')
 
+interface LDAPConfig {
+  url: string
+  baseDN: string
+  username: string
+  password: string
+  studentsOU: string
+}
+
 // GET /api/admin/ldap-config - Get current LDAP configuration
 export async function GET() {
   try {
-    const envContent = fs.readFileSync(envFilePath, 'utf-8')
-    const config = {
-      url: process.env.LDAP_URL || '',
-      baseDN: process.env.LDAP_BASE_DN || '',
-      username: process.env.LDAP_USERNAME || '',
-      password: process.env.LDAP_PASSWORD || '',
-      studentsOU: process.env.LDAP_STUDENTS_OU || ''
+    const config: LDAPConfig = {
+      url: process.env.LDAP_URL ?? '',
+      baseDN: process.env.LDAP_BASE_DN ?? '',
+      username: process.env.LDAP_USERNAME ?? '',
+      password: process.env.LDAP_PASSWORD ?? '',
+      studentsOU: process.env.LDAP_STUDENTS_OU ?? ''
     }
     return NextResponse.json(config)
   } catch (error) {
@@ -28,7 +35,7 @@ export async function GET() {
 // POST /api/admin/ldap-config - Update LDAP configuration
 export async function POST(request: Request) {
   try {
-    const config = await request.json()
+    const config = await request.json() as LDAPConfig
     
     // Read current .env file
     let envContent = fs.readFileSync(envFilePath, 'utf-8')

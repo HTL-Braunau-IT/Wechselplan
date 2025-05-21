@@ -26,8 +26,8 @@ export function CSVImport({ onImport }: CSVImportProps) {
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [csvData, setCSVData] = useState<{ [className: string]: CSVClass } | null>(null)
-  const [selectedClasses, setSelectedClasses] = useState<{ [key: string]: boolean }>({})
+  const [csvData, setCSVData] = useState<Record<string, CSVClass> | null>(null)
+  const [selectedClasses, setSelectedClasses] = useState<Record<string, boolean>>({})
 
   const handleDownloadSample = async () => {
     try {
@@ -63,7 +63,7 @@ export function CSVImport({ onImport }: CSVImportProps) {
       // Skip header row and empty lines
       const dataLines = lines.slice(1).filter(line => line.trim())
       
-      const classes: { [key: string]: CSVClass } = {}
+      const classes: Record<string, CSVClass> = {}
       
       for (const line of dataLines) {
         const [className, firstName, lastName] = line.split(',').map(field => field.trim())
@@ -72,11 +72,9 @@ export function CSVImport({ onImport }: CSVImportProps) {
           throw new Error('Invalid CSV format')
         }
 
-        if (!classes[className]) {
-          classes[className] = {
-            name: className,
-            students: []
-          }
+        classes[className] ??= {
+          name: className,
+          students: []
         }
 
         classes[className].students.push({
@@ -91,7 +89,7 @@ export function CSVImport({ onImport }: CSVImportProps) {
       const initialSelection = Object.keys(classes).reduce((acc, className) => {
         acc[className] = true
         return acc
-      }, {} as { [key: string]: boolean })
+      }, {} as Record<string, boolean>)
       setSelectedClasses(initialSelection)
     } catch (err) {
       console.error('Error parsing CSV:', err)

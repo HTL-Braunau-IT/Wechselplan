@@ -1,30 +1,33 @@
 import "server-only";
 
-import { createHydrationHelpers } from "@trpc/react-query/rsc";
-import { headers } from "next/headers";
-import { cache } from "react";
+import { createTRPCReact, httpBatchLink } from '@trpc/react-query'
+import { type inferRouterInputs, type inferRouterOutputs } from '@trpc/server'
+import { QueryClient } from '@tanstack/react-query'
+import superjson from 'superjson'
 
-import { createCaller, type AppRouter } from "~/server/api/root";
-import { createTRPCContext } from "~/server/api/trpc";
-import { createQueryClient } from "./query-client";
+import { type AppRouter } from '~/server/api/root'
 
-/**
- * This wraps the `createTRPCContext` helper and provides the required context for the tRPC API when
- * handling a tRPC call from a React Server Component.
- */
-const createContext = cache(async () => {
-  const heads = new Headers(await headers());
-  heads.set("x-trpc-source", "rsc");
+export const api = createTRPCReact<AppRouter>()
 
-  return createTRPCContext({
-    headers: heads,
-  });
-});
+export const getBaseUrl = () => {
+  if (typeof window !== 'undefined') return '' // browser should use relative url
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}` // SSR should use vercel url
+  return `http://localhost:${process.env.PORT ?? 3000}` // dev SSR should use localhost
+}
 
-const getQueryClient = cache(createQueryClient);
-const caller = createCaller(createContext);
+export const getQueryClient = () => {
+  const queryClient = new QueryClient()
+  return queryClient
+}
 
-export const { trpc: api, HydrateClient } = createHydrationHelpers<AppRouter>(
-  caller,
-  getQueryClient,
-);
+export const trpcClient = api.createClient({
+  links: [
+    httpBatchLink({
+      url: `${getBaseUrl()}/api/trpc`,
+      transformer: superjson,
+    }),
+  ],
+})
+
+export type RouterInputs = inferRouterInputs<AppRouter>
+export type RouterOutputs = inferRouterOutputs<AppRouter>

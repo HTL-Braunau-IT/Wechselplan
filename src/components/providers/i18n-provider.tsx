@@ -1,18 +1,17 @@
 'use client'
 
-import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import i18n from '@/lib/i18n'
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
-  const params = useParams()
-  const lang = params.lang as string
   const [isReady, setIsReady] = useState(false)
 
   useEffect(() => {
     const initI18n = async () => {
       try {
-        await i18n.changeLanguage(lang)
+        // Initialize with the current language or default to 'en'
+        const currentLang = localStorage.getItem('language') ?? 'en'
+        await i18n.changeLanguage(currentLang)
         setIsReady(true)
       } catch (error) {
         console.error('Failed to initialize i18n:', error)
@@ -20,8 +19,8 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    initI18n()
-  }, [lang])
+    void initI18n()
+  }, [])
 
   if (!isReady) {
     return null

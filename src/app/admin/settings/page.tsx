@@ -1,12 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { useState, useEffect } from 'react'
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 
 interface LDAPConfig {
   url: string
@@ -26,15 +25,15 @@ export default function SettingsPage() {
     studentsOU: ''
   })
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
+  const [, setError] = useState<string | null>(null)
+  const [, setSuccess] = useState<string | null>(null)
 
   useEffect(() => {
     // Load current configuration
     fetch('/api/admin/ldap-config')
       .then(res => res.json())
-      .then(data => setConfig(data))
-      .catch(err => setError(t('admin.settings.errors.loadConfig')))
+      .then(data => setConfig(data as LDAPConfig))
+      .catch(() => setError(t('admin.settings.errors.loadConfig')))
   }, [t])
 
   const handleSaveConfig = async (e: React.FormEvent) => {
@@ -52,7 +51,7 @@ export default function SettingsPage() {
 
       if (!response.ok) throw new Error()
       setSuccess(t('admin.settings.success.configSaved'))
-    } catch (err) {
+    } catch {
       setError(t('admin.settings.errors.saveConfig'))
     } finally {
       setIsLoading(false)
@@ -134,18 +133,6 @@ export default function SettingsPage() {
             </form>
           </CardContent>
         </Card>
-
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {success && (
-          <Alert>
-            <AlertDescription>{success}</AlertDescription>
-          </Alert>
-        )}
       </div>
     </div>
   )

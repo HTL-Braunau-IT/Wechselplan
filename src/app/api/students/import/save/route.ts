@@ -9,7 +9,7 @@ interface ImportRequest {
 
 export async function POST(request: Request) {
   try {
-    const data: ImportRequest = await request.json()
+    const data = await request.json() as ImportRequest
     let importedCount = 0
     let updatedCount = 0
 
@@ -22,11 +22,21 @@ export async function POST(request: Request) {
       throw new Error('Failed to fetch import data')
     }
 
-    const importData = await importResponse.json()
+    interface ImportData {
+      classes: {
+        name: string;
+        students: {
+          firstName: string;
+          lastName: string;
+        }[];
+      }[];
+    }
+
+    const importData = await importResponse.json() as ImportData
 
     // Import each selected class
     for (const className of data.classes) {
-      const classData = importData.classes.find((c: any) => c.name === className)
+      const classData = importData.classes.find((c) => c.name === className)
       if (!classData) continue
 
       // Delete existing students in this class
