@@ -7,17 +7,21 @@
     "dark": "Dunkel",
     "light": "Hell",
     "system": "System",
-    "schoolYear": "Schuljahr"
+    "schoolYear": "Schuljahr",
+    "appName": "Wechselplan",
+    "selectSchoolYear": "Schuljahr auswählen"
   },
   "navigation": {
     "home": "Startseite",
     "dashboard": "Dashboard",
     "profile": "Profil",
     "logout": "Abmelden",
-    "schedules": "Stundenpläne",
+    "schedules": "Pläne",
     "students": "Schüler",
     "menu": "Menü",
-    "closeMenu": "Menü schließen"
+    "closeMenu": "Menü schließen",
+    "admin": "Administration",
+    "createSchedule": "Plan erstellen"
   },
   "auth": {
     "login": "Anmelden",
@@ -35,13 +39,60 @@
   },
   "schedule": {
     "selectClass": "Klasse auswählen",
-    "loadingClasses": "Lade Klassen...",
-    "loadingStudents": "Lade Schüler...",
+    "loadingClasses": "Klassen werden geladen...",
+    "loadingStudents": "Schüler werden geladen...",
     "class": "Klasse",
-    "pleaseSelect": "Bitte wählen...",
+    "pleaseSelect": "Bitte auswählen...",
     "next": "Weiter",
     "studentsOfClass": "Schüler der Klasse {{class}}",
-    "numberOfGroups": "Anzahl Gruppen",
+    "numberOfGroups": "Anzahl der Gruppen",
     "group": "Gruppe"
+  },
+  "admin": {
+    "title": "Administration",
+    "studentAdministration": "Schülerverwaltung",
+    "deleteAllData": "Alle Daten löschen",
+    "importFromAD": "Aus Active Directory importieren",
+    "students": {
+      "title": "Schülerverwaltung",
+      "description": "Hier können Sie alle schülerbezogenen Daten verwalten. Nutzen Sie das Menü auf der linken Seite, um durch die verschiedenen Optionen zu navigieren.",
+      "import": {
+        "title": "Schüler importieren",
+        "ldapConfig": "LDAP Konfiguration",
+        "ldapUrl": "LDAP Server URL",
+        "ldapUrlPlaceholder": "ldap://your-domain-controller",
+        "baseDN": "Base DN",
+        "baseDNPlaceholder": "DC=your,DC=domain,DC=com",
+        "username": "Benutzername",
+        "usernamePlaceholder": "service-account@domain.com",
+        "password": "Passwort",
+        "passwordPlaceholder": "••••••••",
+        "studentsOU": "Schüler OU",
+        "studentsOUPlaceholder": "OU=Schueler,DC=your,DC=domain,DC=com",
+        "saveConfig": "Konfiguration speichern",
+        "saving": "Wird gespeichert...",
+        "loading": "Wird geladen...",
+        "previewData": "Daten anzeigen",
+        "importSelected": "Ausgewählte Klassen importieren",
+        "previewTitle": "Datenvorschau",
+        "description": "Dies wird alle Schüler aus dem Active Directory abrufen. Das System erwartet die folgende Struktur:",
+        "structure": {
+          "studentsOU": "Schüler OU enthält Klassen OUs",
+          "classOUs": "Jede Klassen OU enthält Schülerkonten",
+          "studentAccounts": "Schülerkonten mit givenName und sn Attributen"
+        },
+        "classLabel": "Klasse {{name}} ({{count}} Schüler)",
+        "success": {
+          "configSaved": "LDAP Konfiguration erfolgreich gespeichert",
+          "importComplete": "Erfolgreich {{students}} Schüler aus {{classes}} Klassen importiert"
+        },
+        "errors": {
+          "generic": "Ein Fehler ist aufgetreten",
+          "saveConfig": "LDAP Konfiguration konnte nicht gespeichert werden",
+          "fetchStudents": "Schüler konnten nicht abgerufen werden",
+          "importStudents": "Schüler konnten nicht importiert werden"
+        }
+      }
+    }
   }
 } 

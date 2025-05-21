@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter, usePathname } from 'next/navigation'
+import { useTranslation } from 'react-i18next'
 import {
   Select,
   SelectContent,
@@ -12,12 +13,18 @@ import {
 export function LanguageSwitcher() {
   const router = useRouter()
   const pathname = usePathname()
+  const { i18n } = useTranslation()
 
-  const handleLanguageChange = (value: string) => {
+  const handleLanguageChange = async (value: string) => {
     const currentPath = pathname
     const segments = currentPath.split('/')
     segments[1] = value // Replace the language segment
     const newPath = segments.join('/')
+    
+    // Change the language in i18next
+    await i18n.changeLanguage(value)
+    
+    // Navigate to the new path
     router.push(newPath)
   }
 
@@ -26,7 +33,7 @@ export function LanguageSwitcher() {
 
   return (
     <Select
-      defaultValue={currentLang}
+      value={currentLang}
       onValueChange={handleLanguageChange}
     >
       <SelectTrigger className="w-[180px]">

@@ -3,6 +3,7 @@
 import { useSchoolYear } from '../contexts/school-year-context'
 import type { SchoolYear } from '../types/school-year'
 import { generateSchoolYearOptions } from '../types/school-year'
+import { useTranslation } from 'react-i18next'
 import {
   Select,
   SelectContent,
@@ -13,6 +14,7 @@ import {
 
 export function SchoolYearSelector() {
   const { selectedYear, setSelectedYear } = useSchoolYear()
+  const { t } = useTranslation()
   const options = generateSchoolYearOptions()
 
   return (
@@ -21,7 +23,7 @@ export function SchoolYearSelector() {
       onValueChange={(value: string) => setSelectedYear(value as SchoolYear)}
     >
       <SelectTrigger className="w-[180px]">
-        <SelectValue placeholder="Select school year" />
+        <SelectValue placeholder={t('common.selectSchoolYear')} />
       </SelectTrigger>
       <SelectContent>
         {options.map((option) => (

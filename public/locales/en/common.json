@@ -7,7 +7,9 @@
     "dark": "Dark",
     "light": "Light",
     "system": "System",
-    "schoolYear": "School Year"
+    "schoolYear": "School Year",
+    "appName": "Wechselplan",
+    "selectSchoolYear": "Select school year"
   },
   "navigation": {
     "home": "Home",
@@ -17,7 +19,9 @@
     "schedules": "Schedules",
     "students": "Students",
     "menu": "Menu",
-    "closeMenu": "Close Menu"
+    "closeMenu": "Close Menu",
+    "admin": "Administration",
+    "createSchedule": "Create Schedule"
   },
   "auth": {
     "login": "Login",
@@ -43,5 +47,52 @@
     "studentsOfClass": "Students of class {{class}}",
     "numberOfGroups": "Number of Groups",
     "group": "Group"
+  },
+  "admin": {
+    "title": "Administration",
+    "studentAdministration": "Student Administration",
+    "deleteAllData": "Delete All Data",
+    "importFromAD": "Import from AD",
+    "students": {
+      "title": "Student Administration",
+      "description": "Here you can manage all student-related data. Use the menu on the left to navigate through different options.",
+      "import": {
+        "title": "Import Students",
+        "ldapConfig": "LDAP Configuration",
+        "ldapUrl": "LDAP Server URL",
+        "ldapUrlPlaceholder": "ldap://your-domain-controller",
+        "baseDN": "Base DN",
+        "baseDNPlaceholder": "DC=your,DC=domain,DC=com",
+        "username": "Username",
+        "usernamePlaceholder": "service-account@domain.com",
+        "password": "Password",
+        "passwordPlaceholder": "••••••••",
+        "studentsOU": "Students OU",
+        "studentsOUPlaceholder": "OU=Students,DC=your,DC=domain,DC=com",
+        "saveConfig": "Save Configuration",
+        "saving": "Saving...",
+        "loading": "Loading...",
+        "previewData": "Preview Data",
+        "importSelected": "Import Selected Classes",
+        "previewTitle": "Data Preview",
+        "description": "This will fetch all students from Active Directory. The system expects the following structure:",
+        "structure": {
+          "studentsOU": "Students OU contains class OUs",
+          "classOUs": "Each class OU contains student accounts",
+          "studentAccounts": "Student accounts with givenName and sn attributes"
+        },
+        "classLabel": "Class {{name}} ({{count}} students)",
+        "success": {
+          "configSaved": "LDAP configuration saved successfully",
+          "importComplete": "Successfully imported {{students}} students from {{classes}} classes"
+        },
+        "errors": {
+          "generic": "An error occurred",
+          "saveConfig": "Could not save LDAP configuration",
+          "fetchStudents": "Could not fetch students",
+          "importStudents": "Could not import students"
+        }
+      }
+    }
   }
 } 

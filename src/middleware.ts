@@ -12,12 +12,22 @@ function getLocale(request: NextRequest): string {
 
   const languages = new Negotiator({ headers: negotiatorHeaders }).languages()
   const locales = ['en', 'de']
-  
-  return matchLocale(languages, locales, defaultLocale)
+
+  try {
+    return matchLocale(languages, locales, defaultLocale)
+  } catch (error) {
+    return defaultLocale
+  }
 }
 
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
+
+  // Skip locale redirection for translation files
+  if (pathname.startsWith('/locales/')) {
+    return NextResponse.next()
+  }
+
   const pathnameIsMissingLocale = locales.every(
     (locale) => !pathname.startsWith(`/${locale}/`) && pathname !== `/${locale}`
   )

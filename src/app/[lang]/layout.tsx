@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { Header } from '@/components/layout/header'
-import { getDictionary } from '@/lib/dictionary'
+import { I18nProvider } from '@/components/providers/i18n-provider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -19,12 +19,14 @@ export default async function LangLayout({
   params: { lang: string }
 }) {
   const resolvedParams = await Promise.resolve(params)
-  const dict = await getDictionary(resolvedParams.lang)
-
   return (
-    <>
-      <Header dict={dict} />
-      {children}
-    </>
+    <html lang={resolvedParams.lang}>
+      <body className={inter.className}>
+        <I18nProvider>
+          <Header />
+          {children}
+        </I18nProvider>
+      </body>
+    </html>
   )
 } 
