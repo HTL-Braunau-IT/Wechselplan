@@ -31,7 +31,10 @@ export function Header() {
 
           {/* School Year Selector */}
           <div className="flex items-center">
+          <p className='mr-4'>School Year:</p>
+          <div className="flex items-center">
             <SchoolYearSelector />
+          </div>
           </div>
         </div>
       </div>
