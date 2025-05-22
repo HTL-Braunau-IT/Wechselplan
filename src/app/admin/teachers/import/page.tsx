@@ -85,7 +85,7 @@ export default function ImportPage() {
 
     try {
       const selectedTeachers = importData.teachers.filter(teacher => 
-        selectedTeacherKeys.includes(`${teacher.firstName} ${teacher.lastName}`)
+        selectedTeacherKeys.includes(`${teacher.firstName} ${teacher.lastName}-${importData.teachers.indexOf(teacher)}`)
       )
 
       const response = await fetch('/api/teachers/import/save', {
