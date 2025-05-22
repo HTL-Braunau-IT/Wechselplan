@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { parse } from 'csv-parse/sync'
+import { Prisma } from '@prisma/client'
 
 interface ImportRequest {
 	type: 'room' | 'subject' | 'learningContent'
@@ -9,8 +10,8 @@ interface ImportRequest {
 
 interface ImportData {
 	name: string
-	description?: string | null
 	capacity?: number | null
+	description?: string | null
 }
 
 export async function POST(request: Request) {
@@ -23,10 +24,14 @@ export async function POST(request: Request) {
 			columns: true,
 			skip_empty_lines: true,
 			trim: true
-		})
+		}) as Record<string, string>[]
 
 		// Validate and transform data based on type
 		const transformedData: ImportData[] = records.map((record: Record<string, string>) => {
+			if (!record.name) {
+				throw new Error('Name is required for all records')
+			}
+
 			switch (type) {
 				case 'room':
 					return {
@@ -50,31 +55,37 @@ export async function POST(request: Request) {
 		})
 
 		// Import data using Prisma
-		let result
+		let result: { count: number }
 		switch (type) {
 			case 'room': {
-				const existing = await prisma.room.findMany({ select: { name: true } })
-				const existingNames = new Set(existing.map((r: { name: string }) => r.name))
-				const filteredData = transformedData.filter((item) => !existingNames.has(item.name))
-				result = await prisma.room.createMany({
+				const existing = await (prisma as unknown as { room: { findMany: (args: Prisma.RoomFindManyArgs) => Promise<{ name: string }[]> } }).room.findMany({ 
+					select: { name: true } 
+				})
+				const existingNames = new Set(existing.map(r => r.name))
+				const filteredData = transformedData.filter(item => !existingNames.has(item.name))
+				result = await (prisma as unknown as { room: { createMany: (args: Prisma.RoomCreateManyArgs) => Promise<{ count: number }> } }).room.createMany({
 					data: filteredData
 				})
 				break
 			}
 			case 'subject': {
-				const existing = await prisma.subject.findMany({ select: { name: true } })
-				const existingNames = new Set(existing.map((s: { name: string }) => s.name))
-				const filteredData = transformedData.filter((item) => !existingNames.has(item.name))
-				result = await prisma.subject.createMany({
+				const existing = await (prisma as unknown as { subject: { findMany: (args: Prisma.SubjectFindManyArgs) => Promise<{ name: string }[]> } }).subject.findMany({ 
+					select: { name: true } 
+				})
+				const existingNames = new Set(existing.map(s => s.name))
+				const filteredData = transformedData.filter(item => !existingNames.has(item.name))
+				result = await (prisma as unknown as { subject: { createMany: (args: Prisma.SubjectCreateManyArgs) => Promise<{ count: number }> } }).subject.createMany({
 					data: filteredData
 				})
 				break
 			}
 			case 'learningContent': {
-				const existing = await prisma.learningContent.findMany({ select: { name: true } })
-				const existingNames = new Set(existing.map((lc: { name: string }) => lc.name))
-				const filteredData = transformedData.filter((item) => !existingNames.has(item.name))
-				result = await prisma.learningContent.createMany({
+				const existing = await (prisma as unknown as { learningContent: { findMany: (args: Prisma.LearningContentFindManyArgs) => Promise<{ name: string }[]> } }).learningContent.findMany({ 
+					select: { name: true } 
+				})
+				const existingNames = new Set(existing.map(lc => lc.name))
+				const filteredData = transformedData.filter(item => !existingNames.has(item.name))
+				result = await (prisma as unknown as { learningContent: { createMany: (args: Prisma.LearningContentCreateManyArgs) => Promise<{ count: number }> } }).learningContent.createMany({
 					data: filteredData
 				})
 				break

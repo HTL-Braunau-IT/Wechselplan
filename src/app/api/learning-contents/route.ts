@@ -2,9 +2,14 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 
+interface LearningContent {
+	id: string
+	name: string
+}
+
 export async function GET() {
 	try {
-		const learningContents = await prisma.learningContent.findMany({
+		const learningContents = await (prisma as unknown as { learningContent: { findMany: (args: Prisma.LearningContentFindManyArgs) => Promise<LearningContent[]> } }).learningContent.findMany({
 			select: {
 				id: true,
 				name: true
@@ -15,7 +20,7 @@ export async function GET() {
 		})
 
 		return NextResponse.json({ learningContents })
-	} catch (error) {
+	} catch (error: unknown) {
 		if (error instanceof Prisma.PrismaClientKnownRequestError) {
 			console.error('Prisma error fetching learning contents:', error.message)
 		} else if (error instanceof Error) {
