@@ -21,5 +21,10 @@
   "enterRoom": "Raum eingeben",
   "noTeachersFound": "Keine Lehrer gefunden",
   "loading": "Laden...",
-  "noClassSelected": "Keine Klasse ausgewählt"
+  "noClassSelected": "Keine Klasse ausgewählt",
+  "steps": {
+    "class": "Klasse & Gruppen",
+    "teachers": "Lehrer zuweisen",
+    "review": "Überprüfen"
+  }
 } 
