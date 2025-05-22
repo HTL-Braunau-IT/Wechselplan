@@ -1,0 +1,11 @@
+{
+  "selectClass": "Klasse auswählen",
+  "loadingClasses": "Lade Klassen...",
+  "loadingStudents": "Lade Schüler...",
+  "class": "Klasse",
+  "pleaseSelect": "Bitte wählen...",
+  "next": "Weiter",
+  "studentsOfClass": "Schüler der Klasse {{class}}",
+  "numberOfGroups": "Anzahl Gruppen",
+  "group": "Gruppe"
+} 

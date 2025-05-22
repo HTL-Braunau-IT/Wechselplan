@@ -1,0 +1,11 @@
+{
+  "selectClass": "Select Class",
+  "loadingClasses": "Loading classes...",
+  "loadingStudents": "Loading students...",
+  "class": "Class",
+  "pleaseSelect": "Please select...",
+  "next": "Next",
+  "studentsOfClass": "Students of class {{class}}",
+  "numberOfGroups": "Number of Groups",
+  "group": "Group"
+} 

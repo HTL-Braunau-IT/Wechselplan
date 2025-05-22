@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors, useDroppable, useDraggable } from '@dnd-kit/core'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
+import { useTranslation } from 'next-i18next'
 
 interface Student {
 	id: number
@@ -17,36 +18,7 @@ interface Group {
 	students: Student[]
 }
 
-const translations = {
-	en: {
-		schedule: {
-			selectClass: 'Select Class',
-			loadingClasses: 'Loading classes...',
-			loadingStudents: 'Loading students...',
-			class: 'Class',
-			pleaseSelect: 'Please select...',
-			next: 'Next',
-			studentsOfClass: 'Students of class {{class}}',
-			numberOfGroups: 'Number of Groups',
-			group: 'Group'
-		}
-	},
-	de: {
-		schedule: {
-			selectClass: 'Klasse auswählen',
-			loadingClasses: 'Lade Klassen...',
-			loadingStudents: 'Lade Schüler...',
-			class: 'Klasse',
-			pleaseSelect: 'Bitte wählen...',
-			next: 'Weiter',
-			studentsOfClass: 'Schüler der Klasse {{class}}',
-			numberOfGroups: 'Anzahl Gruppen',
-			group: 'Gruppe'
-		}
-	}
-}
-
-function StudentItem({ student, index }: { student: Student, index: number }) {
+function StudentItem({ student, index, onRemove }: { student: Student, index: number, onRemove: (studentId: number) => void }) {
 	const { attributes, listeners, setNodeRef, transform } = useDraggable({
 		id: student.id.toString()
 	})
@@ -61,20 +33,33 @@ function StudentItem({ student, index }: { student: Student, index: number }) {
 			style={style}
 			{...listeners}
 			{...attributes}
-			className="text-sm p-2 bg-gray-50 rounded cursor-move hover:bg-gray-100 transition"
+			className="text-sm p-2 bg-gray-50 rounded cursor-move hover:bg-gray-100 transition flex items-center justify-between group"
 		>
-			<span className="text-gray-500 mr-2">{index + 1}.</span>
-			{student.lastName}, {student.firstName}
+			<div>
+				<span className="text-gray-500 mr-2">{index + 1}.</span>
+				{student.lastName}, {student.firstName}
+			</div>
+			<button
+				onClick={(e) => {
+					e.stopPropagation()
+					onRemove(student.id)
+				}}
+				className="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
+				title="Remove student"
+			>
+				<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+					<path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+				</svg>
+			</button>
 		</div>
 	)
 }
 
-function GroupContainer({ group, children, lang }: { group: Group, children: React.ReactNode, lang: string }) {
+function GroupContainer({ group, children }: { group: Group, children: React.ReactNode }) {
+	const { t } = useTranslation('schedule')
 	const { setNodeRef, isOver } = useDroppable({
 		id: group.id.toString()
 	})
-
-	const t = translations[lang as keyof typeof translations]
 
 	return (
 		<div 
@@ -83,7 +68,7 @@ function GroupContainer({ group, children, lang }: { group: Group, children: Rea
 				isOver ? 'bg-blue-50 border-blue-300' : ''
 			}`}
 		>
-			<h3 className="font-semibold mb-2">{t.schedule.group} {group.id}</h3>
+			<h3 className="font-semibold mb-2">{t('group')} {group.id}</h3>
 			{children}
 		</div>
 	)
@@ -92,8 +77,7 @@ function GroupContainer({ group, children, lang }: { group: Group, children: Rea
 export default function ScheduleClassSelectPage() {
 	const params = useParams<{ lang: string }>()
 	const router = useRouter()
-	const lang = params?.lang || 'de'
-	const t = translations[lang as keyof typeof translations]
+	const { t } = useTranslation('schedule')
 
 	const [classes, setClasses] = useState<string[]>([])
 	const [selectedClass, setSelectedClass] = useState('')
@@ -182,9 +166,44 @@ export default function ScheduleClassSelectPage() {
 		setNumberOfGroups(Number(e.target.value))
 	}
 
-	function handleNext() {
-		// Navigate to the next step in schedule creation
-		router.push(`/schedule/create/subjects?class=${selectedClass}`)
+	async function handleNext() {
+		try {
+			// Get all students that are still in groups
+			const activeStudents = groups.flatMap(group => group.students)
+			const activeStudentIds = activeStudents.map(student => student.id)
+
+			// Get all students that were removed
+			const removedStudents = students.filter(student => !activeStudentIds.includes(student.id))
+
+			// Store the group assignments
+			const assignments = groups.map(group => ({
+				groupId: group.id,
+				studentIds: group.students.map(student => student.id)
+			}))
+
+			// Store assignments and handle removed students
+			const response = await fetch('/api/schedule/assignments', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					class: selectedClass,
+					assignments,
+					removedStudentIds: removedStudents.map(student => student.id)
+				}),
+			})
+
+			if (!response.ok) {
+				throw new Error('Failed to store assignments')
+			}
+
+			// Navigate to the next step
+			router.push(`/schedule/create/subjects?class=${selectedClass}`)
+		} catch (error) {
+			console.error('Error storing assignments:', error)
+			setError('Failed to store assignments. Please try again.')
+		}
 	}
 
 	function handleDragStart(event: DragStartEvent) {
@@ -243,15 +262,18 @@ export default function ScheduleClassSelectPage() {
 	return (
 		<div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
 			<div className="bg-white rounded shadow p-8 w-full max-w-4xl">
-				<h1 className="text-2xl font-bold mb-6 text-center">{t.schedule.selectClass}</h1>
+				<h1 className="text-2xl font-bold mb-6 text-center">{t('selectClass')}</h1>
 				{loading && !selectedClass ? (
-					<p>{t.schedule.loadingClasses}</p>
+					<p>{t('loadingClasses')}</p>
 				) : error ? (
 					<p className="text-red-500">{error}</p>
 				) : (
 					<div className="space-y-6">
-						<form onSubmit={e => { e.preventDefault(); handleNext() }} className="mb-8">
-							<label htmlFor="class-select" className="block mb-2 font-medium">{t.schedule.class}</label>
+						<form onSubmit={async e => { 
+							e.preventDefault()
+							await handleNext()
+						}} className="mb-8">
+							<label htmlFor="class-select" className="block mb-2 font-medium">{t('class')}</label>
 							<select
 								id="class-select"
 								value={selectedClass}
@@ -259,7 +281,7 @@ export default function ScheduleClassSelectPage() {
 								className="w-full border rounded px-3 py-2 mb-4"
 								required
 							>
-								<option value="" disabled>{t.schedule.pleaseSelect}</option>
+								<option value="" disabled>{t('pleaseSelect')}</option>
 								{classes.map(cls => (
 									<option key={cls} value={cls}>{cls}</option>
 								))}
@@ -269,17 +291,17 @@ export default function ScheduleClassSelectPage() {
 								disabled={!selectedClass}
 								className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition"
 							>
-								{t.schedule.next}
+								{t('next')}
 							</button>
 						</form>
 
 						{selectedClass && (
 							<div>
 								<div className="flex justify-between items-center mb-4">
-									<h2 className="text-xl font-semibold">{t.schedule.studentsOfClass.replace('{{class}}', selectedClass)}</h2>
+									<h2 className="text-xl font-semibold">{t('studentsOfClass', { class: selectedClass })}</h2>
 									<div className="flex items-center gap-2">
 										<label htmlFor="group-size" className="text-sm font-medium">
-											{t.schedule.numberOfGroups}:
+											{t('numberOfGroups')}:
 										</label>
 										<select
 											id="group-size"
@@ -294,7 +316,7 @@ export default function ScheduleClassSelectPage() {
 									</div>
 								</div>
 								{loading ? (
-									<p>{t.schedule.loadingStudents}</p>
+									<p>{t('loadingStudents')}</p>
 								) : (
 									<DndContext
 										sensors={sensors}
@@ -309,13 +331,27 @@ export default function ScheduleClassSelectPage() {
 													: 'grid-cols-2 justify-items-center'
 										}`}>
 											{groups.map((group) => (
-												<GroupContainer key={group.id} group={group} lang={lang}>
+												<GroupContainer key={group.id} group={group}>
 													<div className="space-y-2">
 														{group.students.map((student, index) => (
 															<StudentItem 
 																key={student.id} 
 																student={student} 
 																index={index}
+																onRemove={(studentId) => {
+																	setGroups(currentGroups => {
+																		const newGroups = [...currentGroups]
+																		const sourceGroupIndex = newGroups.findIndex(group => 
+																			group.students.some(s => s.id === studentId)
+																		)
+																		if (sourceGroupIndex !== -1) {
+																			newGroups[sourceGroupIndex]!.students = newGroups[sourceGroupIndex]!.students.filter(
+																				s => s.id !== studentId
+																			)
+																		}
+																		return newGroups
+																	})
+																}}
 															/>
 														))}
 													</div>

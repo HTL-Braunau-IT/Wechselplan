@@ -164,6 +164,11 @@ export default function ImportPage() {
             {importData && (
               <div className="space-y-4">
                 <h2 className="text-xl font-semibold">{t('admin.students.import.previewTitle')}</h2>
+                <div className="flex justify-begin">
+                  <Button onClick={() => handleImport(Object.keys(selectedClasses).filter(key => selectedClasses[key]))} disabled={isLoading}>
+                    {t('admin.students.import.importSelected')}
+                  </Button>
+                </div>
                 <div className="space-y-4">
                   {Object.entries(importData).map(([className, data]) => (
                     <div key={className} className="border rounded-lg p-4 bg-gray-50">
@@ -189,11 +194,7 @@ export default function ImportPage() {
                     </div>
                   ))}
                 </div>
-                <div className="flex justify-end">
-                  <Button onClick={() => handleImport(Object.keys(selectedClasses).filter(key => selectedClasses[key]))} disabled={isLoading}>
-                    {t('admin.students.import.importSelected')}
-                  </Button>
-                </div>
+                
               </div>
             )}
           </TabsContent>

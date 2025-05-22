@@ -119,7 +119,7 @@
       "description": "Configure your application settings",
       "ldap": {
         "title": "LDAP Configuration",
-        "description": "Configure your LDAP connection settings for student import",
+        "description": "Configure your LDAP connection settings for student and teacher import",
         "url": "LDAP Server URL",
         "urlPlaceholder": "ldap://your-domain-controller",
         "baseDN": "Base DN",
@@ -130,6 +130,8 @@
         "passwordPlaceholder": "••••••••",
         "studentsOU": "Students OU",
         "studentsOUPlaceholder": "OU=Students,DC=your,DC=domain,DC=com",
+        "teachersOU": "Teachers OU",
+        "teachersOUPlaceholder": "OU=Teachers,DC=your,DC=domain,DC=com",
         "save": "Save Configuration",
         "saving": "Saving...",
         "success": "LDAP configuration saved successfully",
@@ -145,6 +147,51 @@
         "saving": "Saving...",
         "success": "Settings saved successfully",
         "error": "Could not save settings"
+      }
+    },
+    "teachers": {
+      "import": {
+        "title": "Import Teachers",
+        "ldapConfig": "LDAP Configuration",
+        "ldapUrl": "LDAP Server URL",
+        "ldapUrlPlaceholder": "ldap://your-domain-controller",
+        "baseDN": "Base DN",
+        "baseDNPlaceholder": "DC=your,DC=domain,DC=com",
+        "username": "Username",
+        "usernamePlaceholder": "service-account@domain.com",
+        "password": "Password",
+        "passwordPlaceholder": "••••••••",
+        "teachersOU": "Teachers OU",
+        "teachersOUPlaceholder": "OU=Teachers,DC=your,DC=domain,DC=com",
+        "saveConfig": "Save Configuration",
+        "saving": "Saving...",
+        "loading": "Loading...",
+        "previewData": "Preview Data",
+        "importSelected": "Import Selected Teachers",
+        "previewTitle": "Data Preview",
+        "description": "This will fetch all teachers from Active Directory. The system expects the following structure:",
+        "structure": {
+          "teachersOU": "Teachers OU contains teacher accounts",
+          "teacherAccounts": "Teacher accounts with givenName, sn, and description attributes"
+        },
+        "success": {
+          "configSaved": "LDAP configuration saved successfully",
+          "importComplete": "Successfully imported {{teachers}} teachers"
+        },
+        "errors": {
+          "generic": "An error occurred",
+          "saveConfig": "Could not save LDAP configuration",
+          "fetchTeachers": "Could not fetch teachers",
+          "importTeachers": "Could not import teachers",
+          "downloadSample": "Could not download sample file",
+          "invalidCSV": "Invalid CSV format. Please check the file structure.",
+          "noTeachersSelected": "Please select at least one teacher to import",
+          "importFailed": "Failed to import teachers"
+        },
+        "ldapTab": "LDAP Import",
+        "csvTab": "CSV Import",
+        "downloadSample": "Download Sample CSV",
+        "uploadCSV": "Upload CSV File"
       }
     }
   }

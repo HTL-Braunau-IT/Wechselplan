@@ -15,11 +15,24 @@ model Student {
     firstName String
     lastName  String
     class     String   // e.g., "1AHITS", "2AFELC", "3BHME"
+    groupId   Int?     // The group this student belongs to
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
     schedules Schedule[]
 
     @@index([class])
+    @@index([groupId])
+}
+
+model Teacher {
+    id        Int      @id @default(autoincrement())
+    firstName String
+    lastName  String
+    schedules Schedule[]
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([firstName, lastName])
 }
 
 model Schedule {
@@ -28,13 +41,26 @@ model Schedule {
     weekDay   Int      // 1-5 for Monday-Friday
     period    Int      // Period number in the day
     subject   String
-    teacher   String
+    teacherId Int      // Reference to the Teacher model
+    teacher   Teacher  @relation(fields: [teacherId], references: [id])
     room      String
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
     students  Student[]
 
     @@index([class])
+    @@index([teacherId])
     @@unique([class, weekDay, period])
+}
+
+model GroupAssignment {
+    id        Int      @id @default(autoincrement())
+    groupId   Int
+    class     String   // e.g., "1AHITS", "2AFELC", "3BHME"
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([class])
+    @@unique([class, groupId])
 }
 

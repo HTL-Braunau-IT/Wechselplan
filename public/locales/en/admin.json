@@ -1,6 +1,7 @@
 {
   "studentAdministration": "Student Administration",
   "importStudents": "Import Students",
+  "importTeachers": "Import Teachers",
   "deleteAllData": "Delete All Data",
   "students": {
     "title": "Student Administration",

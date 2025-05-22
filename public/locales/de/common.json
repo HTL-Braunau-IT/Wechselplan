@@ -114,12 +114,57 @@
         "uploadCSV": "CSV-Datei hochladen"
       }
     },
+    "teachers": {
+      "import": {
+        "title": "Lehrer importieren",
+        "ldapConfig": "LDAP-Konfiguration",
+        "ldapUrl": "LDAP-Server-URL",
+        "ldapUrlPlaceholder": "ldap://ihr-domain-controller",
+        "baseDN": "Base DN",
+        "baseDNPlaceholder": "DC=ihre,DC=domain,DC=com",
+        "username": "Benutzername",
+        "usernamePlaceholder": "service-account@domain.com",
+        "password": "Passwort",
+        "passwordPlaceholder": "••••••••",
+        "teachersOU": "Lehrer-OU",
+        "teachersOUPlaceholder": "OU=Lehrer,DC=ihre,DC=domain,DC=com",
+        "saveConfig": "Konfiguration speichern",
+        "saving": "Wird gespeichert...",
+        "loading": "Wird geladen...",
+        "previewData": "Datenvorschau",
+        "importSelected": "Ausgewählte Lehrer importieren",
+        "previewTitle": "Datenvorschau",
+        "description": "Dies wird alle Lehrer aus dem Active Directory abrufen. Das System erwartet die folgende Struktur:",
+        "structure": {
+          "teachersOU": "Lehrer-OU enthält Lehrerkonten",
+          "teacherAccounts": "Lehrerkonten mit givenName, sn und description Attributen"
+        },
+        "success": {
+          "configSaved": "LDAP-Konfiguration erfolgreich gespeichert",
+          "importComplete": "{{teachers}} Lehrer erfolgreich importiert"
+        },
+        "errors": {
+          "generic": "Ein Fehler ist aufgetreten",
+          "saveConfig": "LDAP-Konfiguration konnte nicht gespeichert werden",
+          "fetchTeachers": "Lehrer konnten nicht abgerufen werden",
+          "importTeachers": "Lehrer konnten nicht importiert werden",
+          "downloadSample": "Beispieldatei konnte nicht heruntergeladen werden",
+          "invalidCSV": "Ungültiges CSV-Format. Bitte überprüfen Sie die Dateistruktur.",
+          "noTeachersSelected": "Bitte wählen Sie mindestens einen Lehrer zum Importieren aus",
+          "importFailed": "Import der Lehrer fehlgeschlagen"
+        },
+        "ldapTab": "LDAP-Import",
+        "csvTab": "CSV-Import",
+        "downloadSample": "Beispiel-CSV herunterladen",
+        "uploadCSV": "CSV-Datei hochladen"
+      }
+    },
     "settings": {
       "title": "Einstellungen",
       "description": "Konfigurieren Sie Ihre Anwendungseinstellungen",
       "ldap": {
         "title": "LDAP-Konfiguration",
-        "description": "Konfigurieren Sie Ihre LDAP-Verbindungseinstellungen für den Schülerimport",
+        "description": "Konfigurieren Sie Ihre LDAP-Verbindungseinstellungen für Schüler- und Lehrerimport",
         "url": "LDAP-Server-URL",
         "urlPlaceholder": "ldap://ihr-domain-controller",
         "baseDN": "Base DN",
@@ -130,6 +175,8 @@
         "passwordPlaceholder": "••••••••",
         "studentsOU": "Schüler-OU",
         "studentsOUPlaceholder": "OU=Schueler,DC=ihre,DC=domain,DC=com",
+        "teachersOU": "Lehrer-OU",
+        "teachersOUPlaceholder": "OU=Lehrer,DC=ihre,DC=domain,DC=com",
         "save": "Konfiguration speichern",
         "saving": "Wird gespeichert...",
         "success": "LDAP-Konfiguration erfolgreich gespeichert",

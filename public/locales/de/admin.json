@@ -1,6 +1,7 @@
 {
   "studentAdministration": "Schülerverwaltung",
   "importStudents": "Schüler importieren",
+  "importTeachers": "Lehrer importieren",
   "deleteAllData": "Alle Daten löschen",
   "students": {
     "title": "Schülerverwaltung",
