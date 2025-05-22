@@ -12,6 +12,7 @@ interface Step {
 const steps: Step[] = [
 	{ id: 'class', path: '/schedule/create' },
 	{ id: 'teachers', path: '/schedule/create/teachers' },
+	{ id: 'rotation', path: '/schedule/create/rotation' },
 	{ id: 'review', path: '/schedule/create/review' }
 ]
 
