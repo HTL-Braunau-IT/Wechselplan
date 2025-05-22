@@ -8,7 +8,6 @@ interface ScheduleInput {
   weekDay: number
   period: number
   subject: string
-  teacher: string
   room: string
 }
 
@@ -49,10 +48,10 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const body = await request.json() as ScheduleInput
-        const { class: className, weekDay, period, subject, teacher, room } = body
+        const { class: className, weekDay, period, subject, room } = body
 
         // Validate required fields
-        if (!className || !weekDay || !period || !subject || !teacher || !room) {
+        if (!className || !weekDay || !period || !subject || !room) {
             return NextResponse.json(
                 { error: 'All fields are required' },
                 { status: 400 }
@@ -73,7 +72,6 @@ export async function POST(request: Request) {
                 weekDay,
                 period,
                 subject,
-                teacher,
                 room,
             },
         })

@@ -26,7 +26,6 @@ export function CreationProgress() {
 			{steps.map((step, index) => {
 				const isCompleted = index < currentStepIndex
 				const isCurrent = index === currentStepIndex
-				const isUpcoming = index > currentStepIndex
 				const isClickable = isCompleted || isCurrent
 
 				return (

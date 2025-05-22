@@ -18,10 +18,6 @@ interface RequestBody {
 	updateExisting?: boolean
 }
 
-interface ApiError {
-	error: string
-	message: string
-}
 
 type TeacherAssignmentWithPeriod = {
 	id: number
@@ -49,13 +45,13 @@ export async function GET(request: Request) {
 		}
 
 		// Fetch existing assignments for this class
-		const assignments = await prisma.teacherAssignment.findMany({
+		const assignments = await (prisma as unknown as { teacherAssignment: { findMany: (args: Prisma.TeacherAssignmentFindManyArgs) => Promise<TeacherAssignmentWithPeriod[]> } }).teacherAssignment.findMany({
 			where: { class: className },
 			orderBy: [
 				{ period: 'asc' },
 				{ groupId: 'asc' }
 			]
-		}) as TeacherAssignmentWithPeriod[]
+		})
 
 		// Separate AM and PM assignments
 		const amAssignments = assignments
@@ -93,10 +89,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
 	try {
-		const body = await request.json()
+		const body = await request.json() as RequestBody
 		console.log('Received request body:', JSON.stringify(body, null, 2))
 
-		const { class: className, amAssignments = [], pmAssignments = [], updateExisting = false } = body as RequestBody
+		const { class: className, amAssignments = [], pmAssignments = [], updateExisting = false } = body
 
 		if (!className) {
 			console.log('Missing class name')
@@ -127,7 +123,7 @@ export async function POST(request: Request) {
 		const teacherIds = [...new Set(assignments.map(a => a.teacherId))]
 
 		// Check if all teachers exist
-		const existingTeachers = await prisma.teacher.findMany({
+		const existingTeachers = await (prisma as unknown as { teacher: { findMany: (args: Prisma.TeacherFindManyArgs) => Promise<{ id: number }[]> } }).teacher.findMany({
 			where: { id: { in: teacherIds } },
 			select: { id: true }
 		})
@@ -148,9 +144,9 @@ export async function POST(request: Request) {
 		}
 
 		// Check for existing assignments for this class
-		const existingAssignments = await prisma.teacherAssignment.findMany({
+		const existingAssignments = await (prisma as unknown as { teacherAssignment: { findMany: (args: Prisma.TeacherAssignmentFindManyArgs) => Promise<TeacherAssignmentWithPeriod[]> } }).teacherAssignment.findMany({
 			where: { class: className }
-		}) as TeacherAssignmentWithPeriod[]
+		})
 
 		// If there are existing assignments and updateExisting is false, return error
 		if (existingAssignments.length > 0 && !updateExisting) {
@@ -162,13 +158,13 @@ export async function POST(request: Request) {
 
 		// If updating existing assignments, delete all existing assignments first
 		if (updateExisting) {
-			await prisma.teacherAssignment.deleteMany({
+			await (prisma as unknown as { teacherAssignment: { deleteMany: (args: Prisma.TeacherAssignmentDeleteManyArgs) => Promise<Prisma.BatchPayload> } }).teacherAssignment.deleteMany({
 				where: { class: className }
 			})
 		}
 
 		// Create new assignments in bulk
-		await prisma.teacherAssignment.createMany({
+		await (prisma as unknown as { teacherAssignment: { createMany: (args: Prisma.TeacherAssignmentCreateManyArgs) => Promise<Prisma.BatchPayload> } }).teacherAssignment.createMany({
 			data: assignments.map(assignment => ({
 				class: className,
 				period: assignment.period,

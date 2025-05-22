@@ -202,7 +202,7 @@ export default function ScheduleClassSelectPage() {
 			students: sortedStudents.slice(i * studentsPerGroup, (i + 1) * studentsPerGroup)
 		}))
 		setGroups(newGroups)
-	}, [numberOfGroups, students])
+	}, [numberOfGroups, students, groups])
 
 	function handleSelect(e: React.ChangeEvent<HTMLSelectElement>) {
 		setSelectedClass(e.target.value)
