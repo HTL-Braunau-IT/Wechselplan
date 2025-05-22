@@ -464,22 +464,22 @@ export default function ScheduleClassSelectPage() {
 
 			{/* Confirmation Dialog */}
 			{showConfirmDialog && (
-				<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-					<div className="bg-white rounded-lg p-6 max-w-md w-full">
-						<h3 className="text-lg font-semibold mb-4">Existing Assignments Found</h3>
-						<p className="mb-6">There are already group assignments for this class. Would you like to update them?</p>
-						<div className="flex justify-end gap-4">
+				<div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center">
+					<div className="bg-white p-6 rounded-lg max-w-md shadow-xl">
+						<h2 className="text-xl font-bold mb-4">{t('updateAssignmentsTitle')}</h2>
+						<p className="mb-6">{t('updateAssignmentsMessage')}</p>
+						<div className="flex justify-end space-x-4">
 							<button
 								onClick={handleCancelUpdate}
 								className="px-4 py-2 text-gray-600 hover:text-gray-800"
 							>
-								Cancel
+								{t('cancel')}
 							</button>
 							<button
 								onClick={handleConfirmUpdate}
 								className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
 							>
-								Update Assignments
+								{t('update')}
 							</button>
 						</div>
 					</div>

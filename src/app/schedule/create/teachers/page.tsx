@@ -41,6 +41,16 @@ interface AssignmentsResponse {
 	assignments: GroupAssignment[]
 }
 
+interface TeacherAssignmentsResponse {
+	amAssignments: TeacherAssignment[]
+	pmAssignments: TeacherAssignment[]
+}
+
+interface ApiError {
+	error: string
+	message: string
+}
+
 function TeacherCombobox({ 
 	value, 
 	onChange, 
@@ -116,6 +126,12 @@ export default function TeacherAssignmentPage() {
 	const [error, setError] = useState('')
 	const [amAssignments, setAmAssignments] = useState<TeacherAssignment[]>([])
 	const [pmAssignments, setPmAssignments] = useState<TeacherAssignment[]>([])
+	const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+	const [pendingAssignments, setPendingAssignments] = useState<{
+		amAssignments: TeacherAssignment[]
+		pmAssignments: TeacherAssignment[]
+	} | null>(null)
+	const [hasExistingAssignments, setHasExistingAssignments] = useState(false)
 
 	useEffect(() => {
 		async function fetchData() {
@@ -138,16 +154,25 @@ export default function TeacherAssignmentPage() {
 					students: assignment.students
 				})))
 
-				// Initialize assignments
-				const initialAssignments = groupsData.assignments.map(assignment => ({
-					groupId: assignment.groupId,
-					teacherId: 0,
-					subject: '',
-					learningContent: '',
-					room: ''
-				}))
-				setAmAssignments(initialAssignments)
-				setPmAssignments(initialAssignments)
+				// Fetch existing teacher assignments
+				const teacherAssignmentsRes = await fetch(`/api/schedule/teacher-assignments?class=${selectedClass}`)
+				if (teacherAssignmentsRes.ok) {
+					const teacherAssignmentsData = await teacherAssignmentsRes.json() as TeacherAssignmentsResponse
+					setAmAssignments(teacherAssignmentsData.amAssignments)
+					setPmAssignments(teacherAssignmentsData.pmAssignments)
+					setHasExistingAssignments(true)
+				} else {
+					// Initialize empty assignments if none exist
+					const initialAssignments = groupsData.assignments.map(assignment => ({
+						groupId: assignment.groupId,
+						teacherId: 0,
+						subject: '',
+						learningContent: '',
+						room: ''
+					}))
+					setAmAssignments(initialAssignments)
+					setPmAssignments(initialAssignments)
+				}
 			} catch (error) {
 				console.error('Error:', error)
 				setError('Fehler beim Laden der Daten.')
@@ -193,15 +218,58 @@ export default function TeacherAssignmentPage() {
 			})
 
 			if (!response.ok) {
-				const errorData = await response.json()
-				throw new Error(errorData.message || 'Failed to save teacher assignments')
+				const errorData = await response.json() as ApiError
+				if (errorData.error === 'EXISTING_ASSIGNMENTS') {
+					setPendingAssignments({
+						amAssignments: validAmAssignments,
+						pmAssignments: validPmAssignments
+					})
+					setShowConfirmDialog(true)
+					return
+				}
+				throw new Error(errorData.message ?? 'Failed to save teacher assignments')
 			}
 
-			router.push(`/schedule/create/final?class=${selectedClass}`)
+			router.push(`/schedule/create/review?class=${selectedClass}`)
 		} catch (error) {
 			console.error('Error:', error)
 			setError(error instanceof Error ? error.message : 'Fehler beim Speichern der Lehrerzuweisungen.')
 		}
+	}
+
+	async function handleConfirmUpdate() {
+		if (!pendingAssignments) return
+
+		try {
+			const response = await fetch('/api/schedule/teacher-assignments', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					class: selectedClass,
+					amAssignments: pendingAssignments.amAssignments,
+					pmAssignments: pendingAssignments.pmAssignments,
+					updateExisting: true
+				}),
+			})
+
+			if (!response.ok) {
+				throw new Error('Failed to update teacher assignments')
+			}
+
+			setShowConfirmDialog(false)
+			setPendingAssignments(null)
+			router.push(`/schedule/create/review?class=${selectedClass}`)
+		} catch (error) {
+			console.error('Error:', error)
+			setError(error instanceof Error ? error.message : 'Fehler beim Aktualisieren der Lehrerzuweisungen.')
+		}
+	}
+
+	function handleCancelUpdate() {
+		setShowConfirmDialog(false)
+		setPendingAssignments(null)
 	}
 
 	if (loading) return <div className="p-4">{t('loading')}</div>
@@ -214,6 +282,12 @@ export default function TeacherAssignmentPage() {
 				<h1 className="text-2xl font-bold mb-6">
 					{t('teacherAssignment')} - {selectedClass}
 				</h1>
+
+				{hasExistingAssignments && (
+					<div className="mb-4 p-4 bg-blue-50 text-blue-700 rounded-lg">
+						{t('existingAssignmentsWarning')}
+					</div>
+				)}
 
 				<div className="space-y-8">
 					{/* AM Assignments */}
@@ -251,7 +325,7 @@ export default function TeacherAssignmentPage() {
 												<td className="px-6 py-4 whitespace-nowrap">
 													<TeacherCombobox
 														value={assignment?.teacherId ?? 0}
-														onChange={(teacherId) => handleAssignmentChange('am', group.id, 'teacherId', teacherId)}
+														onChange={(value) => handleAssignmentChange('am', group.id, 'teacherId', value)}
 														teachers={teachers}
 													/>
 												</td>
@@ -260,7 +334,7 @@ export default function TeacherAssignmentPage() {
 														type="text"
 														value={assignment?.subject ?? ''}
 														onChange={(e) => handleAssignmentChange('am', group.id, 'subject', e.target.value)}
-														className="border rounded px-2 py-1"
+														className="border rounded px-2 py-1 w-full"
 														placeholder={t('enterSubject')}
 													/>
 												</td>
@@ -269,7 +343,7 @@ export default function TeacherAssignmentPage() {
 														type="text"
 														value={assignment?.learningContent ?? ''}
 														onChange={(e) => handleAssignmentChange('am', group.id, 'learningContent', e.target.value)}
-														className="border rounded px-2 py-1"
+														className="border rounded px-2 py-1 w-full"
 														placeholder={t('enterLearningContent')}
 													/>
 												</td>
@@ -278,7 +352,7 @@ export default function TeacherAssignmentPage() {
 														type="text"
 														value={assignment?.room ?? ''}
 														onChange={(e) => handleAssignmentChange('am', group.id, 'room', e.target.value)}
-														className="border rounded px-2 py-1"
+														className="border rounded px-2 py-1 w-full"
 														placeholder={t('enterRoom')}
 													/>
 												</td>
@@ -325,7 +399,7 @@ export default function TeacherAssignmentPage() {
 												<td className="px-6 py-4 whitespace-nowrap">
 													<TeacherCombobox
 														value={assignment?.teacherId ?? 0}
-														onChange={(teacherId) => handleAssignmentChange('pm', group.id, 'teacherId', teacherId)}
+														onChange={(value) => handleAssignmentChange('pm', group.id, 'teacherId', value)}
 														teachers={teachers}
 													/>
 												</td>
@@ -334,7 +408,7 @@ export default function TeacherAssignmentPage() {
 														type="text"
 														value={assignment?.subject ?? ''}
 														onChange={(e) => handleAssignmentChange('pm', group.id, 'subject', e.target.value)}
-														className="border rounded px-2 py-1"
+														className="border rounded px-2 py-1 w-full"
 														placeholder={t('enterSubject')}
 													/>
 												</td>
@@ -343,7 +417,7 @@ export default function TeacherAssignmentPage() {
 														type="text"
 														value={assignment?.learningContent ?? ''}
 														onChange={(e) => handleAssignmentChange('pm', group.id, 'learningContent', e.target.value)}
-														className="border rounded px-2 py-1"
+														className="border rounded px-2 py-1 w-full"
 														placeholder={t('enterLearningContent')}
 													/>
 												</td>
@@ -352,7 +426,7 @@ export default function TeacherAssignmentPage() {
 														type="text"
 														value={assignment?.room ?? ''}
 														onChange={(e) => handleAssignmentChange('pm', group.id, 'room', e.target.value)}
-														className="border rounded px-2 py-1"
+														className="border rounded px-2 py-1 w-full"
 														placeholder={t('enterRoom')}
 													/>
 												</td>
@@ -364,16 +438,40 @@ export default function TeacherAssignmentPage() {
 						</div>
 					</div>
 
-					<div className="flex justify-end">
+					<div className="mt-6 flex justify-end">
 						<button
 							onClick={handleNext}
-							className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition"
+							className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
 						>
 							{t('next')}
 						</button>
 					</div>
 				</div>
 			</div>
+
+			{/* Confirmation Dialog */}
+			{showConfirmDialog && (
+				<div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center">
+					<div className="bg-white p-6 rounded-lg max-w-md shadow-xl">
+						<h2 className="text-xl font-bold mb-4">{t('updateAssignmentsTitle')}</h2>
+						<p className="mb-6">{t('updateAssignmentsMessage')}</p>
+						<div className="flex justify-end space-x-4">
+							<button
+								onClick={handleCancelUpdate}
+								className="px-4 py-2 text-gray-600 hover:text-gray-800"
+							>
+								{t('cancel')}
+							</button>
+							<button
+								onClick={handleConfirmUpdate}
+								className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+							>
+								{t('update')}
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
 		</div>
 	)
 } 

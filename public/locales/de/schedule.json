@@ -26,5 +26,10 @@
     "class": "Klasse & Gruppen",
     "teachers": "Lehrer zuweisen",
     "review": "Überprüfen"
-  }
+  },
+  "existingAssignmentsWarning": "Es existieren bereits Lehrerzuweisungen für diese Klasse. Änderungen werden die bestehenden Zuweisungen aktualisieren.",
+  "updateAssignmentsTitle": "Lehrerzuweisungen aktualisieren",
+  "updateAssignmentsMessage": "Es existieren bereits Lehrerzuweisungen für diese Klasse. Möchten Sie die bestehenden Zuweisungen mit den neuen Daten aktualisieren?",
+  "cancel": "Abbrechen",
+  "update": "Aktualisieren"
 } 
