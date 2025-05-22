@@ -100,8 +100,9 @@ export default function ImportPage() {
         throw new Error(t('admin.teachers.import.errors.importTeachers'))
       }
 
+      const responseData = await response.json() as { teachers: number, total: number, skipped: number }
       setSuccess(t('admin.teachers.import.success.importComplete', {
-        teachers: selectedTeachers.length
+        teachers: responseData.teachers
       }))
       setImportData(null)
       setSelectedTeachers({})
