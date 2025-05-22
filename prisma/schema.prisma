@@ -3,6 +3,7 @@
 
 generator client {
     provider = "prisma-client-js"
+    previewFeatures = ["createMany"]
 }
 
 datasource db {
@@ -82,5 +83,36 @@ model TeacherAssignment {
     @@index([class])
     @@index([teacherId])
     @@unique([class, period, groupId])
+}
+
+model Room {
+    id          Int      @id @default(autoincrement())
+    name        String   @unique
+    capacity    Int?
+    description String?
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    @@index([name])
+}
+
+model Subject {
+    id          Int      @id @default(autoincrement())
+    name        String   @unique
+    description String?
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    @@index([name])
+}
+
+model LearningContent {
+    id          Int      @id @default(autoincrement())
+    name        String   @unique
+    description String?
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    @@index([name])
 }
 

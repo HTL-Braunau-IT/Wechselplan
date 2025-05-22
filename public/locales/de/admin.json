@@ -40,5 +40,19 @@
       "loadConfig": "Konfiguration konnte nicht geladen werden",
       "saveConfig": "Konfiguration konnte nicht gespeichert werden"
     }
-  }
+  },
+  "importData": "Daten importieren",
+  "rooms": "Räume",
+  "subjects": "Fächer",
+  "learningContent": "Lerninhalte",
+  "import": "Importieren",
+  "importing": "Importiere...",
+  "downloadSample": "Beispiel-CSV herunterladen",
+  "importSuccess": "{{count}} Einträge erfolgreich importiert.",
+  "importDescription": "Importieren Sie eine CSV-Datei für {{type}}. Die erste Zeile muss die Spaltenüberschriften enthalten.",
+  "existingData": "Vorhandene Daten",
+  "name": "Name",
+  "capacity": "Kapazität",
+  "description": "Beschreibung",
+  "errorImportFailed": "Import fehlgeschlagen. Bitte überprüfen Sie Ihre CSV-Datei auf fehlende oder ungültige Felder."
 } 

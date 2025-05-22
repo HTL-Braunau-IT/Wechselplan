@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors, useDroppable, useDraggable } from '@dnd-kit/core'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
@@ -103,6 +103,7 @@ export default function ScheduleClassSelectPage() {
 	const [activeStudent, setActiveStudent] = useState<Student | null>(null)
 	const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 	const [pendingAssignments, setPendingAssignments] = useState<{ assignments: Assignment[], removedStudentIds: number[] } | null>(null)
+	const hasExistingAssignmentsRef = useRef(false)
 
 	const sensors = useSensors(
 		useSensor(MouseSensor, {
@@ -163,6 +164,7 @@ export default function ScheduleClassSelectPage() {
 					}))
 					setGroups(existingGroups)
 					setNumberOfGroups(existingGroups.length)
+					hasExistingAssignmentsRef.current = true
 				} else {
 					// Otherwise, create default groups
 					const sortedStudents = [...studentsData].sort((a, b) => 
@@ -174,6 +176,7 @@ export default function ScheduleClassSelectPage() {
 						students: sortedStudents.slice(i * studentsPerGroup, (i + 1) * studentsPerGroup)
 					}))
 					setGroups(newGroups)
+					hasExistingAssignmentsRef.current = false
 				}
 			} catch (error) {
 				console.error('Error:', error)
@@ -183,26 +186,59 @@ export default function ScheduleClassSelectPage() {
 			}
 		}
 		void fetchStudents()
-	}, [selectedClass, numberOfGroups])
+	}, [selectedClass])
 
-	// Add a separate effect to handle group updates when numberOfGroups changes
 	useEffect(() => {
 		if (students.length === 0) return
-
-		// Only update groups if we don't have existing assignments
-		const hasExistingAssignments = groups.some(group => group.students.length > 0)
-		if (hasExistingAssignments) return
 
 		const sortedStudents = [...students].sort((a, b) => 
 			a.lastName.localeCompare(b.lastName)
 		)
-		const studentsPerGroup = Math.ceil(sortedStudents.length / numberOfGroups)
-		const newGroups: Group[] = Array.from({ length: numberOfGroups }, (_, i) => ({
-			id: i + 1,
-			students: sortedStudents.slice(i * studentsPerGroup, (i + 1) * studentsPerGroup)
-		}))
-		setGroups(newGroups)
-	}, [numberOfGroups, students, groups])
+
+		// If we have existing assignments, redistribute students
+		if (hasExistingAssignmentsRef.current) {
+			// Get all students from current groups
+			const allStudents = groups.flatMap(group => group.students)
+			
+			// Create new groups with the updated number of groups
+			const newGroups: Group[] = Array.from({ length: numberOfGroups }, (_, i) => ({
+				id: i + 1,
+				students: []
+			}))
+
+			// Distribute students evenly across new groups
+			allStudents.forEach((student, index) => {
+				const targetGroupIndex = index % numberOfGroups
+				newGroups[targetGroupIndex]!.students.push(student)
+			})
+
+			// Sort students within each group
+			newGroups.forEach(group => {
+				group.students.sort((a, b) => a.lastName.localeCompare(b.lastName))
+			})
+
+			setGroups(newGroups)
+		} else {
+			// For new groups, distribute all students evenly
+			const studentsPerGroup = Math.ceil(sortedStudents.length / numberOfGroups)
+			const newGroups: Group[] = Array.from({ length: numberOfGroups }, (_, i) => ({
+				id: i + 1,
+				students: sortedStudents.slice(i * studentsPerGroup, (i + 1) * studentsPerGroup)
+			}))
+			setGroups(newGroups)
+		}
+	}, [numberOfGroups, students])
+
+	// Add a new effect to handle group ID updates
+	useEffect(() => {
+		// Update group IDs to be sequential
+		setGroups(currentGroups => 
+			currentGroups.map((group, index) => ({
+				...group,
+				id: index + 1
+			}))
+		)
+	}, [numberOfGroups])
 
 	function handleSelect(e: React.ChangeEvent<HTMLSelectElement>) {
 		setSelectedClass(e.target.value)
@@ -227,7 +263,39 @@ export default function ScheduleClassSelectPage() {
 				studentIds: group.students.map(student => student.id)
 			}))
 
-			// Store assignments and handle removed students
+			// Check if there are existing assignments
+			const existingAssignmentsRes = await fetch(`/api/schedule/assignments?class=${selectedClass}`)
+			if (!existingAssignmentsRes.ok) throw new Error('Failed to fetch existing assignments')
+			const existingAssignmentsData = await existingAssignmentsRes.json() as AssignmentsResponse
+
+			// Only show confirmation if there are existing assignments
+			if (existingAssignmentsData.assignments && existingAssignmentsData.assignments.length > 0) {
+				// Check if the assignments are different from what's currently on screen
+				const hasChanges = existingAssignmentsData.assignments.some(existingAssignment => {
+					const currentAssignment = assignments.find(a => a.groupId === existingAssignment.groupId)
+					if (!currentAssignment) return true // Group was removed
+					
+					// Check if student IDs are different
+					if (currentAssignment.studentIds.length !== existingAssignment.studentIds.length) return true
+					
+					// Check if any student IDs are different
+					return currentAssignment.studentIds.some(id => !existingAssignment.studentIds.includes(id)) ||
+						existingAssignment.studentIds.some(id => !currentAssignment.studentIds.includes(id))
+				}) || assignments.some(currentAssignment => {
+					// Check if there are any new groups that weren't in the existing assignments
+					return !existingAssignmentsData.assignments.some(existingAssignment => 
+						existingAssignment.groupId === currentAssignment.groupId
+					)
+				})
+
+				if (hasChanges) {
+					setPendingAssignments({ assignments, removedStudentIds: removedStudents.map(student => student.id) })
+					setShowConfirmDialog(true)
+					return
+				}
+			}
+
+			// If no changes or no existing assignments, proceed with saving
 			const response = await fetch('/api/schedule/assignments', {
 				method: 'POST',
 				headers: {
@@ -236,17 +304,12 @@ export default function ScheduleClassSelectPage() {
 				body: JSON.stringify({
 					class: selectedClass,
 					assignments,
-					removedStudentIds: removedStudents.map(student => student.id)
+					removedStudentIds: removedStudents.map(student => student.id),
+					updateExisting: true // Always set this to true to ensure new groups are properly initialized
 				}),
 			})
 
 			if (!response.ok) {
-				const data = await response.json() as ApiError
-				if (data.error === 'EXISTING_ASSIGNMENTS') {
-					setPendingAssignments({ assignments, removedStudentIds: removedStudents.map(student => student.id) })
-					setShowConfirmDialog(true)
-					return
-				}
 				throw new Error('Failed to store assignments')
 			}
 
@@ -271,7 +334,7 @@ export default function ScheduleClassSelectPage() {
 					class: selectedClass,
 					assignments: pendingAssignments.assignments,
 					removedStudentIds: pendingAssignments.removedStudentIds,
-					updateExisting: true
+					updateExisting: true // Always set this to true to ensure new groups are properly initialized
 				}),
 			})
 

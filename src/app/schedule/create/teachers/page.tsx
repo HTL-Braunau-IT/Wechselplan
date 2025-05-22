@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useTranslation } from 'next-i18next'
 import { Combobox } from '@headlessui/react'
+import { useCachedData } from '@/hooks/use-cached-data'
 
 interface Student {
 	id: number
@@ -19,6 +20,21 @@ interface Teacher {
 	subjects: string[]
 }
 
+interface Room {
+	id: number
+	name: string
+}
+
+interface Subject {
+	id: number
+	name: string
+}
+
+interface LearningContent {
+	id: number
+	name: string
+}
+
 interface Group {
 	id: number
 	students: Student[]
@@ -27,9 +43,9 @@ interface Group {
 interface TeacherAssignment {
 	groupId: number
 	teacherId: number
-	subject: string
-	learningContent: string
-	room: string
+	subjectId: number
+	learningContentId: number
+	roomId: number
 }
 
 interface GroupAssignment {
@@ -56,7 +72,7 @@ function TeacherCombobox({
 	onChange, 
 	teachers 
 }: { 
-	value: number, 
+	value: number | undefined, 
 	onChange: (value: number) => void, 
 	teachers: Teacher[] 
 }) {
@@ -72,7 +88,7 @@ function TeacherCombobox({
 		)
 
 	return (
-		<Combobox value={value} onChange={onChange}>
+		<Combobox value={value ?? 0} onChange={onChange}>
 			<div className="relative">
 				<Combobox.Button className="w-full flex justify-between items-center border rounded px-2 py-1 text-left">
 					<Combobox.Input
@@ -114,24 +130,233 @@ function TeacherCombobox({
 	)
 }
 
+function RoomCombobox({ 
+	value, 
+	onChange, 
+	rooms 
+}: { 
+	value: number | undefined, 
+	onChange: (value: number) => void, 
+	rooms: Room[] 
+}) {
+	const { t } = useTranslation('schedule')
+	const [query, setQuery] = useState('')
+
+	const filteredRooms = query === ''
+		? rooms
+		: rooms.filter((room) =>
+			room.name.toLowerCase().includes(query.toLowerCase())
+		)
+
+	return (
+		<Combobox value={value ?? 0} onChange={onChange}>
+			<div className="relative">
+				<Combobox.Button className="w-full flex justify-between items-center border rounded px-2 py-1 text-left">
+					<Combobox.Input
+						className="w-full border-none focus:ring-0 p-0"
+						onChange={(event: React.ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)}
+						displayValue={(roomId: number) => {
+							const room = rooms.find(r => r.id === roomId)
+							return room ? room.name : ''
+						}}
+						placeholder={t('selectRoom')}
+					/>
+					<svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+						<path fillRule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 01-1.414 1.414L10 5.414 7.707 7.707a1 1 0 01-1.414-1.414l3-3A1 1 0 0110 3zm-3.707 9.293a1 1 0 011.414 0L10 14.586l2.293-2.293a1 1 0 011.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+					</svg>
+				</Combobox.Button>
+				<Combobox.Options className="fixed z-50 mt-1 max-h-[300px] w-[300px] overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+					{filteredRooms.length === 0 && query !== '' ? (
+						<div className="relative cursor-default select-none py-2 px-4 text-gray-700">
+							{t('noRoomsFound')}
+						</div>
+					) : (
+						filteredRooms.map((room) => (
+							<Combobox.Option
+								key={room.id}
+								value={room.id}
+								className={({ active }: { active: boolean }) =>
+									`relative cursor-default select-none py-2 pl-4 pr-4 ${
+										active ? 'bg-blue-600 text-white' : 'text-gray-900'
+									}`
+								}
+							>
+								{room.name}
+							</Combobox.Option>
+						))
+					)}
+				</Combobox.Options>
+			</div>
+		</Combobox>
+	)
+}
+
+function SubjectCombobox({ 
+	value, 
+	onChange, 
+	subjects 
+}: { 
+	value: number | undefined, 
+	onChange: (value: number) => void, 
+	subjects: Subject[] 
+}) {
+	const { t } = useTranslation('schedule')
+	const [query, setQuery] = useState('')
+
+	const filteredSubjects = query === ''
+		? subjects
+		: subjects.filter((subject) =>
+			subject.name.toLowerCase().includes(query.toLowerCase())
+		)
+
+	return (
+		<Combobox value={value ?? 0} onChange={onChange}>
+			<div className="relative">
+				<Combobox.Button className="w-full flex justify-between items-center border rounded px-2 py-1 text-left">
+					<Combobox.Input
+						className="w-full border-none focus:ring-0 p-0"
+						onChange={(event: React.ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)}
+						displayValue={(subjectId: number) => {
+							const subject = subjects.find(s => s.id === subjectId)
+							return subject ? subject.name : ''
+						}}
+						placeholder={t('selectSubject')}
+					/>
+					<svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+						<path fillRule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 01-1.414 1.414L10 5.414 7.707 7.707a1 1 0 01-1.414-1.414l3-3A1 1 0 0110 3zm-3.707 9.293a1 1 0 011.414 0L10 14.586l2.293-2.293a1 1 0 011.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+					</svg>
+				</Combobox.Button>
+				<Combobox.Options className="fixed z-50 mt-1 max-h-[300px] w-[300px] overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+					{filteredSubjects.length === 0 && query !== '' ? (
+						<div className="relative cursor-default select-none py-2 px-4 text-gray-700">
+							{t('noSubjectsFound')}
+						</div>
+					) : (
+						filteredSubjects.map((subject) => (
+							<Combobox.Option
+								key={subject.id}
+								value={subject.id}
+								className={({ active }: { active: boolean }) =>
+									`relative cursor-default select-none py-2 pl-4 pr-4 ${
+										active ? 'bg-blue-600 text-white' : 'text-gray-900'
+									}`
+								}
+							>
+								{subject.name}
+							</Combobox.Option>
+						))
+					)}
+				</Combobox.Options>
+			</div>
+		</Combobox>
+	)
+}
+
+function LearningContentCombobox({ 
+	value, 
+	onChange, 
+	learningContents 
+}: { 
+	value: number | undefined, 
+	onChange: (value: number) => void, 
+	learningContents: LearningContent[] 
+}) {
+	const { t } = useTranslation('schedule')
+	const [query, setQuery] = useState('')
+
+	const filteredLearningContents = query === ''
+		? learningContents
+		: learningContents.filter((content) =>
+			content.name.toLowerCase().includes(query.toLowerCase())
+		)
+
+	return (
+		<Combobox value={value ?? 0} onChange={onChange}>
+			<div className="relative">
+				<Combobox.Button className="w-full flex justify-between items-center border rounded px-2 py-1 text-left">
+					<Combobox.Input
+						className="w-full border-none focus:ring-0 p-0"
+						onChange={(event: React.ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)}
+						displayValue={(contentId: number) => {
+							const content = learningContents.find(c => c.id === contentId)
+							return content ? content.name : ''
+						}}
+						placeholder={t('selectLearningContent')}
+					/>
+					<svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+						<path fillRule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 01-1.414 1.414L10 5.414 7.707 7.707a1 1 0 01-1.414-1.414l3-3A1 1 0 0110 3zm-3.707 9.293a1 1 0 011.414 0L10 14.586l2.293-2.293a1 1 0 011.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+					</svg>
+				</Combobox.Button>
+				<Combobox.Options className="fixed z-50 mt-1 max-h-[300px] w-[300px] overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+					{filteredLearningContents.length === 0 && query !== '' ? (
+						<div className="relative cursor-default select-none py-2 px-4 text-gray-700">
+							{t('noLearningContentsFound')}
+						</div>
+					) : (
+						filteredLearningContents.map((content) => (
+							<Combobox.Option
+								key={content.id}
+								value={content.id}
+								className={({ active }: { active: boolean }) =>
+									`relative cursor-default select-none py-2 pl-4 pr-4 ${
+										active ? 'bg-blue-600 text-white' : 'text-gray-900'
+									}`
+								}
+							>
+								{content.name}
+							</Combobox.Option>
+						))
+					)}
+				</Combobox.Options>
+			</div>
+		</Combobox>
+	)
+}
+
 export default function TeacherAssignmentPage() {
 	const router = useRouter()
 	const searchParams = useSearchParams()
 	const { t } = useTranslation('schedule')
 	const selectedClass = searchParams.get('class')
 
-	const [teachers, setTeachers] = useState<Teacher[]>([])
+	const { rooms, subjects, learningContents, teachers, isLoading: isLoadingCachedData } = useCachedData()
 	const [groups, setGroups] = useState<Group[]>([])
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState('')
 	const [amAssignments, setAmAssignments] = useState<TeacherAssignment[]>([])
 	const [pmAssignments, setPmAssignments] = useState<TeacherAssignment[]>([])
 	const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+	const [showErrorDialog, setShowErrorDialog] = useState(false)
+	const [validationErrors, setValidationErrors] = useState<{
+		am: { groupId: number; missingFields: string[] }[]
+		pm: { groupId: number; missingFields: string[] }[]
+	}>({ am: [], pm: [] })
 	const [pendingAssignments, setPendingAssignments] = useState<{
 		amAssignments: TeacherAssignment[]
 		pmAssignments: TeacherAssignment[]
 	} | null>(null)
 	const [hasExistingAssignments, setHasExistingAssignments] = useState(false)
+
+	// Add effect to ensure assignments are initialized for all groups
+	useEffect(() => {
+		// Create initial assignments for any new groups
+		const initializeAssignments = (currentAssignments: TeacherAssignment[]) => {
+			const existingGroupIds = new Set(currentAssignments.map(a => a.groupId))
+			const newAssignments = groups
+				.filter(group => !existingGroupIds.has(group.id))
+				.map(group => ({
+					groupId: group.id,
+					teacherId: 0,
+					subjectId: 0,
+					learningContentId: 0,
+					roomId: 0
+				}))
+			return [...currentAssignments, ...newAssignments]
+		}
+
+		setAmAssignments(current => initializeAssignments(current))
+		setPmAssignments(current => initializeAssignments(current))
+	}, [groups])
 
 	useEffect(() => {
 		async function fetchData() {
@@ -139,12 +364,6 @@ export default function TeacherAssignmentPage() {
 
 			setLoading(true)
 			try {
-				// Fetch teachers
-				const teachersRes = await fetch('/api/teachers')
-				if (!teachersRes.ok) throw new Error('Failed to fetch teachers')
-				const teachersData = await teachersRes.json() as Teacher[]
-				setTeachers(teachersData)
-
 				// Fetch groups
 				const groupsRes = await fetch(`/api/schedule/assignments?class=${selectedClass}`)
 				if (!groupsRes.ok) throw new Error('Failed to fetch groups')
@@ -158,20 +377,46 @@ export default function TeacherAssignmentPage() {
 				const teacherAssignmentsRes = await fetch(`/api/schedule/teacher-assignments?class=${selectedClass}`)
 				if (teacherAssignmentsRes.ok) {
 					const teacherAssignmentsData = await teacherAssignmentsRes.json() as TeacherAssignmentsResponse
-					setAmAssignments(teacherAssignmentsData.amAssignments)
-					setPmAssignments(teacherAssignmentsData.pmAssignments)
-					setHasExistingAssignments(true)
-				} else {
-					// Initialize empty assignments if none exist
-					const initialAssignments = groupsData.assignments.map(assignment => ({
+					const hasExistingAmAssignments = teacherAssignmentsData.amAssignments.some(a => a.teacherId !== 0)
+					const hasExistingPmAssignments = teacherAssignmentsData.pmAssignments.some(a => a.teacherId !== 0)
+					
+					// Initialize base assignments for all groups
+					const initialAssignments: TeacherAssignment[] = groupsData.assignments.map(assignment => ({
 						groupId: assignment.groupId,
 						teacherId: 0,
-						subject: '',
-						learningContent: '',
-						room: ''
+						subjectId: 0,
+						learningContentId: 0,
+						roomId: 0
+					}))
+
+					// Set AM assignments
+					if (hasExistingAmAssignments) {
+						setAmAssignments(teacherAssignmentsData.amAssignments)
+					} else {
+						setAmAssignments(initialAssignments)
+					}
+
+					// Set PM assignments
+					if (hasExistingPmAssignments) {
+						setPmAssignments(teacherAssignmentsData.pmAssignments)
+					} else {
+						setPmAssignments(initialAssignments)
+					}
+
+					// Only show warning if either AM or PM has existing assignments
+					setHasExistingAssignments(hasExistingAmAssignments || hasExistingPmAssignments)
+				} else {
+					// Initialize empty assignments if none exist
+					const initialAssignments: TeacherAssignment[] = groupsData.assignments.map(assignment => ({
+						groupId: assignment.groupId,
+						teacherId: 0,
+						subjectId: 0,
+						learningContentId: 0,
+						roomId: 0
 					}))
 					setAmAssignments(initialAssignments)
 					setPmAssignments(initialAssignments)
+					setHasExistingAssignments(false)
 				}
 			} catch (error) {
 				console.error('Error:', error)
@@ -190,13 +435,24 @@ export default function TeacherAssignmentPage() {
 		value: string | number
 	) {
 		const setAssignments = period === 'am' ? setAmAssignments : setPmAssignments
-		setAssignments(current => 
-			current.map(assignment => 
-				assignment.groupId === groupId
-					? { ...assignment, [field]: value }
-					: assignment
-			)
-		)
+		setAssignments(current => {
+			const existingAssignment = current.find(a => a.groupId === groupId)
+			if (existingAssignment) {
+				return current.map(assignment => 
+					assignment.groupId === groupId
+						? { ...assignment, [field]: value }
+						: assignment
+				)
+			} else {
+				return [...current, {
+					groupId,
+					teacherId: field === 'teacherId' ? value as number : 0,
+					subjectId: field === 'subjectId' ? value as number : 0,
+					learningContentId: field === 'learningContentId' ? value as number : 0,
+					roomId: field === 'roomId' ? value as number : 0
+				}]
+			}
+		})
 	}
 
 	async function handleNext() {
@@ -205,6 +461,61 @@ export default function TeacherAssignmentPage() {
 			const validAmAssignments = amAssignments.filter(a => a.teacherId !== 0)
 			const validPmAssignments = pmAssignments.filter(a => a.teacherId !== 0)
 
+			// Check if any group in AM has assignments
+			const hasAnyAmAssignments = validAmAssignments.length > 0
+			// Check if any group in PM has assignments
+			const hasAnyPmAssignments = validPmAssignments.length > 0
+
+			// Initialize validation errors
+			const newValidationErrors: {
+				am: { groupId: number; missingFields: string[] }[]
+				pm: { groupId: number; missingFields: string[] }[]
+			} = { am: [], pm: [] }
+
+			// Check AM assignments
+			if (hasAnyAmAssignments) {
+				groups.forEach(group => {
+					const assignment = validAmAssignments.find(a => a.groupId === group.id)
+					if (!assignment) {
+						newValidationErrors.am.push({ groupId: group.id, missingFields: ['teacher'] })
+					} else {
+						const missingFields: string[] = []
+						if (!assignment.subjectId) missingFields.push('subject')
+						if (!assignment.learningContentId) missingFields.push('learningContent')
+						if (!assignment.roomId) missingFields.push('room')
+						if (missingFields.length > 0) {
+							newValidationErrors.am.push({ groupId: group.id, missingFields })
+						}
+					}
+				})
+			}
+
+			// Check PM assignments
+			if (hasAnyPmAssignments) {
+				groups.forEach(group => {
+					const assignment = validPmAssignments.find(a => a.groupId === group.id)
+					if (!assignment) {
+						newValidationErrors.pm.push({ groupId: group.id, missingFields: ['teacher'] })
+					} else {
+						const missingFields: string[] = []
+						if (!assignment.subjectId) missingFields.push('subject')
+						if (!assignment.learningContentId) missingFields.push('learningContent')
+						if (!assignment.roomId) missingFields.push('room')
+						if (missingFields.length > 0) {
+							newValidationErrors.pm.push({ groupId: group.id, missingFields })
+						}
+					}
+				})
+			}
+
+			// If there are validation errors, show them
+			if (newValidationErrors.am.length > 0 || newValidationErrors.pm.length > 0) {
+				setValidationErrors(newValidationErrors)
+				setShowErrorDialog(true)
+				return
+			}
+
+			// If no changes or no existing assignments, proceed with saving
 			const response = await fetch('/api/schedule/teacher-assignments', {
 				method: 'POST',
 				headers: {
@@ -219,7 +530,7 @@ export default function TeacherAssignmentPage() {
 
 			if (!response.ok) {
 				const errorData = await response.json() as ApiError
-				if (errorData.error === 'EXISTING_ASSIGNMENTS') {
+				if (response.status === 409 && errorData.error === 'EXISTING_ASSIGNMENTS') {
 					setPendingAssignments({
 						amAssignments: validAmAssignments,
 						pmAssignments: validPmAssignments
@@ -272,7 +583,7 @@ export default function TeacherAssignmentPage() {
 		setPendingAssignments(null)
 	}
 
-	if (loading) return <div className="p-4">{t('loading')}</div>
+	if (isLoadingCachedData || loading) return <div className="p-4">{t('loading')}</div>
 	if (error) return <div className="p-4 text-red-500">{error}</div>
 	if (!selectedClass) return <div className="p-4">{t('noClassSelected')}</div>
 
@@ -330,30 +641,24 @@ export default function TeacherAssignmentPage() {
 													/>
 												</td>
 												<td className="px-6 py-4 whitespace-nowrap">
-													<input
-														type="text"
-														value={assignment?.subject ?? ''}
-														onChange={(e) => handleAssignmentChange('am', group.id, 'subject', e.target.value)}
-														className="border rounded px-2 py-1 w-full"
-														placeholder={t('enterSubject')}
+													<SubjectCombobox
+														value={assignment?.subjectId ?? 0}
+														onChange={(value) => handleAssignmentChange('am', group.id, 'subjectId', value)}
+														subjects={subjects}
 													/>
 												</td>
 												<td className="px-6 py-4 whitespace-nowrap">
-													<input
-														type="text"
-														value={assignment?.learningContent ?? ''}
-														onChange={(e) => handleAssignmentChange('am', group.id, 'learningContent', e.target.value)}
-														className="border rounded px-2 py-1 w-full"
-														placeholder={t('enterLearningContent')}
+													<LearningContentCombobox
+														value={assignment?.learningContentId ?? 0}
+														onChange={(value) => handleAssignmentChange('am', group.id, 'learningContentId', value)}
+														learningContents={learningContents}
 													/>
 												</td>
 												<td className="px-6 py-4 whitespace-nowrap">
-													<input
-														type="text"
-														value={assignment?.room ?? ''}
-														onChange={(e) => handleAssignmentChange('am', group.id, 'room', e.target.value)}
-														className="border rounded px-2 py-1 w-full"
-														placeholder={t('enterRoom')}
+													<RoomCombobox
+														value={assignment?.roomId ?? 0}
+														onChange={(value) => handleAssignmentChange('am', group.id, 'roomId', value)}
+														rooms={rooms}
 													/>
 												</td>
 											</tr>
@@ -404,30 +709,24 @@ export default function TeacherAssignmentPage() {
 													/>
 												</td>
 												<td className="px-6 py-4 whitespace-nowrap">
-													<input
-														type="text"
-														value={assignment?.subject ?? ''}
-														onChange={(e) => handleAssignmentChange('pm', group.id, 'subject', e.target.value)}
-														className="border rounded px-2 py-1 w-full"
-														placeholder={t('enterSubject')}
+													<SubjectCombobox
+														value={assignment?.subjectId ?? 0}
+														onChange={(value) => handleAssignmentChange('pm', group.id, 'subjectId', value)}
+														subjects={subjects}
 													/>
 												</td>
 												<td className="px-6 py-4 whitespace-nowrap">
-													<input
-														type="text"
-														value={assignment?.learningContent ?? ''}
-														onChange={(e) => handleAssignmentChange('pm', group.id, 'learningContent', e.target.value)}
-														className="border rounded px-2 py-1 w-full"
-														placeholder={t('enterLearningContent')}
+													<LearningContentCombobox
+														value={assignment?.learningContentId ?? 0}
+														onChange={(value) => handleAssignmentChange('pm', group.id, 'learningContentId', value)}
+														learningContents={learningContents}
 													/>
 												</td>
 												<td className="px-6 py-4 whitespace-nowrap">
-													<input
-														type="text"
-														value={assignment?.room ?? ''}
-														onChange={(e) => handleAssignmentChange('pm', group.id, 'room', e.target.value)}
-														className="border rounded px-2 py-1 w-full"
-														placeholder={t('enterRoom')}
+													<RoomCombobox
+														value={assignment?.roomId ?? 0}
+														onChange={(value) => handleAssignmentChange('pm', group.id, 'roomId', value)}
+														rooms={rooms}
 													/>
 												</td>
 											</tr>
@@ -467,6 +766,49 @@ export default function TeacherAssignmentPage() {
 								className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
 							>
 								{t('update')}
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* Error Dialog */}
+			{showErrorDialog && (
+				<div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center">
+					<div className="bg-white p-6 rounded-lg max-w-2xl shadow-xl">
+						<h2 className="text-xl font-bold mb-4">{t('validationErrorsTitle')}</h2>
+						<div className="mb-6 space-y-4">
+							{validationErrors.am.length > 0 && (
+								<div>
+									<h3 className="font-semibold mb-2">{t('morningAssignments')}</h3>
+									<ul className="list-disc pl-5 space-y-1">
+										{validationErrors.am.map(error => (
+											<li key={error.groupId}>
+												{t('group')} {error.groupId}: {error.missingFields.map(field => t(field)).join(', ')}
+											</li>
+										))}
+									</ul>
+								</div>
+							)}
+							{validationErrors.pm.length > 0 && (
+								<div>
+									<h3 className="font-semibold mb-2">{t('afternoonAssignments')}</h3>
+									<ul className="list-disc pl-5 space-y-1">
+										{validationErrors.pm.map(error => (
+											<li key={error.groupId}>
+												{t('group')} {error.groupId}: {error.missingFields.map(field => t(field)).join(', ')}
+											</li>
+										))}
+									</ul>
+								</div>
+							)}
+						</div>
+						<div className="flex justify-end">
+							<button
+								onClick={() => setShowErrorDialog(false)}
+								className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+							>
+								{t('ok')}
 							</button>
 						</div>
 					</div>

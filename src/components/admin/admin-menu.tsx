@@ -43,6 +43,14 @@ export function AdminMenu() {
           <span>{t('settings.title')}</span>
         </Link>
         <Link
+          href="/admin/settings/import"
+          className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-lg"
+          aria-label={t('importData')}
+        >
+          <Download className="h-5 w-5" />
+          <span>{t('importData')}</span>
+        </Link>
+        <Link
           href="/admin/students/delete-all"
           className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-lg w-full text-left text-red-600"
           aria-label={t('deleteAllData')}

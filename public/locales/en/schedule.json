@@ -16,10 +16,16 @@
   "learningContent": "Learning Content",
   "room": "Room",
   "selectTeacher": "Select a teacher",
+  "selectSubject": "Select a subject",
+  "selectLearningContent": "Select learning content",
+  "selectRoom": "Select a room",
   "enterSubject": "Enter subject",
   "enterLearningContent": "Enter learning content",
   "enterRoom": "Enter room",
   "noTeachersFound": "No teachers found",
+  "noSubjectsFound": "No subjects found",
+  "noLearningContentsFound": "No learning contents found",
+  "noRoomsFound": "No rooms found",
   "loading": "Loading...",
   "noClassSelected": "No class selected"
 } 
