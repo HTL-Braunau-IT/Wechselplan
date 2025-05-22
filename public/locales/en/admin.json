@@ -4,7 +4,19 @@
   "deleteAllData": "Delete All Data",
   "students": {
     "title": "Student Administration",
-    "description": "Manage your students here. You can add, edit, and delete students."
+    "description": "Manage your students here. You can add, edit, and delete students.",
+    "deleteAllData": {
+      "title": "Delete All Student Data",
+      "warning": "Warning!",
+      "description": "This action will permanently delete all student data. This action cannot be undone.",
+      "button": "Delete All Data",
+      "deleting": "Deleting...",
+      "confirmTitle": "Are you sure?",
+      "confirmDescription": "Do you really want to delete all student data? This action cannot be undone.",
+      "confirmButton": "Yes, delete all data",
+      "success": "All data has been successfully deleted",
+      "error": "Failed to delete data"
+    }
   },
   "settings": {
     "title": "Settings",

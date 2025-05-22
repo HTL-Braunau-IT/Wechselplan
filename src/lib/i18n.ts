@@ -14,6 +14,9 @@ i18n
     load: 'languageOnly',
     backend: {
       loadPath: '/locales/{{lng}}/{{ns}}.json',
+      requestOptions: {
+        cache: 'no-store'
+      }
     },
     interpolation: {
       escapeValue: false,

@@ -21,10 +21,10 @@ export default function DeleteAllPage() {
         throw new Error('Failed to delete data')
       }
 
-      alert(t('admin.students.deleteAllData.success'))
+      alert(t('students.deleteAllData.success'))
     } catch (error) {
       console.error('Error deleting data:', error)
-      alert(t('admin.students.deleteAllData.error'))
+      alert(t('students.deleteAllData.error'))
     } finally {
       setIsDeleting(false)
     }
@@ -32,33 +32,33 @@ export default function DeleteAllPage() {
 
   return (
     <>
-      <h1 className="text-2xl font-bold mb-6">{t('admin.students.deleteAllData.title')}</h1>
+      <h1 className="text-2xl font-bold mb-6">{t('students.deleteAllData.title')}</h1>
       
       <Card>
         <CardHeader>
-          <CardTitle>{t('admin.students.deleteAllData.warning')}</CardTitle>
+          <CardTitle>{t('students.deleteAllData.warning')}</CardTitle>
           <CardDescription>
-            {t('admin.students.deleteAllData.description')}
+            {t('students.deleteAllData.description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" disabled={isDeleting}>
-                {isDeleting ? t('admin.students.deleteAllData.deleting') : t('admin.students.deleteAllData.button')}
+                {isDeleting ? t('students.deleteAllData.deleting') : t('students.deleteAllData.button')}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>{t('admin.students.deleteAllData.confirmTitle')}</AlertDialogTitle>
+                <AlertDialogTitle>{t('students.deleteAllData.confirmTitle')}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  {t('admin.students.deleteAllData.confirmDescription')}
+                  {t('students.deleteAllData.confirmDescription')}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
                 <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
-                  {t('admin.students.deleteAllData.confirmButton')}
+                  {t('students.deleteAllData.confirmButton')}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

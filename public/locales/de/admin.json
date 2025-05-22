@@ -4,7 +4,16 @@
   "deleteAllData": "Alle Daten löschen",
   "students": {
     "title": "Schülerverwaltung",
-    "description": "Verwalten Sie hier Ihre Schüler. Sie können Schüler hinzufügen, bearbeiten und löschen."
+    "description": "Verwalten Sie hier Ihre Schüler. Sie können Schüler hinzufügen, bearbeiten und löschen.",
+    "deleteAllData": {
+      "title": "Alle Schülerdaten löschen",
+      "warning": "Achtung!",
+      "description": "Diese Aktion wird alle Schülerdaten unwiderruflich löschen. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "button": "Alle Daten löschen",
+      "confirmTitle": "Sind Sie sicher?",
+      "confirmDescription": "Möchten Sie wirklich alle Schülerdaten löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+      "confirmButton": "Ja, alle Daten löschen"
+    }
   },
   "settings": {
     "title": "Einstellungen",

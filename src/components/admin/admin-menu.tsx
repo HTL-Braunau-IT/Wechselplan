@@ -29,10 +29,10 @@ export function AdminMenu() {
         <Link
           href="/admin/settings"
           className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-lg"
-          aria-label={t('common.settings')}
+          aria-label={t('settings.title')}
         >
           <Settings className="h-5 w-5" />
-          <span>{t('common.settings')}</span>
+          <span>{t('settings.title')}</span>
         </Link>
         <Link
           href="/admin/students/delete-all"
