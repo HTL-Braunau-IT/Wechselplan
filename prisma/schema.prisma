@@ -29,6 +29,7 @@ model Teacher {
     firstName String
     lastName  String
     schedules Schedule[]
+    teacherAssignments TeacherAssignment[]
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 
@@ -63,5 +64,23 @@ model GroupAssignment {
 
     @@index([class])
     @@unique([class, groupId])
+}
+
+model TeacherAssignment {
+    id              Int      @id @default(autoincrement())
+    class           String   // e.g., "1AHITS", "2AFELC", "3BHME"
+    period          String   // "AM" or "PM"
+    groupId         Int
+    teacherId       Int
+    teacher         Teacher  @relation(fields: [teacherId], references: [id])
+    subject         String
+    learningContent String
+    room            String
+    createdAt       DateTime @default(now())
+    updatedAt       DateTime @updatedAt
+
+    @@index([class])
+    @@index([teacherId])
+    @@unique([class, period, groupId])
 }
 

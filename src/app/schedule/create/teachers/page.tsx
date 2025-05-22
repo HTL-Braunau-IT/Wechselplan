@@ -176,6 +176,10 @@ export default function TeacherAssignmentPage() {
 
 	async function handleNext() {
 		try {
+			// Filter out assignments with no teacher selected
+			const validAmAssignments = amAssignments.filter(a => a.teacherId !== 0)
+			const validPmAssignments = pmAssignments.filter(a => a.teacherId !== 0)
+
 			const response = await fetch('/api/schedule/teacher-assignments', {
 				method: 'POST',
 				headers: {
@@ -183,19 +187,20 @@ export default function TeacherAssignmentPage() {
 				},
 				body: JSON.stringify({
 					class: selectedClass,
-					amAssignments,
-					pmAssignments
+					amAssignments: validAmAssignments,
+					pmAssignments: validPmAssignments
 				}),
 			})
 
 			if (!response.ok) {
-				throw new Error('Failed to save teacher assignments')
+				const errorData = await response.json()
+				throw new Error(errorData.message || 'Failed to save teacher assignments')
 			}
 
 			router.push(`/schedule/create/final?class=${selectedClass}`)
 		} catch (error) {
 			console.error('Error:', error)
-			setError('Fehler beim Speichern der Lehrerzuweisungen.')
+			setError(error instanceof Error ? error.message : 'Fehler beim Speichern der Lehrerzuweisungen.')
 		}
 	}
 
