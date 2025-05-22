@@ -31,6 +31,7 @@
   "steps": {
     "class": "Klasse & Gruppen",
     "teachers": "Lehrer zuweisen",
+    "rotation": "Rotationsperioden",
     "review": "Überprüfen"
   },
   "existingAssignmentsWarning": "Es existieren bereits Lehrerzuweisungen für diese Klasse. Änderungen werden die bestehenden Zuweisungen aktualisieren.",

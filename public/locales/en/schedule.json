@@ -27,5 +27,11 @@
   "noLearningContentsFound": "No learning contents found",
   "noRoomsFound": "No rooms found",
   "loading": "Loading...",
-  "noClassSelected": "No class selected"
+  "noClassSelected": "No class selected",
+  "steps": {
+    "class": "Class & Groups",
+    "teachers": "Assign Teachers",
+    "rotation": "Rotation Periods",
+    "review": "Review"
+  }
 } 
