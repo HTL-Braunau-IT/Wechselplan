@@ -7,5 +7,19 @@
   "next": "Weiter",
   "studentsOfClass": "Schüler der Klasse {{class}}",
   "numberOfGroups": "Anzahl Gruppen",
-  "group": "Gruppe"
+  "group": "Gruppe",
+  "teacherAssignment": "Lehrerzuweisung",
+  "morningAssignments": "Vormittagszuweisungen",
+  "afternoonAssignments": "Nachmittagszuweisungen",
+  "teacher": "Lehrer",
+  "subject": "Fach",
+  "learningContent": "Lerninhalt",
+  "room": "Raum",
+  "selectTeacher": "Lehrer auswählen",
+  "enterSubject": "Fach eingeben",
+  "enterLearningContent": "Lerninhalt eingeben",
+  "enterRoom": "Raum eingeben",
+  "noTeachersFound": "Keine Lehrer gefunden",
+  "loading": "Laden...",
+  "noClassSelected": "Keine Klasse ausgewählt"
 } 

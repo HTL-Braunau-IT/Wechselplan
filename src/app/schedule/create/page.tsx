@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors, useDroppable, useDraggable } from '@dnd-kit/core'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import { useTranslation } from 'next-i18next'
@@ -16,6 +16,21 @@ interface Student {
 interface Group {
 	id: number
 	students: Student[]
+}
+
+interface Assignment {
+	groupId: number
+	studentIds: number[]
+}
+
+interface ApiError {
+	error: string
+	message: string
+}
+
+interface AssignmentsResponse {
+	assignments: Assignment[]
+	unassignedStudents: Student[]
 }
 
 function StudentItem({ student, index, onRemove }: { student: Student, index: number, onRemove: (studentId: number) => void }) {
@@ -75,7 +90,6 @@ function GroupContainer({ group, children }: { group: Group, children: React.Rea
 }
 
 export default function ScheduleClassSelectPage() {
-	const params = useParams<{ lang: string }>()
 	const router = useRouter()
 	const { t } = useTranslation('schedule')
 
@@ -87,6 +101,8 @@ export default function ScheduleClassSelectPage() {
 	const [numberOfGroups, setNumberOfGroups] = useState(2)
 	const [groups, setGroups] = useState<Group[]>([])
 	const [activeStudent, setActiveStudent] = useState<Student | null>(null)
+	const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+	const [pendingAssignments, setPendingAssignments] = useState<{ assignments: Assignment[], removedStudentIds: number[] } | null>(null)
 
 	const sensors = useSensors(
 		useSensor(MouseSensor, {
@@ -124,39 +140,69 @@ export default function ScheduleClassSelectPage() {
 			
 			setLoading(true)
 			try {
-				const res = await fetch(`/api/students?class=${selectedClass}`)
-				if (!res.ok) throw new Error('Failed to fetch students')
-				const data = await res.json() as Student[]
-				setStudents(data)
-			} catch {
+				// First fetch all students
+				const studentsRes = await fetch(`/api/students?class=${selectedClass}`)
+				if (!studentsRes.ok) throw new Error('Failed to fetch students')
+				const studentsData = await studentsRes.json() as Student[]
+				setStudents(studentsData)
+
+				// Then fetch existing assignments
+				const assignmentsRes = await fetch(`/api/schedule/assignments?class=${selectedClass}`)
+				if (!assignmentsRes.ok) throw new Error('Failed to fetch assignments')
+				const assignmentsData = await assignmentsRes.json() as AssignmentsResponse
+
+				if (assignmentsData.assignments && assignmentsData.assignments.length > 0) {
+					// If we have existing assignments, use them
+					const existingGroups: Group[] = assignmentsData.assignments.map(assignment => ({
+						id: assignment.groupId,
+						students: assignment.studentIds.map(id => {
+							const student = studentsData.find(s => s.id === id)
+							if (!student) throw new Error(`Student with id ${id} not found`)
+							return student
+						})
+					}))
+					setGroups(existingGroups)
+					setNumberOfGroups(existingGroups.length)
+				} else {
+					// Otherwise, create default groups
+					const sortedStudents = [...studentsData].sort((a, b) => 
+						a.lastName.localeCompare(b.lastName)
+					)
+					const studentsPerGroup = Math.ceil(sortedStudents.length / numberOfGroups)
+					const newGroups: Group[] = Array.from({ length: numberOfGroups }, (_, i) => ({
+						id: i + 1,
+						students: sortedStudents.slice(i * studentsPerGroup, (i + 1) * studentsPerGroup)
+					}))
+					setGroups(newGroups)
+				}
+			} catch (error) {
+				console.error('Error:', error)
 				setError('Fehler beim Laden der Schüler.')
 			} finally {
 				setLoading(false)
 			}
 		}
 		void fetchStudents()
-	}, [selectedClass])
+	}, [selectedClass, numberOfGroups])
 
-	// Split students into groups whenever students or numberOfGroups changes
+	// Add a separate effect to handle group updates when numberOfGroups changes
 	useEffect(() => {
 		if (students.length === 0) return
 
-		// Sort students by last name
+		// Only update groups if we don't have existing assignments
+		const hasExistingAssignments = groups.some(group => group.students.length > 0)
+		if (hasExistingAssignments) return
+
 		const sortedStudents = [...students].sort((a, b) => 
 			a.lastName.localeCompare(b.lastName)
 		)
-
-		// Calculate students per group
 		const studentsPerGroup = Math.ceil(sortedStudents.length / numberOfGroups)
-
-		// Create groups
 		const newGroups: Group[] = Array.from({ length: numberOfGroups }, (_, i) => ({
 			id: i + 1,
 			students: sortedStudents.slice(i * studentsPerGroup, (i + 1) * studentsPerGroup)
 		}))
-
 		setGroups(newGroups)
-	}, [students, numberOfGroups])
+	}, [numberOfGroups, students])
 
 	function handleSelect(e: React.ChangeEvent<HTMLSelectElement>) {
 		setSelectedClass(e.target.value)
@@ -195,15 +241,58 @@ export default function ScheduleClassSelectPage() {
 			})
 
 			if (!response.ok) {
+				const data = await response.json() as ApiError
+				if (data.error === 'EXISTING_ASSIGNMENTS') {
+					setPendingAssignments({ assignments, removedStudentIds: removedStudents.map(student => student.id) })
+					setShowConfirmDialog(true)
+					return
+				}
 				throw new Error('Failed to store assignments')
 			}
 
-			// Navigate to the next step
-			router.push(`/schedule/create/subjects?class=${selectedClass}`)
+			// Navigate to the teachers page
+			router.push(`/schedule/create/teachers?class=${selectedClass}`)
 		} catch (error) {
 			console.error('Error storing assignments:', error)
 			setError('Failed to store assignments. Please try again.')
 		}
+	}
+
+	async function handleConfirmUpdate() {
+		if (!pendingAssignments) return
+
+		try {
+			const response = await fetch('/api/schedule/assignments', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					class: selectedClass,
+					assignments: pendingAssignments.assignments,
+					removedStudentIds: pendingAssignments.removedStudentIds,
+					updateExisting: true
+				}),
+			})
+
+			if (!response.ok) {
+				throw new Error('Failed to update assignments')
+			}
+
+			// Navigate to the teachers page
+			router.push(`/schedule/create/teachers?class=${selectedClass}`)
+		} catch (error) {
+			console.error('Error updating assignments:', error)
+			setError('Failed to update assignments. Please try again.')
+		} finally {
+			setShowConfirmDialog(false)
+			setPendingAssignments(null)
+		}
+	}
+
+	function handleCancelUpdate() {
+		setShowConfirmDialog(false)
+		setPendingAssignments(null)
 	}
 
 	function handleDragStart(event: DragStartEvent) {
@@ -372,6 +461,30 @@ export default function ScheduleClassSelectPage() {
 					</div>
 				)}
 			</div>
+
+			{/* Confirmation Dialog */}
+			{showConfirmDialog && (
+				<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+					<div className="bg-white rounded-lg p-6 max-w-md w-full">
+						<h3 className="text-lg font-semibold mb-4">Existing Assignments Found</h3>
+						<p className="mb-6">There are already group assignments for this class. Would you like to update them?</p>
+						<div className="flex justify-end gap-4">
+							<button
+								onClick={handleCancelUpdate}
+								className="px-4 py-2 text-gray-600 hover:text-gray-800"
+							>
+								Cancel
+							</button>
+							<button
+								onClick={handleConfirmUpdate}
+								className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+							>
+								Update Assignments
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
 		</div>
 	)
 } 
