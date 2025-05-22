@@ -116,3 +116,14 @@ model LearningContent {
     @@index([name])
 }
 
+model SchoolHoliday {
+    id        Int      @id @default(autoincrement())
+    name      String
+    startDate DateTime
+    endDate   DateTime
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([startDate, endDate])
+}
+

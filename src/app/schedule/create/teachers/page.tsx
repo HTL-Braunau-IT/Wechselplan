@@ -541,7 +541,7 @@ export default function TeacherAssignmentPage() {
 				throw new Error(errorData.message ?? 'Failed to save teacher assignments')
 			}
 
-			router.push(`/schedule/create/review?class=${selectedClass}`)
+			router.push(`/schedule/create/rotation?class=${selectedClass}`)
 		} catch (error) {
 			console.error('Error:', error)
 			setError(error instanceof Error ? error.message : 'Fehler beim Speichern der Lehrerzuweisungen.')
@@ -571,7 +571,7 @@ export default function TeacherAssignmentPage() {
 
 			setShowConfirmDialog(false)
 			setPendingAssignments(null)
-			router.push(`/schedule/create/review?class=${selectedClass}`)
+			router.push(`/schedule/create/rotation?class=${selectedClass}`)
 		} catch (error) {
 			console.error('Error:', error)
 			setError(error instanceof Error ? error.message : 'Fehler beim Aktualisieren der Lehrerzuweisungen.')
