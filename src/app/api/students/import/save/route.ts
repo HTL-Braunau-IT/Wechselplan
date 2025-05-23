@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 interface ImportRequest {
-  classes: string[] // Array of class names to import
+  classes: string[]
 }
 
 export async function POST(request: Request) {
@@ -39,10 +39,17 @@ export async function POST(request: Request) {
       const classData = importData.classes.find((c) => c.name === className)
       if (!classData) continue
 
+      // Get or create the class
+      const classRecord = await prisma.class.upsert({
+        where: { name: className },
+        update: {},
+        create: { name: className }
+      })
+
       // Delete existing students in this class
       await prisma.student.deleteMany({
         where: {
-          class: className
+          classId: classRecord.id
         }
       })
 
@@ -52,7 +59,7 @@ export async function POST(request: Request) {
           data: {
             firstName: student.firstName,
             lastName: student.lastName,
-            class: className
+            classId: classRecord.id
           }
         })
         importedCount++

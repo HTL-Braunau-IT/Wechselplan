@@ -39,9 +39,23 @@ export async function GET(request: Request) {
 			)
 		}
 
+		// First find the class by name
+		const classRecord = await prisma.class.findUnique({
+			where: { name: className }
+		})
+
+		if (!classRecord) {
+			return NextResponse.json(
+				{ error: 'Class not found' },
+				{ status: 404 }
+			)
+		}
+
 		// Get all students with their group assignments for this class
 		const students = await prisma.student.findMany({
-			where: { class: className },
+			where: {
+				classId: classRecord.id
+			},
 			orderBy: [
 				{ lastName: 'asc' },
 				{ firstName: 'asc' }
@@ -80,66 +94,51 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
 	try {
-		const body = await request.json() as RequestBody
-		const { class: className, assignments, removedStudentIds, updateExisting } = body
+		const body = await request.json()
+		const { class: className, assignments, removedStudentIds, updateExisting = false } = body
 
-		// Check if there are existing assignments for this class
-		const existingAssignment = await prisma.groupAssignment.findFirst({
-			where: { class: className }
-		})
-
-		if (existingAssignment && !updateExisting) {
+		if (!className) {
 			return NextResponse.json(
-				{ error: 'EXISTING_ASSIGNMENTS', message: 'There are existing group assignments for this class.' },
-				{ status: 409 }
+				{ error: 'Class parameter is required' },
+				{ status: 400 }
 			)
 		}
 
-		// Start a transaction to ensure all operations succeed or fail together
-		await (prisma as unknown as { $transaction: (callback: (tx: TransactionClient) => Promise<void>, options?: { isolationLevel: Prisma.TransactionIsolationLevel }) => Promise<void> }).$transaction(async (tx: TransactionClient) => {
-			// If updating existing assignments, delete all existing assignments for this class
-			if (updateExisting) {
-				await tx.groupAssignment.deleteMany({
-					where: { class: className }
-				})
-			}
-
-			// Remove students that were removed from groups
-			if (removedStudentIds.length > 0) {
-				await tx.student.deleteMany({
-					where: {
-						id: {
-							in: removedStudentIds
-						}
-					}
-				})
-			}
-
-			// Store group assignments
-			for (const assignment of assignments) {
-				// Create the group assignment
-				await tx.groupAssignment.create({
-					data: {
-						groupId: assignment.groupId,
-						class: className
-					}
-				})
-
-				// Update students with their group ID
-				await tx.student.updateMany({
-					where: {
-						id: {
-							in: assignment.studentIds
-						}
-					},
-					data: {
-						groupId: assignment.groupId
-					}
-				})
-			}
-		}, {
-			isolationLevel: Prisma.TransactionIsolationLevel.Serializable
+		// First find the class by name
+		const classRecord = await prisma.class.findUnique({
+			where: { name: className }
 		})
+
+		if (!classRecord) {
+			return NextResponse.json(
+				{ error: 'Class not found' },
+				{ status: 404 }
+			)
+		}
+
+		// Update each student's groupId
+		for (const assignment of assignments) {
+			await prisma.student.updateMany({
+				where: {
+					id: { in: assignment.studentIds }
+				},
+				data: {
+					groupId: assignment.groupId
+				}
+			})
+		}
+
+		// Remove groupId from removed students
+		if (removedStudentIds.length > 0) {
+			await prisma.student.updateMany({
+				where: {
+					id: { in: removedStudentIds }
+				},
+				data: {
+					groupId: null
+				}
+			})
+		}
 
 		return NextResponse.json({ success: true })
 	} catch (error) {

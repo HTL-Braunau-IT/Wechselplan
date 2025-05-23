@@ -1,93 +1,49 @@
 import { NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
+import { db } from '@/lib/db'
 
-const prisma = new PrismaClient()
+export async function POST(req: Request) {
+  try {
+    const body = await req.json()
+    const { name, description, startDate, endDate, selectedWeekday, schedule, classId } = body
 
-interface ScheduleInput {
-  class: string
-  weekDay: number
-  period: number
-  subject: string
-  room: string
-  teacher: number
+    // First create the schedule
+    const newSchedule = await db.schedule.create({
+      data: {
+        name,
+        description,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        selectedWeekday,
+        classId: classId ? parseInt(classId) : null,
+        // Store the schedule data as JSON
+        scheduleData: schedule
+      }
+    })
+
+    return NextResponse.json(newSchedule)
+  } catch (error) {
+    console.error('[SCHEDULES_POST]', error)
+    return new NextResponse('Internal Error', { status: 500 })
+  }
 }
 
-// GET /api/schedules - Get all schedules for a class
-export async function GET(request: Request) {
-    const { searchParams } = new URL(request.url)
-    const className = searchParams.get('class')
+export async function GET(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const classId = searchParams.get('classId')
 
-    if (!className) {
-        return NextResponse.json(
-            { error: 'Class parameter is required' },
-            { status: 400 }
-        )
-    }
+    const schedules = await db.schedule.findMany({
+      where: {
+        classId: classId ? parseInt(classId) : null
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    })
 
-    try {
-        const schedules = await prisma.schedule.findMany({
-            where: {
-                class: className,
-            },
-            orderBy: [
-                { weekDay: 'asc' },
-                { period: 'asc' },
-            ],
-        })
-
-        return NextResponse.json(schedules)
-    } catch (error) {
-        console.error('Error fetching schedules:', error)
-        return NextResponse.json(
-            { error: 'Failed to fetch schedules' },
-            { status: 500 }
-        )
-    }
-}
-
-// POST /api/schedules - Create a new schedule entry
-export async function POST(request: Request) {
-    try {
-        const body = await request.json() as ScheduleInput
-        const { class: className, weekDay, period, subject, room, teacher } = body
-
-        // Validate required fields
-        if (!className || !weekDay || !period || !subject || !room || !teacher) {
-            return NextResponse.json(
-                { error: 'All fields are required' },
-                { status: 400 }
-            )
-        }
-
-        // Validate weekDay (1-5 for Monday-Friday)
-        if (weekDay < 1 || weekDay > 5) {
-            return NextResponse.json(
-                { error: 'Weekday must be between 1 and 5' },
-                { status: 400 }
-            )
-        }
-
-        const schedule = await prisma.schedule.create({
-            data: {
-                class: className,
-                weekDay,
-                period,
-                subject,
-                room,
-                teacher: {
-                    connect: {
-                        id: teacher
-                    }
-                }
-            },
-        })
-
-        return NextResponse.json(schedule, { status: 201 })
-    } catch (error) {
-        console.error('Error creating schedule:', error)
-        return NextResponse.json(
-            { error: 'Failed to create schedule' },
-            { status: 500 }
-        )
-    }
+    return NextResponse.json(schedules)
+  } catch (error) {
+    console.error('[SCHEDULES_GET]', error)
+    return new NextResponse('Internal Error', { status: 500 })
+  }
 } 

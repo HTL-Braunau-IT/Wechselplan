@@ -2,128 +2,144 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-    provider = "prisma-client-js"
-    previewFeatures = ["createMany"]
+  provider        = "prisma-client-js"
 }
 
 datasource db {
-    provider = "sqlite"
-    url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 model Student {
-    id        Int      @id @default(autoincrement())
-    firstName String
-    lastName  String
-    class     String   // e.g., "1AHITS", "2AFELC", "3BHME"
-    groupId   Int?     // The group this student belongs to
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-    schedules Schedule[]
+  id        Int      @id @default(autoincrement())
+  firstName String
+  lastName  String
+  classId   Int?
+  class     Class?   @relation(fields: [classId], references: [id])
+  groupId   Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-    @@index([class])
-    @@index([groupId])
+  @@index([firstName, lastName])
+  @@index([groupId])
+  @@index([classId])
 }
 
 model Teacher {
-    id        Int      @id @default(autoincrement())
-    firstName String
-    lastName  String
-    schedules Schedule[]
-    teacherAssignments TeacherAssignment[]
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+  id          Int                 @id @default(autoincrement())
+  firstName   String
+  lastName    String
+  assignments TeacherAssignment[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
 
-    @@unique([firstName, lastName])
-    @@index([firstName, lastName])
+  @@index([firstName, lastName])
+}
+
+model Class {
+  id          Int                 @id @default(autoincrement())
+  name        String              @unique // e.g., "1AHITS", "2AFELC", "3BHME"
+  description String?
+  students    Student[]
+  schedules   Schedule[]
+  assignments TeacherAssignment[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([name])
 }
 
 model Schedule {
-    id        Int      @id @default(autoincrement())
-    class     String   // e.g., "1AHITS", "2AFELC", "3BHME"
-    weekDay   Int      // 1-5 for Monday-Friday
-    period    Int      // Period number in the day
-    subject   String
-    teacherId Int      // Reference to the Teacher model
-    teacher   Teacher  @relation(fields: [teacherId], references: [id])
-    room      String
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-    students  Student[]
+  id              Int      @id @default(autoincrement())
+  name            String
+  description     String?
+  startDate       DateTime
+  endDate         DateTime
+  selectedWeekday Int
+  scheduleData    Json
+  classId         Int?
+  class           Class?   @relation(fields: [classId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-    @@index([class])
-    @@index([teacherId])
-    @@unique([class, weekDay, period])
+  @@index([classId])
 }
 
 model GroupAssignment {
-    id        Int      @id @default(autoincrement())
-    groupId   Int
-    class     String   // e.g., "1AHITS", "2AFELC", "3BHME"
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+  id        Int      @id @default(autoincrement())
+  groupId   Int
+  class     String // e.g., "1AHITS", "2AFELC", "3BHME"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-    @@index([class])
-    @@unique([class, groupId])
+  @@unique([class, groupId])
+  @@index([class])
 }
 
 model TeacherAssignment {
-    id              Int      @id @default(autoincrement())
-    class           String   // e.g., "1AHITS", "2AFELC", "3BHME"
-    period          String   // "AM" or "PM"
-    groupId         Int
-    teacherId       Int
-    teacher         Teacher  @relation(fields: [teacherId], references: [id])
-    subject         String
-    learningContent String
-    room            String
-    createdAt       DateTime @default(now())
-    updatedAt       DateTime @updatedAt
+  id                Int             @id @default(autoincrement())
+  classId           Int
+  class             Class           @relation(fields: [classId], references: [id])
+  period            String // "AM" or "PM"
+  groupId           Int
+  teacherId         Int
+  teacher           Teacher         @relation(fields: [teacherId], references: [id])
+  subjectId         Int
+  subject           Subject         @relation(fields: [subjectId], references: [id])
+  learningContentId Int
+  learningContent   LearningContent @relation(fields: [learningContentId], references: [id])
+  roomId            Int
+  room              Room            @relation(fields: [roomId], references: [id])
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
-    @@index([class])
-    @@index([teacherId])
-    @@unique([class, period, groupId])
+  @@unique([classId, period, groupId])
+  @@index([classId])
+  @@index([teacherId])
+  @@index([subjectId])
+  @@index([learningContentId])
+  @@index([roomId])
 }
 
 model Room {
-    id          Int      @id @default(autoincrement())
-    name        String   @unique
-    capacity    Int?
-    description String?
-    createdAt   DateTime @default(now())
-    updatedAt   DateTime @updatedAt
+  id          Int                 @id @default(autoincrement())
+  name        String              @unique
+  capacity    Int?
+  description String?
+  assignments TeacherAssignment[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
 
-    @@index([name])
+  @@index([name])
 }
 
 model Subject {
-    id          Int      @id @default(autoincrement())
-    name        String   @unique
-    description String?
-    createdAt   DateTime @default(now())
-    updatedAt   DateTime @updatedAt
+  id                Int                 @id @default(autoincrement())
+  name              String              @unique
+  description       String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  TeacherAssignment TeacherAssignment[]
 
-    @@index([name])
+  @@index([name])
 }
 
 model LearningContent {
-    id          Int      @id @default(autoincrement())
-    name        String   @unique
-    description String?
-    createdAt   DateTime @default(now())
-    updatedAt   DateTime @updatedAt
+  id                Int                 @id @default(autoincrement())
+  name              String              @unique
+  description       String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  TeacherAssignment TeacherAssignment[]
 
-    @@index([name])
+  @@index([name])
 }
 
 model SchoolHoliday {
-    id        Int      @id @default(autoincrement())
-    name      String
-    startDate DateTime
-    endDate   DateTime
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-
-    @@index([startDate, endDate])
+  id        Int      @id @default(autoincrement())
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
-

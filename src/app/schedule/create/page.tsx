@@ -212,11 +212,6 @@ export default function ScheduleClassSelectPage() {
 				newGroups[targetGroupIndex]!.students.push(student)
 			})
 
-			// Sort students within each group
-			newGroups.forEach(group => {
-				group.students.sort((a, b) => a.lastName.localeCompare(b.lastName))
-			})
-
 			setGroups(newGroups)
 		} else {
 			// For new groups, distribute all students evenly
@@ -479,10 +474,10 @@ export default function ScheduleClassSelectPage() {
 											numberOfGroups === 2 
 												? 'grid-cols-2 justify-items-center' 
 												: numberOfGroups === 3 
-													? 'grid-cols-2 justify-items-center [&>*:last-child]:col-span-2 [&>*:last-child]:max-w-md [&>*:last-child]:mx-auto' 
+													? 'grid-cols-2 justify-items-center [&>*:nth-child(3)]:col-span-2 [&>*:nth-child(3)]:max-w-md [&>*:nth-child(3)]:mx-auto' 
 													: 'grid-cols-2 justify-items-center'
 										}`}>
-											{groups.map((group) => (
+											{groups.sort((a, b) => a.id - b.id).map((group) => (
 												<GroupContainer key={group.id} group={group}>
 													<div className="space-y-2">
 														{group.students.map((student, index) => (

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, type Class } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
@@ -16,14 +16,26 @@ export async function GET(request: Request) {
     }
 
     try {
+        // First find the class by name
+        const classRecord = await prisma.class.findUnique({
+            where: { name: className }
+        }) as Class | null
+
+        if (!classRecord) {
+            return NextResponse.json(
+                { error: 'Class not found' },
+                { status: 404 }
+            )
+        }
+
         const students = await prisma.student.findMany({
             where: {
-                class: className,
+                classId: classRecord.id
             },
             orderBy: [
                 { lastName: 'asc' },
-                { firstName: 'asc' },
-            ],
+                { firstName: 'asc' }
+            ]
         })
 
         return NextResponse.json(students)

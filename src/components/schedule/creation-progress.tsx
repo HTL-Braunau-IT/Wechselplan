@@ -19,6 +19,8 @@ const steps: Step[] = [
 export function CreationProgress() {
 	const { t } = useTranslation('schedule')
 	const pathname = usePathname()
+	const searchParams = new URLSearchParams(window.location.search)
+	const selectedClass = searchParams.get('class')
 
 	const currentStepIndex = steps.findIndex(step => pathname === step.path)
 
@@ -28,11 +30,16 @@ export function CreationProgress() {
 				const isCompleted = index < currentStepIndex
 				const isCurrent = index === currentStepIndex
 				const isClickable = isCompleted || isCurrent
+				const href = isClickable 
+					? selectedClass 
+						? `${step.path}?class=${selectedClass}`
+						: step.path
+					: '#'
 
 				return (
 					<Link
 						key={step.id}
-						href={isClickable ? step.path : '#'}
+						href={href}
 						className={`relative flex items-center w-full mb-8 group ${
 							isClickable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
 						}`}

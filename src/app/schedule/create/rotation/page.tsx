@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 interface WeekInfo {
   week: string
   date: string
+  isHoliday: boolean
 }
 
 interface Holiday {
@@ -21,7 +22,12 @@ interface Holiday {
   endDate: Date
 }
 
-type Schedule = Record<string, WeekInfo[]>
+type ScheduleEntry = {
+  weeks: WeekInfo[]
+  holidays: Holiday[]
+}
+
+type Schedule = Record<string, ScheduleEntry>
 
 const WEEKDAYS = [
   { value: 1, label: 'Monday' },
@@ -37,6 +43,11 @@ export default function RotationPage() {
   const [selectedWeekday, setSelectedWeekday] = useState(1) // Default to Monday
   const [holidays, setHolidays] = useState<Holiday[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [selectedClass, setSelectedClass] = useState<string | null>(null)
+  const [startDate, setStartDate] = useState<Date>(new Date())
+  const [endDate, setEndDate] = useState<Date>(new Date())
 
   // Calculate the school year dates (example: from September to June)
   const currentYear = new Date().getFullYear()
@@ -71,12 +82,28 @@ export default function RotationPage() {
   }
 
   const isHoliday = (date: Date): boolean => {
-    return holidays.some(holiday => 
-      isWithinInterval(date, {
-        start: holiday.startDate,
-        end: holiday.endDate
+    // Set time to midnight for the check date
+    const checkDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+    
+    return holidays.some(holiday => {
+      // Set time to midnight for holiday start and end dates
+      const holidayStart = new Date(holiday.startDate.getFullYear(), holiday.startDate.getMonth(), holiday.startDate.getDate())
+      const holidayEnd = new Date(holiday.endDate.getFullYear(), holiday.endDate.getMonth(), holiday.endDate.getDate())
+      
+      const isHoliday = isWithinInterval(checkDate, {
+        start: holidayStart,
+        end: holidayEnd
       })
-    )
+      
+      // Debug log
+      if (format(checkDate, 'dd.MM.yy') === '01.09.25') {
+        console.log('Checking date:', format(checkDate, 'dd.MM.yyyy'))
+        console.log('Holiday:', holiday.name, format(holidayStart, 'dd.MM.yyyy'), format(holidayEnd, 'dd.MM.yyyy'))
+        console.log('Is holiday:', isHoliday)
+      }
+      
+      return isHoliday
+    })
   }
 
   const calculateSchedule = () => {
@@ -107,18 +134,67 @@ export default function RotationPage() {
         end: periodEnd
       })
 
-      newSchedule[turnusKey] = weeks
-        .map((week: Date) => {
-          // Ensure each date is on the selected weekday
-          const adjustedDate = setDay(week, selectedWeekday)
-          return {
-            week: `KW${getWeekNumber(adjustedDate)}`,
-            date: format(adjustedDate, 'dd.MM.yy'),
-            isHoliday: isHoliday(adjustedDate)
-          }
+      // First, map all weeks with their holiday status
+      const weeksWithHolidays = weeks.map((week: Date) => {
+        // Ensure each date is on the selected weekday
+        const adjustedDate = setDay(week, selectedWeekday)
+        const isHolidayDate = isHoliday(adjustedDate)
+        
+        return {
+          week: `KW${getWeekNumber(adjustedDate)}`,
+          date: format(adjustedDate, 'dd.MM.yy'),
+          isHoliday: isHolidayDate,
+          originalDate: adjustedDate // Keep the original date for holiday checking
+        }
+      })
+
+      // Store the full date range for holiday checking
+      const turnDateRange = {
+        start: weeksWithHolidays[0]?.originalDate,
+        end: weeksWithHolidays[weeksWithHolidays.length - 1]?.originalDate
+      }
+
+      // Filter out holiday weeks for the schedule
+      const turnHolidays = holidays.filter(holiday => {
+        if (!turnDateRange.start || !turnDateRange.end) return false
+        
+        // Check if the holiday falls within the turn's date range
+        const holidayStart = new Date(holiday.startDate.getFullYear(), holiday.startDate.getMonth(), holiday.startDate.getDate())
+        const holidayEnd = new Date(holiday.endDate.getFullYear(), holiday.endDate.getMonth(), holiday.endDate.getDate())
+        
+        const isInDateRange = isWithinInterval(holidayStart, {
+          start: turnDateRange.start,
+          end: turnDateRange.end
+        }) || isWithinInterval(holidayEnd, {
+          start: turnDateRange.start,
+          end: turnDateRange.end
+        }) || isWithinInterval(turnDateRange.start, {
+          start: holidayStart,
+          end: holidayEnd
         })
-        .filter(week => !week.isHoliday) // Remove holiday weeks
-        .map(({ week, date }) => ({ week, date }))
+        
+        if (!isInDateRange) return false
+        
+        // Check if the holiday falls on our selected weekday
+        const holidayStartDay = getDay(holidayStart)
+        const holidayEndDay = getDay(holidayEnd)
+        
+        // If holiday spans multiple days, check if our selected weekday falls within it
+        if (holidayStartDay !== holidayEndDay) {
+          return true // Include multi-day holidays
+        }
+        
+        // For single-day holidays, only include if they fall on our selected weekday
+        return holidayStartDay === selectedWeekday
+      })
+
+      // Store the holidays for this turn
+      newSchedule[turnusKey] = {
+        weeks: weeksWithHolidays
+          .filter(week => !week.isHoliday)
+          .map(({ week, date }) => ({ week, date, isHoliday: false })),
+        holidays: turnHolidays
+      }
 
       currentDate = periodEnd
     }
@@ -130,6 +206,41 @@ export default function RotationPage() {
     const firstDayOfYear = new Date(date.getFullYear(), 0, 1)
     const pastDaysOfYear = (date.getTime() - firstDayOfYear.getTime()) / 86400000
     return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7)
+  }
+
+  const handleSave = async () => {
+    try {
+      setIsSaving(true)
+      setSaveError(null)
+
+      const response = await fetch('/api/schedules', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: 'Rotation Schedule',
+          description: `Rotation schedule for ${selectedClass || 'all classes'}`,
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+          selectedWeekday,
+          schedule,
+          classId: selectedClass
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to save schedule')
+      }
+
+      // Show success message or redirect
+      alert('Schedule saved successfully!')
+    } catch (error) {
+      console.error('Error saving schedule:', error instanceof Error ? error.message : 'Unknown error')
+      setSaveError('Failed to save schedule. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   if (isLoading) return <div>Loading...</div>
@@ -174,45 +285,78 @@ export default function RotationPage() {
             </div>
           </div>
 
-          <div className="mt-8 overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr>
-                  {Object.keys(schedule).map((turnus) => (
-                    <th key={turnus} className="border p-2">
-                      {turnus}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {Object.values(schedule)[0]?.map((_, weekIndex) => (
-                  <tr key={weekIndex}>
-                    {Object.values(schedule).map((turnus, turnusIndex) => (
-                      <td key={turnusIndex} className="border p-2">
-                        {turnus[weekIndex] && (
-                          <>
-                            {turnus[weekIndex].week}
-                            <br />
-                            {turnus[weekIndex].date}
-                          </>
-                        )}
-                      </td>
+          <div className="mt-8">
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr>
+                    {Object.entries(schedule).map(([turnus, entry]) => (
+                      <th key={turnus} className="border p-2">
+                        <div>{turnus}</div>
+                        <div className="text-sm font-normal text-gray-500">{entry.weeks.length} weeks</div>
+                      </th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {Object.values(schedule)[0]?.weeks?.map((_, weekIndex) => (
+                    <tr key={weekIndex}>
+                      {Object.values(schedule).map((entry, turnusIndex) => (
+                        <td key={turnusIndex} className="border p-2">
+                          {entry?.weeks?.[weekIndex] && (
+                            <>
+                              {entry.weeks[weekIndex].week}
+                              <br />
+                              <span className={entry.weeks[weekIndex].isHoliday ? 'text-red-500' : undefined}>
+                                {entry.weeks[weekIndex].date}
+                              </span>
+                            </>
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    {Object.entries(schedule).map(([turnus, entry], turnusIndex) => {
+                      return (
+                        <td key={turnusIndex} className="border p-2 bg-gray-50">
+                          {entry?.holidays?.length > 0 ? (
+                            <div className="text-sm">
+                              <div className="font-medium mb-1">Missed Holidays:</div>
+                              {entry.holidays.map((holiday, index) => (
+                                <div key={index} className="text-gray-600">
+                                  {holiday.name} ({format(holiday.startDate, 'dd.MM.yy')})
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-sm text-gray-500">No missed holidays</div>
+                          )}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
 
           <div className="mt-4 flex justify-end gap-4">
             <Button variant="outline" onClick={() => window.history.back()}>
               Back
             </Button>
-            <Button onClick={() => console.log('Save schedule')}>
-              Save Schedule
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving ? 'Saving...' : 'Save Schedule'}
             </Button>
           </div>
+
+          {saveError && (
+            <div className="mt-4 text-red-500">
+              {saveError}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

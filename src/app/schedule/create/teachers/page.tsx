@@ -57,9 +57,17 @@ interface AssignmentsResponse {
 	assignments: GroupAssignment[]
 }
 
+interface TeacherAssignmentResponse {
+	groupId: number
+	teacherId: number
+	subject: string
+	learningContent: string
+	room: string
+}
+
 interface TeacherAssignmentsResponse {
-	amAssignments: TeacherAssignment[]
-	pmAssignments: TeacherAssignment[]
+	amAssignments: TeacherAssignmentResponse[]
+	pmAssignments: TeacherAssignmentResponse[]
 }
 
 interface ApiError {
@@ -389,16 +397,31 @@ export default function TeacherAssignmentPage() {
 						roomId: 0
 					}))
 
+					// Map string values back to IDs
+					const mapAssignmentsToIds = (assignments: TeacherAssignmentResponse[]) => assignments.map(assignment => {
+						const subject = subjects.find(s => s.name === assignment.subject)
+						const learningContent = learningContents.find(lc => lc.name === assignment.learningContent)
+						const room = rooms.find(r => r.name === assignment.room)
+
+						return {
+							groupId: assignment.groupId,
+							teacherId: assignment.teacherId,
+							subjectId: subject?.id ?? 0,
+							learningContentId: learningContent?.id ?? 0,
+							roomId: room?.id ?? 0
+						}
+					})
+
 					// Set AM assignments
 					if (hasExistingAmAssignments) {
-						setAmAssignments(teacherAssignmentsData.amAssignments)
+						setAmAssignments(mapAssignmentsToIds(teacherAssignmentsData.amAssignments))
 					} else {
 						setAmAssignments(initialAssignments)
 					}
 
 					// Set PM assignments
 					if (hasExistingPmAssignments) {
-						setPmAssignments(teacherAssignmentsData.pmAssignments)
+						setPmAssignments(mapAssignmentsToIds(teacherAssignmentsData.pmAssignments))
 					} else {
 						setPmAssignments(initialAssignments)
 					}
@@ -444,22 +467,35 @@ export default function TeacherAssignmentPage() {
 						: assignment
 				)
 			} else {
-				return [...current, {
+				// Create new assignment with all fields initialized to 0
+				const newAssignment: TeacherAssignment = {
 					groupId,
-					teacherId: field === 'teacherId' ? value as number : 0,
-					subjectId: field === 'subjectId' ? value as number : 0,
-					learningContentId: field === 'learningContentId' ? value as number : 0,
-					roomId: field === 'roomId' ? value as number : 0
-				}]
+					teacherId: 0,
+					subjectId: 0,
+					learningContentId: 0,
+					roomId: 0,
+					[field]: value // Set the changed field
+				}
+				return [...current, newAssignment]
 			}
 		})
 	}
 
 	async function handleNext() {
 		try {
-			// Filter out assignments with no teacher selected
-			const validAmAssignments = amAssignments.filter(a => a.teacherId !== 0)
-			const validPmAssignments = pmAssignments.filter(a => a.teacherId !== 0)
+			// Keep all assignments that have any field filled in
+			const validAmAssignments = amAssignments.filter(a => 
+				a.teacherId !== 0 || 
+				a.subjectId !== 0 || 
+				a.learningContentId !== 0 || 
+				a.roomId !== 0
+			)
+			const validPmAssignments = pmAssignments.filter(a => 
+				a.teacherId !== 0 || 
+				a.subjectId !== 0 || 
+				a.learningContentId !== 0 || 
+				a.roomId !== 0
+			)
 
 			// Check if any group in AM has assignments
 			const hasAnyAmAssignments = validAmAssignments.length > 0
@@ -515,6 +551,21 @@ export default function TeacherAssignmentPage() {
 				return
 			}
 
+			// Map the assignments to include string values for subject, learningContent, and room
+			const mapAssignments = (assignments: TeacherAssignment[]) => assignments.map(assignment => {
+				const subject = subjects.find(s => s.id === assignment.subjectId)
+				const learningContent = learningContents.find(lc => lc.id === assignment.learningContentId)
+				const room = rooms.find(r => r.id === assignment.roomId)
+
+				return {
+					groupId: assignment.groupId,
+					teacherId: assignment.teacherId,
+					subject: subject?.name ?? '',
+					learningContent: learningContent?.name ?? '',
+					room: room?.name ?? ''
+				}
+			})
+
 			// If no changes or no existing assignments, proceed with saving
 			const response = await fetch('/api/schedule/teacher-assignments', {
 				method: 'POST',
@@ -523,8 +574,8 @@ export default function TeacherAssignmentPage() {
 				},
 				body: JSON.stringify({
 					class: selectedClass,
-					amAssignments: validAmAssignments,
-					pmAssignments: validPmAssignments
+					amAssignments: mapAssignments(validAmAssignments),
+					pmAssignments: mapAssignments(validPmAssignments)
 				}),
 			})
 
@@ -552,6 +603,21 @@ export default function TeacherAssignmentPage() {
 		if (!pendingAssignments) return
 
 		try {
+			// Map the assignments to include string values for subject, learningContent, and room
+			const mapAssignments = (assignments: TeacherAssignment[]) => assignments.map(assignment => {
+				const subject = subjects.find(s => s.id === assignment.subjectId)
+				const learningContent = learningContents.find(lc => lc.id === assignment.learningContentId)
+				const room = rooms.find(r => r.id === assignment.roomId)
+
+				return {
+					groupId: assignment.groupId,
+					teacherId: assignment.teacherId,
+					subject: subject?.name ?? '',
+					learningContent: learningContent?.name ?? '',
+					room: room?.name ?? ''
+				}
+			})
+
 			const response = await fetch('/api/schedule/teacher-assignments', {
 				method: 'POST',
 				headers: {
@@ -559,8 +625,8 @@ export default function TeacherAssignmentPage() {
 				},
 				body: JSON.stringify({
 					class: selectedClass,
-					amAssignments: pendingAssignments.amAssignments,
-					pmAssignments: pendingAssignments.pmAssignments,
+					amAssignments: mapAssignments(pendingAssignments.amAssignments),
+					pmAssignments: mapAssignments(pendingAssignments.pmAssignments),
 					updateExisting: true
 				}),
 			})

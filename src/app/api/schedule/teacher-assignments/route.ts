@@ -1,35 +1,11 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import type { Prisma } from '@prisma/client'
+import { PrismaClient } from '@prisma/client'
+import type { TeacherAssignment } from '@prisma/client'
 
-interface TeacherAssignment {
-	period: 'AM' | 'PM'
-	groupId: number
-	teacherId: number
-	subject: string
-	learningContent: string
-	room: string
-}
+const prisma = new PrismaClient()
 
-interface RequestBody {
-	class: string
-	amAssignments: TeacherAssignment[]
-	pmAssignments: TeacherAssignment[]
-	updateExisting?: boolean
-}
-
-
-type TeacherAssignmentWithPeriod = {
-	id: number
-	class: string
-	period: 'AM' | 'PM'
-	groupId: number
-	teacherId: number
-	subject: string
-	learningContent: string
-	room: string
-	createdAt: Date
-	updatedAt: Date
+interface TeacherAssignmentWithPeriod extends TeacherAssignment {
+	period: string
 }
 
 export async function GET(request: Request) {
@@ -39,39 +15,57 @@ export async function GET(request: Request) {
 
 		if (!className) {
 			return NextResponse.json(
-				{ error: 'MISSING_PARAMETERS', message: 'Class is required' },
+				{ error: 'Class parameter is required' },
 				{ status: 400 }
 			)
 		}
 
+		// First find the class by name
+		const classRecord = await prisma.class.findUnique({
+			where: { name: className }
+		})
+
+		if (!classRecord) {
+			return NextResponse.json(
+				{ error: 'Class not found' },
+				{ status: 404 }
+			)
+		}
+
 		// Fetch existing assignments for this class
-		const assignments = await (prisma as unknown as { teacherAssignment: { findMany: (args: Prisma.TeacherAssignmentFindManyArgs) => Promise<TeacherAssignmentWithPeriod[]> } }).teacherAssignment.findMany({
-			where: { class: className },
+		const assignments = await prisma.teacherAssignment.findMany({
+			where: { classId: classRecord.id },
 			orderBy: [
 				{ period: 'asc' },
 				{ groupId: 'asc' }
-			]
+			],
+			include: {
+				teacher: true,
+				subject: true,
+				learningContent: true,
+				room: true
+			}
 		})
 
-		// Separate AM and PM assignments
+		// Group assignments by period
 		const amAssignments = assignments
-			.filter((a): a is TeacherAssignmentWithPeriod & { period: 'AM' } => a.period === 'AM')
+			.filter(a => a.period === 'AM')
 			.map(a => ({
 				groupId: a.groupId,
 				teacherId: a.teacherId,
-				subject: a.subject,
-				learningContent: a.learningContent,
-				room: a.room
+				subject: a.subject.name,
+				learningContent: a.learningContent.name,
+				room: a.room.name
 			}))
 
 		const pmAssignments = assignments
-			.filter((a): a is TeacherAssignmentWithPeriod & { period: 'PM' } => a.period === 'PM')
+			.filter(a => a.period === 'PM')
 			.map(a => ({
 				groupId: a.groupId,
 				teacherId: a.teacherId,
-				subject: a.subject,
-				learningContent: a.learningContent,
-				room: a.room
+				subject: a.subject.name,
+				learningContent: a.learningContent.name,
+				room: a.room.name
 			}))
 
 		return NextResponse.json({
@@ -81,7 +75,7 @@ export async function GET(request: Request) {
 	} catch (error) {
 		console.error('Error fetching teacher assignments:', error)
 		return NextResponse.json(
-			{ error: 'INTERNAL_ERROR', message: 'Failed to fetch teacher assignments' },
+			{ error: 'Failed to fetch teacher assignments' },
 			{ status: 500 }
 		)
 	}
@@ -89,98 +83,116 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
 	try {
-		const body = await request.json() as RequestBody
-		console.log('Received request body:', JSON.stringify(body, null, 2))
-
-		const { class: className, amAssignments = [], pmAssignments = [], updateExisting = false } = body
+		const data = await request.json()
+		const { class: className, amAssignments, pmAssignments, updateExisting } = data
 
 		if (!className) {
-			console.log('Missing class name')
 			return NextResponse.json(
-				{ error: 'MISSING_PARAMETERS', message: 'Class is required' },
+				{ error: 'Class parameter is required' },
 				{ status: 400 }
 			)
 		}
 
-		// Filter out assignments with no teacher selected (teacherId === 0)
-		const validAmAssignments = amAssignments.filter(a => a.teacherId !== 0)
-		const validPmAssignments = pmAssignments.filter(a => a.teacherId !== 0)
-
-		// Combine AM and PM assignments
-		const assignments = [
-			...validAmAssignments.map(a => ({ ...a, period: 'AM' as const })),
-			...validPmAssignments.map(a => ({ ...a, period: 'PM' as const }))
-		]
-
-		console.log('Processed assignments:', JSON.stringify(assignments, null, 2))
-
-		// If no valid assignments, return success
-		if (assignments.length === 0) {
-			return NextResponse.json({ success: true })
-		}
-
-		// Get all unique teacher IDs from assignments
-		const teacherIds = [...new Set(assignments.map(a => a.teacherId))]
-
-		// Check if all teachers exist
-		const existingTeachers = await (prisma as unknown as { teacher: { findMany: (args: Prisma.TeacherFindManyArgs) => Promise<{ id: number }[]> } }).teacher.findMany({
-			where: { id: { in: teacherIds } },
-			select: { id: true }
+		// First find the class by name
+		const classRecord = await prisma.class.findUnique({
+			where: { name: className }
 		})
 
-		const existingTeacherIds = new Set(existingTeachers.map(t => t.id))
-		const invalidTeacherIds = teacherIds.filter(id => !existingTeacherIds.has(id))
-
-		if (invalidTeacherIds.length > 0) {
-			console.log('Invalid teacher IDs:', invalidTeacherIds)
+		if (!classRecord) {
 			return NextResponse.json(
-				{ 
-					error: 'INVALID_TEACHERS', 
-					message: 'Some teachers do not exist',
-					invalidTeacherIds 
-				},
-				{ status: 400 }
+				{ error: 'Class not found' },
+				{ status: 404 }
 			)
 		}
 
 		// Check for existing assignments for this class
-		const existingAssignments = await (prisma as unknown as { teacherAssignment: { findMany: (args: Prisma.TeacherAssignmentFindManyArgs) => Promise<TeacherAssignmentWithPeriod[]> } }).teacherAssignment.findMany({
-			where: { class: className }
+		const existingAssignments = await prisma.teacherAssignment.findMany({
+			where: { classId: classRecord.id }
 		})
 
-		// If there are existing assignments and updateExisting is false, return error
 		if (existingAssignments.length > 0 && !updateExisting) {
 			return NextResponse.json(
-				{ error: 'EXISTING_ASSIGNMENTS', message: 'There are existing teacher assignments for this class.' },
+				{ error: 'EXISTING_ASSIGNMENTS' },
 				{ status: 409 }
 			)
 		}
 
-		// If updating existing assignments, delete all existing assignments first
+		// Delete existing assignments if updating
 		if (updateExisting) {
-			await (prisma as unknown as { teacherAssignment: { deleteMany: (args: Prisma.TeacherAssignmentDeleteManyArgs) => Promise<Prisma.BatchPayload> } }).teacherAssignment.deleteMany({
-				where: { class: className }
+			await prisma.teacherAssignment.deleteMany({
+				where: { classId: classRecord.id }
 			})
 		}
 
-		// Create new assignments in bulk
-		await (prisma as unknown as { teacherAssignment: { createMany: (args: Prisma.TeacherAssignmentCreateManyArgs) => Promise<Prisma.BatchPayload> } }).teacherAssignment.createMany({
-			data: assignments.map(assignment => ({
-				class: className,
-				period: assignment.period,
-				groupId: assignment.groupId,
-				teacherId: assignment.teacherId,
-				subject: assignment.subject,
-				learningContent: assignment.learningContent,
-				room: assignment.room
-			}))
-		})
+		// Process AM assignments
+		for (const assignment of amAssignments) {
+			const subject = await prisma.subject.findUnique({
+				where: { name: assignment.subject }
+			})
+			const learningContent = await prisma.learningContent.findUnique({
+				where: { name: assignment.learningContent }
+			})
+			const room = await prisma.room.findUnique({
+				where: { name: assignment.room }
+			})
 
-		return NextResponse.json({ success: true })
+			if (!subject || !learningContent || !room) {
+				return NextResponse.json(
+					{ error: 'Invalid subject, learning content, or room' },
+					{ status: 400 }
+				)
+			}
+
+			await prisma.teacherAssignment.create({
+				data: {
+					classId: classRecord.id,
+					period: 'AM',
+					groupId: assignment.groupId,
+					teacherId: assignment.teacherId,
+					subjectId: subject.id,
+					learningContentId: learningContent.id,
+					roomId: room.id
+				}
+			})
+		}
+
+		// Process PM assignments
+		for (const assignment of pmAssignments) {
+			const subject = await prisma.subject.findUnique({
+				where: { name: assignment.subject }
+			})
+			const learningContent = await prisma.learningContent.findUnique({
+				where: { name: assignment.learningContent }
+			})
+			const room = await prisma.room.findUnique({
+				where: { name: assignment.room }
+			})
+
+			if (!subject || !learningContent || !room) {
+				return NextResponse.json(
+					{ error: 'Invalid subject, learning content, or room' },
+					{ status: 400 }
+				)
+			}
+
+			await prisma.teacherAssignment.create({
+				data: {
+					classId: classRecord.id,
+					period: 'PM',
+					groupId: assignment.groupId,
+					teacherId: assignment.teacherId,
+					subjectId: subject.id,
+					learningContentId: learningContent.id,
+					roomId: room.id
+				}
+			})
+		}
+
+		return NextResponse.json({ message: 'Teacher assignments saved successfully' })
 	} catch (error) {
 		console.error('Error storing teacher assignments:', error)
 		return NextResponse.json(
-			{ error: 'INTERNAL_ERROR', message: 'Failed to store teacher assignments' },
+			{ error: 'Failed to store teacher assignments' },
 			{ status: 500 }
 		)
 	}
