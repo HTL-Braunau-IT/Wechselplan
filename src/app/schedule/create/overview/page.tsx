@@ -59,8 +59,8 @@ export default function OverviewPage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [amAssignments, setAmAssignments] = useState<TeacherAssignmentResponse[]>([]);
   const [pmAssignments, setPmAssignments] = useState<TeacherAssignmentResponse[]>([]);
-  const [scheduleTimes, setScheduleTimes] = useState<ScheduleTime[]>([]);
-  const [breakTimes, setBreakTimes] = useState<BreakTime[]>([]);
+  const [, setScheduleTimes] = useState<ScheduleTime[]>([]);
+  const [, setBreakTimes] = useState<BreakTime[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [turns, setTurns] = useState<TurnSchedule>({});
@@ -166,7 +166,7 @@ export default function OverviewPage() {
   if (loading || isLoadingCachedData) return <div className="p-8 text-center">Loading...</div>;
   if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
 
-  const maxGroupLength = groups.length > 0 ? Math.max(...groups.map(g => (g.students ? g.students.length : 0))) : 0;
+  
 
   // Helper: round-robin rotate an array by n positions
   function rotateArray<T>(arr: T[], n: number): T[] {
@@ -219,123 +219,6 @@ export default function OverviewPage() {
 
   return (
     <div className="container mx-auto p-4 space-y-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>Klasse: <span className="font-bold">{classId}</span></CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Group Table */}
-            <div>
-              <h2 className="text-lg font-semibold mb-2">Gruppen</h2>
-              <div className="overflow-x-auto">
-                <table className="min-w-full border text-sm">
-                  <thead>
-                    <tr>
-                      {groups.map(group => (
-                        <th key={group.id} className="border p-2 bg-gray-100">Gruppe {group.id}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Array.from({ length: maxGroupLength }).map((_, idx) => (
-                      <tr key={idx}>
-                        {groups.map(group => (
-                          <td key={group.id} className="border p-2">
-                            {group.students?.[idx] ? `${group.students[idx].lastName}, ${group.students[idx].firstName}` : ''}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            {/* Schedule Times & Breaks */}
-            <div>
-              <h2 className="text-lg font-semibold mb-2">Zeiten</h2>
-              <div className="mb-4">
-                <h3 className="font-medium">Unterrichtszeiten</h3>
-                <ul className="list-disc ml-6">
-                  {scheduleTimes.map(time => (
-                    <li key={time.id}>{time.startTime} - {time.endTime} ({time.hours}h, {time.period})</li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <h3 className="font-medium">Pausen</h3>
-                <ul className="list-disc ml-6">
-                  {breakTimes.map(time => (
-                    <li key={time.id}>{time.name}: {time.startTime} - {time.endTime} ({time.period})</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      {/* Teacher Assignments */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Lehrerzuweisungen</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* AM Assignments */}
-            <div>
-              <h2 className="text-md font-semibold mb-2">Vormittag</h2>
-              <table className="min-w-full border text-sm">
-                <thead>
-                  <tr>
-                    <th className="border p-2">Gruppe</th>
-                    <th className="border p-2">Lehrer</th>
-                    <th className="border p-2">Fach</th>
-                    <th className="border p-2">Inhalt</th>
-                    <th className="border p-2">Raum</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {amAssignments.map(a => (
-                    <tr key={a.groupId}>
-                      <td className="border p-2">{a.groupId}</td>
-                      <td className="border p-2">{teachers.find(t => t.id === a.teacherId) ? `${teachers.find(t => t.id === a.teacherId)?.lastName}, ${teachers.find(t => t.id === a.teacherId)?.firstName}` : ''}</td>
-                      <td className="border p-2">{a.subject}</td>
-                      <td className="border p-2">{a.learningContent}</td>
-                      <td className="border p-2">{a.room}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {/* PM Assignments */}
-            <div>
-              <h2 className="text-md font-semibold mb-2">Nachmittag</h2>
-              <table className="min-w-full border text-sm">
-                <thead>
-                  <tr>
-                    <th className="border p-2">Gruppe</th>
-                    <th className="border p-2">Lehrer</th>
-                    <th className="border p-2">Fach</th>
-                    <th className="border p-2">Inhalt</th>
-                    <th className="border p-2">Raum</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pmAssignments.map(a => (
-                    <tr key={a.groupId}>
-                      <td className="border p-2">{a.groupId}</td>
-                      <td className="border p-2">{teachers.find(t => t.id === a.teacherId) ? `${teachers.find(t => t.id === a.teacherId)?.lastName}, ${teachers.find(t => t.id === a.teacherId)?.firstName}` : ''}</td>
-                      <td className="border p-2">{a.subject}</td>
-                      <td className="border p-2">{a.learningContent}</td>
-                      <td className="border p-2">{a.room}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
       {/* AM Rotation Table */}
       {uniqueAmTeachers.length > 0 && (
         <Card>
