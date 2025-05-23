@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import type { PrismaPromise } from '@prisma/client'
 
 export async function DELETE(
   request: Request,
@@ -11,6 +12,17 @@ export async function DELETE(
       return NextResponse.json(
         { error: 'Invalid ID' },
         { status: 400 }
+      )
+    }
+
+    const breakTime = await prisma.breakTime.findUnique({
+      where: { id }
+    })
+
+    if (!breakTime) {
+      return NextResponse.json(
+        { error: 'Break time not found' },
+        { status: 404 }
       )
     }
 

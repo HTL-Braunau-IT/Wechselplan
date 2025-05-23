@@ -52,6 +52,7 @@ export default function RotationPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const classId = searchParams.get('class')
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   // Calculate the school year dates (example: from September to June)
   const currentYear = new Date().getFullYear()
@@ -80,6 +81,7 @@ export default function RotationPage() {
       })))
     } catch (error) {
       console.error('Error fetching holidays:', error)
+      setFetchError('Failed to load holidays.')
     } finally {
       setIsLoading(false)
     }
@@ -251,6 +253,9 @@ export default function RotationPage() {
 
   return (
     <div className="container mx-auto p-4">
+      {fetchError && (
+        <div className="mb-4 text-red-500 font-semibold">{fetchError}</div>
+      )}
       <Card>
         <CardHeader>
           <CardTitle>Rotation Periods</CardTitle>
