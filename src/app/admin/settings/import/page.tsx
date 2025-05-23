@@ -35,14 +35,14 @@ interface FetchResponse {
 export default function ImportPage() {
 	const { t } = useTranslation('admin')
 	const [activeTab, setActiveTab] = useState('room')
-	const [file, setFile] = useState<File | null>(null)
+	const [, setFile] = useState<File | null>(null)
 	const [error, setError] = useState('')
 	const [success, setSuccess] = useState('')
 	const [data, setData] = useState<ImportData[]>([])
 	const [loading, setLoading] = useState(false)
 	const fileInputRef = useRef<HTMLInputElement>(null)
 	const [showErrorModal, setShowErrorModal] = useState(false)
-	const [friendlyError, setFriendlyError] = useState('')
+	const [, setFriendlyError] = useState('')
 
 	async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
 		const selectedFile = e.target.files?.[0]
@@ -105,6 +105,7 @@ export default function ImportPage() {
 	// Fetch data when tab changes
 	useEffect(() => {
 		void fetchData()
+
 	}, [activeTab])
 
 	const handleImportClick = () => {

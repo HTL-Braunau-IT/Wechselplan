@@ -41,15 +41,6 @@ describe('Time Management', () => {
     },
   ]
 
-  const mockBreakTimes = [
-    {
-      id: '1',
-      name: 'Morning Break',
-      startTime: '09:00',
-      endTime: '09:15',
-      period: 'AM' as const,
-    },
-  ]
 
   beforeEach(() => {
     jest.clearAllMocks()

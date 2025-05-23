@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/server/db'
-import { SchoolHoliday } from '@prisma/client'
 
 export async function POST(request: Request) {
   try {

@@ -4,12 +4,13 @@ import { Prisma } from '@prisma/client'
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const resolvedParams = await params
     await prisma.schoolHoliday.delete({
       where: {
-        id: parseInt(params.id)
+        id: parseInt(resolvedParams.id)
       }
     })
     

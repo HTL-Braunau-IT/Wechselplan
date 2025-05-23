@@ -46,16 +46,14 @@ interface BreakTime {
   period: 'AM' | 'PM';
 }
 
-interface AssignmentsResponse {
-  assignments: { groupId: number; students: Student[] }[];
-}
 
-interface TurnSchedule extends Record<string, unknown> {}
+
+type TurnSchedule = Record<string, unknown>
 
 export default function OverviewPage() {
   const searchParams = useSearchParams();
   const classId = searchParams.get('class');
-  const { rooms, subjects, learningContents, teachers, isLoading: isLoadingCachedData } = useCachedData();
+  const { teachers, isLoading: isLoadingCachedData } = useCachedData();
   const router = useRouter();
 
   const [groups, setGroups] = useState<Group[]>([]);
@@ -112,8 +110,8 @@ export default function OverviewPage() {
       if (!schedulesRes.ok) throw new Error('Failed to fetch rotation schedule');
       const schedules = await schedulesRes.json();
       const latestSchedule = schedules[0];
-      const scheduleData = latestSchedule?.scheduleData || {};
-      setTurns(scheduleData);
+      const scheduleData = latestSchedule?.scheduleData ?? {};
+      setTurns(scheduleData as TurnSchedule);
     } catch (e: unknown) {
       const errMsg = e instanceof Error ? e.message : 'Failed to load overview data';
       setError(errMsg ?? 'Failed to load overview data');
@@ -158,7 +156,7 @@ export default function OverviewPage() {
         })
       });
       router.push('/');
-    } catch (e) {
+    } catch  {
       setError('Failed to save.');
     } finally {
       setSaving(false);
@@ -172,8 +170,15 @@ export default function OverviewPage() {
 
   // Helper: round-robin rotate an array by n positions
   function rotateArray<T>(arr: T[], n: number): T[] {
-    const len = arr.length;
-    return Array.from({ length: len }, (_, i) => arr[(i + n) % len]);
+    
+    const rotated = [...arr];
+    for (let i = 0; i < n; i++) {
+      const temp = rotated.shift();
+      if (temp !== undefined) {
+        rotated.push(temp);
+      }
+    }
+    return rotated;
   }
 
   // Get unique teachers for AM and PM (in assignment order)
@@ -189,14 +194,7 @@ export default function OverviewPage() {
     .filter(Boolean) as typeof teachers;
 
   // For each turn, rotate the teacher list and assign to groups
-  function getRotatedTeacherName(groupIdx: number, turnIdx: number, period: 'AM' | 'PM') {
-    const teacherList = period === 'AM' ? uniqueAmTeachers : uniquePmTeachers;
-    if (!teacherList[groupIdx]) return '';
-    // For each turn, rotate by turnIdx
-    const rotated = rotateArray(teacherList, turnIdx);
-    const teacher = rotated[groupIdx];
-    return teacher ? `${teacher.lastName}, ${teacher.firstName}` : '';
-  }
+
 
   // Helper: for a given teacher and turn, find the group assigned in the round-robin
   function getGroupForTeacherAndTurn(teacherIdx: number, turnIdx: number, period: 'AM' | 'PM') {
@@ -211,10 +209,10 @@ export default function OverviewPage() {
 
   // Helper: get turnus info (start, end, days) from turns
   function getTurnusInfo(turnKey: string) {
-    const entry = (turns as any)[turnKey];
-    if (!entry || !entry.weeks || entry.weeks.length === 0) return { start: '', end: '', days: 0 };
-    const start = entry.weeks[0]?.date || '';
-    const end = entry.weeks[entry.weeks.length - 1]?.date || '';
+    const entry = turns[turnKey] as { weeks?: { date: string }[] };
+    if (!entry?.weeks?.length) return { start: '', end: '', days: 0 };
+    const start = entry.weeks[0]?.date ?? '';
+    const end = entry.weeks[entry.weeks.length - 1]?.date ?? '';
     const days = entry.weeks.length;
     return { start, end, days };
   }

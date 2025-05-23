@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     // Get the latest schedule for this class
     const latestSchedule = await prisma.schedule.findFirst({
       where: {
-        classId: parseInt(classId)
+        classId: parseInt(classId as string)
       },
       orderBy: {
         createdAt: 'desc'

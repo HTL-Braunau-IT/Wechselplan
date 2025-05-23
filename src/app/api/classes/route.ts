@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { PrismaClient, type Class } from '@prisma/client'
+import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
@@ -9,7 +9,7 @@ export async function GET() {
         const classes = await prisma.class.findMany({
             select: { name: true },
             orderBy: { name: 'asc' }
-        }) as Pick<Class, 'name'>[]
+        }) as { name: string }[]
         
         // Flatten to array of strings
         const classNames = classes.map((c) => c.name)

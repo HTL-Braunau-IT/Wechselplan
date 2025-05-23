@@ -34,7 +34,7 @@ export default function TimesPage() {
   const [breakTimes, setBreakTimes] = useState<BreakTime[]>([])
   const [selectedScheduleTimes, setSelectedScheduleTimes] = useState<string[]>([])
   const [selectedBreakTimes, setSelectedBreakTimes] = useState<string[]>([])
-  const [teacherAssignments, setTeacherAssignments] = useState<TeacherAssignment[]>([])
+  const [, setTeacherAssignments] = useState<TeacherAssignment[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { PrismaClient, type Class } from '@prisma/client'
+import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
@@ -19,8 +19,7 @@ export async function GET(request: Request) {
         // First find the class by name
         const classRecord = await prisma.class.findUnique({
             where: { name: className }
-        }) as Class | null
-
+        }) 
         if (!classRecord) {
             return NextResponse.json(
                 { error: 'Class not found' },

@@ -32,8 +32,8 @@ export async function POST(request: Request) {
     const holiday = await prisma.schoolHoliday.create({
       data: {
         name,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate)
+        startDate: new Date(startDate as string),
+        endDate: new Date(endDate as string)
       }
     })
     

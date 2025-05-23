@@ -23,10 +23,7 @@ interface Assignment {
 	studentIds: number[]
 }
 
-interface ApiError {
-	error: string
-	message: string
-}
+
 
 interface AssignmentsResponse {
 	assignments: Assignment[]

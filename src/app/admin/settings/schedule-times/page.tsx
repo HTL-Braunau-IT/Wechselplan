@@ -38,7 +38,7 @@ export default function ScheduleTimesPage() {
       if (!response.ok) {
         throw new Error('Failed to fetch times')
       }
-      const data = await response.json()
+      const data = await response.json() as ScheduleTime[]
       setScheduleTimes(data)
     } catch (error) {
       console.error('Error fetching times:', error)
@@ -62,7 +62,7 @@ export default function ScheduleTimesPage() {
         throw new Error('Failed to add schedule time')
       }
 
-      const data = await response.json()
+      const data = await response.json() as ScheduleTime
       setScheduleTimes([...scheduleTimes, data])
       setNewScheduleTime({
         startTime: '',

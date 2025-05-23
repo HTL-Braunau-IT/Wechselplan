@@ -41,7 +41,7 @@ export async function POST(request: Request) {
 
     // Validate time format
     const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
-    if (!timeRegex.test(startTime) || !timeRegex.test(endTime)) {
+    if (!timeRegex.test(startTime as string) || !timeRegex.test(endTime as string)) {
       return NextResponse.json(
         { error: 'Invalid time format. Use HH:mm' },
         { status: 400 }

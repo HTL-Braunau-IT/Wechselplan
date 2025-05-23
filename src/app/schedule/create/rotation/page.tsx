@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -6,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { addWeeks, format, eachWeekOfInterval, setDay, getDay, isWithinInterval } from 'date-fns'
-import { de } from 'date-fns/locale'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useRouter, useSearchParams } from 'next/navigation'
 
@@ -46,13 +46,13 @@ export default function RotationPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [selectedClass, setSelectedClass] = useState<string | null>(null)
-  const [startDate, setStartDate] = useState<Date>(new Date())
-  const [endDate, setEndDate] = useState<Date>(new Date())
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [, ] = useState<string | null>(null)
+  const [startDate, ] = useState<Date>(new Date())
+  const [endDate, ] = useState<Date>(new Date())
   const router = useRouter()
   const searchParams = useSearchParams()
   const classId = searchParams.get('class')
-  const [fetchError, setFetchError] = useState<string | null>(null)
 
   // Calculate the school year dates (example: from September to June)
   const currentYear = new Date().getFullYear()
@@ -79,9 +79,9 @@ export default function RotationPage() {
         startDate: new Date(holiday.startDate),
         endDate: new Date(holiday.endDate)
       })))
-    } catch (error) {
-      console.error('Error fetching holidays:', error)
-      setFetchError('Failed to load holidays.')
+    } catch {
+         setFetchError('Failed to load holidays.')
+
     } finally {
       setIsLoading(false)
     }
@@ -138,10 +138,10 @@ export default function RotationPage() {
       const weeks = eachWeekOfInterval({
         start: periodStart,
         end: periodEnd
-      })
+      }) as Date[]
 
       // First, map all weeks with their holiday status
-      const weeksWithHolidays = weeks.map((week: Date) => {
+      const weeksWithHolidays = weeks.map((week) => {
         // Ensure each date is on the selected weekday
         const adjustedDate = setDay(week, selectedWeekday)
         const isHolidayDate = isHoliday(adjustedDate)
@@ -171,10 +171,10 @@ export default function RotationPage() {
         const isInDateRange = isWithinInterval(holidayStart, {
           start: turnDateRange.start,
           end: turnDateRange.end
-        }) || isWithinInterval(holidayEnd, {
+        }) ?? isWithinInterval(holidayEnd, {
           start: turnDateRange.start,
           end: turnDateRange.end
-        }) || isWithinInterval(turnDateRange.start, {
+        }) ?? isWithinInterval(turnDateRange.start, {
           start: holidayStart,
           end: holidayEnd
         })
@@ -253,14 +253,16 @@ export default function RotationPage() {
 
   return (
     <div className="container mx-auto p-4">
-      {fetchError && (
-        <div className="mb-4 text-red-500 font-semibold">{fetchError}</div>
-      )}
       <Card>
         <CardHeader>
           <CardTitle>Rotation Periods</CardTitle>
         </CardHeader>
         <CardContent>
+          {fetchError && (
+            <div className="mb-4 p-4 text-red-500 bg-red-50 rounded-md">
+              {fetchError}
+            </div>
+          )}
           <div className="flex gap-8 mb-4">
             <div>
               <Label htmlFor="numberOfTerms">Number of Terms</Label>
@@ -328,7 +330,7 @@ export default function RotationPage() {
                 </tbody>
                 <tfoot>
                   <tr>
-                    {Object.entries(schedule).map(([turnus, entry], turnusIndex) => {
+                    {Object.entries(schedule).map(([, entry], turnusIndex) => {
                       return (
                         <td key={turnusIndex} className="border p-2 bg-gray-50">
                           {entry?.holidays?.length > 0 ? (

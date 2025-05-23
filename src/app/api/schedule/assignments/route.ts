@@ -1,31 +1,13 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { Prisma } from '@prisma/client'
+
 
 interface Assignment {
 	groupId: number
 	studentIds: number[]
 }
 
-interface RequestBody {
-	class: string
-	assignments: Assignment[]
-	removedStudentIds: number[]
-	updateExisting?: boolean
-}
 
-type TransactionClient = {
-	student: {
-		deleteMany: (args: { where: { id: { in: number[] } } }) => Promise<Prisma.BatchPayload>
-		updateMany: (args: { where: { id: { in: number[] } }, data: { groupId: number | null } }) => Promise<Prisma.BatchPayload>
-		findMany: (args: { where: { class: string }, include?: { groupAssignment: true } }) => Promise<Array<{ id: number, firstName: string, lastName: string, class: string, groupId: number | null }>>
-	}
-	groupAssignment: {
-		create: (args: { data: { groupId: number; class: string } }) => Promise<{ id: number }>
-		deleteMany: (args: { where: { class: string } }) => Promise<Prisma.BatchPayload>
-		findFirst: (args: { where: { class: string } }) => Promise<{ id: number } | null>
-	}
-}
 
 export async function GET(request: Request) {
 	try {
@@ -66,17 +48,17 @@ export async function GET(request: Request) {
 		const groups = new Map<number, typeof students>()
 		students.forEach(student => {
 			if (student.groupId) {
-				if (!groups.has(student.groupId)) {
-					groups.set(student.groupId, [])
+				if (!groups.has(student.groupId as number)) {
+					groups.set(student.groupId as number, [])
 				}
-				groups.get(student.groupId)!.push(student)
+				groups.get(student.groupId as number)!.push(student)
 			}
 		})
 
 		// Convert to the expected format
-		const assignments = Array.from(groups.entries()).map(([groupId, students]) => ({
+		const assignments: Assignment[] = Array.from(groups.entries()).map(([groupId, students]) => ({
 			groupId,
-			studentIds: students.map(s => s.id)
+			studentIds: students.map((s: { id: number }) => s.id)
 		}))
 
 		return NextResponse.json({
@@ -95,7 +77,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
 	try {
 		const body = await request.json()
-		const { class: className, assignments, removedStudentIds, updateExisting = false } = body
+		const { class: className, assignments, removedStudentIds } = body
 
 		if (!className) {
 			return NextResponse.json(

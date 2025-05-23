@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
-import type { UseDroppableArguments } from '@dnd-kit/core'
+
 import ScheduleClassSelectPage from '../create/page'
 import '@testing-library/jest-dom'
 
@@ -22,14 +22,17 @@ jest.mock('react-i18next', () => ({
 
 // Mock the useDroppable hook
 jest.mock('@dnd-kit/core', () => {
+  
   const actual = jest.requireActual('@dnd-kit/core')
-  return {
+  const mock = {
     ...actual,
     useDroppable: () => ({
       setNodeRef: jest.fn() as jest.Mock<void, [HTMLElement | null]>,
       isOver: false,
     }),
   }
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+  return mock
 })
 
 // Mock fetch

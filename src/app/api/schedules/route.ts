@@ -11,10 +11,10 @@ export async function POST(req: Request) {
       data: {
         name,
         description,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
+        startDate: new Date(startDate as string),
+        endDate: new Date(endDate as string),
         selectedWeekday,
-        classId: classId ? parseInt(classId) : null,
+        classId: classId ? parseInt(classId as string) : null,
         // Store the schedule data as JSON
         scheduleData: schedule
       }

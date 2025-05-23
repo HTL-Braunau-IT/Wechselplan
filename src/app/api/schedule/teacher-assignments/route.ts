@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
-import type { TeacherAssignment } from '@prisma/client'
+
 
 const prisma = new PrismaClient()
 
-interface TeacherAssignmentWithPeriod extends TeacherAssignment {
-	period: string
-}
 
 export async function GET(request: Request) {
 	try {

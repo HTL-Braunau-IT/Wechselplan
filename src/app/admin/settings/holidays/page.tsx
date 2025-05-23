@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { format } from 'date-fns'
-import { de } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -47,7 +46,7 @@ export default function HolidaysPage() {
       if (!response.ok) throw new Error('Failed to fetch holidays')
       const data = await response.json() as Holiday[]
       setHolidays(data)
-    } catch (error) {
+    } catch  {
       toast.error('Failed to load holidays')
     } finally {
       setIsLoading(false)
@@ -70,7 +69,7 @@ export default function HolidaysPage() {
       await fetchHolidays()
       setNewHoliday({ name: '', startDate: '', endDate: '' })
       toast.success('Holiday added successfully')
-    } catch (error) {
+    } catch  {
       toast.error('Failed to add holiday')
     }
   }
@@ -85,7 +84,7 @@ export default function HolidaysPage() {
 
       await fetchHolidays()
       toast.success('Holiday deleted successfully')
-    } catch (error) {
+    } catch  {
       toast.error('Failed to delete holiday')
     }
   }
@@ -116,7 +115,7 @@ export default function HolidaysPage() {
       
       setScrapedHolidays(data)
       toast.success(`Found ${data.length} holidays`)
-    } catch (error) {
+    } catch  {
       toast.error('Failed to scrape holidays')
     } finally {
       setIsScraping(false)
@@ -145,16 +144,22 @@ export default function HolidaysPage() {
       setScrapedHolidays([])
       setScrapeUrl('')
       toast.success('Holidays saved successfully')
-    } catch (error) {
+    } catch  {
       toast.error('Failed to save holidays')
     }
   }
 
-  const handleEditScraped = (index: number, field: keyof ScrapedHoliday, value: string) => {
+  const handleEditScraped = (index: number, field: keyof Omit<ScrapedHoliday, 'isValid'>, value: string) => {
     setScrapedHolidays(prev => {
       const updated = [...prev]
-      const holiday = { ...updated[index] }
-      holiday[field] = value
+      const holiday = { ...updated[index] } as ScrapedHoliday
+      if (field === 'name') {
+        holiday.name = value
+      } else if (field === 'startDate') {
+        holiday.startDate = value
+      } else if (field === 'endDate') {
+        holiday.endDate = value
+      }
       holiday.isValid = true
       updated[index] = holiday
       return updated
