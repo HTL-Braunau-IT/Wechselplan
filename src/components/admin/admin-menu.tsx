@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Settings, Users, Trash2, Download, GraduationCap, Calendar } from 'lucide-react'
+import { Settings, Users, Trash2, Download, GraduationCap, Calendar, Clock } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 export function AdminMenu() {
@@ -49,6 +49,14 @@ export function AdminMenu() {
         >
           <Calendar className="h-5 w-5" />
           <span>{t('settings.holidays.title')}</span>
+        </Link>
+        <Link
+          href="/admin/settings/times"
+          className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-lg"
+          aria-label={t('settings.times.title')}
+        >
+          <Clock className="h-5 w-5" />
+          <span>{t('settings.times.title')}</span>
         </Link>
         <Link
           href="/admin/settings/import"

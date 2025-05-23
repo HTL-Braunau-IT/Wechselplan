@@ -56,6 +56,24 @@
     "errors": {
       "loadConfig": "Failed to load configuration",
       "saveConfig": "Failed to save configuration"
+    },
+    "holidays": {
+      "title": "Holidays"
+    },
+    "times": {
+      "title": "Schedule Times",
+      "description": "Manage schedule and break times",
+      "scheduleTimes": "Schedule Times",
+      "breakTimes": "Break Times",
+      "addScheduleTime": "Add Schedule Time",
+      "addBreakTime": "Add Break Time",
+      "startTime": "Start Time",
+      "endTime": "End Time",
+      "hours": "Hours",
+      "period": "Period",
+      "breakName": "Break Name",
+      "morning": "Morning",
+      "afternoon": "Afternoon"
     }
   }
 } 

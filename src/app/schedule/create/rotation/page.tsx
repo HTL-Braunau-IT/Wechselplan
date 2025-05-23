@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { addWeeks, format, eachWeekOfInterval, setDay, getDay, isWithinInterval } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 interface WeekInfo {
   week: string
@@ -48,6 +49,9 @@ export default function RotationPage() {
   const [selectedClass, setSelectedClass] = useState<string | null>(null)
   const [startDate, setStartDate] = useState<Date>(new Date())
   const [endDate, setEndDate] = useState<Date>(new Date())
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const classId = searchParams.get('class')
 
   // Calculate the school year dates (example: from September to June)
   const currentYear = new Date().getFullYear()
@@ -220,12 +224,12 @@ export default function RotationPage() {
         },
         body: JSON.stringify({
           name: 'Rotation Schedule',
-          description: `Rotation schedule for ${selectedClass || 'all classes'}`,
+          description: `Rotation schedule for class ${classId}`,
           startDate: startDate.toISOString(),
           endDate: endDate.toISOString(),
           selectedWeekday,
           schedule,
-          classId: selectedClass
+          classId
         }),
       })
 
@@ -233,8 +237,8 @@ export default function RotationPage() {
         throw new Error('Failed to save schedule')
       }
 
-      // Show success message or redirect
-      alert('Schedule saved successfully!')
+      // Navigate to the times page with the class parameter
+      router.push(`/schedule/create/times?class=${classId}`)
     } catch (error) {
       console.error('Error saving schedule:', error instanceof Error ? error.message : 'Unknown error')
       setSaveError('Failed to save schedule. Please try again.')

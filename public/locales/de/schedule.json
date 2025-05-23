@@ -32,6 +32,7 @@
     "class": "Klasse & Gruppen",
     "teachers": "Lehrer zuweisen",
     "rotation": "Rotationsperioden",
+    "times": "Zeitplan",
     "review": "Überprüfen"
   },
   "existingAssignmentsWarning": "Es existieren bereits Lehrerzuweisungen für diese Klasse. Änderungen werden die bestehenden Zuweisungen aktualisieren.",

@@ -8,12 +8,15 @@
     "description": "Verwalten Sie hier Ihre Schüler. Sie können Schüler hinzufügen, bearbeiten und löschen.",
     "deleteAllData": {
       "title": "Alle Schülerdaten löschen",
-      "warning": "Achtung!",
-      "description": "Diese Aktion wird alle Schülerdaten unwiderruflich löschen. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "warning": "Warnung!",
+      "description": "Diese Aktion wird alle Schülerdaten dauerhaft löschen. Diese Aktion kann nicht rückgängig gemacht werden.",
       "button": "Alle Daten löschen",
+      "deleting": "Lösche...",
       "confirmTitle": "Sind Sie sicher?",
       "confirmDescription": "Möchten Sie wirklich alle Schülerdaten löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
-      "confirmButton": "Ja, alle Daten löschen"
+      "confirmButton": "Ja, alle Daten löschen",
+      "success": "Alle Daten wurden erfolgreich gelöscht",
+      "error": "Daten konnten nicht gelöscht werden"
     }
   },
   "settings": {
@@ -24,21 +27,39 @@
     "ldapUrl": "LDAP-Server-URL",
     "ldapUrlPlaceholder": "ldap://ihr-server:389",
     "baseDN": "Base DN",
-    "baseDNPlaceholder": "dc=beispiel,dc=de",
+    "baseDNPlaceholder": "dc=beispiel,dc=com",
     "username": "Benutzername",
-    "usernamePlaceholder": "cn=admin,dc=beispiel,dc=de",
+    "usernamePlaceholder": "cn=admin,dc=beispiel,dc=com",
     "password": "Passwort",
     "passwordPlaceholder": "LDAP-Passwort eingeben",
     "studentsOU": "Schüler OU",
-    "studentsOUPlaceholder": "ou=schueler,dc=beispiel,dc=de",
+    "studentsOUPlaceholder": "ou=schueler,dc=beispiel,dc=com",
     "saveConfig": "Konfiguration speichern",
-    "saving": "Wird gespeichert...",
+    "saving": "Speichere...",
     "success": {
       "configSaved": "Konfiguration erfolgreich gespeichert"
     },
     "errors": {
       "loadConfig": "Konfiguration konnte nicht geladen werden",
       "saveConfig": "Konfiguration konnte nicht gespeichert werden"
+    },
+    "holidays": {
+      "title": "Ferien"
+    },
+    "times": {
+      "title": "Zeitplan",
+      "description": "Zeitplan und Pausen verwalten",
+      "scheduleTimes": "Zeitplan",
+      "breakTimes": "Pausen",
+      "addScheduleTime": "Zeitplan hinzufügen",
+      "addBreakTime": "Pause hinzufügen",
+      "startTime": "Startzeit",
+      "endTime": "Endzeit",
+      "hours": "Stunden",
+      "period": "Zeitraum",
+      "breakName": "Pausenname",
+      "morning": "Vormittag",
+      "afternoon": "Nachmittag"
     }
   },
   "importData": "Daten importieren",
