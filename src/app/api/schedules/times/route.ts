@@ -56,4 +56,50 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
+}
+
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const classId = searchParams.get('class');
+
+    if (!classId) {
+      return NextResponse.json(
+        { error: 'Class ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Get the latest schedule for this class
+    const latestSchedule = await prisma.schedule.findFirst({
+      where: {
+        classId: parseInt(classId)
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      include: {
+        scheduleTimes: true,
+        breakTimes: true
+      }
+    });
+
+    if (!latestSchedule) {
+      return NextResponse.json(
+        { scheduleTimes: [], breakTimes: [] },
+        { status: 200 }
+      );
+    }
+
+    return NextResponse.json({
+      scheduleTimes: latestSchedule.scheduleTimes,
+      breakTimes: latestSchedule.breakTimes
+    });
+  } catch (error) {
+    console.error('Error fetching times:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch times' },
+      { status: 500 }
+    );
+  }
 } 

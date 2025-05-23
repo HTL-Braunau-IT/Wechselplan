@@ -14,7 +14,7 @@ const steps: Step[] = [
 	{ id: 'teachers', path: '/schedule/create/teachers' },
 	{ id: 'rotation', path: '/schedule/create/rotation' },
 	{ id: 'times', path: '/schedule/create/times' },
-	{ id: 'review', path: '/schedule/create/review' }
+	{ id: 'overview', path: '/schedule/create/overview' }
 ]
 
 export function CreationProgress() {

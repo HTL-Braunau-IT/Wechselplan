@@ -121,7 +121,7 @@ export default function TimesPage() {
         throw new Error('Failed to save times')
       }
 
-      router.push(`/schedule/create/next?class=${classId}`) // Navigate to the next step with class parameter
+      router.push(`/schedule/create/overview?class=${classId}`) // Navigate to the overview step with class parameter
     } catch (error) {
       console.error('Error saving times:', error)
       setError('Failed to save times')
