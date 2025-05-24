@@ -225,7 +225,7 @@ export default function ImportPage() {
 			</Tabs>
 
 			<AlertDialog open={showErrorModal} onOpenChange={setShowErrorModal}>
-				<AlertDialogContent className="bg-white dark:bg-zinc-900">
+				<AlertDialogContent>
 					<AlertDialogHeader>
 						<AlertDialogTitle>{t('error')}</AlertDialogTitle>
 					</AlertDialogHeader>

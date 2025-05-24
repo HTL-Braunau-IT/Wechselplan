@@ -152,7 +152,7 @@ export function CSVImport({ onImport }: CSVImportProps) {
           />
           <Label
             htmlFor="csv-upload"
-            className="cursor-pointer inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            className="cursor-pointer inline-flex items-center justify-center px-4 py-2 border border-input rounded-md shadow-sm text-sm font-medium bg-background hover:bg-accent hover:text-accent-foreground"
           >
             <Upload className="h-4 w-4 mr-2" />
             {t('admin.students.import.uploadCSV')}
@@ -177,7 +177,7 @@ export function CSVImport({ onImport }: CSVImportProps) {
           <h2 className="text-xl font-semibold">{t('admin.students.import.previewTitle')}</h2>
           <div className="space-y-4">
             {Object.entries(csvData).map(([className, data]) => (
-              <div key={className} className="border rounded-lg p-4 bg-gray-50">
+              <div key={className} className="border rounded-lg p-4 bg-muted">
                 <div className="flex items-center space-x-2 mb-2">
                   <Checkbox
                     id={`class-${className}`}
@@ -189,9 +189,9 @@ export function CSVImport({ onImport }: CSVImportProps) {
                   </Label>
                 </div>
                 <div className="ml-6">
-                  <ul className="space-y-1 text-gray-600">
+                  <ul className="space-y-1 text-muted-foreground">
                     {data.students.map((student, index) => (
-                      <li key={index} className={`py-1 px-2 rounded ${index % 2 === 0 ? 'bg-gray-100' : 'bg-gray-50'}`}>
+                      <li key={index} className={`py-1 px-2 rounded ${index % 2 === 0 ? 'bg-muted/50' : 'bg-muted'}`}>
                         {student.firstName} {student.lastName}
                       </li>
                     ))}

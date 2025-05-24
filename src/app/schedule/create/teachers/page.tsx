@@ -670,23 +670,23 @@ export default function TeacherAssignmentPage() {
 					{/* AM Assignments */}
 					<div>
 						<h2 className="text-xl font-semibold mb-4">{t('morningAssignments')}</h2>
-						<div className="bg-white rounded-lg shadow">
-							<table className="min-w-full divide-y divide-gray-200">
-								<thead className="bg-gray-50">
+						<div className="bg-card rounded-lg shadow">
+							<table className="min-w-full divide-y divide-border">
+								<thead className="bg-muted">
 									<tr>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
 											{t('group')}
 										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
 											{t('teacher')}
 										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
 											{t('subject')}
 										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
 											{t('learningContent')}
 										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
 											{t('room')}
 										</th>
 									</tr>
@@ -738,23 +738,23 @@ export default function TeacherAssignmentPage() {
 					{/* PM Assignments */}
 					<div>
 						<h2 className="text-xl font-semibold mb-4">{t('afternoonAssignments')}</h2>
-						<div className="bg-white rounded-lg shadow">
-							<table className="min-w-full divide-y divide-gray-200">
-								<thead className="bg-gray-50">
+						<div className="bg-card rounded-lg shadow">
+							<table className="min-w-full divide-y divide-border">
+								<thead className="bg-muted">
 									<tr>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
 											{t('group')}
 										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
 											{t('teacher')}
 										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
 											{t('subject')}
 										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
 											{t('learningContent')}
 										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
 											{t('room')}
 										</th>
 									</tr>
@@ -817,19 +817,19 @@ export default function TeacherAssignmentPage() {
 			{/* Confirmation Dialog */}
 			{showConfirmDialog && (
 				<div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center">
-					<div className="bg-white p-6 rounded-lg max-w-md shadow-xl">
+					<div className="bg-card p-6 rounded-lg max-w-md shadow-xl">
 						<h2 className="text-xl font-bold mb-4">{t('updateAssignmentsTitle')}</h2>
 						<p className="mb-6">{t('updateAssignmentsMessage')}</p>
 						<div className="flex justify-end space-x-4">
 							<button
 								onClick={handleCancelUpdate}
-								className="px-4 py-2 text-gray-600 hover:text-gray-800"
+								className="px-4 py-2 text-muted-foreground hover:text-foreground"
 							>
 								{t('cancel')}
 							</button>
 							<button
 								onClick={handleConfirmUpdate}
-								className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+								className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
 							>
 								{t('update')}
 							</button>
@@ -841,7 +841,7 @@ export default function TeacherAssignmentPage() {
 			{/* Error Dialog */}
 			{showErrorDialog && (
 				<div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center">
-					<div className="bg-white p-6 rounded-lg max-w-2xl shadow-xl">
+					<div className="bg-card p-6 rounded-lg max-w-2xl shadow-xl">
 						<h2 className="text-xl font-bold mb-4">{t('validationErrorsTitle')}</h2>
 						<div className="mb-6 space-y-4">
 							{validationErrors.am.length > 0 && (
@@ -872,7 +872,7 @@ export default function TeacherAssignmentPage() {
 						<div className="flex justify-end">
 							<button
 								onClick={() => setShowErrorDialog(false)}
-								className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+								className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
 							>
 								{t('ok')}
 							</button>

@@ -11,8 +11,8 @@ export default function StudentsPage() {
 
       <div className="flex-1 p-4">
         <h1 className="text-2xl font-bold mb-6">{t('admin.students.title')}</h1>
-        <div className="bg-white rounded-lg shadow p-6">
-          <p className="text-gray-600">
+        <div className="bg-card rounded-lg shadow p-6">
+          <p className="text-muted-foreground">
             {t('admin.students.description')}
           </p>
         </div>

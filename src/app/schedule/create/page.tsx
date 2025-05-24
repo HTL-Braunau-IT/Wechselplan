@@ -404,13 +404,13 @@ export default function ScheduleClassSelectPage() {
 	}
 
 	return (
-		<div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
-			<div className="bg-white rounded shadow p-8 w-full max-w-4xl">
+		<div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
+			<div className="bg-card rounded-lg shadow p-8 w-full max-w-4xl">
 				<h1 className="text-2xl font-bold mb-6 text-center">{t('selectClass')}</h1>
 				{loading && !selectedClass ? (
 					<p>{t('loadingClasses')}</p>
 				) : error ? (
-					<p className="text-red-500">{error}</p>
+					<p className="text-destructive">{error}</p>
 				) : (
 					<div className="space-y-6">
 						<form onSubmit={async e => { 
@@ -422,7 +422,7 @@ export default function ScheduleClassSelectPage() {
 								id="class-select"
 								value={selectedClass}
 								onChange={handleSelect}
-								className="w-full border rounded px-3 py-2 mb-4"
+								className="w-full border rounded px-3 py-2 mb-4 bg-background"
 								required
 							>
 								<option value="" disabled>{t('pleaseSelect')}</option>
@@ -433,7 +433,7 @@ export default function ScheduleClassSelectPage() {
 							<button
 								type="submit"
 								disabled={!selectedClass}
-								className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition"
+								className="w-full bg-primary text-primary-foreground py-2 rounded hover:bg-primary/90 transition"
 							>
 								{t('next')}
 							</button>
@@ -504,7 +504,7 @@ export default function ScheduleClassSelectPage() {
 										</div>
 										<DragOverlay>
 											{activeStudent ? (
-												<div className="text-sm p-2 bg-white border rounded shadow-lg">
+												<div className="text-sm p-2 bg-card border rounded shadow-lg">
 													{activeStudent.lastName}, {activeStudent.firstName}
 												</div>
 											) : null}
@@ -520,19 +520,19 @@ export default function ScheduleClassSelectPage() {
 			{/* Confirmation Dialog */}
 			{showConfirmDialog && (
 				<div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center">
-					<div className="bg-white p-6 rounded-lg max-w-md shadow-xl">
+					<div className="bg-card p-6 rounded-lg max-w-md shadow-xl">
 						<h2 className="text-xl font-bold mb-4">{t('updateAssignmentsTitle')}</h2>
 						<p className="mb-6">{t('updateAssignmentsMessage')}</p>
 						<div className="flex justify-end space-x-4">
 							<button
 								onClick={handleCancelUpdate}
-								className="px-4 py-2 text-gray-600 hover:text-gray-800"
+								className="px-4 py-2 text-muted-foreground hover:text-foreground"
 							>
 								{t('cancel')}
 							</button>
 							<button
 								onClick={handleConfirmUpdate}
-								className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+								className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
 							>
 								{t('update')}
 							</button>
