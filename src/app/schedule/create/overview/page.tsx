@@ -46,9 +46,21 @@ interface BreakTime {
   period: 'AM' | 'PM';
 }
 
-
-
 type TurnSchedule = Record<string, unknown>
+
+const GROUP_COLORS = [
+  'bg-yellow-200', // Gruppe 1
+  'bg-green-200',  // Gruppe 2
+  'bg-blue-200',   // Gruppe 3
+  'bg-red-200',    // Gruppe 4
+];
+
+const DARK_GROUP_COLORS = [
+  'dark:bg-yellow-900/60',
+  'dark:bg-green-900/60',
+  'dark:bg-blue-900/60',
+  'dark:bg-red-900/60',
+];
 
 export default function OverviewPage() {
   const searchParams = useSearchParams();
@@ -59,8 +71,8 @@ export default function OverviewPage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [amAssignments, setAmAssignments] = useState<TeacherAssignmentResponse[]>([]);
   const [pmAssignments, setPmAssignments] = useState<TeacherAssignmentResponse[]>([]);
-  const [, setScheduleTimes] = useState<ScheduleTime[]>([]);
-  const [, setBreakTimes] = useState<BreakTime[]>([]);
+  const [scheduleTimes, setScheduleTimes] = useState<ScheduleTime[]>([]);
+  const [breakTimes, setBreakTimes] = useState<BreakTime[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [turns, setTurns] = useState<TurnSchedule>({});
@@ -166,11 +178,8 @@ export default function OverviewPage() {
   if (loading || isLoadingCachedData) return <div className="p-8 text-center">Loading...</div>;
   if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
 
-  
-
   // Helper: round-robin rotate an array by n positions
   function rotateArray<T>(arr: T[], n: number): T[] {
-    
     const rotated = [...arr];
     for (let i = 0; i < n; i++) {
       const temp = rotated.shift();
@@ -193,20 +202,6 @@ export default function OverviewPage() {
     .map(id => teachers.find(t => t.id === id))
     .filter(Boolean) as typeof teachers;
 
-  // For each turn, rotate the teacher list and assign to groups
-
-
-  // Helper: for a given teacher and turn, find the group assigned in the round-robin
-  function getGroupForTeacherAndTurn(teacherIdx: number, turnIdx: number, period: 'AM' | 'PM') {
-    const groupList = groups;
-    const teacherList = period === 'AM' ? uniqueAmTeachers : uniquePmTeachers;
-    if (!groupList[0] || !teacherList[teacherIdx]) return '';
-    // For each turn, rotate the group list
-    const rotatedGroups = rotateArray(groupList, turnIdx);
-    const group = rotatedGroups[teacherIdx];
-    return group ? `Gruppe ${group.id}` : '';
-  }
-
   // Helper: get turnus info (start, end, days) from turns
   function getTurnusInfo(turnKey: string) {
     const entry = turns[turnKey] as { weeks?: { date: string }[] };
@@ -217,119 +212,143 @@ export default function OverviewPage() {
     return { start, end, days };
   }
 
+  // Helper: get weekday from first turn (dynamic)
+  function getWeekday() {
+    // Try to get from scheduleTimes, fallback to Montag
+    if (scheduleTimes.length > 0) {
+      const first = scheduleTimes[0];
+      // Try to parse weekday from startTime (if possible)
+      // Otherwise fallback
+      return first?.startTime ? new Date(`1970-01-01T${first.startTime}`).toLocaleDateString('de-DE', { weekday: 'long' }) : 'Montag';
+    }
+    return 'Montag';
+  }
+
+  // Helper: get assignment for a teacher, group, and period
+  function getAssignment(teacherId: number, groupId: number, period: 'AM' | 'PM') {
+    const assignments = period === 'AM' ? amAssignments : pmAssignments;
+    return assignments.find(a => a.teacherId === teacherId && a.groupId === groupId);
+  }
+
+  // Helper: for a given teacher and turn, find the group assigned in the round-robin
+  function getGroupForTeacherAndTurn(teacherIdx: number, turnIdx: number, period: 'AM' | 'PM') {
+    const groupList = groups;
+    const teacherList = period === 'AM' ? uniqueAmTeachers : uniquePmTeachers;
+    if (!groupList[0] || !teacherList[teacherIdx]) return null;
+    // For each turn, rotate the group list
+    const rotatedGroups = rotateArray(groupList, turnIdx);
+    const group = rotatedGroups[teacherIdx];
+    return group;
+  }
+
+  // Find the max number of students in any group for row rendering
+  const maxStudents = Math.max(...groups.map(g => g.students.length), 0);
+
   return (
     <div className="container mx-auto p-4">
-      <Card>
+      {/* Groups Table */}
+      <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Overview</CardTitle>
+          <CardTitle>Gruppenübersicht</CardTitle>
         </CardHeader>
         <CardContent>
-          {error && (
-            <div className="mb-4 p-4 text-red-500 bg-red-50 rounded-md">
-              {error}
-            </div>
-          )}
-          {/* AM Rotation Table */}
-          {uniqueAmTeachers.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>AM Lehrer-Gruppen pro Turnus</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full border text-sm">
-                    <thead>
-                      <tr>
-                        <th className="border p-2">Lehrer</th>
-                        {Object.keys(turns).map(turn => (
-                          <th key={turn} className="border p-2">{turn}</th>
-                        ))}
-                      </tr>
-                      <tr>
-                        <th className="border p-2"></th>
-                        {Object.keys(turns).map(turn => {
-                          const info = getTurnusInfo(turn);
-                          return (
-                            <th key={turn} className="border p-2 text-xs text-gray-600">
-                              <div>Start: {info.start}</div>
-                              <div>Ende: {info.end}</div>
-                              <div>Tage: {info.days}</div>
-                            </th>
-                          );
-                        })}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {uniqueAmTeachers.map((teacher, teacherIdx) => (
-                        <tr key={teacher.id}>
-                          <td className="border p-2">{teacher.lastName}, {teacher.firstName}</td>
-                          {Object.keys(turns).map((turn, turnIdx) => (
-                            <td key={turn} className="border p-2">{getGroupForTeacherAndTurn(teacherIdx, turnIdx, 'AM')}</td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          {/* PM Rotation Table */}
-          {uniquePmTeachers.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>PM Lehrer-Gruppen pro Turnus</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full border text-sm">
-                    <thead>
-                      <tr>
-                        <th className="border p-2">Lehrer</th>
-                        {Object.keys(turns).map(turn => (
-                          <th key={turn} className="border p-2">{turn}</th>
-                        ))}
-                      </tr>
-                      <tr>
-                        <th className="border p-2"></th>
-                        {Object.keys(turns).map(turn => {
-                          const info = getTurnusInfo(turn);
-                          return (
-                            <th key={turn} className="border p-2 text-xs text-gray-600">
-                              <div>Start: {info.start}</div>
-                              <div>Ende: {info.end}</div>
-                              <div>Tage: {info.days}</div>
-                            </th>
-                          );
-                        })}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {uniquePmTeachers.map((teacher, teacherIdx) => (
-                        <tr key={teacher.id}>
-                          <td className="border p-2">{teacher.lastName}, {teacher.firstName}</td>
-                          {Object.keys(turns).map((turn, turnIdx) => (
-                            <td key={turn} className="border p-2">{getGroupForTeacherAndTurn(teacherIdx, turnIdx, 'PM')}</td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          <div className="flex justify-end mt-8">
-            <button
-              className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
-              onClick={handleSaveAndFinish}
-              disabled={saving}
-            >
-              {saving ? 'Saving...' : 'Save & Finish'}
-            </button>
+          <div className="overflow-x-auto">
+            <table className="min-w-full border text-sm">
+              <thead>
+                <tr>
+                  {groups.map((group, idx) => (
+                    <th
+                      key={group.id}
+                      className={`border p-2 text-center font-bold text-black ${GROUP_COLORS[idx % GROUP_COLORS.length]} ${DARK_GROUP_COLORS[idx % DARK_GROUP_COLORS.length]}`}
+                    >
+                      Gruppe {group.id}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[...Array(maxStudents)].map((_, rowIdx) => (
+                  <tr key={rowIdx}>
+                    {groups.map((group, colIdx) => (
+                      <td key={group.id} className="border p-2 text-center">
+                        {group.students[rowIdx]
+                          ? `${group.students[rowIdx].lastName} ${group.students[rowIdx].firstName}`
+                          : ''}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </CardContent>
       </Card>
+
+      {/* AM and PM Schedule Tables */}
+      {[{ period: 'AM', teachers: uniqueAmTeachers }, { period: 'PM', teachers: uniquePmTeachers }].map(({ period, teachers }) => (
+        <Card className="mb-8" key={period}>
+          <CardHeader>
+            <CardTitle>{getWeekday()} ({period})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="min-w-full border text-sm">
+                <thead>
+                  <tr>
+                    <th className="border p-2">Lehrer/in</th>
+                    <th className="border p-2">Werkstätte</th>
+                    <th className="border p-2">Lehrinhalt</th>
+                    <th className="border p-2">Raum</th>
+                    {Object.keys(turns).map((turn, turnIdx) => (
+                      <th key={turn} className="border p-2">
+                        <div>Turnus {turnIdx + 1}</div>
+                        <div className="text-xs text-gray-600">{getTurnusInfo(turn).start} - {getTurnusInfo(turn).end}</div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {teachers.map((teacher, teacherIdx) => (
+                    <tr key={teacher.id}>
+                      <td className="border p-2 font-medium">{teacher.lastName}, {teacher.firstName}</td>
+                      {/* Werkstätte, Lehrinhalt, Raum: show for first group in first turn, or blank if not found */}
+                      {(() => {
+                        const group = getGroupForTeacherAndTurn(teacherIdx, 0, period as 'AM' | 'PM');
+                        const assignment = group ? getAssignment(teacher.id, group.id, period as 'AM' | 'PM') : null;
+                        return [
+                          <td className="border p-2" key="subject">{assignment?.subject ?? ''}</td>,
+                          <td className="border p-2" key="learningContent">{assignment?.learningContent ?? ''}</td>,
+                          <td className="border p-2" key="room">{assignment?.room ?? ''}</td>,
+                        ];
+                      })()}
+                      {Object.keys(turns).map((turn, turnIdx) => {
+                        const group = getGroupForTeacherAndTurn(teacherIdx, turnIdx, period as 'AM' | 'PM');
+                        return (
+                          <td
+                            key={turn}
+                            className={`border p-2 text-center font-bold text-black ${group ? GROUP_COLORS[groups.findIndex(g => g.id === group.id) % GROUP_COLORS.length] : ''} ${group ? DARK_GROUP_COLORS[groups.findIndex(g => g.id === group.id) % DARK_GROUP_COLORS.length] : ''}`}
+                          >
+                            {group ? group.id : ''}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+      <div className="flex justify-end mt-8">
+        <button
+          className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
+          onClick={handleSaveAndFinish}
+          disabled={saving}
+        >
+          {saving ? 'Saving...' : 'Save & Finish'}
+        </button>
+      </div>
     </div>
   );
 }
