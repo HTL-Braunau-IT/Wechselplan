@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useCachedData } from '@/hooks/use-cached-data';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 interface Student {
   id: number;
@@ -77,6 +78,8 @@ export default function OverviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [turns, setTurns] = useState<TurnSchedule>({});
   const [saving, setSaving] = useState(false);
+  const [showDownloadDialog, setShowDownloadDialog] = useState(false);
+  const [pdfGenerated, setPdfGenerated] = useState(false);
 
   useEffect(() => {
     if (!classId) {
@@ -156,6 +159,7 @@ export default function OverviewPage() {
           return teacher ? teacher.id : null;
         })
       }));
+
       // Save to backend
       await fetch('/api/schedule/teacher-rotation', {
         method: 'POST',
@@ -167,13 +171,37 @@ export default function OverviewPage() {
           pmRotation
         })
       });
-      router.push('/');
-    } catch  {
+
+      // Generate PDF
+      
+    } catch (error) {
       setError('Failed to save.');
     } finally {
       setSaving(false);
     }
   }
+
+  const handleDownloadPDF = async () => {
+    try {
+      const response = await fetch(`/api/schedule/get-pdf?classId=${classId}`);
+      if (!response.ok) throw new Error('Failed to download PDF');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `schedule-${classId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      setShowDownloadDialog(false);
+      router.push('/');
+    } catch (error) {
+      setError('Failed to download PDF');
+    }
+  };
 
   if (loading || isLoadingCachedData) return <div className="p-8 text-center">Loading...</div>;
   if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
@@ -311,14 +339,14 @@ export default function OverviewPage() {
                   {teachers.map((teacher, teacherIdx) => (
                     <tr key={teacher.id}>
                       <td className="border p-2 font-medium">{teacher.lastName}, {teacher.firstName}</td>
-                      {/* Werkstätte, Lehrinhalt, Raum: show for first group in first turn, or blank if not found */}
+                      {/* Werkstätte, Lehrinhalt, Raum: show for first group assigned to this teacher */}
                       {(() => {
-                        const group = getGroupForTeacherAndTurn(teacherIdx, 0, period as 'AM' | 'PM');
-                        const assignment = group ? getAssignment(teacher.id, group.id, period as 'AM' | 'PM') : null;
+                        const assignments = period === 'AM' ? amAssignments : pmAssignments;
+                        const firstAssignment = assignments.find(a => a.teacherId === teacher.id);
                         return [
-                          <td className="border p-2" key="subject">{assignment?.subject ?? ''}</td>,
-                          <td className="border p-2" key="learningContent">{assignment?.learningContent ?? ''}</td>,
-                          <td className="border p-2" key="room">{assignment?.room ?? ''}</td>,
+                          <td className="border p-2" key="subject">{firstAssignment?.subject ?? ''}</td>,
+                          <td className="border p-2" key="learningContent">{firstAssignment?.learningContent ?? ''}</td>,
+                          <td className="border p-2" key="room">{firstAssignment?.room ?? ''}</td>,
                         ];
                       })()}
                       {Object.keys(turns).map((turn, turnIdx) => {
@@ -349,6 +377,34 @@ export default function OverviewPage() {
           {saving ? 'Saving...' : 'Save & Finish'}
         </button>
       </div>
+
+      <Dialog open={showDownloadDialog} onOpenChange={setShowDownloadDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>PDF Generated</DialogTitle>
+            <DialogDescription>
+              The schedule PDF has been generated successfully. Would you like to download it now?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <button
+              className="bg-primary text-primary-foreground px-4 py-2 rounded hover:bg-primary/90"
+              onClick={handleDownloadPDF}
+            >
+              Download PDF
+            </button>
+            <button
+              className="bg-secondary text-secondary-foreground px-4 py-2 rounded hover:bg-secondary/90"
+              onClick={() => {
+                setShowDownloadDialog(false);
+                router.push('/');
+              }}
+            >
+              Skip
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

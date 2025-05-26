@@ -6,7 +6,15 @@ export async function POST(req: Request) {
     const body = await req.json()
     const { name, description, startDate, endDate, selectedWeekday, schedule, classId } = body
 
-    // First create the schedule
+    // Delete existing schedules with the same weekday for this class
+    await db.schedule.deleteMany({
+      where: {
+        classId: classId ? parseInt(classId as string) : null,
+        selectedWeekday
+      }
+    })
+
+    // Create the new schedule
     const newSchedule = await db.schedule.create({
       data: {
         name,

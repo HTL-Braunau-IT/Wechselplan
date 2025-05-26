@@ -171,3 +171,11 @@ model BreakTime {
 
   @@unique([startTime, endTime, period])
 }
+
+model SchedulePDF {
+  id        String   @id @default(cuid())
+  classId   String   @unique
+  pdfData   Bytes
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
