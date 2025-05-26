@@ -45,10 +45,10 @@ function StudentItem({ student, index, onRemove }: { student: Student, index: nu
 			style={style}
 			{...listeners}
 			{...attributes}
-			className="text-sm p-2 bg-gray-50 rounded cursor-move hover:bg-gray-100 transition flex items-center justify-between group"
+			className="text-sm p-2 bg-card border border-border rounded cursor-move hover:bg-accent transition flex items-center justify-between group"
 		>
 			<div>
-				<span className="text-gray-500 mr-2">{index + 1}.</span>
+				<span className="text-muted-foreground mr-2">{index + 1}.</span>
 				{student.lastName}, {student.firstName}
 			</div>
 			<button
@@ -56,7 +56,7 @@ function StudentItem({ student, index, onRemove }: { student: Student, index: nu
 					e.stopPropagation()
 					onRemove(student.id)
 				}}
-				className="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity"
+				className="text-destructive hover:text-destructive/80 opacity-0 group-hover:opacity-100 transition-opacity"
 				title="Remove student"
 			>
 				<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -76,11 +76,11 @@ function GroupContainer({ group, children }: { group: Group, children: React.Rea
 	return (
 		<div 
 			ref={setNodeRef}
-			className={`border rounded-lg p-4 w-[300px] transition-colors ${
-				isOver ? 'bg-blue-50 border-blue-300' : ''
+			className={`border border-border rounded-lg p-4 w-[300px] transition-colors bg-card ${
+				isOver ? 'bg-accent/50 border-accent' : ''
 			}`}
 		>
-			<h3 className="font-semibold mb-2">{t('group')} {group.id}</h3>
+			<h3 className="font-semibold mb-2 text-foreground">{t('group')} {group.id}</h3>
 			{children}
 		</div>
 	)

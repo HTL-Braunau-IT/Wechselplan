@@ -149,13 +149,14 @@ export default function TimesPage() {
               <h2 className="text-xl font-semibold mb-4">{t('settings.times.scheduleTimes')}</h2>
               <div className="space-y-4">
                 {scheduleTimes.map(time => (
-                  <div key={time.id} className="flex items-center space-x-2">
+                  <div key={time.id} className="flex items-center space-x-4 p-2 rounded-lg hover:bg-muted/50 transition-colors">
                     <Checkbox
                       id={`schedule-${time.id}`}
                       checked={selectedScheduleTimes.includes(time.id)}
                       onCheckedChange={() => toggleScheduleTime(time.id)}
+                      className="h-5 w-5 border-2 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                     />
-                    <Label htmlFor={`schedule-${time.id}`} className="flex-1">
+                    <Label htmlFor={`schedule-${time.id}`} className="flex-1 cursor-pointer">
                       {time.startTime} - {time.endTime} | {time.hours} {t('settings.times.hours')} ({time.period})
                     </Label>
                   </div>
@@ -168,13 +169,14 @@ export default function TimesPage() {
               <h2 className="text-xl font-semibold mb-4">{t('settings.times.breakTimes')}</h2>
               <div className="space-y-4">
                 {breakTimes.map(time => (
-                  <div key={time.id} className="flex items-center space-x-2">
+                  <div key={time.id} className="flex items-center space-x-4 p-2 rounded-lg hover:bg-muted/50 transition-colors">
                     <Checkbox
                       id={`break-${time.id}`}
                       checked={selectedBreakTimes.includes(time.id)}
                       onCheckedChange={() => toggleBreakTime(time.id)}
+                      className="h-5 w-5 border-2 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                     />
-                    <Label htmlFor={`break-${time.id}`} className="flex-1">
+                    <Label htmlFor={`break-${time.id}`} className="flex-1 cursor-pointer">
                       {time.name}: {time.startTime} - {time.endTime} ({time.period})
                     </Label>
                   </div>

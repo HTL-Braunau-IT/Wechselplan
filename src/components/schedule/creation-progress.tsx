@@ -49,10 +49,10 @@ export function CreationProgress() {
 						<div
 							className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-colors shrink-0 ${
 								isCompleted
-									? 'bg-success border-success text-success-foreground'
+									? 'bg-green-600 border-green-600 text-white'
 									: isCurrent
-									? 'border-primary text-primary'
-									: 'border-muted-foreground/30 text-muted-foreground/30'
+									? 'border-primary text-primary bg-primary/10'
+									: 'border-muted text-muted-foreground'
 							}`}
 						>
 							{isCompleted ? (
@@ -77,9 +77,9 @@ export function CreationProgress() {
 						<div
 							className={`ml-3 text-sm font-medium whitespace-nowrap transition-colors ${
 								isCompleted
-									? 'text-success'
+									? 'text-green-600'
 									: isCurrent
-									? 'text-primary'
+									? 'text-primary font-semibold'
 									: 'text-muted-foreground'
 							}`}
 						>
@@ -90,7 +90,7 @@ export function CreationProgress() {
 						{index < steps.length - 1 && (
 							<div
 								className={`absolute left-4 top-[32px] w-0.5 h-8 ${
-									isCompleted ? 'bg-success' : 'bg-muted'
+									isCompleted ? 'bg-green-600' : 'bg-muted'
 								}`}
 							/>
 						)}
