@@ -9,7 +9,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useTranslation } from 'react-i18next'
 
 interface ScheduleTime {
-  id: string
+  id: number
   startTime: string
   endTime: string
   hours: number
@@ -17,7 +17,7 @@ interface ScheduleTime {
 }
 
 interface BreakTime {
-  id: string
+  id: number
   name: string
   startTime: string
   endTime: string
@@ -29,11 +29,16 @@ interface TeacherAssignment {
   period: 'AM' | 'PM'
 }
 
+interface SavedTimesResponse {
+  scheduleTimes: { id: number }[]
+  breakTimes: { id: number }[]
+}
+
 export default function TimesPage() {
   const [scheduleTimes, setScheduleTimes] = useState<ScheduleTime[]>([])
   const [breakTimes, setBreakTimes] = useState<BreakTime[]>([])
-  const [selectedScheduleTimes, setSelectedScheduleTimes] = useState<string[]>([])
-  const [selectedBreakTimes, setSelectedBreakTimes] = useState<string[]>([])
+  const [selectedScheduleTimes, setSelectedScheduleTimes] = useState<number[]>([])
+  const [selectedBreakTimes, setSelectedBreakTimes] = useState<number[]>([])
   const [, setTeacherAssignments] = useState<TeacherAssignment[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -79,6 +84,14 @@ export default function TimesPage() {
       const breakData = await breakResponse.json() as BreakTime[]
       // Filter break times based on periods in assignments
       setBreakTimes(breakData.filter(time => periods.includes(time.period)))
+
+      // Fetch saved times for this class
+      const savedTimesResponse = await fetch(`/api/schedules/times?class=${classId}`)
+      if (savedTimesResponse.ok) {
+        const savedTimes = await savedTimesResponse.json() as SavedTimesResponse
+        setSelectedScheduleTimes(savedTimes.scheduleTimes.map(time => time.id))
+        setSelectedBreakTimes(savedTimes.breakTimes.map(time => time.id))
+      }
     } catch (error) {
       console.error('Error fetching data:', error)
       setError('Failed to load times')
@@ -87,7 +100,7 @@ export default function TimesPage() {
     }
   }
 
-  const toggleScheduleTime = (id: string) => {
+  const toggleScheduleTime = (id: number) => {
     setSelectedScheduleTimes(prev =>
       prev.includes(id)
         ? prev.filter(timeId => timeId !== id)
@@ -95,7 +108,7 @@ export default function TimesPage() {
     )
   }
 
-  const toggleBreakTime = (id: string) => {
+  const toggleBreakTime = (id: number) => {
     setSelectedBreakTimes(prev =>
       prev.includes(id)
         ? prev.filter(timeId => timeId !== id)
