@@ -72,7 +72,7 @@ export default function RotationPage() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [weekError, setWeekError] = useState<string | null>(null)
-  const [, ] = useState<string | null>(null)
+  const [loadedFromDb, setLoadedFromDb] = useState(false)
   const [startDate, ] = useState<Date>(new Date())
   const [endDate, ] = useState<Date>(new Date())
   const router = useRouter()
@@ -88,11 +88,20 @@ export default function RotationPage() {
     void fetchHolidays()
   }, [])
 
+  // Only load from DB once if classId is present
   useEffect(() => {
-    if (!isLoading) {
-      calculateSchedule()
+    if (classId && !loadedFromDb) {
+      fetchExistingSchedule(classId);
     }
-  }, [numberOfTerms, selectedWeekday, holidays, isLoading])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [classId, loadedFromDb]);
+
+  // Only recalculate if not loaded from DB
+  useEffect(() => {
+    if (!isLoading && !loadedFromDb) {
+      calculateSchedule();
+    }
+  }, [numberOfTerms, selectedWeekday, holidays, isLoading, loadedFromDb]);
 
   const fetchHolidays = async () => {
     try {
@@ -109,6 +118,37 @@ export default function RotationPage() {
 
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const fetchExistingSchedule = async (classId: string) => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`/api/schedules?classId=${classId}`);
+      if (!response.ok) throw new Error('Failed to fetch schedule');
+      const schedules = await response.json();
+      if (schedules && schedules.length > 0) {
+        const latest = schedules[0];
+        // Populate state from loaded schedule
+        setSchedule(latest.scheduleData || {});
+        setNumberOfTerms(Object.keys(latest.scheduleData || {}).length);
+        setSelectedWeekday(latest.selectedWeekday || 1);
+        // Try to extract customLengths if present
+        const customLengths: Record<string, number> = {};
+        Object.entries(latest.scheduleData || {}).forEach(([turnus, entry]: any) => {
+          if (entry.customLength) customLengths[turnus] = entry.customLength;
+        });
+        setCustomLengths(customLengths);
+        setLoadedFromDb(true);
+      } else {
+        setLoadedFromDb(false);
+        calculateSchedule();
+      }
+    } catch (e) {
+      setLoadedFromDb(false);
+      calculateSchedule();
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -147,12 +187,14 @@ export default function RotationPage() {
     let rotationIndex = 0;
     // Calculate how many weeks each term should get
     const weeksPerTerm: number[] = [];
+    let customTotal = 0;
     for (let i = 0; i < numberOfTerms; i++) {
       const turnusKey = `TURNUS ${i + 1}`;
       if (customLengths[turnusKey] && customLengths[turnusKey] > 0) {
         weeksPerTerm.push(customLengths[turnusKey]);
         weeksLeft -= customLengths[turnusKey];
         turnsLeft--;
+        customTotal += customLengths[turnusKey];
       } else {
         weeksPerTerm.push(0); // placeholder, will fill in next
       }
@@ -221,8 +263,16 @@ export default function RotationPage() {
         holidays: turnHolidays
       };
     }
+    // Boundary check: warn if too few or too many weeks assigned (count all assigned weeks)
+    const assignedTotal = weeksPerTerm.reduce((a, b) => a + b, 0);
+    if (assignedTotal < totalWeeks) {
+      setWeekError(`Total assigned weeks (${assignedTotal}) is less than available weeks (${totalWeeks}). Please assign all weeks.`);
+    } else if (assignedTotal > totalWeeks) {
+      setWeekError(`Total assigned weeks (${assignedTotal}) is greater than available weeks (${totalWeeks}). Please reduce the assigned weeks.`);
+    } else {
+      setWeekError(null);
+    }
     setSchedule(newSchedule);
-    setWeekError(null);
   }
 
   const getWeekNumber = (date: Date): number => {
@@ -306,6 +356,9 @@ export default function RotationPage() {
             <div className="mb-4 p-4 text-red-500 bg-red-50 rounded-md">
               {weekError}
             </div>
+          )}
+          {loadedFromDb && (
+            <div className="mb-4 text-green-500">Loaded existing schedule from database.</div>
           )}
           <div className="flex gap-8 mb-4">
             <div>
