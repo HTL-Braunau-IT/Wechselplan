@@ -6,6 +6,8 @@ import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensor
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import { useTranslation } from 'next-i18next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
 
 interface Student {
 	id: number
@@ -421,23 +423,25 @@ export default function ScheduleClassSelectPage() {
 								e.preventDefault()
 								await handleNext()
 							}} className="mb-8">
-								<label htmlFor="class-select" className="block mb-2 font-medium">{t('class')}</label>
-								<select
-									id="class-select"
+								<Label htmlFor="class-select" className="block mb-2 font-medium">{t('class')}</Label>
+								<Select
 									value={selectedClass}
-									onChange={handleSelect}
-									className="w-full border rounded px-3 py-2 mb-4 bg-background"
+									onValueChange={setSelectedClass}
 									required
 								>
-									<option value="" disabled>{t('pleaseSelect')}</option>
-									{classes.map(cls => (
-										<option key={cls} value={cls}>{cls}</option>
-									))}
-								</select>
+									<SelectTrigger className="w-full">
+										<SelectValue placeholder={t('pleaseSelect')} />
+									</SelectTrigger>
+									<SelectContent>
+										{classes.map(cls => (
+											<SelectItem key={cls} value={cls}>{cls}</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
 								<button
 									type="submit"
 									disabled={!selectedClass}
-									className="w-full bg-primary text-primary-foreground py-2 rounded hover:bg-primary/90 transition"
+									className="w-full bg-primary text-primary-foreground py-2 rounded hover:bg-primary/90 transition mt-4"
 								>
 									{t('next')}
 								</button>

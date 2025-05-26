@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useTranslation } from 'next-i18next'
-import { Combobox } from '@headlessui/react'
 import { useCachedData } from '@/hooks/use-cached-data'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
 
 interface Student {
 	id: number
@@ -77,7 +78,7 @@ interface ApiError {
 	message: string
 }
 
-function TeacherCombobox({ 
+function TeacherSelect({ 
 	value, 
 	onChange, 
 	teachers 
@@ -87,60 +88,27 @@ function TeacherCombobox({
 	teachers: Teacher[] 
 }) {
 	const { t } = useTranslation('schedule')
-	const [query, setQuery] = useState('')
-
-	const filteredTeachers = query === ''
-		? teachers
-		: teachers.filter((teacher) =>
-			`${teacher.lastName}, ${teacher.firstName}`
-				.toLowerCase()
-				.includes(query.toLowerCase())
-		)
 
 	return (
-		<Combobox value={value ?? 0} onChange={onChange}>
-			<div className="relative">
-				<Combobox.Button className="w-full flex justify-between items-center border rounded px-2 py-1 text-left">
-					<Combobox.Input
-						className="w-full border-none focus:ring-0 p-0"
-						onChange={(event: React.ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)}
-						displayValue={(teacherId: number) => {
-							const teacher = teachers.find(t => t.id === teacherId)
-							return teacher ? `${teacher.lastName}, ${teacher.firstName}` : ''
-						}}
-						placeholder={t('selectTeacher')}
-					/>
-					<svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-						<path fillRule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 01-1.414 1.414L10 5.414 7.707 7.707a1 1 0 01-1.414-1.414l3-3A1 1 0 0110 3zm-3.707 9.293a1 1 0 011.414 0L10 14.586l2.293-2.293a1 1 0 011.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-					</svg>
-				</Combobox.Button>
-				<Combobox.Options className="fixed z-50 mt-1 max-h-[300px] w-[300px] overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
-					{filteredTeachers.length === 0 && query !== '' ? (
-						<div className="relative cursor-default select-none py-2 px-4 text-gray-700">
-							{t('noTeachersFound')}
-						</div>
-					) : (
-						filteredTeachers.map((teacher) => (
-							<Combobox.Option
-								key={teacher.id}
-								value={teacher.id}
-								className={({ active }: { active: boolean }) =>
-									`relative cursor-default select-none py-2 pl-4 pr-4 ${
-										active ? 'bg-blue-600 text-white' : 'text-gray-900'
-									}`
-								}
-							>
-								{teacher.lastName}, {teacher.firstName}
-							</Combobox.Option>
-						))
-					)}
-				</Combobox.Options>
-			</div>
-		</Combobox>
+		<Select
+			value={value?.toString()}
+			onValueChange={(value) => onChange(Number(value))}
+		>
+			<SelectTrigger className="w-[280px]">
+				<SelectValue placeholder={t('selectTeacher')} />
+			</SelectTrigger>
+			<SelectContent>
+				{teachers.map((teacher) => (
+					<SelectItem key={teacher.id} value={teacher.id.toString()}>
+						{teacher.lastName}, {teacher.firstName}
+					</SelectItem>
+				))}
+			</SelectContent>
+		</Select>
 	)
 }
 
-function RoomCombobox({ 
+function RoomSelect({ 
 	value, 
 	onChange, 
 	rooms 
@@ -150,58 +118,27 @@ function RoomCombobox({
 	rooms: Room[] 
 }) {
 	const { t } = useTranslation('schedule')
-	const [query, setQuery] = useState('')
-
-	const filteredRooms = query === ''
-		? rooms
-		: rooms.filter((room) =>
-			room.name.toLowerCase().includes(query.toLowerCase())
-		)
 
 	return (
-		<Combobox value={value ?? 0} onChange={onChange}>
-			<div className="relative">
-				<Combobox.Button className="w-full flex justify-between items-center border rounded px-2 py-1 text-left">
-					<Combobox.Input
-						className="w-full border-none focus:ring-0 p-0"
-						onChange={(event: React.ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)}
-						displayValue={(roomId: number) => {
-							const room = rooms.find(r => r.id === roomId)
-							return room ? room.name : ''
-						}}
-						placeholder={t('selectRoom')}
-					/>
-					<svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-						<path fillRule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 01-1.414 1.414L10 5.414 7.707 7.707a1 1 0 01-1.414-1.414l3-3A1 1 0 0110 3zm-3.707 9.293a1 1 0 011.414 0L10 14.586l2.293-2.293a1 1 0 011.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-					</svg>
-				</Combobox.Button>
-				<Combobox.Options className="fixed z-50 mt-1 max-h-[300px] w-[300px] overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
-					{filteredRooms.length === 0 && query !== '' ? (
-						<div className="relative cursor-default select-none py-2 px-4 text-gray-700">
-							{t('noRoomsFound')}
-						</div>
-					) : (
-						filteredRooms.map((room) => (
-							<Combobox.Option
-								key={room.id}
-								value={room.id}
-								className={({ active }: { active: boolean }) =>
-									`relative cursor-default select-none py-2 pl-4 pr-4 ${
-										active ? 'bg-blue-600 text-white' : 'text-gray-900'
-									}`
-								}
-							>
-								{room.name}
-							</Combobox.Option>
-						))
-					)}
-				</Combobox.Options>
-			</div>
-		</Combobox>
+		<Select
+			value={value?.toString()}
+			onValueChange={(value) => onChange(Number(value))}
+		>
+			<SelectTrigger className="w-[280px]">
+				<SelectValue placeholder={t('selectRoom')} />
+			</SelectTrigger>
+			<SelectContent>
+				{rooms.map((room) => (
+					<SelectItem key={room.id} value={room.id.toString()}>
+						{room.name}
+					</SelectItem>
+				))}
+			</SelectContent>
+		</Select>
 	)
 }
 
-function SubjectCombobox({ 
+function SubjectSelect({ 
 	value, 
 	onChange, 
 	subjects 
@@ -211,58 +148,27 @@ function SubjectCombobox({
 	subjects: Subject[] 
 }) {
 	const { t } = useTranslation('schedule')
-	const [query, setQuery] = useState('')
-
-	const filteredSubjects = query === ''
-		? subjects
-		: subjects.filter((subject) =>
-			subject.name.toLowerCase().includes(query.toLowerCase())
-		)
 
 	return (
-		<Combobox value={value ?? 0} onChange={onChange}>
-			<div className="relative">
-				<Combobox.Button className="w-full flex justify-between items-center border rounded px-2 py-1 text-left">
-					<Combobox.Input
-						className="w-full border-none focus:ring-0 p-0"
-						onChange={(event: React.ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)}
-						displayValue={(subjectId: number) => {
-							const subject = subjects.find(s => s.id === subjectId)
-							return subject ? subject.name : ''
-						}}
-						placeholder={t('selectSubject')}
-					/>
-					<svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-						<path fillRule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 01-1.414 1.414L10 5.414 7.707 7.707a1 1 0 01-1.414-1.414l3-3A1 1 0 0110 3zm-3.707 9.293a1 1 0 011.414 0L10 14.586l2.293-2.293a1 1 0 011.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-					</svg>
-				</Combobox.Button>
-				<Combobox.Options className="fixed z-50 mt-1 max-h-[300px] w-[300px] overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
-					{filteredSubjects.length === 0 && query !== '' ? (
-						<div className="relative cursor-default select-none py-2 px-4 text-gray-700">
-							{t('noSubjectsFound')}
-						</div>
-					) : (
-						filteredSubjects.map((subject) => (
-							<Combobox.Option
-								key={subject.id}
-								value={subject.id}
-								className={({ active }: { active: boolean }) =>
-									`relative cursor-default select-none py-2 pl-4 pr-4 ${
-										active ? 'bg-blue-600 text-white' : 'text-gray-900'
-									}`
-								}
-							>
-								{subject.name}
-							</Combobox.Option>
-						))
-					)}
-				</Combobox.Options>
-			</div>
-		</Combobox>
+		<Select
+			value={value?.toString()}
+			onValueChange={(value) => onChange(Number(value))}
+		>
+			<SelectTrigger className="w-[280px]">
+				<SelectValue placeholder={t('selectSubject')} />
+			</SelectTrigger>
+			<SelectContent>
+				{subjects.map((subject) => (
+					<SelectItem key={subject.id} value={subject.id.toString()}>
+						{subject.name}
+					</SelectItem>
+				))}
+			</SelectContent>
+		</Select>
 	)
 }
 
-function LearningContentCombobox({ 
+function LearningContentSelect({ 
 	value, 
 	onChange, 
 	learningContents 
@@ -272,54 +178,23 @@ function LearningContentCombobox({
 	learningContents: LearningContent[] 
 }) {
 	const { t } = useTranslation('schedule')
-	const [query, setQuery] = useState('')
-
-	const filteredLearningContents = query === ''
-		? learningContents
-		: learningContents.filter((content) =>
-			content.name.toLowerCase().includes(query.toLowerCase())
-		)
 
 	return (
-		<Combobox value={value ?? 0} onChange={onChange}>
-			<div className="relative">
-				<Combobox.Button className="w-full flex justify-between items-center border rounded px-2 py-1 text-left">
-					<Combobox.Input
-						className="w-full border-none focus:ring-0 p-0"
-						onChange={(event: React.ChangeEvent<HTMLInputElement>) => setQuery(event.target.value)}
-						displayValue={(contentId: number) => {
-							const content = learningContents.find(c => c.id === contentId)
-							return content ? content.name : ''
-						}}
-						placeholder={t('selectLearningContent')}
-					/>
-					<svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-						<path fillRule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 01-1.414 1.414L10 5.414 7.707 7.707a1 1 0 01-1.414-1.414l3-3A1 1 0 0110 3zm-3.707 9.293a1 1 0 011.414 0L10 14.586l2.293-2.293a1 1 0 011.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-					</svg>
-				</Combobox.Button>
-				<Combobox.Options className="fixed z-50 mt-1 max-h-[300px] w-[300px] overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
-					{filteredLearningContents.length === 0 && query !== '' ? (
-						<div className="relative cursor-default select-none py-2 px-4 text-gray-700">
-							{t('noLearningContentsFound')}
-						</div>
-					) : (
-						filteredLearningContents.map((content) => (
-							<Combobox.Option
-								key={content.id}
-								value={content.id}
-								className={({ active }: { active: boolean }) =>
-									`relative cursor-default select-none py-2 pl-4 pr-4 ${
-										active ? 'bg-blue-600 text-white' : 'text-gray-900'
-									}`
-								}
-							>
-								{content.name}
-							</Combobox.Option>
-						))
-					)}
-				</Combobox.Options>
-			</div>
-		</Combobox>
+		<Select
+			value={value?.toString()}
+			onValueChange={(value) => onChange(Number(value))}
+		>
+			<SelectTrigger className="w-[280px]">
+				<SelectValue placeholder={t('selectLearningContent')} />
+			</SelectTrigger>
+			<SelectContent>
+				{learningContents.map((content) => (
+					<SelectItem key={content.id} value={content.id.toString()}>
+						{content.name}
+					</SelectItem>
+				))}
+			</SelectContent>
+		</Select>
 	)
 }
 
@@ -370,7 +245,7 @@ export default function TeacherAssignmentPage() {
 
 	useEffect(() => {
 		async function fetchData() {
-			if (!selectedClass) return
+			if (!selectedClass || isLoadingCachedData) return
 
 			setLoading(true)
 			try {
@@ -404,6 +279,14 @@ export default function TeacherAssignmentPage() {
 						const subject = subjects.find(s => s.name === assignment.subject)
 						const learningContent = learningContents.find(lc => lc.name === assignment.learningContent)
 						const room = rooms.find(r => r.name === assignment.room)
+
+						if (!subject || !learningContent || !room) {
+							console.warn('Missing cached data for assignment mapping:', {
+								subject: assignment.subject,
+								learningContent: assignment.learningContent,
+								room: assignment.room
+							})
+						}
 
 						return {
 							groupId: assignment.groupId,
@@ -451,7 +334,7 @@ export default function TeacherAssignmentPage() {
 			}
 		}
 		void fetchData()
-	}, [selectedClass])
+	}, [selectedClass, isLoadingCachedData, subjects, learningContents, rooms])
 
 	function handleAssignmentChange(
 		period: 'am' | 'pm',
@@ -480,6 +363,23 @@ export default function TeacherAssignmentPage() {
 				}
 				return [...current, newAssignment]
 			}
+		})
+	}
+
+	function handleClearRow(period: 'am' | 'pm', groupId: number) {
+		const setAssignments = period === 'am' ? setAmAssignments : setPmAssignments
+		setAssignments(current => {
+			return current.map(assignment => 
+				assignment.groupId === groupId
+					? {
+						...assignment,
+						teacherId: 0,
+						subjectId: 0,
+						learningContentId: 0,
+						roomId: 0
+					}
+					: assignment
+			)
 		})
 	}
 
@@ -683,35 +583,45 @@ export default function TeacherAssignmentPage() {
 							<div className="space-y-4">
 								{groups.map((group) => (
 									<div key={group.id} className="p-4 border rounded-lg">
-										<h3 className="font-semibold mb-4">{t('group')} {group.id}</h3>
+										<div className="flex justify-between items-center mb-4">
+											<h3 className="font-semibold">{t('group')} {group.id}</h3>
+											<Button
+												variant="ghost"
+												size="sm"
+												onClick={() => handleClearRow('am', group.id)}
+												className="text-destructive hover:text-destructive/90"
+											>
+												{t('clearRow')}
+											</Button>
+										</div>
 										<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 											<div>
-												<label className="block text-sm font-medium mb-1">{t('teacher')}</label>
-												<TeacherCombobox
+												<Label className="block text-sm font-medium mb-1">{t('teacher')}</Label>
+												<TeacherSelect
 													value={amAssignments.find(a => a.groupId === group.id)?.teacherId}
 													onChange={(value) => handleAssignmentChange('am', group.id, 'teacherId', value)}
 													teachers={teachers}
 												/>
 											</div>
 											<div>
-												<label className="block text-sm font-medium mb-1">{t('subject')}</label>
-												<SubjectCombobox
+												<Label className="block text-sm font-medium mb-1">{t('subject')}</Label>
+												<SubjectSelect
 													value={amAssignments.find(a => a.groupId === group.id)?.subjectId}
 													onChange={(value) => handleAssignmentChange('am', group.id, 'subjectId', value)}
 													subjects={subjects}
 												/>
 											</div>
 											<div>
-												<label className="block text-sm font-medium mb-1">{t('learningContent')}</label>
-												<LearningContentCombobox
+												<Label className="block text-sm font-medium mb-1">{t('learningContent')}</Label>
+												<LearningContentSelect
 													value={amAssignments.find(a => a.groupId === group.id)?.learningContentId}
 													onChange={(value) => handleAssignmentChange('am', group.id, 'learningContentId', value)}
 													learningContents={learningContents}
 												/>
 											</div>
 											<div>
-												<label className="block text-sm font-medium mb-1">{t('room')}</label>
-												<RoomCombobox
+												<Label className="block text-sm font-medium mb-1">{t('room')}</Label>
+												<RoomSelect
 													value={amAssignments.find(a => a.groupId === group.id)?.roomId}
 													onChange={(value) => handleAssignmentChange('am', group.id, 'roomId', value)}
 													rooms={rooms}
@@ -733,35 +643,45 @@ export default function TeacherAssignmentPage() {
 							<div className="space-y-4">
 								{groups.map((group) => (
 									<div key={group.id} className="p-4 border rounded-lg">
-										<h3 className="font-semibold mb-4">{t('group')} {group.id}</h3>
+										<div className="flex justify-between items-center mb-4">
+											<h3 className="font-semibold">{t('group')} {group.id}</h3>
+											<Button
+												variant="ghost"
+												size="sm"
+												onClick={() => handleClearRow('pm', group.id)}
+												className="text-destructive hover:text-destructive/90"
+											>
+												{t('clearRow')}
+											</Button>
+										</div>
 										<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 											<div>
-												<label className="block text-sm font-medium mb-1">{t('teacher')}</label>
-												<TeacherCombobox
+												<Label className="block text-sm font-medium mb-1">{t('teacher')}</Label>
+												<TeacherSelect
 													value={pmAssignments.find(a => a.groupId === group.id)?.teacherId}
 													onChange={(value) => handleAssignmentChange('pm', group.id, 'teacherId', value)}
 													teachers={teachers}
 												/>
 											</div>
 											<div>
-												<label className="block text-sm font-medium mb-1">{t('subject')}</label>
-												<SubjectCombobox
+												<Label className="block text-sm font-medium mb-1">{t('subject')}</Label>
+												<SubjectSelect
 													value={pmAssignments.find(a => a.groupId === group.id)?.subjectId}
 													onChange={(value) => handleAssignmentChange('pm', group.id, 'subjectId', value)}
 													subjects={subjects}
 												/>
 											</div>
 											<div>
-												<label className="block text-sm font-medium mb-1">{t('learningContent')}</label>
-												<LearningContentCombobox
+												<Label className="block text-sm font-medium mb-1">{t('learningContent')}</Label>
+												<LearningContentSelect
 													value={pmAssignments.find(a => a.groupId === group.id)?.learningContentId}
 													onChange={(value) => handleAssignmentChange('pm', group.id, 'learningContentId', value)}
 													learningContents={learningContents}
 												/>
 											</div>
 											<div>
-												<label className="block text-sm font-medium mb-1">{t('room')}</label>
-												<RoomCombobox
+												<Label className="block text-sm font-medium mb-1">{t('room')}</Label>
+												<RoomSelect
 													value={pmAssignments.find(a => a.groupId === group.id)?.roomId}
 													onChange={(value) => handleAssignmentChange('pm', group.id, 'roomId', value)}
 													rooms={rooms}

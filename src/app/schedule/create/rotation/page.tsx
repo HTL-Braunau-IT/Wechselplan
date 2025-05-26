@@ -309,7 +309,7 @@ export default function RotationPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.values(schedule)[0]?.weeks?.map((_, weekIndex) => (
+                  {Array.from({ length: Math.max(...Object.values(schedule).map(entry => entry.weeks.length)) }).map((_, weekIndex) => (
                     <tr key={weekIndex}>
                       {Object.values(schedule).map((entry, turnusIndex) => (
                         <td key={turnusIndex} className="border p-2">
