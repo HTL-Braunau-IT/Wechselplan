@@ -138,7 +138,7 @@ export default function TimesPage() {
         </CardHeader>
         <CardContent>
           {error && (
-            <div className="mb-4 text-red-500">
+            <div className="mb-4 p-4 text-red-500 bg-red-50 rounded-md">
               {error}
             </div>
           )}

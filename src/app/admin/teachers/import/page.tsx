@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { CSVImport } from '@/components/admin/csv-import'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Label } from '@/components/ui/label'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 
 interface Teacher {
   firstName: string
@@ -144,83 +145,97 @@ export default function ImportPage() {
   }
 
   return (
-    <>
-      <h1 className="text-2xl font-bold mb-6">{t('admin.teachers.import.title')}</h1>
+    <div className="container mx-auto p-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('admin.teachers.import.title')}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-      <div className="space-y-6">
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+          {success && (
+            <Alert className="mb-4">
+              <AlertDescription>{success}</AlertDescription>
+            </Alert>
+          )}
 
-        {success && (
-          <Alert>
-            <AlertDescription>{success}</AlertDescription>
-          </Alert>
-        )}
+          <Tabs defaultValue="ldap" className="space-y-4">
+            <TabsList className="bg-muted/50">
+              <TabsTrigger value="ldap" className="data-[state=active]:bg-background data-[state=active]:text-foreground">
+                {t('admin.teachers.import.ldap')}
+              </TabsTrigger>
+              <TabsTrigger value="manual" className="data-[state=active]:bg-background data-[state=active]:text-foreground">
+                {t('admin.teachers.import.manual')}
+              </TabsTrigger>
+            </TabsList>
 
-        <Tabs defaultValue="ldap" className="bg-card rounded-lg shadow p-6">
-          <TabsList className="mb-4">
-            <TabsTrigger value="ldap">{t('admin.teachers.import.ldapTab')}</TabsTrigger>
-            <TabsTrigger value="csv">{t('admin.teachers.import.csvTab')}</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="ldap" className="space-y-4">
-            <Button onClick={handlePreview} disabled={isLoading} className="w-full md:w-auto">
-              {isLoading ? t('admin.teachers.import.loading') : t('admin.teachers.import.previewData')}
-            </Button>
+            <TabsContent value="ldap">
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t('admin.teachers.import.ldapTitle')}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Button onClick={handlePreview} disabled={isLoading} className="w-full md:w-auto">
+                    {isLoading ? t('admin.teachers.import.loading') : t('admin.teachers.import.previewData')}
+                  </Button>
 
-            {importData && (
-              <div className="space-y-4">
-                <h2 className="text-lg font-semibold">{t('admin.teachers.import.previewTitle')}</h2>
-                <div className="space-y-2">
-                  {importData.teachers.map((teacher) => {
-                    const teacherKey = `${teacher.firstName} ${teacher.lastName}`
-                    return (
-                      <div key={teacherKey} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={teacherKey}
-                          checked={selectedTeachers[teacherKey] ?? false}
-                          onCheckedChange={(checked) => 
-                            handleTeacherSelection(teacherKey, checked as boolean)
-                          }
-                        />
-                        <Label htmlFor={teacherKey} className="flex-1">
-                          {teacher.firstName} {teacher.lastName}
-                          {teacher.schedules && teacher.schedules.length > 0 && (
-                            <span className="text-sm text-gray-500 ml-2">
-                              ({teacher.schedules.join(', ')})
-                            </span>
-                          )}
-                        </Label>
+                  {importData && (
+                    <div className="space-y-4">
+                      <h2 className="text-lg font-semibold">{t('admin.teachers.import.previewTitle')}</h2>
+                      <div className="space-y-2">
+                        {importData.teachers.map((teacher) => {
+                          const teacherKey = `${teacher.firstName} ${teacher.lastName}`
+                          return (
+                            <div key={teacherKey} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={teacherKey}
+                                checked={selectedTeachers[teacherKey] ?? false}
+                                onCheckedChange={(checked) => 
+                                  handleTeacherSelection(teacherKey, checked as boolean)
+                                }
+                              />
+                              <Label htmlFor={teacherKey} className="flex-1">
+                                {teacher.firstName} {teacher.lastName}
+                                {teacher.schedules && teacher.schedules.length > 0 && (
+                                  <span className="text-sm text-gray-500 ml-2">
+                                    ({teacher.schedules.join(', ')})
+                                  </span>
+                                )}
+                              </Label>
+                            </div>
+                          )
+                        })}
                       </div>
-                    )
-                  })}
-                </div>
-                <Button 
-                  onClick={handleImport} 
-                  disabled={isLoading || Object.values(selectedTeachers).every(v => !v)}
-                  className="w-full md:w-auto"
-                >
-                  {isLoading ? t('admin.teachers.import.loading') : t('admin.teachers.import.importSelected')}
-                </Button>
-              </div>
-            )}
-          </TabsContent>
-          <TabsContent value="csv">
-            <CSVImport onImport={async (classes: string[]) => {
-              // Convert string[] to Teacher[] before calling handleCSVImport
-              const teachers: Teacher[] = classes.map(c => ({
-                firstName: '',
-                lastName: c,
-                schedules: []
-              }));
-              await handleCSVImport(teachers);
-            }} />
-          </TabsContent>
-        </Tabs>
-      </div>
-    </>
+                      <Button 
+                        onClick={handleImport} 
+                        disabled={isLoading || Object.values(selectedTeachers).every(v => !v)}
+                        className="w-full md:w-auto"
+                      >
+                        {isLoading ? t('admin.teachers.import.loading') : t('admin.teachers.import.importSelected')}
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+            <TabsContent value="manual">
+              <CSVImport onImport={async (classes: string[]) => {
+                // Convert string[] to Teacher[] before calling handleCSVImport
+                const teachers: Teacher[] = classes.map(c => ({
+                  firstName: '',
+                  lastName: c,
+                  schedules: []
+                }));
+                await handleCSVImport(teachers);
+              }} />
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+    </div>
   )
 } 

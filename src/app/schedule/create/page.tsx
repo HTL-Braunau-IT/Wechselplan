@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors, useDroppable, useDraggable } from '@dnd-kit/core'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import { useTranslation } from 'next-i18next'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 
 interface Student {
 	id: number
@@ -404,118 +405,122 @@ export default function ScheduleClassSelectPage() {
 	}
 
 	return (
-		<div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
-			<div className="bg-card rounded-lg shadow p-8 w-full max-w-4xl">
-				<h1 className="text-2xl font-bold mb-6 text-center">{t('selectClass')}</h1>
-				{loading && !selectedClass ? (
-					<p>{t('loadingClasses')}</p>
-				) : error ? (
-					<p className="text-destructive">{error}</p>
-				) : (
-					<div className="space-y-6">
-						<form onSubmit={async e => { 
-							e.preventDefault()
-							await handleNext()
-						}} className="mb-8">
-							<label htmlFor="class-select" className="block mb-2 font-medium">{t('class')}</label>
-							<select
-								id="class-select"
-								value={selectedClass}
-								onChange={handleSelect}
-								className="w-full border rounded px-3 py-2 mb-4 bg-background"
-								required
-							>
-								<option value="" disabled>{t('pleaseSelect')}</option>
-								{classes.map(cls => (
-									<option key={cls} value={cls}>{cls}</option>
-								))}
-							</select>
-							<button
-								type="submit"
-								disabled={!selectedClass}
-								className="w-full bg-primary text-primary-foreground py-2 rounded hover:bg-primary/90 transition"
-							>
-								{t('next')}
-							</button>
-						</form>
+		<div className="container mx-auto p-4">
+			<Card>
+				<CardHeader>
+					<CardTitle>{t('selectClass')}</CardTitle>
+				</CardHeader>
+				<CardContent>
+					{loading && !selectedClass ? (
+						<p>{t('loadingClasses')}</p>
+					) : error ? (
+						<p className="text-destructive">{error}</p>
+					) : (
+						<div className="space-y-6">
+							<form onSubmit={async e => { 
+								e.preventDefault()
+								await handleNext()
+							}} className="mb-8">
+								<label htmlFor="class-select" className="block mb-2 font-medium">{t('class')}</label>
+								<select
+									id="class-select"
+									value={selectedClass}
+									onChange={handleSelect}
+									className="w-full border rounded px-3 py-2 mb-4 bg-background"
+									required
+								>
+									<option value="" disabled>{t('pleaseSelect')}</option>
+									{classes.map(cls => (
+										<option key={cls} value={cls}>{cls}</option>
+									))}
+								</select>
+								<button
+									type="submit"
+									disabled={!selectedClass}
+									className="w-full bg-primary text-primary-foreground py-2 rounded hover:bg-primary/90 transition"
+								>
+									{t('next')}
+								</button>
+							</form>
 
-						{selectedClass && (
-							<div>
-								<div className="flex justify-between items-center mb-4">
-									<h2 className="text-xl font-semibold">{t('studentsOfClass', { class: selectedClass })}</h2>
-									<div className="flex items-center gap-2">
-										<label htmlFor="group-size" className="text-sm font-medium">
-											{t('numberOfGroups')}:
-										</label>
-										<select
-											id="group-size"
-											value={numberOfGroups}
-											onChange={handleGroupSizeChange}
-											className="border rounded px-2 py-1"
-										>
-											<option value="2">2</option>
-											<option value="3">3</option>
-											<option value="4">4</option>
-										</select>
-									</div>
-								</div>
-								{loading ? (
-									<p>{t('loadingStudents')}</p>
-								) : (
-									<DndContext
-										sensors={sensors}
-										onDragStart={handleDragStart}
-										onDragEnd={handleDragEnd}
-									>
-										<div className={`grid gap-4 ${
-											numberOfGroups === 2 
-												? 'grid-cols-2 justify-items-center' 
-												: numberOfGroups === 3 
-													? 'grid-cols-2 justify-items-center [&>*:nth-child(3)]:col-span-2 [&>*:nth-child(3)]:max-w-md [&>*:nth-child(3)]:mx-auto' 
-													: 'grid-cols-2 justify-items-center'
-										}`}>
-											{groups.sort((a, b) => a.id - b.id).map((group) => (
-												<GroupContainer key={group.id} group={group}>
-													<div className="space-y-2">
-														{group.students.map((student, index) => (
-															<StudentItem 
-																key={student.id} 
-																student={student} 
-																index={index}
-																onRemove={(studentId) => {
-																	setGroups(currentGroups => {
-																		const newGroups = [...currentGroups]
-																		const sourceGroupIndex = newGroups.findIndex(group => 
-																			group.students.some(s => s.id === studentId)
-																		)
-																		if (sourceGroupIndex !== -1) {
-																			newGroups[sourceGroupIndex]!.students = newGroups[sourceGroupIndex]!.students.filter(
-																				s => s.id !== studentId
-																			)
-																		}
-																		return newGroups
-																	})
-																}}
-															/>
-														))}
-													</div>
-												</GroupContainer>
-											))}
+							{selectedClass && (
+								<div>
+									<div className="flex justify-between items-center mb-4">
+										<h2 className="text-xl font-semibold">{t('studentsOfClass', { class: selectedClass })}</h2>
+										<div className="flex items-center gap-2">
+											<label htmlFor="group-size" className="text-sm font-medium">
+												{t('numberOfGroups')}:
+											</label>
+											<select
+												id="group-size"
+												value={numberOfGroups}
+												onChange={handleGroupSizeChange}
+												className="border rounded px-2 py-1"
+											>
+												<option value="2">2</option>
+												<option value="3">3</option>
+												<option value="4">4</option>
+											</select>
 										</div>
-										<DragOverlay>
-											{activeStudent ? (
-												<div className="text-sm p-2 bg-card border rounded shadow-lg">
-													{activeStudent.lastName}, {activeStudent.firstName}
-												</div>
-											) : null}
-										</DragOverlay>
-									</DndContext>
-								)}
-							</div>
-						)}
-					</div>
-				)}
-			</div>
+									</div>
+									{loading ? (
+										<p>{t('loadingStudents')}</p>
+									) : (
+										<DndContext
+											sensors={sensors}
+											onDragStart={handleDragStart}
+											onDragEnd={handleDragEnd}
+										>
+											<div className={`grid gap-4 ${
+												numberOfGroups === 2 
+													? 'grid-cols-2 justify-items-center' 
+													: numberOfGroups === 3 
+														? 'grid-cols-2 justify-items-center [&>*:nth-child(3)]:col-span-2 [&>*:nth-child(3)]:max-w-md [&>*:nth-child(3)]:mx-auto' 
+														: 'grid-cols-2 justify-items-center'
+											}`}>
+												{groups.sort((a, b) => a.id - b.id).map((group) => (
+													<GroupContainer key={group.id} group={group}>
+														<div className="space-y-2">
+															{group.students.map((student, index) => (
+																<StudentItem 
+																	key={student.id} 
+																	student={student} 
+																	index={index}
+																	onRemove={(studentId) => {
+																		setGroups(currentGroups => {
+																			const newGroups = [...currentGroups]
+																			const sourceGroupIndex = newGroups.findIndex(group => 
+																				group.students.some(s => s.id === studentId)
+																			)
+																			if (sourceGroupIndex !== -1) {
+																				newGroups[sourceGroupIndex]!.students = newGroups[sourceGroupIndex]!.students.filter(
+																					s => s.id !== studentId
+																				)
+																			}
+																			return newGroups
+																		})
+																	}}
+																/>
+															))}
+														</div>
+													</GroupContainer>
+												))}
+											</div>
+											<DragOverlay>
+												{activeStudent ? (
+													<div className="text-sm p-2 bg-card border rounded shadow-lg">
+														{activeStudent.lastName}, {activeStudent.firstName}
+													</div>
+												) : null}
+											</DragOverlay>
+										</DndContext>
+									)}
+								</div>
+							)}
+						</div>
+					)}
+				</CardContent>
+			</Card>
 
 			{/* Confirmation Dialog */}
 			{showConfirmDialog && (

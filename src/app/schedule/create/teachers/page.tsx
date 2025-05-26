@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useTranslation } from 'next-i18next'
 import { Combobox } from '@headlessui/react'
 import { useCachedData } from '@/hooks/use-cached-data'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 
 interface Student {
 	id: number
@@ -654,172 +656,141 @@ export default function TeacherAssignmentPage() {
 	if (!selectedClass) return <div className="p-4">{t('noClassSelected')}</div>
 
 	return (
-		<div className="min-h-screen bg-background p-4">
-			<div className="max-w-7xl mx-auto">
-				<h1 className="text-2xl font-bold mb-6 text-foreground">
-					{t('teacherAssignment')} - {selectedClass}
-				</h1>
-
-				{hasExistingAssignments && (
-					<div className="mb-4 p-4 bg-muted text-muted-foreground rounded-lg">
-						{t('existingAssignmentsWarning')}
-					</div>
-				)}
-
-				<div className="space-y-8">
-					{/* AM Assignments */}
-					<div>
-						<h2 className="text-xl font-semibold mb-4 text-foreground">{t('morningAssignments')}</h2>
-						<div className="bg-card rounded-lg shadow">
-							<table className="min-w-full divide-y divide-border">
-								<thead className="bg-muted">
-									<tr>
-										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-											{t('group')}
-										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-											{t('teacher')}
-										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-											{t('subject')}
-										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-											{t('learningContent')}
-										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-											{t('room')}
-										</th>
-									</tr>
-								</thead>
-								<tbody className="bg-card divide-y divide-border">
-									{groups.map((group) => {
-										const assignment = amAssignments.find(a => a.groupId === group.id)
-										return (
-											<tr key={group.id}>
-												<td className="px-6 py-4 whitespace-nowrap">
-													{t('group')} {group.id}
-												</td>
-												<td className="px-6 py-4 whitespace-nowrap">
-													<TeacherCombobox
-														value={assignment?.teacherId ?? 0}
-														onChange={(value) => handleAssignmentChange('am', group.id, 'teacherId', value)}
-														teachers={teachers}
-													/>
-												</td>
-												<td className="px-6 py-4 whitespace-nowrap">
-													<SubjectCombobox
-														value={assignment?.subjectId ?? 0}
-														onChange={(value) => handleAssignmentChange('am', group.id, 'subjectId', value)}
-														subjects={subjects}
-													/>
-												</td>
-												<td className="px-6 py-4 whitespace-nowrap">
-													<LearningContentCombobox
-														value={assignment?.learningContentId ?? 0}
-														onChange={(value) => handleAssignmentChange('am', group.id, 'learningContentId', value)}
-														learningContents={learningContents}
-													/>
-												</td>
-												<td className="px-6 py-4 whitespace-nowrap">
-													<RoomCombobox
-														value={assignment?.roomId ?? 0}
-														onChange={(value) => handleAssignmentChange('am', group.id, 'roomId', value)}
-														rooms={rooms}
-													/>
-												</td>
-											</tr>
-										)
-									})}
-								</tbody>
-							</table>
+		<div className="container mx-auto p-4">
+			<Card>
+				<CardHeader>
+					<CardTitle>{t('teacherAssignment')} - {selectedClass}</CardTitle>
+				</CardHeader>
+				<CardContent>
+					{error && (
+						<div className="mb-4 p-4 text-red-500 bg-red-50 rounded-md">
+							{error}
 						</div>
-					</div>
+					)}
+
+					{hasExistingAssignments && (
+						<div className="mb-4 p-4 bg-muted text-muted-foreground rounded-lg">
+							{t('existingAssignmentsWarning')}
+						</div>
+					)}
+
+					{/* AM Assignments */}
+					<Card className="mb-8">
+						<CardHeader>
+							<CardTitle>{t('morningAssignments')}</CardTitle>
+						</CardHeader>
+						<CardContent>
+							<div className="space-y-4">
+								{groups.map((group) => (
+									<div key={group.id} className="p-4 border rounded-lg">
+										<h3 className="font-semibold mb-4">{t('group')} {group.id}</h3>
+										<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+											<div>
+												<label className="block text-sm font-medium mb-1">{t('teacher')}</label>
+												<TeacherCombobox
+													value={amAssignments.find(a => a.groupId === group.id)?.teacherId}
+													onChange={(value) => handleAssignmentChange('am', group.id, 'teacherId', value)}
+													teachers={teachers}
+												/>
+											</div>
+											<div>
+												<label className="block text-sm font-medium mb-1">{t('subject')}</label>
+												<SubjectCombobox
+													value={amAssignments.find(a => a.groupId === group.id)?.subjectId}
+													onChange={(value) => handleAssignmentChange('am', group.id, 'subjectId', value)}
+													subjects={subjects}
+												/>
+											</div>
+											<div>
+												<label className="block text-sm font-medium mb-1">{t('learningContent')}</label>
+												<LearningContentCombobox
+													value={amAssignments.find(a => a.groupId === group.id)?.learningContentId}
+													onChange={(value) => handleAssignmentChange('am', group.id, 'learningContentId', value)}
+													learningContents={learningContents}
+												/>
+											</div>
+											<div>
+												<label className="block text-sm font-medium mb-1">{t('room')}</label>
+												<RoomCombobox
+													value={amAssignments.find(a => a.groupId === group.id)?.roomId}
+													onChange={(value) => handleAssignmentChange('am', group.id, 'roomId', value)}
+													rooms={rooms}
+												/>
+											</div>
+										</div>
+									</div>
+								))}
+							</div>
+						</CardContent>
+					</Card>
 
 					{/* PM Assignments */}
-					<div>
-						<h2 className="text-xl font-semibold mb-4 text-foreground">{t('afternoonAssignments')}</h2>
-						<div className="bg-card rounded-lg shadow">
-							<table className="min-w-full divide-y divide-border">
-								<thead className="bg-muted">
-									<tr>
-										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-											{t('group')}
-										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-											{t('teacher')}
-										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-											{t('subject')}
-										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-											{t('learningContent')}
-										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-											{t('room')}
-										</th>
-									</tr>
-								</thead>
-								<tbody className="bg-card divide-y divide-border">
-									{groups.map((group) => {
-										const assignment = pmAssignments.find(a => a.groupId === group.id)
-										return (
-											<tr key={group.id}>
-												<td className="px-6 py-4 whitespace-nowrap">
-													{t('group')} {group.id}
-												</td>
-												<td className="px-6 py-4 whitespace-nowrap">
-													<TeacherCombobox
-														value={assignment?.teacherId ?? 0}
-														onChange={(value) => handleAssignmentChange('pm', group.id, 'teacherId', value)}
-														teachers={teachers}
-													/>
-												</td>
-												<td className="px-6 py-4 whitespace-nowrap">
-													<SubjectCombobox
-														value={assignment?.subjectId ?? 0}
-														onChange={(value) => handleAssignmentChange('pm', group.id, 'subjectId', value)}
-														subjects={subjects}
-													/>
-												</td>
-												<td className="px-6 py-4 whitespace-nowrap">
-													<LearningContentCombobox
-														value={assignment?.learningContentId ?? 0}
-														onChange={(value) => handleAssignmentChange('pm', group.id, 'learningContentId', value)}
-														learningContents={learningContents}
-													/>
-												</td>
-												<td className="px-6 py-4 whitespace-nowrap">
-													<RoomCombobox
-														value={assignment?.roomId ?? 0}
-														onChange={(value) => handleAssignmentChange('pm', group.id, 'roomId', value)}
-														rooms={rooms}
-													/>
-												</td>
-											</tr>
-										)
-									})}
-								</tbody>
-							</table>
-						</div>
-					</div>
+					<Card>
+						<CardHeader>
+							<CardTitle>{t('afternoonAssignments')}</CardTitle>
+						</CardHeader>
+						<CardContent>
+							<div className="space-y-4">
+								{groups.map((group) => (
+									<div key={group.id} className="p-4 border rounded-lg">
+										<h3 className="font-semibold mb-4">{t('group')} {group.id}</h3>
+										<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+											<div>
+												<label className="block text-sm font-medium mb-1">{t('teacher')}</label>
+												<TeacherCombobox
+													value={pmAssignments.find(a => a.groupId === group.id)?.teacherId}
+													onChange={(value) => handleAssignmentChange('pm', group.id, 'teacherId', value)}
+													teachers={teachers}
+												/>
+											</div>
+											<div>
+												<label className="block text-sm font-medium mb-1">{t('subject')}</label>
+												<SubjectCombobox
+													value={pmAssignments.find(a => a.groupId === group.id)?.subjectId}
+													onChange={(value) => handleAssignmentChange('pm', group.id, 'subjectId', value)}
+													subjects={subjects}
+												/>
+											</div>
+											<div>
+												<label className="block text-sm font-medium mb-1">{t('learningContent')}</label>
+												<LearningContentCombobox
+													value={pmAssignments.find(a => a.groupId === group.id)?.learningContentId}
+													onChange={(value) => handleAssignmentChange('pm', group.id, 'learningContentId', value)}
+													learningContents={learningContents}
+												/>
+											</div>
+											<div>
+												<label className="block text-sm font-medium mb-1">{t('room')}</label>
+												<RoomCombobox
+													value={pmAssignments.find(a => a.groupId === group.id)?.roomId}
+													onChange={(value) => handleAssignmentChange('pm', group.id, 'roomId', value)}
+													rooms={rooms}
+												/>
+											</div>
+										</div>
+									</div>
+								))}
+							</div>
+						</CardContent>
+					</Card>
 
-					<div className="mt-6 flex justify-end">
-						<button
-							onClick={handleNext}
-							className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
-						>
-							{t('next')}
-						</button>
+					<div className="mt-8 flex justify-end gap-4">
+						<Button variant="outline" onClick={() => router.back()}>
+							{t('back')}
+						</Button>
+						<Button onClick={handleNext} disabled={loading}>
+							{loading ? t('saving') : t('next')}
+						</Button>
 					</div>
-				</div>
-			</div>
+				</CardContent>
+			</Card>
 
 			{/* Confirmation Dialog */}
 			{showConfirmDialog && (
 				<div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center">
 					<div className="bg-card p-6 rounded-lg max-w-md shadow-xl">
-						<h2 className="text-xl font-bold mb-4 text-foreground">{t('updateAssignmentsTitle')}</h2>
-						<p className="mb-6 text-foreground">{t('updateAssignmentsMessage')}</p>
+						<h2 className="text-xl font-bold mb-4">{t('updateAssignmentsTitle')}</h2>
+						<p className="mb-6">{t('updateAssignmentsMessage')}</p>
 						<div className="flex justify-end space-x-4">
 							<button
 								onClick={handleCancelUpdate}

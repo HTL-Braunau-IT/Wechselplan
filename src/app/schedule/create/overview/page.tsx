@@ -218,106 +218,118 @@ export default function OverviewPage() {
   }
 
   return (
-    <div className="container mx-auto p-4 space-y-8">
-      {/* AM Rotation Table */}
-      {uniqueAmTeachers.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>AM Lehrer-Gruppen pro Turnus</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="min-w-full border text-sm">
-                <thead>
-                  <tr>
-                    <th className="border p-2">Lehrer</th>
-                    {Object.keys(turns).map(turn => (
-                      <th key={turn} className="border p-2">{turn}</th>
-                    ))}
-                  </tr>
-                  <tr>
-                    <th className="border p-2"></th>
-                    {Object.keys(turns).map(turn => {
-                      const info = getTurnusInfo(turn);
-                      return (
-                        <th key={turn} className="border p-2 text-xs text-gray-600">
-                          <div>Start: {info.start}</div>
-                          <div>Ende: {info.end}</div>
-                          <div>Tage: {info.days}</div>
-                        </th>
-                      );
-                    })}
-                  </tr>
-                </thead>
-                <tbody>
-                  {uniqueAmTeachers.map((teacher, teacherIdx) => (
-                    <tr key={teacher.id}>
-                      <td className="border p-2">{teacher.lastName}, {teacher.firstName}</td>
-                      {Object.keys(turns).map((turn, turnIdx) => (
-                        <td key={turn} className="border p-2">{getGroupForTeacherAndTurn(teacherIdx, turnIdx, 'AM')}</td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+    <div className="container mx-auto p-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Overview</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <div className="mb-4 p-4 text-red-500 bg-red-50 rounded-md">
+              {error}
             </div>
-          </CardContent>
-        </Card>
-      )}
-      {/* PM Rotation Table */}
-      {uniquePmTeachers.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>PM Lehrer-Gruppen pro Turnus</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="min-w-full border text-sm">
-                <thead>
-                  <tr>
-                    <th className="border p-2">Lehrer</th>
-                    {Object.keys(turns).map(turn => (
-                      <th key={turn} className="border p-2">{turn}</th>
-                    ))}
-                  </tr>
-                  <tr>
-                    <th className="border p-2"></th>
-                    {Object.keys(turns).map(turn => {
-                      const info = getTurnusInfo(turn);
-                      return (
-                        <th key={turn} className="border p-2 text-xs text-gray-600">
-                          <div>Start: {info.start}</div>
-                          <div>Ende: {info.end}</div>
-                          <div>Tage: {info.days}</div>
-                        </th>
-                      );
-                    })}
-                  </tr>
-                </thead>
-                <tbody>
-                  {uniquePmTeachers.map((teacher, teacherIdx) => (
-                    <tr key={teacher.id}>
-                      <td className="border p-2">{teacher.lastName}, {teacher.firstName}</td>
-                      {Object.keys(turns).map((turn, turnIdx) => (
-                        <td key={turn} className="border p-2">{getGroupForTeacherAndTurn(teacherIdx, turnIdx, 'PM')}</td>
+          )}
+          {/* AM Rotation Table */}
+          {uniqueAmTeachers.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>AM Lehrer-Gruppen pro Turnus</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full border text-sm">
+                    <thead>
+                      <tr>
+                        <th className="border p-2">Lehrer</th>
+                        {Object.keys(turns).map(turn => (
+                          <th key={turn} className="border p-2">{turn}</th>
+                        ))}
+                      </tr>
+                      <tr>
+                        <th className="border p-2"></th>
+                        {Object.keys(turns).map(turn => {
+                          const info = getTurnusInfo(turn);
+                          return (
+                            <th key={turn} className="border p-2 text-xs text-gray-600">
+                              <div>Start: {info.start}</div>
+                              <div>Ende: {info.end}</div>
+                              <div>Tage: {info.days}</div>
+                            </th>
+                          );
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {uniqueAmTeachers.map((teacher, teacherIdx) => (
+                        <tr key={teacher.id}>
+                          <td className="border p-2">{teacher.lastName}, {teacher.firstName}</td>
+                          {Object.keys(turns).map((turn, turnIdx) => (
+                            <td key={turn} className="border p-2">{getGroupForTeacherAndTurn(teacherIdx, turnIdx, 'AM')}</td>
+                          ))}
+                        </tr>
                       ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      <div className="flex justify-end mt-8">
-        <button
-          className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
-          onClick={handleSaveAndFinish}
-          disabled={saving}
-        >
-          {saving ? 'Saving...' : 'Save & Finish'}
-        </button>
-      </div>
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          {/* PM Rotation Table */}
+          {uniquePmTeachers.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>PM Lehrer-Gruppen pro Turnus</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full border text-sm">
+                    <thead>
+                      <tr>
+                        <th className="border p-2">Lehrer</th>
+                        {Object.keys(turns).map(turn => (
+                          <th key={turn} className="border p-2">{turn}</th>
+                        ))}
+                      </tr>
+                      <tr>
+                        <th className="border p-2"></th>
+                        {Object.keys(turns).map(turn => {
+                          const info = getTurnusInfo(turn);
+                          return (
+                            <th key={turn} className="border p-2 text-xs text-gray-600">
+                              <div>Start: {info.start}</div>
+                              <div>Ende: {info.end}</div>
+                              <div>Tage: {info.days}</div>
+                            </th>
+                          );
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {uniquePmTeachers.map((teacher, teacherIdx) => (
+                        <tr key={teacher.id}>
+                          <td className="border p-2">{teacher.lastName}, {teacher.firstName}</td>
+                          {Object.keys(turns).map((turn, turnIdx) => (
+                            <td key={turn} className="border p-2">{getGroupForTeacherAndTurn(teacherIdx, turnIdx, 'PM')}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          <div className="flex justify-end mt-8">
+            <button
+              className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
+              onClick={handleSaveAndFinish}
+              disabled={saving}
+            >
+              {saving ? 'Saving...' : 'Save & Finish'}
+            </button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

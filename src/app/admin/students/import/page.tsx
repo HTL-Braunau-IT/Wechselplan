@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { CSVImport } from '@/components/admin/csv-import'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Label } from '@/components/ui/label'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 
 interface Student {
   givenName: string
@@ -134,75 +135,89 @@ export default function ImportPage() {
   }
 
   return (
-    <>
-      <h1 className="text-2xl font-bold mb-6">{t('admin.students.import.title')}</h1>
+    <div className="container mx-auto p-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('admin.students.import.title')}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-      <div className="space-y-6">
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
+          {success && (
+            <Alert className="mb-4">
+              <AlertDescription>{success}</AlertDescription>
+            </Alert>
+          )}
 
-        {success && (
-          <Alert>
-            <AlertDescription>{success}</AlertDescription>
-          </Alert>
-        )}
+          <Tabs defaultValue="ldap" className="space-y-4">
+            <TabsList className="bg-muted/50">
+              <TabsTrigger value="ldap" className="data-[state=active]:bg-background data-[state=active]:text-foreground">
+                {t('admin.students.import.ldap')}
+              </TabsTrigger>
+              <TabsTrigger value="manual" className="data-[state=active]:bg-background data-[state=active]:text-foreground">
+                {t('admin.students.import.manual')}
+              </TabsTrigger>
+            </TabsList>
 
-        <Tabs defaultValue="ldap" className="bg-card rounded-lg shadow p-6">
-          <TabsList className="mb-4">
-            <TabsTrigger value="ldap">{t('admin.students.import.ldapTab')}</TabsTrigger>
-            <TabsTrigger value="csv">{t('admin.students.import.csvTab')}</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="ldap" className="space-y-4">
-            <Button onClick={handlePreview} disabled={isLoading} className="w-full md:w-auto">
-              {isLoading ? t('admin.students.import.loading') : t('admin.students.import.previewData')}
-            </Button>
-
-            {importData && (
-              <div className="space-y-4">
-                <h2 className="text-xl font-semibold">{t('admin.students.import.previewTitle')}</h2>
-                <div className="flex justify-begin">
-                  <Button onClick={() => handleImport(Object.keys(selectedClasses).filter(key => selectedClasses[key]))} disabled={isLoading}>
-                    {t('admin.students.import.importSelected')}
+            <TabsContent value="ldap">
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t('admin.students.import.ldapTitle')}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Button onClick={handlePreview} disabled={isLoading} className="w-full md:w-auto">
+                    {isLoading ? t('admin.students.import.loading') : t('admin.students.import.previewData')}
                   </Button>
-                </div>
-                <div className="space-y-4">
-                  {Object.entries(importData).map(([className, data]) => (
-                    <div key={className} className="border rounded-lg p-4 bg-muted">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <Checkbox
-                          id={`class-${className}`}
-                          checked={selectedClasses[className] ?? false}
-                          onCheckedChange={(checked) => handleClassSelection(className, checked as boolean)}
-                        />
-                        <Label htmlFor={`class-${className}`} className="font-medium">
-                          {t('admin.students.import.classLabel', { name: className, count: data.students.length })}
-                        </Label>
+
+                  {importData && (
+                    <div className="space-y-4">
+                      <h2 className="text-xl font-semibold">{t('admin.students.import.previewTitle')}</h2>
+                      <div className="flex justify-begin">
+                        <Button onClick={() => handleImport(Object.keys(selectedClasses).filter(key => selectedClasses[key]))} disabled={isLoading}>
+                          {t('admin.students.import.importSelected')}
+                        </Button>
                       </div>
-                      <div className="ml-6">
-                        <ul className="space-y-1 text-muted-foreground">
-                          {data.students.map((student, index) => (
-                            <li key={index} className={`py-1 px-2 rounded ${index % 2 === 0 ? 'bg-muted/50' : 'bg-muted'}`}>
-                              {student.givenName} {student.sn}
-                            </li>
-                          ))}
-                        </ul>
+                      <div className="space-y-4">
+                        {Object.entries(importData).map(([className, data]) => (
+                          <div key={className} className="border rounded-lg p-4 bg-muted">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <Checkbox
+                                id={`class-${className}`}
+                                checked={selectedClasses[className] ?? false}
+                                onCheckedChange={(checked) => handleClassSelection(className, checked as boolean)}
+                              />
+                              <Label htmlFor={`class-${className}`} className="font-medium">
+                                {t('admin.students.import.classLabel', { name: className, count: data.students.length })}
+                              </Label>
+                            </div>
+                            <div className="ml-6">
+                              <ul className="space-y-1 text-muted-foreground">
+                                {data.students.map((student, index) => (
+                                  <li key={index} className={`py-1 px-2 rounded ${index % 2 === 0 ? 'bg-muted/50' : 'bg-muted'}`}>
+                                    {student.givenName} {student.sn}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </TabsContent>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-          <TabsContent value="csv">
-            <CSVImport onImport={handleImport} />
-          </TabsContent>
-        </Tabs>
-      </div>
-    </>
+            <TabsContent value="manual">
+              <CSVImport onImport={handleImport} />
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+    </div>
   )
 } 
