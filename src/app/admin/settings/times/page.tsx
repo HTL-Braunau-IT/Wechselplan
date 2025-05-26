@@ -328,11 +328,11 @@ export default function TimesPage() {
                 <table className="w-full border-collapse">
                   <thead>
                     <tr>
-                      <th className="border p-2">Name</th>
-                      <th className="border p-2">Start Time</th>
-                      <th className="border p-2">End Time</th>
-                      <th className="border p-2">Period</th>
-                      <th className="border p-2">Actions</th>
+                      <th className="border p-2 bg-muted">Name</th>
+                      <th className="border p-2 bg-muted">Start Time</th>
+                      <th className="border p-2 bg-muted">End Time</th>
+                      <th className="border p-2 bg-muted">Period</th>
+                      <th className="border p-2 bg-muted">Actions</th>
                     </tr>
                   </thead>
                   <tbody>

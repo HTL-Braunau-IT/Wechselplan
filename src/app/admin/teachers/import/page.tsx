@@ -160,7 +160,7 @@ export default function ImportPage() {
           </Alert>
         )}
 
-        <Tabs defaultValue="ldap" className="bg-white rounded-lg shadow p-6">
+        <Tabs defaultValue="ldap" className="bg-card rounded-lg shadow p-6">
           <TabsList className="mb-4">
             <TabsTrigger value="ldap">{t('admin.teachers.import.ldapTab')}</TabsTrigger>
             <TabsTrigger value="csv">{t('admin.teachers.import.csvTab')}</TabsTrigger>

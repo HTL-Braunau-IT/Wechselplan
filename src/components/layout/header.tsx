@@ -6,6 +6,7 @@ import { Menu } from 'lucide-react'
 import { SchoolYearSelector } from '../school-year-selector'
 import { LanguageSwitcher } from '../language-switcher'
 import { useTranslation } from 'react-i18next'
+import { ThemeToggle } from '~/components/theme-toggle'
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -16,12 +17,12 @@ export function Header() {
   }
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-background border-b">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <button
             onClick={toggleMenu}
-            className="p-2 rounded-md hover:bg-gray-100 focus:outline-none"
+            className="p-2 rounded-md hover:bg-accent hover:text-accent-foreground focus:outline-none"
             aria-label={t('navigation.menu')}
           >
             <Menu className="h-6 w-6" />
@@ -33,6 +34,9 @@ export function Header() {
           </Link>
 
           <div className="flex items-center space-x-4">
+            {/* Theme Toggle */}
+            <ThemeToggle />
+
             {/* Language Switcher */}
             <LanguageSwitcher />
 
@@ -49,7 +53,7 @@ export function Header() {
 
       {/* Navigation Menu - Slides in from left */}
       <div
-        className={`fixed top-0 left-0 h-full w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 left-0 h-full w-64 bg-background border-r shadow-lg transform transition-transform duration-300 ease-in-out ${
           isMenuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -57,7 +61,7 @@ export function Header() {
           <div className="flex justify-end">
             <button
               onClick={toggleMenu}
-              className="p-2 rounded-md hover:bg-gray-100 focus:outline-none"
+              className="p-2 rounded-md hover:bg-accent hover:text-accent-foreground focus:outline-none"
               aria-label={t('navigation.closeMenu')}
             >
               <Menu className="h-6 w-6" />
@@ -68,7 +72,7 @@ export function Header() {
               <li>
                 <Link
                   href="/"
-                  className="block py-2 hover:text-blue-600"
+                  className="block py-2 hover:text-primary"
                   onClick={() => setIsMenuOpen(false)}
                 >
                   {t('navigation.home')}
@@ -77,7 +81,7 @@ export function Header() {
               <li>
                 <Link
                   href="/schedules"
-                  className="block py-2 hover:text-blue-600"
+                  className="block py-2 hover:text-primary"
                   onClick={() => setIsMenuOpen(false)}
                 >
                   {t('navigation.schedules')}
@@ -86,7 +90,7 @@ export function Header() {
               <li>
                 <Link
                   href="/students"
-                  className="block py-2 hover:text-blue-600"
+                  className="block py-2 hover:text-primary"
                   onClick={() => setIsMenuOpen(false)}
                 >
                   {t('navigation.students')}
@@ -95,7 +99,7 @@ export function Header() {
               <li>
                 <Link
                   href="/schedule/create"
-                  className="block py-2 hover:text-blue-600"
+                  className="block py-2 hover:text-primary"
                   onClick={() => setIsMenuOpen(false)}
                 >
                   {t('navigation.createSchedule')}
@@ -104,7 +108,7 @@ export function Header() {
               <li>
                 <Link
                   href="/admin/students"
-                  className="block py-2 hover:text-blue-600"
+                  className="block py-2 hover:text-primary"
                   onClick={() => setIsMenuOpen(false)}
                 >
                   {t('navigation.admin')}

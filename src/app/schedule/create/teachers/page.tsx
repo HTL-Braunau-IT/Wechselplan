@@ -654,14 +654,14 @@ export default function TeacherAssignmentPage() {
 	if (!selectedClass) return <div className="p-4">{t('noClassSelected')}</div>
 
 	return (
-		<div className="min-h-screen bg-gray-50 p-4">
+		<div className="min-h-screen bg-background p-4">
 			<div className="max-w-7xl mx-auto">
-				<h1 className="text-2xl font-bold mb-6">
+				<h1 className="text-2xl font-bold mb-6 text-foreground">
 					{t('teacherAssignment')} - {selectedClass}
 				</h1>
 
 				{hasExistingAssignments && (
-					<div className="mb-4 p-4 bg-blue-50 text-blue-700 rounded-lg">
+					<div className="mb-4 p-4 bg-muted text-muted-foreground rounded-lg">
 						{t('existingAssignmentsWarning')}
 					</div>
 				)}
@@ -669,29 +669,29 @@ export default function TeacherAssignmentPage() {
 				<div className="space-y-8">
 					{/* AM Assignments */}
 					<div>
-						<h2 className="text-xl font-semibold mb-4">{t('morningAssignments')}</h2>
-						<div className="bg-white rounded-lg shadow">
-							<table className="min-w-full divide-y divide-gray-200">
-								<thead className="bg-gray-50">
+						<h2 className="text-xl font-semibold mb-4 text-foreground">{t('morningAssignments')}</h2>
+						<div className="bg-card rounded-lg shadow">
+							<table className="min-w-full divide-y divide-border">
+								<thead className="bg-muted">
 									<tr>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
 											{t('group')}
 										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
 											{t('teacher')}
 										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
 											{t('subject')}
 										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
 											{t('learningContent')}
 										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
 											{t('room')}
 										</th>
 									</tr>
 								</thead>
-								<tbody className="bg-white divide-y divide-gray-200">
+								<tbody className="bg-card divide-y divide-border">
 									{groups.map((group) => {
 										const assignment = amAssignments.find(a => a.groupId === group.id)
 										return (
@@ -737,29 +737,29 @@ export default function TeacherAssignmentPage() {
 
 					{/* PM Assignments */}
 					<div>
-						<h2 className="text-xl font-semibold mb-4">{t('afternoonAssignments')}</h2>
-						<div className="bg-white rounded-lg shadow">
-							<table className="min-w-full divide-y divide-gray-200">
-								<thead className="bg-gray-50">
+						<h2 className="text-xl font-semibold mb-4 text-foreground">{t('afternoonAssignments')}</h2>
+						<div className="bg-card rounded-lg shadow">
+							<table className="min-w-full divide-y divide-border">
+								<thead className="bg-muted">
 									<tr>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
 											{t('group')}
 										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
 											{t('teacher')}
 										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
 											{t('subject')}
 										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
 											{t('learningContent')}
 										</th>
-										<th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										<th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
 											{t('room')}
 										</th>
 									</tr>
 								</thead>
-								<tbody className="bg-white divide-y divide-gray-200">
+								<tbody className="bg-card divide-y divide-border">
 									{groups.map((group) => {
 										const assignment = pmAssignments.find(a => a.groupId === group.id)
 										return (
@@ -806,7 +806,7 @@ export default function TeacherAssignmentPage() {
 					<div className="mt-6 flex justify-end">
 						<button
 							onClick={handleNext}
-							className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+							className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
 						>
 							{t('next')}
 						</button>
@@ -817,19 +817,19 @@ export default function TeacherAssignmentPage() {
 			{/* Confirmation Dialog */}
 			{showConfirmDialog && (
 				<div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center">
-					<div className="bg-white p-6 rounded-lg max-w-md shadow-xl">
-						<h2 className="text-xl font-bold mb-4">{t('updateAssignmentsTitle')}</h2>
-						<p className="mb-6">{t('updateAssignmentsMessage')}</p>
+					<div className="bg-card p-6 rounded-lg max-w-md shadow-xl">
+						<h2 className="text-xl font-bold mb-4 text-foreground">{t('updateAssignmentsTitle')}</h2>
+						<p className="mb-6 text-foreground">{t('updateAssignmentsMessage')}</p>
 						<div className="flex justify-end space-x-4">
 							<button
 								onClick={handleCancelUpdate}
-								className="px-4 py-2 text-gray-600 hover:text-gray-800"
+								className="px-4 py-2 text-muted-foreground hover:text-foreground"
 							>
 								{t('cancel')}
 							</button>
 							<button
 								onClick={handleConfirmUpdate}
-								className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+								className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
 							>
 								{t('update')}
 							</button>
@@ -841,13 +841,13 @@ export default function TeacherAssignmentPage() {
 			{/* Error Dialog */}
 			{showErrorDialog && (
 				<div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center">
-					<div className="bg-white p-6 rounded-lg max-w-2xl shadow-xl">
-						<h2 className="text-xl font-bold mb-4">{t('validationErrorsTitle')}</h2>
+					<div className="bg-card p-6 rounded-lg max-w-2xl shadow-xl">
+						<h2 className="text-xl font-bold mb-4 text-foreground">{t('validationErrorsTitle')}</h2>
 						<div className="mb-6 space-y-4">
 							{validationErrors.am.length > 0 && (
 								<div>
-									<h3 className="font-semibold mb-2">{t('morningAssignments')}</h3>
-									<ul className="list-disc pl-5 space-y-1">
+									<h3 className="font-semibold mb-2 text-foreground">{t('morningAssignments')}</h3>
+									<ul className="list-disc pl-5 space-y-1 text-foreground">
 										{validationErrors.am.map(error => (
 											<li key={error.groupId}>
 												{t('group')} {error.groupId}: {error.missingFields.map(field => t(field)).join(', ')}
@@ -858,8 +858,8 @@ export default function TeacherAssignmentPage() {
 							)}
 							{validationErrors.pm.length > 0 && (
 								<div>
-									<h3 className="font-semibold mb-2">{t('afternoonAssignments')}</h3>
-									<ul className="list-disc pl-5 space-y-1">
+									<h3 className="font-semibold mb-2 text-foreground">{t('afternoonAssignments')}</h3>
+									<ul className="list-disc pl-5 space-y-1 text-foreground">
 										{validationErrors.pm.map(error => (
 											<li key={error.groupId}>
 												{t('group')} {error.groupId}: {error.missingFields.map(field => t(field)).join(', ')}
@@ -872,7 +872,7 @@ export default function TeacherAssignmentPage() {
 						<div className="flex justify-end">
 							<button
 								onClick={() => setShowErrorDialog(false)}
-								className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+								className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
 							>
 								{t('ok')}
 							</button>

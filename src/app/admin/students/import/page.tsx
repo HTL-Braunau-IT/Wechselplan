@@ -150,7 +150,7 @@ export default function ImportPage() {
           </Alert>
         )}
 
-        <Tabs defaultValue="ldap" className="bg-white rounded-lg shadow p-6">
+        <Tabs defaultValue="ldap" className="bg-card rounded-lg shadow p-6">
           <TabsList className="mb-4">
             <TabsTrigger value="ldap">{t('admin.students.import.ldapTab')}</TabsTrigger>
             <TabsTrigger value="csv">{t('admin.students.import.csvTab')}</TabsTrigger>
@@ -171,7 +171,7 @@ export default function ImportPage() {
                 </div>
                 <div className="space-y-4">
                   {Object.entries(importData).map(([className, data]) => (
-                    <div key={className} className="border rounded-lg p-4 bg-gray-50">
+                    <div key={className} className="border rounded-lg p-4 bg-muted">
                       <div className="flex items-center space-x-2 mb-2">
                         <Checkbox
                           id={`class-${className}`}
@@ -183,9 +183,9 @@ export default function ImportPage() {
                         </Label>
                       </div>
                       <div className="ml-6">
-                        <ul className="space-y-1 text-gray-600">
+                        <ul className="space-y-1 text-muted-foreground">
                           {data.students.map((student, index) => (
-                            <li key={index} className={`py-1 px-2 rounded ${index % 2 === 0 ? 'bg-gray-100' : 'bg-gray-50'}`}>
+                            <li key={index} className={`py-1 px-2 rounded ${index % 2 === 0 ? 'bg-muted/50' : 'bg-muted'}`}>
                               {student.givenName} {student.sn}
                             </li>
                           ))}
@@ -194,7 +194,6 @@ export default function ImportPage() {
                     </div>
                   ))}
                 </div>
-                
               </div>
             )}
           </TabsContent>

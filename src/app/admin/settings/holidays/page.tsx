@@ -323,9 +323,9 @@ export default function HolidaysPage() {
                               </TableCell>
                               <TableCell>
                                 {holiday.isValid ? (
-                                  <span className="text-green-600">Valid</span>
+                                  <span className="text-green-500 dark:text-green-400">Valid</span>
                                 ) : (
-                                  <span className="text-red-600">Invalid</span>
+                                  <span className="text-red-500 dark:text-red-400">Invalid</span>
                                 )}
                               </TableCell>
                               <TableCell>

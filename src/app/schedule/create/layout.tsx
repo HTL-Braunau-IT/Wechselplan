@@ -8,9 +8,9 @@ export default function ScheduleCreationLayout({
 	children: React.ReactNode
 }) {
 	return (
-		<div className="flex min-h-screen">
+		<div className="flex min-h-screen bg-background">
 			{/* Progress bar sidebar */}
-			<div className="w-64 border-r border-gray-200 bg-white">
+			<div className="w-64 border-r bg-background">
 				<CreationProgress />
 			</div>
 

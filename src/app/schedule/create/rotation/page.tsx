@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -304,7 +303,7 @@ export default function RotationPage() {
                     {Object.entries(schedule).map(([turnus, entry]) => (
                       <th key={turnus} className="border p-2">
                         <div>{turnus}</div>
-                        <div className="text-sm font-normal text-gray-500">{entry.weeks.length} weeks</div>
+                        <div className="text-sm font-normal text-muted-foreground">{entry.weeks.length} weeks</div>
                       </th>
                     ))}
                   </tr>
@@ -318,7 +317,7 @@ export default function RotationPage() {
                             <>
                               {entry.weeks[weekIndex].week}
                               <br />
-                              <span className={entry.weeks[weekIndex].isHoliday ? 'text-red-500' : undefined}>
+                              <span className={entry.weeks[weekIndex].isHoliday ? 'text-destructive' : undefined}>
                                 {entry.weeks[weekIndex].date}
                               </span>
                             </>
@@ -332,18 +331,18 @@ export default function RotationPage() {
                   <tr>
                     {Object.entries(schedule).map(([, entry], turnusIndex) => {
                       return (
-                        <td key={turnusIndex} className="border p-2 bg-gray-50">
+                        <td key={turnusIndex} className="border p-2 bg-muted">
                           {entry?.holidays?.length > 0 ? (
                             <div className="text-sm">
                               <div className="font-medium mb-1">Missed Holidays:</div>
                               {entry.holidays.map((holiday, index) => (
-                                <div key={index} className="text-gray-600">
+                                <div key={index} className="text-muted-foreground">
                                   {holiday.name} ({format(holiday.startDate, 'dd.MM.yy')})
                                 </div>
                               ))}
                             </div>
                           ) : (
-                            <div className="text-sm text-gray-500">No missed holidays</div>
+                            <div className="text-sm text-muted-foreground">No missed holidays</div>
                           )}
                         </td>
                       )
