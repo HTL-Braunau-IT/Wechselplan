@@ -63,25 +63,51 @@ export async function POST() {
 
     // First, verify the teachers OU exists
     const teachersOUExists = await new Promise<boolean>((resolve) => {
-      client.search(LDAP_CONFIG.teachersOU, {
+      // First try to list all OUs under the base DN to debug
+      client.search(LDAP_CONFIG.baseDN, {
         filter: '(objectClass=organizationalUnit)',
         scope: 'sub',
-        attributes: ['ou']
+        attributes: ['ou', 'distinguishedName']
       }, (err: Error | null, res: LDAPSearchResponse) => {
         if (err) {
-          console.error('Error checking Teachers OU:', err)
+          console.error('Error listing OUs:', err)
           resolve(false)
           return
         }
 
-        let found = false
-        res.on('searchEntry', () => {
-          found = true
+        console.log('Available OUs in directory:')
+        res.on('searchEntry', (entry: LDAPEntry) => {
+          const ou = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'ou')?.values[0]
+          const dn = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'distinguishedName')?.values[0]
+          console.log(`Found OU: ${ou} (${dn})`)
         })
-        res.on('end', () => resolve(found))
-        res.on('error', (err: Error) => {
-          console.error('Search error:', err)
-          resolve(false)
+
+        res.on('end', () => {
+          // Now try to find the specific Teachers OU
+          client.search(LDAP_CONFIG.teachersOU, {
+            filter: '(objectClass=organizationalUnit)',
+            scope: 'sub',
+            attributes: ['ou']
+          }, (err: Error | null, res: LDAPSearchResponse) => {
+            if (err) {
+              console.error('Error checking Teachers OU:', err)
+              resolve(false)
+              return
+            }
+
+            let found = false
+            res.on('searchEntry', () => {
+              found = true
+            })
+            res.on('end', () => {
+              console.log(`Teachers OU ${found ? 'found' : 'not found'} at path: ${LDAP_CONFIG.teachersOU}`)
+              resolve(found)
+            })
+            res.on('error', (err: Error) => {
+              console.error('Search error:', err)
+              resolve(false)
+            })
+          })
         })
       })
     })
