@@ -13,9 +13,6 @@ services:
       LDAP_TEACHERS_OU: "OU=Lehrer,DC=htl-braunau,DC=int"
       DEBUG: "ldapjs:*"  # Enable LDAP debugging
       NODE_ENV: "development"  # Enable more verbose logging
-      LDAP_SEARCH_SCOPE: "sub"  # Search in all subtrees
-      LDAP_SEARCH_FILTER: "(objectClass=organizationalUnit)"  # Search for OUs
-      LDAP_TIMEOUT: "10000"  # Increase timeout to 10 seconds
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
