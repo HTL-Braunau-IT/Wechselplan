@@ -16,13 +16,6 @@ interface Student {
 	class: string
 }
 
-interface Teacher {
-	id: number
-	firstName: string
-	lastName: string
-	subjects: string[]
-}
-
 interface Room {
 	id: number
 	name: string
@@ -85,7 +78,7 @@ function TeacherSelect({
 }: { 
 	value: number | undefined, 
 	onChange: (value: number) => void, 
-	teachers: Teacher[] 
+	teachers: { id: number; firstName: string; lastName: string; }[] 
 }) {
 	const { t } = useTranslation('schedule')
 

@@ -11,10 +11,6 @@ interface Student {
   classId: number | null;
 }
 
-interface Group {
-  id: number;
-  students: Student[];
-}
 
 interface Teacher {
   id: number;

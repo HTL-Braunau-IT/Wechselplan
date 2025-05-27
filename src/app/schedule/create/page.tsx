@@ -235,10 +235,6 @@ export default function ScheduleClassSelectPage() {
 		)
 	}, [numberOfGroups])
 
-	function handleSelect(e: React.ChangeEvent<HTMLSelectElement>) {
-		setSelectedClass(e.target.value)
-	}
-
 	function handleGroupSizeChange(e: React.ChangeEvent<HTMLSelectElement>) {
 		setNumberOfGroups(Number(e.target.value))
 	}

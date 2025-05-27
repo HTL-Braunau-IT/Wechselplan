@@ -75,13 +75,13 @@ export default function OverviewPage() {
   const [amAssignments, setAmAssignments] = useState<TeacherAssignmentResponse[]>([]);
   const [pmAssignments, setPmAssignments] = useState<TeacherAssignmentResponse[]>([]);
   const [scheduleTimes, setScheduleTimes] = useState<ScheduleTime[]>([]);
-  const [breakTimes, setBreakTimes] = useState<BreakTime[]>([]);
+  const [, setBreakTimes] = useState<BreakTime[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [turns, setTurns] = useState<TurnSchedule>({});
   const [saving, setSaving] = useState(false);
   const [showDownloadDialog, setShowDownloadDialog] = useState(false);
-  const [pdfGenerated, setPdfGenerated] = useState(false);
+  const [, setPdfGenerated] = useState(false);
 
   // Debug logs
   console.log('teachers', teachers);
@@ -220,7 +220,7 @@ export default function OverviewPage() {
       
       setShowDownloadDialog(false);
       router.push('/');
-    } catch (error) {
+    } catch  {
       setError('Failed to download PDF');
     }
   };
@@ -272,10 +272,6 @@ export default function OverviewPage() {
   }
 
   // Helper: get assignment for a teacher, group, and period
-  function getAssignment(teacherId: number, groupId: number, period: 'AM' | 'PM') {
-    const assignments = period === 'AM' ? amAssignments : pmAssignments;
-    return assignments.find(a => a.teacherId === teacherId && a.groupId === groupId);
-  }
 
   // Helper: for a given teacher and turn, find the group assigned in the round-robin
   function getGroupForTeacherAndTurn(teacherIdx: number, turnIdx: number, period: 'AM' | 'PM') {
@@ -316,7 +312,7 @@ export default function OverviewPage() {
               <tbody>
                 {[...Array(maxStudents)].map((_, rowIdx) => (
                   <tr key={rowIdx}>
-                    {groups.map((group, colIdx) => (
+                    {groups.map((group) => (
                       <td key={group.id} className="border p-2 text-center">
                         {group.students[rowIdx]
                           ? `${group.students[rowIdx].lastName} ${group.students[rowIdx].firstName}`

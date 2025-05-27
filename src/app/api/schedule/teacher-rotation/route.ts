@@ -42,8 +42,8 @@ export async function POST(request: Request) {
             data: {
               classId: parseInt(classId),
               groupId: groupRotation.groupId,
-              teacherId,
-              turnId: turns[i],
+              teacherId: teacherId!,
+              turnId: turns[i]!,
               period: 'AM'
             }
           })
@@ -60,8 +60,8 @@ export async function POST(request: Request) {
             data: {
               classId: parseInt(classId),
               groupId: groupRotation.groupId,
-              teacherId,
-              turnId: turns[i],
+              teacherId: teacherId!,
+              turnId: turns[i]!,
               period: 'PM'
             }
           })

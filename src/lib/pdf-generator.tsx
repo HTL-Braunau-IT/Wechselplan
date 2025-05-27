@@ -1,5 +1,6 @@
 import React from 'react';
-import { Document, Page, Text, View, StyleSheet, PDFViewer, renderToStream, renderToBuffer, pdf } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, renderToBuffer} from '@react-pdf/renderer';
+
 
 // Create styles
 const styles = StyleSheet.create({
@@ -187,16 +188,14 @@ const MyDocument = ({ data }: { data: PDFData }) => (
   </Document>
 );
 
+
 export async function generateSchedulePDF(data: PDFData): Promise<Buffer> {
     try {
       if (!data || typeof data !== 'object') {
         throw new Error('Invalid data: data must be an object');
       }
   
-      const pdfDoc = React.createElement(MyDocument, { data });
-      const pdfInstance = pdf();
-      pdfInstance.updateContainer(pdfDoc);
-      const buffer = await pdfInstance.toBuffer();
+      const buffer = await renderToBuffer(<MyDocument data={data} />);
   
       return buffer;
     } catch (error) {

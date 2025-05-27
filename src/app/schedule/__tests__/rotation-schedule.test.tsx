@@ -84,7 +84,7 @@ describe('Rotation Schedule', () => {
       }
       // Check if any cell in the footer row contains 'Christmas Break'
       const cells = footerRow.querySelectorAll('td')
-      const cellContents = Array.from(cells).map(cell => cell.textContent)
+      const cellContents = Array.from(cells as NodeListOf<HTMLElement>).map(cell => cell.textContent)
       // Diagnostic log
       console.log('Footer row cell contents:', cellContents)
       const hasHoliday = cellContents.some(text => text?.includes('Christmas Break'))

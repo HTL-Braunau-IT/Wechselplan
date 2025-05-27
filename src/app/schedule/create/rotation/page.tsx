@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { addWeeks, format, eachWeekOfInterval, setDay, getDay, isWithinInterval } from 'date-fns'
+import { addWeeks, format, setDay, getDay, isWithinInterval } from 'date-fns'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useRouter, useSearchParams } from 'next/navigation'
 
@@ -38,16 +38,7 @@ const WEEKDAYS = [
   { value: 5, label: 'Friday' }
 ]
 
-function countRotationWeeks(start: Date, end: Date, weekday: number): number {
-  let count = 0;
-  let date = setDay(new Date(start), weekday);
-  if (date < start) date = addWeeks(date, 1);
-  while (date <= end) {
-    count++;
-    date = addWeeks(date, 1);
-  }
-  return count;
-}
+
 
 // Helper: generate all rotation dates (e.g., all Mondays) between start and end
 function getAllRotationDates(start: Date, end: Date, weekday: number): Date[] {
@@ -91,9 +82,9 @@ export default function RotationPage() {
   // Only load from DB once if classId is present
   useEffect(() => {
     if (classId && !loadedFromDb) {
-      fetchExistingSchedule(classId);
+      void fetchExistingSchedule(classId);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [classId, loadedFromDb]);
 
   // Only recalculate if not loaded from DB
@@ -130,12 +121,12 @@ export default function RotationPage() {
       if (schedules && schedules.length > 0) {
         const latest = schedules[0];
         // Populate state from loaded schedule
-        setSchedule(latest.scheduleData || {});
-        setNumberOfTerms(Object.keys(latest.scheduleData || {}).length);
-        setSelectedWeekday(latest.selectedWeekday || 1);
+        setSchedule((latest.scheduleData as Schedule) ?? {});
+        setNumberOfTerms(Object.keys((latest.scheduleData as Schedule) ?? {}).length);
+        setSelectedWeekday((latest.selectedWeekday as number) ?? 1);
         // Try to extract customLengths if present
         const customLengths: Record<string, number> = {};
-        Object.entries(latest.scheduleData || {}).forEach(([turnus, entry]: any) => {
+        Object.entries((latest.scheduleData as Schedule) ?? {}).forEach(([turnus, entry]: [string, ScheduleEntry]) => {
           if (entry.customLength) customLengths[turnus] = entry.customLength;
         });
         setCustomLengths(customLengths);
@@ -144,7 +135,7 @@ export default function RotationPage() {
         setLoadedFromDb(false);
         calculateSchedule();
       }
-    } catch (e) {
+    } catch {
       setLoadedFromDb(false);
       calculateSchedule();
     } finally {
@@ -184,17 +175,16 @@ export default function RotationPage() {
     const totalWeeks = allRotationDates.length;
     let weeksLeft = totalWeeks;
     let turnsLeft = numberOfTerms;
-    let rotationIndex = 0;
     // Calculate how many weeks each term should get
     const weeksPerTerm: number[] = [];
-    let customTotal = 0;
+
     for (let i = 0; i < numberOfTerms; i++) {
       const turnusKey = `TURNUS ${i + 1}`;
       if (customLengths[turnusKey] && customLengths[turnusKey] > 0) {
         weeksPerTerm.push(customLengths[turnusKey]);
         weeksLeft -= customLengths[turnusKey];
         turnsLeft--;
-        customTotal += customLengths[turnusKey];
+
       } else {
         weeksPerTerm.push(0); // placeholder, will fill in next
       }
@@ -205,7 +195,7 @@ export default function RotationPage() {
         const base = Math.floor(weeksLeft / turnsLeft);
         const extra = weeksLeft % turnsLeft > 0 ? 1 : 0;
         weeksPerTerm[i] = base + extra;
-        weeksLeft -= weeksPerTerm[i];
+        weeksLeft -= weeksPerTerm[i]!;
         turnsLeft--;
       }
     }

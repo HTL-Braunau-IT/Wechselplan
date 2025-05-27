@@ -103,7 +103,7 @@ export default function Home() {
   const [amAssignments, setAmAssignments] = useState<TeacherAssignmentResponse[]>([])
   const [pmAssignments, setPmAssignments] = useState<TeacherAssignmentResponse[]>([])
   const [scheduleTimes, setScheduleTimes] = useState<ScheduleTime[]>([])
-  const [breakTimes, setBreakTimes] = useState<BreakTime[]>([])
+  const [, setBreakTimes] = useState<BreakTime[]>([])
   const [turns, setTurns] = useState<TurnSchedule>({})
   const [teachers, setTeachers] = useState<Teacher[]>([])
 
@@ -334,7 +334,7 @@ export default function Home() {
                     <tbody>
                       {[...Array(maxStudents)].map((_, rowIdx) => (
                         <tr key={rowIdx}>
-                          {groups.map((group, colIdx) => (
+                          {groups.map((group) => (
                             <td key={group.id} className="border p-2 text-center">
                               {group.students[rowIdx]
                                 ? `${group.students[rowIdx].lastName} ${group.students[rowIdx].firstName}`
