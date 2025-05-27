@@ -11,6 +11,11 @@ COPY . .
 COPY --from=deps /app/node_modules ./node_modules
 
 
+RUN apk add --no-cache sed
+
+RUN sed -i "s/provider = \".*\"/provider = \"postgresql\"/" prisma/schema.prisma
+
+
 RUN npx prisma generate
 RUN cp .env.example .env
 RUN npm run build
