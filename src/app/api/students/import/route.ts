@@ -190,7 +190,7 @@ export async function POST() {
       console.log('Searching for Students OU:', LDAP_CONFIG.studentsOU)
       // First try to list all OUs under the base DN to debug
       client.search(LDAP_CONFIG.baseDN, {
-        filter: '(objectClass=organizationalUnit)',
+        filter: '(&(objectClass=organizationalUnit)(ou=Schueler))',
         scope: 'sub',
         attributes: ['ou', 'distinguishedName']
       }, (err: Error | null, res: LDAPSearchResponse) => {
@@ -201,38 +201,24 @@ export async function POST() {
         }
 
         console.log('Available OUs in directory:')
+        let found = false
         res.on('searchEntry', (entry: LDAPEntry) => {
           const ou = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'ou')?.values[0]
           const dn = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'distinguishedName')?.values[0]
           console.log(`Found OU: ${ou} (${dn})`)
+          if (dn === LDAP_CONFIG.studentsOU) {
+            found = true
+          }
         })
 
         res.on('end', () => {
-          // Now try to find the specific Students OU
-          client.search(LDAP_CONFIG.studentsOU, {
-            filter: '(objectClass=organizationalUnit)',
-            scope: 'sub',
-            attributes: ['ou']
-          }, (err: Error | null, res: LDAPSearchResponse) => {
-            if (err) {
-              console.error('Error checking Students OU:', err)
-              resolve(false)
-              return
-            }
+          console.log(`Students OU ${found ? 'found' : 'not found'} at path: ${LDAP_CONFIG.studentsOU}`)
+          resolve(found)
+        })
 
-            let found = false
-            res.on('searchEntry', () => {
-              found = true
-            })
-            res.on('end', () => {
-              console.log(`Students OU ${found ? 'found' : 'not found'} at path: ${LDAP_CONFIG.studentsOU}`)
-              resolve(found)
-            })
-            res.on('error', (err: Error) => {
-              console.error('Search error:', err)
-              resolve(false)
-            })
-          })
+        res.on('error', (err: Error) => {
+          console.error('Search error:', err)
+          resolve(false)
         })
       })
     })
