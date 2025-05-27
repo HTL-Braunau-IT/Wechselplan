@@ -68,4 +68,4 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository }}:latest
+          tags: ghcr.io/michelroegl-brunner/wechselplan-app:latest
