@@ -1,6 +1,6 @@
 services:
   web:
-    image: ghcr.io/michelroegl-brunner/Wechselplan-App:latest
+    image: ghcr.io/michelroegl-brunner/wechselplan-app:latest
     ports:
       - "3000:3000"
     environment:
