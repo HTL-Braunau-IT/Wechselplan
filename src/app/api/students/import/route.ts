@@ -60,9 +60,9 @@ export async function POST() {
 
   try {
     // Connect to LDAP
-    await new Promise<void>((resolve, reject) => {
+    await new Promise<void>((resolve) => {
       client.bind(LDAP_CONFIG.username, LDAP_CONFIG.password, (err: Error | null) => {
-        if (err) reject(err)
+        if (err) console.error('Error binding to LDAP:', err)
         else resolve()
       })
     })
@@ -72,6 +72,7 @@ export async function POST() {
 
     // First, verify the Students OU exists
     const studentsOUExists = await new Promise<boolean>((resolve) => {
+      console.log('Searching for Students OU:', LDAP_CONFIG.studentsOU)
       client.search(LDAP_CONFIG.studentsOU, {
         filter: '(objectClass=*)',
         scope: 'base',
