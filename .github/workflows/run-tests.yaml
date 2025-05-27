@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     env:
       DATABASE_URL: "file:./db.sqlite"
       NODE_ENV: "test"
@@ -42,7 +42,7 @@ jobs:
 
 
   build-docker-image:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: test
 
     permissions:

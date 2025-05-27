@@ -13,12 +13,9 @@ services:
       LDAP_TEACHERS_OU: "OU=Lehrer,DC=htl-braunau,DC=int"
       DEBUG: "ldapjs:*"  # Enable LDAP debugging
       NODE_ENV: "development"  # Enable more verbose logging
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy
-    command: sh -c "npx prisma migrate deploy && npm run start"
     networks:
       - app-network
 
