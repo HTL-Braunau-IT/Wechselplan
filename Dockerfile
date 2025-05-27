@@ -12,13 +12,13 @@ COPY --from=deps /app/node_modules ./node_modules
 
 
 RUN apk add --no-cache sed
+RUN cp .env.example .env
 
 RUN sed -i "s/provider = \".*\"/provider = \"postgresql\"/" prisma/schema.prisma
 
 RUN rm -rf prisma/migrations
 RUN rm -f prisma/migration_lock.toml
 
-RUN npx prisma migrate dev --name init --skip-seed
 RUN cp .env.example .env
 RUN npm run build
 
