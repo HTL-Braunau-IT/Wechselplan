@@ -45,6 +45,8 @@ COPY --from=builder /app/.env ./.env
 RUN echo '#!/bin/sh\n\
 echo "Waiting for database..."\n\
 sleep 5\n\
+echo "Resetting database state..."\n\
+npx prisma migrate reset --force\n\
 echo "Creating initial migration..."\n\
 npx prisma migrate dev --name init --create-only\n\
 echo "Applying migrations..."\n\
