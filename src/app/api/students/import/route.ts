@@ -74,8 +74,8 @@ export async function POST() {
     const studentsOUExists = await new Promise<boolean>((resolve) => {
       console.log('Searching for Students OU:', LDAP_CONFIG.studentsOU)
       client.search(LDAP_CONFIG.studentsOU, {
-        filter: '(objectClass=*)',
-        scope: 'base',
+        filter: '(objectClass=organizationalUnit)',
+        scope: 'sub',
         attributes: ['ou']
       }, (err: Error | null, res: LDAPSearchResponse) => {
         if (err) {
