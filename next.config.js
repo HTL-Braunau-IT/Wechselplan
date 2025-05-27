@@ -13,12 +13,15 @@ const nextConfig = {
     'http://10.10.10.6:3000',  // Your specific development IP
     'http://10.10.10.6',
     'http://10.10.10.5:3000',  // Your specific development IP
-    'http://10.10.10.5'        // Your specific development IP without port
+    'http://10.10.10.5',       // Your specific development IP without port
+    'http://10.10.10.6:3001',  // Additional ports
+    'http://10.10.10.5:3001'
   ],
   // Enable CORS for development
   async headers() {
     return [
       {
+        // Handle all routes including Next.js internal routes
         source: '/:path*',
         headers: [
           {
@@ -31,7 +34,7 @@ const nextConfig = {
           },
           {
             key: 'Access-Control-Allow-Headers',
-            value: 'X-Requested-With, Content-Type, Authorization'
+            value: '*'
           }
         ]
       }
