@@ -15,7 +15,7 @@ RUN cp .env.example .env
 
 RUN sed -i "s/provider = \".*\"/provider = \"postgresql\"/" prisma/schema.prisma
 RUN sed -i "s/DATABASE_URL=.*$/DATABASE_URL=postgres:\/\/postgres:postgres@db:5432\/mydb/" .env
-RUN sed -i "s/provider = \"sqlite\"/provider = \"postgresql\"/" prisma/schema.prisma
+RUN sed -i "s/provider = \"sqlite\"/provider = \"postgresql\"/" prisma/migrations/migration_lock.toml
 
 
 RUN npx prisma generate
