@@ -6,12 +6,12 @@ import "./src/env.js";
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
-  // Allow development origins - must be exact matches
+  // Allow development origins - using the format from Next.js documentation
   allowedDevOrigins: [
-    'http://10.10.10.6:3000',
-    'http://10.10.10.6',
-    'http://10.10.10.5:3000',
-    'http://10.10.10.5'
+    '10.10.10.6',
+    '10.10.10.5',
+    '*.10.10.10.6',
+    '*.10.10.10.5'
   ],
   // Enable CORS for development
   async headers() {
