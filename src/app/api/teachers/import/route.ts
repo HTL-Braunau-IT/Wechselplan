@@ -51,9 +51,9 @@ export async function POST() {
 
   try {
     // Connect to LDAP
-    await new Promise<void>((resolve, reject) => {
+    await new Promise<void>((resolve) => {
       client.bind(LDAP_CONFIG.username, LDAP_CONFIG.password, (err: Error | null) => {
-        if (err) reject(err)
+        if (err) console.error('Error binding to LDAP:', err)
         else resolve()
       })
     })
