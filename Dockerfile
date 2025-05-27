@@ -18,7 +18,7 @@ RUN sed -i "s/provider = \".*\"/provider = \"postgresql\"/" prisma/schema.prisma
 
 RUN rm -rf prisma/migrations
 RUN rm -f prisma/migration_lock.toml
-
+npx prisma generate
 RUN cp .env.example .env
 RUN npm run build
 
