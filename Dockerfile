@@ -14,6 +14,7 @@ RUN apk add --no-cache sed
 RUN cp .env.example .env
 
 RUN sed -i "s/provider = \".*\"/provider = \"postgresql\"/" prisma/schema.prisma
+RUN sed -i "s/DATABASE_URL=.*$/DATABASE_URL=postgres:\/\/postgres:postgres@db:5432\/mydb/" .env
 
 RUN npx prisma generate
 RUN cp .env.example .env
