@@ -72,6 +72,13 @@ export async function POST() {
 
   const client = ldap.createClient({
     url: LDAP_CONFIG.url,
+    log: {
+      trace: (msg: string) => console.log('LDAP Trace:', msg),
+      debug: (msg: string) => console.log('LDAP Debug:', msg),
+      info: (msg: string) => console.log('LDAP Info:', msg),
+      warn: (msg: string) => console.log('LDAP Warn:', msg),
+      error: (msg: string) => console.log('LDAP Error:', msg)
+    }
   })
 
   try {
@@ -136,108 +143,99 @@ export async function POST() {
       )
     }
 
-    // Verify connection by searching the base DN
+    // First, try a simple search to verify permissions
     try {
       await new Promise<void>((resolve, reject) => {
-        console.log('Verifying connection by searching base DN:', LDAP_CONFIG.baseDN)
+        console.log('Testing simple search with base DN:', LDAP_CONFIG.baseDN)
         client.search(LDAP_CONFIG.baseDN, {
           filter: '(objectClass=*)',
           scope: 'base',
           attributes: ['*']
         }, (err: Error | null, res: LDAPSearchResponse) => {
           if (err) {
-            console.error('Error verifying connection:', err)
+            console.error('Error in simple search:', err)
             reject(err)
             return
           }
 
           res.on('searchEntry', (entry: LDAPEntry) => {
-            console.log('Successfully found base DN entry:', entry.dn)
+            console.log('Simple search found entry:', entry.dn)
+            entry.attributes.forEach((attr: LDAPAttribute) => {
+              console.log(`  ${attr.type}: ${attr.values.join(', ')}`)
+            })
           })
 
           res.on('end', () => {
-            console.log('Base DN search completed successfully')
+            console.log('Simple search completed')
             resolve()
           })
 
           res.on('error', (err: Error) => {
-            console.error('Search error during verification:', err)
+            console.error('Simple search error:', err)
             reject(err)
           })
         })
       })
     } catch (error) {
-      console.error('LDAP base DN verification failed:', error)
+      console.error('Simple search failed:', error)
       return NextResponse.json(
         { 
-          error: 'Failed to verify LDAP connection',
+          error: 'Failed to perform basic LDAP search',
           details: error instanceof Error ? error.message : 'Unknown error',
-          userMessage: 'Failed to verify LDAP connection. Please check your LDAP configuration.',
-          config: {
-            url: LDAP_CONFIG.url,
-            baseDN: LDAP_CONFIG.baseDN
-          }
+          userMessage: 'Failed to perform basic LDAP search. Please check LDAP permissions.',
         },
         { status: 503 }
       )
     }
 
-    console.log('Connected to LDAP server')
-    console.log('Searching in:', LDAP_CONFIG.studentsOU)
+    // Now try the OU search
+    console.log('Searching for Students OU:', LDAP_CONFIG.studentsOU)
+    // First try to list all OUs under the base DN to debug
+    client.search(LDAP_CONFIG.baseDN, {
+      filter: '(objectClass=organizationalUnit)',
+      scope: 'sub',
+      attributes: ['ou', 'distinguishedName'],
+      sizeLimit: 1000
+    }, (err: Error | null, res: LDAPSearchResponse) => {
+      if (err) {
+        console.error('Error listing OUs:', err)
+        console.error('Error details:', {
+          name: err.name,
+          message: err.message,
+          stack: err.stack
+        })
+        return
+      }
 
-    // First, verify the Students OU exists
-    const studentsOUExists = await new Promise<boolean>((resolve) => {
-      console.log('Searching for Students OU:', LDAP_CONFIG.studentsOU)
-      // First try to list all OUs under the base DN to debug
-      client.search(LDAP_CONFIG.baseDN, {
-        filter: '(objectClass=organizationalUnit)',
-        scope: 'sub',
-        attributes: ['ou', 'distinguishedName']
-      }, (err: Error | null, res: LDAPSearchResponse) => {
-        if (err) {
-          console.error('Error listing OUs:', err)
-          resolve(false)
-          return
+      console.log('Available OUs in directory:')
+      let found = false
+      let entryCount = 0
+
+      res.on('searchEntry', (entry: LDAPEntry) => {
+        entryCount++
+        const ou = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'ou')?.values[0]
+        const dn = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'distinguishedName')?.values[0]
+        console.log(`Found OU: ${ou} (${dn})`)
+        // Check if the DN matches the students OU path
+        if (dn && dn.toLowerCase() === LDAP_CONFIG.studentsOU.toLowerCase()) {
+          found = true
         }
+      })
 
-        console.log('Available OUs in directory:')
-        let found = false
-        res.on('searchEntry', (entry: LDAPEntry) => {
-          const ou = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'ou')?.values[0]
-          const dn = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'distinguishedName')?.values[0]
-          console.log(`Found OU: ${ou} (${dn})`)
-          // Check if the DN matches the students OU path
-          if (dn && dn.toLowerCase() === LDAP_CONFIG.studentsOU.toLowerCase()) {
-            found = true
-          }
-        })
-
-        res.on('end', () => {
-          console.log(`Students OU ${found ? 'found' : 'not found'} at path: ${LDAP_CONFIG.studentsOU}`)
-          resolve(found)
-        })
-
-        res.on('error', (err: Error) => {
-          console.error('Search error:', err)
-          resolve(false)
+      res.on('error', (err: Error) => {
+        console.error('Search error:', err)
+        console.error('Search error details:', {
+          name: err.name,
+          message: err.message,
+          stack: err.stack
         })
       })
-    })
 
-    if (!studentsOUExists) {
-      console.error(`Students OU not found: ${LDAP_CONFIG.studentsOU}`)
-      return NextResponse.json(
-        { 
-          error: 'Students OU not found',
-          details: `Could not find OU at path: ${LDAP_CONFIG.studentsOU}`,
-          config: {
-            baseDN: LDAP_CONFIG.baseDN,
-            studentsOU: LDAP_CONFIG.studentsOU
-          }
-        },
-        { status: 404 }
-      )
-    }
+      res.on('end', () => {
+        console.log(`Search completed. Found ${entryCount} entries.`)
+        console.log(`Students OU ${found ? 'found' : 'not found'} at path: ${LDAP_CONFIG.studentsOU}`)
+      })
+    })
 
     // Search for class OUs under the Students OU
     const classOUs = await new Promise<LDAPClass[]>((resolve, reject) => {
