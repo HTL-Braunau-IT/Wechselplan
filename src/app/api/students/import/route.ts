@@ -190,7 +190,7 @@ export async function POST() {
       console.log('Searching for Students OU:', LDAP_CONFIG.studentsOU)
       // First try to list all OUs under the base DN to debug
       client.search(LDAP_CONFIG.baseDN, {
-        filter: '(&(objectClass=organizationalUnit)(ou=Schueler))',
+        filter: '(objectClass=organizationalUnit)',
         scope: 'sub',
         attributes: ['ou', 'distinguishedName']
       }, (err: Error | null, res: LDAPSearchResponse) => {
@@ -206,7 +206,8 @@ export async function POST() {
           const ou = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'ou')?.values[0]
           const dn = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'distinguishedName')?.values[0]
           console.log(`Found OU: ${ou} (${dn})`)
-          if (dn === LDAP_CONFIG.studentsOU) {
+          // Check if the DN matches the students OU path
+          if (dn && dn.toLowerCase() === LDAP_CONFIG.studentsOU.toLowerCase()) {
             found = true
           }
         })
