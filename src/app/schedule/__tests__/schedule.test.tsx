@@ -50,44 +50,33 @@ describe('Schedule Creation Flow', () => {
   })
 
   it('handles class selection and navigation', async () => {
-    const mockClasses = ['Class A', 'Class B']
-    ;(global.fetch as jest.Mock).mockImplementationOnce(() =>
-      Promise.resolve({
+    (global.fetch as jest.Mock).mockImplementation((url: string) => {
+      if (url === '/api/classes') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(['Class A']),
+        })
+      }
+      return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve(mockClasses),
+        json: () => Promise.resolve([]),
       })
-    )
+    })
     render(<ScheduleClassSelectPage />)
-    
-    // Wait for classes to load and verify loading state
+    // Find the select trigger button
+    const selectTrigger = await screen.findByRole('combobox')
+    fireEvent.click(selectTrigger)
+    // Find and click the option for 'Class A'
+    const option = await screen.findByRole('option', { name: 'Class A' })
+    fireEvent.click(option)
+    // Now check that the trigger shows 'Class A'
     await waitFor(() => {
-      expect(screen.getByText('Class A')).toBeInTheDocument()
+      expect(selectTrigger).toHaveTextContent('Class A')
     })
-
-    // Select a class (try label first, fallback to combobox)
-    let classSelect: HTMLElement
-    try {
-      classSelect = screen.getByLabelText('Select Class')
-    } catch {
-      classSelect = screen.getByRole('combobox')
-    }
-    fireEvent.change(classSelect, {
-      target: { value: 'Class A' },
-    })
-
-    // Submit form
-    const nextButton = screen.getByRole('button', { name: 'Next' })
+    const nextButton = screen.getByRole('button', { name: /next/i })
     fireEvent.click(nextButton)
-
-    // Verify navigation with proper URL encoding
     await waitFor(() => {
-      const calls = (mockRouter.push.mock.calls as unknown[][]).map(call => String(call[0]))
-      expect(
-        calls.some(url => 
-          url.includes('/schedule/create/teachers') && 
-          (url.includes('class=Class%20A') || url.includes('class=Class A'))
-        )
-      ).toBe(true)
+      expect(mockRouter.push).toHaveBeenCalledWith(expect.stringContaining('/schedule/create/teachers?class=Class A'))
     })
   })
 

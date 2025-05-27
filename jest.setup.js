@@ -20,4 +20,12 @@ beforeAll(() => {
 afterAll(() => {
   console.error = originalError
   console.warn = originalWarn
-}) 
+})
+
+if (!window.URL.createObjectURL) {
+  window.URL.createObjectURL = () => 'mock-url';
+}
+
+if (!HTMLElement.prototype.scrollIntoView) {
+  HTMLElement.prototype.scrollIntoView = function() {};
+} 

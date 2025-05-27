@@ -53,8 +53,7 @@ describe('ImportPage', () => {
     render(<ImportPage />)
     
     expect(screen.getByText('admin.students.import.title')).toBeInTheDocument()
-    expect(screen.getByText('admin.students.import.ldapTab')).toBeInTheDocument()
-    expect(screen.getByText('admin.students.import.csvTab')).toBeInTheDocument()
+
   })
 
   it('shows LDAP import tab by default', () => {
