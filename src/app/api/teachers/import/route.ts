@@ -10,6 +10,15 @@ const LDAP_CONFIG = {
   teachersOU: process.env.LDAP_TEACHERS_OU ?? 'OU=Teachers,DC=your,DC=domain,DC=com'
 }
 
+// Log configuration (without sensitive data)
+console.log('LDAP Configuration:', {
+  url: LDAP_CONFIG.url,
+  baseDN: LDAP_CONFIG.baseDN,
+  teachersOU: LDAP_CONFIG.teachersOU,
+  hasUsername: !!LDAP_CONFIG.username,
+  hasPassword: !!LDAP_CONFIG.password
+})
+
 interface LDAPTeacher {
   givenName: string
   sn: string
@@ -39,7 +48,10 @@ interface ImportData {
 }
 
 export async function POST() {
+  console.log('Starting teachers import...')
+  
   if (!LDAP_CONFIG.username || !LDAP_CONFIG.password) {
+    console.error('LDAP credentials are not configured')
     return NextResponse.json(
       { error: 'LDAP credentials are not configured' },
       { status: 500 }
@@ -51,6 +63,8 @@ export async function POST() {
   })
 
   try {
+    console.log('Creating LDAP client...')
+    
     // Connect to LDAP
     await new Promise<void>((resolve, reject) => {
       console.log('Attempting to connect to LDAP server:', LDAP_CONFIG.url)
@@ -239,7 +253,7 @@ export async function POST() {
 
     return NextResponse.json(importData)
   } catch (error) {
-    console.error('Error fetching teachers:', error)
+    console.error('Unhandled error in teachers import:', error)
     return NextResponse.json(
       { 
         error: 'Failed to fetch teachers from Active Directory',
@@ -253,6 +267,11 @@ export async function POST() {
       { status: 500 }
     )
   } finally {
-    client.unbind()
+    try {
+      console.log('Unbinding LDAP client...')
+      client.unbind()
+    } catch (error) {
+      console.error('Error unbinding LDAP client:', error)
+    }
   }
 } 
