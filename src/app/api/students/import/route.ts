@@ -165,7 +165,11 @@ export async function POST() {
     })
 
     if (!studentsOUExists) {
-      throw new Error(`Students OU not found: ${LDAP_CONFIG.studentsOU}`)
+     console.error(`Students OU not found: ${LDAP_CONFIG.studentsOU}`)
+     return NextResponse.json(
+      { error: 'Students OU not found' },
+      { status: 599 }
+    )
     }
 
     // Search for class OUs under the Students OU
