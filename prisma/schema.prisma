@@ -179,3 +179,16 @@ model SchedulePDF {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model TeacherRotation {
+  id        Int      @id @default(autoincrement())
+  classId   Int
+  groupId   Int
+  teacherId Int
+  turnId    String
+  period    String   // 'AM' or 'PM'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([classId, groupId, turnId, period])
+}

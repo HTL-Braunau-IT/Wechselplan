@@ -19,7 +19,6 @@ interface Teacher {
 	id: number
 	firstName: string
 	lastName: string
-	subjects: string[]
 }
 
 async function fetchRooms(): Promise<{ rooms: Room[] }> {
@@ -50,29 +49,29 @@ export function useCachedData() {
 	const { data: roomsData, isLoading: isLoadingRooms } = useQuery({
 		queryKey: ['rooms'],
 		queryFn: fetchRooms,
-		staleTime: 1000 * 60 * 60, // 1 hour
-		gcTime: 1000 * 60 * 60 * 24, // 24 hours
+		staleTime: 0,
+		gcTime: 0,
 	})
 
 	const { data: subjectsData, isLoading: isLoadingSubjects } = useQuery({
 		queryKey: ['subjects'],
 		queryFn: fetchSubjects,
-		staleTime: 1000 * 60 * 60, // 1 hour
-		gcTime: 1000 * 60 * 60 * 24, // 24 hours
+		staleTime: 0,
+		gcTime: 0,
 	})
 
 	const { data: learningContentsData, isLoading: isLoadingLearningContents } = useQuery({
 		queryKey: ['learningContents'],
 		queryFn: fetchLearningContents,
-		staleTime: 1000 * 60 * 60, // 1 hour
-		gcTime: 1000 * 60 * 60 * 24, // 24 hours
+		staleTime: 0,
+		gcTime: 0,
 	})
 
 	const { data: teachers, isLoading: isLoadingTeachers } = useQuery({
 		queryKey: ['teachers'],
 		queryFn: fetchTeachers,
-		staleTime: 1000 * 60 * 60, // 1 hour
-		gcTime: 1000 * 60 * 60 * 24, // 24 hours
+		staleTime: 0,
+		gcTime: 0,
 	})
 
 	return {

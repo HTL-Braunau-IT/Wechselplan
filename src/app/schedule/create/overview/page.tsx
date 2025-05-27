@@ -24,6 +24,8 @@ interface TeacherAssignmentResponse {
   subject: string;
   learningContent: string;
   room: string;
+  teacherLastName: string;
+  teacherFirstName: string;
 }
 
 interface TeacherAssignmentsResponse {
@@ -80,6 +82,11 @@ export default function OverviewPage() {
   const [saving, setSaving] = useState(false);
   const [showDownloadDialog, setShowDownloadDialog] = useState(false);
   const [pdfGenerated, setPdfGenerated] = useState(false);
+
+  // Debug logs
+  console.log('teachers', teachers);
+  console.log('amAssignments', amAssignments);
+  console.log('pmAssignments', pmAssignments);
 
   useEffect(() => {
     if (!classId) {
@@ -147,7 +154,7 @@ export default function OverviewPage() {
           const teacherList = uniqueAmTeachers;
           const rotated = rotateArray(teacherList, turnIdx);
           const teacher = rotated[groupIdx];
-          return teacher ? teacher.id : null;
+          return teacher ? teacher.teacherId : null;
         })
       }));
       const pmRotation = groups.map((group, groupIdx) => ({
@@ -156,12 +163,12 @@ export default function OverviewPage() {
           const teacherList = uniquePmTeachers;
           const rotated = rotateArray(teacherList, turnIdx);
           const teacher = rotated[groupIdx];
-          return teacher ? teacher.id : null;
+          return teacher ? teacher.teacherId : null;
         })
       }));
 
       // Save to backend
-      await fetch('/api/schedule/teacher-rotation', {
+      const response = await fetch('/api/schedule/teacher-rotation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -172,10 +179,25 @@ export default function OverviewPage() {
         })
       });
 
+      if (!response.ok) {
+        throw new Error('Failed to save teacher rotation');
+      }
+
       // Generate PDF
+      const pdfResponse = await fetch(`/api/schedule/generate-pdf?classId=${classId}`, {
+        method: 'POST'
+      });
+
+      if (!pdfResponse.ok) {
+        throw new Error('Failed to generate PDF');
+      }
+
+      setPdfGenerated(true);
+      setShowDownloadDialog(true);
       
     } catch (error) {
-      setError('Failed to save.');
+      setError('Failed to save and generate PDF.');
+      console.error('Error:', error);
     } finally {
       setSaving(false);
     }
@@ -218,17 +240,14 @@ export default function OverviewPage() {
     return rotated;
   }
 
-  // Get unique teachers for AM and PM (in assignment order)
+  // Get unique teachers for AM and PM directly from assignments
   const uniqueAmTeachers = amAssignments
-    .map(a => a.teacherId)
-    .filter((id, idx, arr) => arr.indexOf(id) === idx && id !== 0)
-    .map(id => teachers.find(t => t.id === id))
-    .filter(Boolean) as typeof teachers;
+    .filter(a => a.teacherId !== 0)
+    .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx);
+
   const uniquePmTeachers = pmAssignments
-    .map(a => a.teacherId)
-    .filter((id, idx, arr) => arr.indexOf(id) === idx && id !== 0)
-    .map(id => teachers.find(t => t.id === id))
-    .filter(Boolean) as typeof teachers;
+    .filter(a => a.teacherId !== 0)
+    .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx);
 
   // Helper: get turnus info (start, end, days) from turns
   function getTurnusInfo(turnKey: string) {
@@ -336,19 +355,12 @@ export default function OverviewPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {teachers.map((teacher, teacherIdx) => (
-                    <tr key={teacher.id}>
-                      <td className="border p-2 font-medium">{teacher.lastName}, {teacher.firstName}</td>
-                      {/* Werkstätte, Lehrinhalt, Raum: show for first group assigned to this teacher */}
-                      {(() => {
-                        const assignments = period === 'AM' ? amAssignments : pmAssignments;
-                        const firstAssignment = assignments.find(a => a.teacherId === teacher.id);
-                        return [
-                          <td className="border p-2" key="subject">{firstAssignment?.subject ?? ''}</td>,
-                          <td className="border p-2" key="learningContent">{firstAssignment?.learningContent ?? ''}</td>,
-                          <td className="border p-2" key="room">{firstAssignment?.room ?? ''}</td>,
-                        ];
-                      })()}
+                  {teachers.map((assignment, teacherIdx) => (
+                    <tr key={assignment.teacherId}>
+                      <td className="border p-2 font-medium">{assignment.teacherLastName}, {assignment.teacherFirstName}</td>
+                      <td className="border p-2">{assignment.subject ?? ''}</td>
+                      <td className="border p-2">{assignment.learningContent ?? ''}</td>
+                      <td className="border p-2">{assignment.room ?? ''}</td>
                       {Object.keys(turns).map((turn, turnIdx) => {
                         const group = getGroupForTeacherAndTurn(teacherIdx, turnIdx, period as 'AM' | 'PM');
                         return (

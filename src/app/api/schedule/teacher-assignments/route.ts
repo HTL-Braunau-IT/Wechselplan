@@ -50,6 +50,8 @@ export async function GET(request: Request) {
 			.map(a => ({
 				groupId: a.groupId,
 				teacherId: a.teacherId,
+				teacherFirstName: a.teacher.firstName,
+				teacherLastName: a.teacher.lastName,
 				subject: a.subject.name,
 				learningContent: a.learningContent.name,
 				room: a.room.name
@@ -60,6 +62,8 @@ export async function GET(request: Request) {
 			.map(a => ({
 				groupId: a.groupId,
 				teacherId: a.teacherId,
+				teacherFirstName: a.teacher.firstName,
+				teacherLastName: a.teacher.lastName,
 				subject: a.subject.name,
 				learningContent: a.learningContent.name,
 				room: a.room.name
