@@ -1,0 +1,23 @@
+services:
+  web:
+    image: ghcr.io/michelroegl-brunner/Wechselplan-App:latest
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/mydb
+    depends_on:
+      - db
+    command: sh -c "npx prisma migrate deploy && npm run start"
+
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: mydb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
