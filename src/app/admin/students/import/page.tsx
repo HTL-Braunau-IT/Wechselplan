@@ -49,15 +49,29 @@ export default function ImportPage() {
         method: 'POST'
       })
 
-      if (!response.ok) throw new Error()
+      const data = await response.json() as { userMessage?: string; error?: string; details?: string; classes?: Array<{ name: string; students: Array<{ firstName: string; lastName: string }> }> }
 
-      const data = await response.json() as APIImportData
+      if (!response.ok) {
+        // Handle specific error cases
+        if (response.status === 401) {
+          throw new Error(data.userMessage ?? 'Invalid LDAP credentials. Please check your username and password.')
+        } else if (response.status === 404) {
+          throw new Error(data.userMessage ?? 'Students OU not found. Please check your LDAP configuration.')
+        } else if (response.status === 503) {
+          throw new Error(data.userMessage ?? 'Failed to connect to LDAP server. Please try again later.')
+        } else {
+          const errorMessage = data.userMessage ?? data.error ?? data.details ?? t('admin.students.import.errors.fetchStudents')
+          console.error('Server error:', { status: response.status, data })
+          throw new Error(errorMessage)
+        }
+      }
+
       console.log('Received data from server:', data)
       
       // Validate the data structure
       if (!data || !Array.isArray(data.classes)) {
         console.error('Invalid data format:', data)
-        throw new Error('Invalid data format received')
+        throw new Error(t('admin.students.import.errors.invalidDataFormat'))
       }
 
       // Transform the data to match our frontend structure
@@ -65,8 +79,8 @@ export default function ImportPage() {
         if (classData.name && Array.isArray(classData.students)) {
           acc[classData.name] = {
             students: classData.students.map(student => ({
-              givenName: student.firstName || '',
-              sn: student.lastName || ''
+              givenName: student.firstName ?? '',
+              sn: student.lastName ?? ''
             }))
           }
         }
@@ -77,7 +91,7 @@ export default function ImportPage() {
 
       if (Object.keys(validatedData).length === 0) {
         console.error('No valid classes found in data')
-        throw new Error('No valid class data found')
+        throw new Error(t('admin.students.import.errors.noClassesFound'))
       }
 
       setImportData(validatedData)
@@ -90,7 +104,7 @@ export default function ImportPage() {
       setSelectedClasses(initialSelection)
     } catch (err) {
       console.error('Error fetching students:', err)
-      setError(t('admin.students.import.errors.fetchStudents'))
+      setError(err instanceof Error ? err.message : t('admin.students.import.errors.fetchStudents'))
     } finally {
       setIsLoading(false)
     }
@@ -110,18 +124,23 @@ export default function ImportPage() {
         })
       })
 
-      if (!response.ok) throw new Error()
+      const data = await response.json() as { userMessage?: string; error?: string; details?: string; students?: number; classes?: number }
 
-      const data = await response.json() as { students: number; classes: number }
+      if (!response.ok) {
+        const errorMessage = data.userMessage ?? data.error ?? data.details ?? t('admin.students.import.errors.importStudents')
+        console.error('Server error:', { status: response.status, data })
+        throw new Error(errorMessage)
+      }
+
       setSuccess(t('admin.students.import.success.importComplete', {
-        students: data.students,
-        classes: data.classes
+        students: data.students ?? 0,
+        classes: data.classes ?? 0
       }))
       setImportData(null)
       setSelectedClasses({})
     } catch (err) {
       console.error('Error importing students:', err)
-      setError(t('admin.students.import.errors.importStudents'))
+      setError(err instanceof Error ? err.message : t('admin.students.import.errors.importStudents'))
     } finally {
       setIsLoading(false)
     }

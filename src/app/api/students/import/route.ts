@@ -62,7 +62,10 @@ export async function POST() {
   if (!LDAP_CONFIG.username || !LDAP_CONFIG.password) {
     console.error('LDAP credentials are not configured')
     return NextResponse.json(
-      { error: 'LDAP credentials are not configured' },
+      { 
+        error: 'LDAP credentials are not configured',
+        userMessage: 'LDAP credentials are not configured. Please check your environment variables.'
+      },
       { status: 500 }
     )
   }
@@ -75,73 +78,101 @@ export async function POST() {
     console.log('Creating LDAP client...')
     
     // Connect to LDAP
-    await new Promise<void>((resolve, reject) => {
-      console.log('Attempting to connect to LDAP server:', LDAP_CONFIG.url)
-      console.log('Using credentials:', {
-        username: LDAP_CONFIG.username,
-        baseDN: LDAP_CONFIG.baseDN,
-        studentsOU: LDAP_CONFIG.studentsOU
+    try {
+      await new Promise<void>((resolve, reject) => {
+        console.log('Attempting to connect to LDAP server:', LDAP_CONFIG.url)
+        console.log('Using credentials:', {
+          username: LDAP_CONFIG.username,
+          baseDN: LDAP_CONFIG.baseDN,
+          studentsOU: LDAP_CONFIG.studentsOU
+        })
+        
+        client.bind(LDAP_CONFIG.username, LDAP_CONFIG.password, (err: Error | null) => {
+          if (err) {
+            console.error('Error binding to LDAP:', err)
+            // Check for specific LDAP error codes and messages
+            const errorMessage = err.message.toLowerCase()
+            if (
+              errorMessage.includes('invalid credentials') || 
+              errorMessage.includes('80090308') ||
+              errorMessage.includes('authentication failed') ||
+              errorMessage.includes('invalid dn') ||
+              errorMessage.includes('invalid password')
+            ) {
+              reject(new Error('Invalid LDAP credentials. Please check your username and password.'))
+            } else {
+              reject(err)
+            }
+            return
+          }
+          console.log('Successfully bound to LDAP server')
+          resolve()
+        })
       })
-      
-      client.bind(LDAP_CONFIG.username, LDAP_CONFIG.password, (err: Error | null) => {
-        if (err) {
-          console.error('Error binding to LDAP:', err)
-          reject(err)
-          return
-        }
-        console.log('Successfully bound to LDAP server')
-        resolve()
-      })
-    }).catch(error => {
+    } catch (error) {
       console.error('LDAP connection failed:', error)
+      const errorMessage = error instanceof Error ? error.message.toLowerCase() : 'unknown error'
+      const isAuthError = 
+        errorMessage.includes('invalid ldap credentials') ||
+        errorMessage.includes('invalid credentials') ||
+        errorMessage.includes('authentication failed') ||
+        errorMessage.includes('invalid dn') ||
+        errorMessage.includes('invalid password')
+      
       return NextResponse.json(
         { 
-          error: 'Failed to connect to LDAP server',
-          details: error.message,
+          error: isAuthError ? 'Authentication failed' : 'Failed to connect to LDAP server',
+          details: error instanceof Error ? error.message : 'Unknown error',
+          userMessage: isAuthError 
+            ? 'Invalid LDAP credentials. Please check your username and password.'
+            : 'Failed to connect to LDAP server. Please try again later.',
           config: {
             url: LDAP_CONFIG.url,
             baseDN: LDAP_CONFIG.baseDN,
             studentsOU: LDAP_CONFIG.studentsOU
           }
         },
-        { status: 503 }
+        { status: isAuthError ? 401 : 503 }
       )
-    })
+    }
 
     // Verify connection by searching the base DN
-    await new Promise<void>((resolve, reject) => {
-      console.log('Verifying connection by searching base DN:', LDAP_CONFIG.baseDN)
-      client.search(LDAP_CONFIG.baseDN, {
-        filter: '(objectClass=*)',
-        scope: 'base',
-        attributes: ['*']
-      }, (err: Error | null, res: LDAPSearchResponse) => {
-        if (err) {
-          console.error('Error verifying connection:', err)
-          reject(err)
-          return
-        }
+    try {
+      await new Promise<void>((resolve, reject) => {
+        console.log('Verifying connection by searching base DN:', LDAP_CONFIG.baseDN)
+        client.search(LDAP_CONFIG.baseDN, {
+          filter: '(objectClass=*)',
+          scope: 'base',
+          attributes: ['*']
+        }, (err: Error | null, res: LDAPSearchResponse) => {
+          if (err) {
+            console.error('Error verifying connection:', err)
+            reject(err)
+            return
+          }
 
-        res.on('searchEntry', (entry: LDAPEntry) => {
-          console.log('Successfully found base DN entry:', entry.dn)
-        })
+          res.on('searchEntry', (entry: LDAPEntry) => {
+            console.log('Successfully found base DN entry:', entry.dn)
+          })
 
-        res.on('end', () => {
-          console.log('Base DN search completed successfully')
-          resolve()
-        })
+          res.on('end', () => {
+            console.log('Base DN search completed successfully')
+            resolve()
+          })
 
-        res.on('error', (err: Error) => {
-          console.error('Search error during verification:', err)
-          reject(err)
+          res.on('error', (err: Error) => {
+            console.error('Search error during verification:', err)
+            reject(err)
+          })
         })
       })
-    }).catch(error => {
+    } catch (error) {
       console.error('LDAP base DN verification failed:', error)
       return NextResponse.json(
         { 
           error: 'Failed to verify LDAP connection',
-          details: error.message,
+          details: error instanceof Error ? error.message : 'Unknown error',
+          userMessage: 'Failed to verify LDAP connection. Please check your LDAP configuration.',
           config: {
             url: LDAP_CONFIG.url,
             baseDN: LDAP_CONFIG.baseDN
@@ -149,7 +180,7 @@ export async function POST() {
         },
         { status: 503 }
       )
-    })
+    }
 
     console.log('Connected to LDAP server')
     console.log('Searching in:', LDAP_CONFIG.studentsOU)
@@ -341,6 +372,7 @@ export async function POST() {
       { 
         error: 'Failed to fetch students from Active Directory',
         details: error instanceof Error ? error.message : 'Unknown error',
+        userMessage: 'An unexpected error occurred while fetching students. Please try again later.',
         config: {
           url: LDAP_CONFIG.url,
           baseDN: LDAP_CONFIG.baseDN,
