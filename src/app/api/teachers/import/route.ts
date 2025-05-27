@@ -68,6 +68,15 @@ export async function POST() {
         console.log('Successfully bound to LDAP server')
         resolve()
       })
+    }).catch(error => {
+      console.error('LDAP connection failed:', error)
+      return NextResponse.json(
+        { 
+          error: 'Failed to connect to LDAP server',
+          details: error.message
+        },
+        { status: 503 }
+      )
     })
 
     // Verify connection by searching the base DN
@@ -98,6 +107,15 @@ export async function POST() {
           reject(err)
         })
       })
+    }).catch(error => {
+      console.error('LDAP base DN verification failed:', error)
+      return NextResponse.json(
+        { 
+          error: 'Failed to verify LDAP connection',
+          details: error.message
+        },
+        { status: 503 }
+      )
     })
 
     console.log('Connected to LDAP server')
@@ -155,7 +173,18 @@ export async function POST() {
     })
 
     if (!teachersOUExists) {
-      throw new Error(`Teachers OU not found: ${LDAP_CONFIG.teachersOU}`)
+      console.error(`Teachers OU not found: ${LDAP_CONFIG.teachersOU}`)
+      return NextResponse.json(
+        { 
+          error: 'Teachers OU not found',
+          details: `Could not find OU at path: ${LDAP_CONFIG.teachersOU}`,
+          config: {
+            baseDN: LDAP_CONFIG.baseDN,
+            teachersOU: LDAP_CONFIG.teachersOU
+          }
+        },
+        { status: 404 }
+      )
     }
 
     const teachers = await new Promise<LDAPTeacher[]>((resolve, reject) => {
@@ -202,7 +231,10 @@ export async function POST() {
   } catch (error) {
     console.error('Error fetching teachers:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch teachers from Active Directory' },
+      { 
+        error: 'Failed to fetch teachers from Active Directory',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     )
   } finally {

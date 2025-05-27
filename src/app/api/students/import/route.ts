@@ -77,6 +77,15 @@ export async function POST() {
         console.log('Successfully bound to LDAP server')
         resolve()
       })
+    }).catch(error => {
+      console.error('LDAP connection failed:', error)
+      return NextResponse.json(
+        { 
+          error: 'Failed to connect to LDAP server',
+          details: error.message
+        },
+        { status: 503 }
+      )
     })
 
     // Verify connection by searching the base DN
@@ -107,6 +116,15 @@ export async function POST() {
           reject(err)
         })
       })
+    }).catch(error => {
+      console.error('LDAP base DN verification failed:', error)
+      return NextResponse.json(
+        { 
+          error: 'Failed to verify LDAP connection',
+          details: error.message
+        },
+        { status: 503 }
+      )
     })
 
     console.log('Connected to LDAP server')
@@ -165,11 +183,18 @@ export async function POST() {
     })
 
     if (!studentsOUExists) {
-     console.error(`Students OU not found: ${LDAP_CONFIG.studentsOU}`)
-     return NextResponse.json(
-      { error: 'Students OU not found' },
-      { status: 599 }
-    )
+      console.error(`Students OU not found: ${LDAP_CONFIG.studentsOU}`)
+      return NextResponse.json(
+        { 
+          error: 'Students OU not found',
+          details: `Could not find OU at path: ${LDAP_CONFIG.studentsOU}`,
+          config: {
+            baseDN: LDAP_CONFIG.baseDN,
+            studentsOU: LDAP_CONFIG.studentsOU
+          }
+        },
+        { status: 404 }
+      )
     }
 
     // Search for class OUs under the Students OU
@@ -289,7 +314,10 @@ export async function POST() {
   } catch (error) {
     console.error('Error fetching students:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch students from Active Directory' },
+      { 
+        error: 'Failed to fetch students from Active Directory',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     )
   } finally {
