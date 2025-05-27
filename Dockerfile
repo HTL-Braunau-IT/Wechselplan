@@ -17,9 +17,15 @@ RUN cp .env.example .env
 RUN sed -i "s/provider = \".*\"/provider = \"postgresql\"/" prisma/schema.prisma
 RUN sed -i "s/DATABASE_URL=.*$/DATABASE_URL=postgres:\/\/postgres:postgres@db:5432\/mydb/" .env
 
-# Generate Prisma client
+# Remove old migrations and migration lock
+RUN rm -rf prisma/migrations
+RUN rm -f prisma/migration_lock.toml
+
+# Generate Prisma client and create new migration
 RUN npx prisma generate
-RUN cp .env.example .env
+RUN npx prisma migrate dev --name init --create-only
+
+# Build the application
 RUN npm run build
 
 # Production image
@@ -36,14 +42,4 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/.env ./.env
 
-# Create a script to handle migrations and start the app
-RUN echo '#!/bin/sh\n\
-echo "Waiting for database..."\n\
-sleep 5\n\
-echo "Running migrations..."\n\
-npx prisma migrate reset --force\n\
-npx prisma migrate deploy\n\
-echo "Starting application..."\n\
-npm start' > /app/start.sh && chmod +x /app/start.sh
-
-CMD ["/app/start.sh"]
+CMD ["npm", "start"]
