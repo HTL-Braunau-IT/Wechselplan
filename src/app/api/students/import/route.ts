@@ -65,7 +65,8 @@ export async function POST() {
       console.log('Attempting to connect to LDAP server:', LDAP_CONFIG.url)
       console.log('Using credentials:', {
         username: LDAP_CONFIG.username,
-        baseDN: LDAP_CONFIG.baseDN
+        baseDN: LDAP_CONFIG.baseDN,
+        studentsOU: LDAP_CONFIG.studentsOU
       })
       
       client.bind(LDAP_CONFIG.username, LDAP_CONFIG.password, (err: Error | null) => {
@@ -82,7 +83,12 @@ export async function POST() {
       return NextResponse.json(
         { 
           error: 'Failed to connect to LDAP server',
-          details: error.message
+          details: error.message,
+          config: {
+            url: LDAP_CONFIG.url,
+            baseDN: LDAP_CONFIG.baseDN,
+            studentsOU: LDAP_CONFIG.studentsOU
+          }
         },
         { status: 503 }
       )
@@ -121,7 +127,11 @@ export async function POST() {
       return NextResponse.json(
         { 
           error: 'Failed to verify LDAP connection',
-          details: error.message
+          details: error.message,
+          config: {
+            url: LDAP_CONFIG.url,
+            baseDN: LDAP_CONFIG.baseDN
+          }
         },
         { status: 503 }
       )
@@ -316,7 +326,12 @@ export async function POST() {
     return NextResponse.json(
       { 
         error: 'Failed to fetch students from Active Directory',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: error instanceof Error ? error.message : 'Unknown error',
+        config: {
+          url: LDAP_CONFIG.url,
+          baseDN: LDAP_CONFIG.baseDN,
+          studentsOU: LDAP_CONFIG.studentsOU
+        }
       },
       { status: 500 }
     )
