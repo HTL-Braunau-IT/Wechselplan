@@ -22,6 +22,7 @@ interface LDAPAttribute {
 
 interface LDAPEntry {
   attributes: LDAPAttribute[]
+  dn: string
 }
 
 interface LDAPSearchResponse {
@@ -51,10 +52,51 @@ export async function POST() {
 
   try {
     // Connect to LDAP
-    await new Promise<void>((resolve) => {
+    await new Promise<void>((resolve, reject) => {
+      console.log('Attempting to connect to LDAP server:', LDAP_CONFIG.url)
+      console.log('Using credentials:', {
+        username: LDAP_CONFIG.username,
+        baseDN: LDAP_CONFIG.baseDN
+      })
+      
       client.bind(LDAP_CONFIG.username, LDAP_CONFIG.password, (err: Error | null) => {
-        if (err) console.error('Error binding to LDAP:', err)
-        else resolve()
+        if (err) {
+          console.error('Error binding to LDAP:', err)
+          reject(err)
+          return
+        }
+        console.log('Successfully bound to LDAP server')
+        resolve()
+      })
+    })
+
+    // Verify connection by searching the base DN
+    await new Promise<void>((resolve, reject) => {
+      console.log('Verifying connection by searching base DN:', LDAP_CONFIG.baseDN)
+      client.search(LDAP_CONFIG.baseDN, {
+        filter: '(objectClass=*)',
+        scope: 'base',
+        attributes: ['*']
+      }, (err: Error | null, res: LDAPSearchResponse) => {
+        if (err) {
+          console.error('Error verifying connection:', err)
+          reject(err)
+          return
+        }
+
+        res.on('searchEntry', (entry: LDAPEntry) => {
+          console.log('Successfully found base DN entry:', entry.dn)
+        })
+
+        res.on('end', () => {
+          console.log('Base DN search completed successfully')
+          resolve()
+        })
+
+        res.on('error', (err: Error) => {
+          console.error('Search error during verification:', err)
+          reject(err)
+        })
       })
     })
 
