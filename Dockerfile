@@ -13,8 +13,6 @@ COPY --from=deps /app/node_modules ./node_modules
 RUN apk add --no-cache sed
 RUN cp .env.example .env
 
-
-
 # Generate Prisma client
 RUN npx prisma generate
 
@@ -39,6 +37,10 @@ COPY --from=builder /app/.env ./.env
 RUN echo '#!/bin/sh\n\
 echo "Waiting for database..."\n\
 sleep 5\n\
+echo "Resetting database state..."\n\
+npx prisma migrate reset --force\n\
+echo "Creating initial migration..."\n\
+npx prisma migrate dev --name init --create-only\n\
 echo "Applying migrations..."\n\
 npx prisma migrate deploy\n\
 echo "Starting application..."\n\

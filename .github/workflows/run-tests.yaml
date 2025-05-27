@@ -66,3 +66,4 @@ jobs:
           context: .
           push: true
           tags: ghcr.io/michelroegl-brunner/wechselplan-app:latest
+          no-cache: true
