@@ -33,17 +33,18 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/.env ./.env
 
-# Create a script to handle migrations and start the app
-RUN echo '#!/bin/sh\n\
-echo "Waiting for database..."\n\
-sleep 5\n\
-echo "Resetting database state..."\n\
-npx prisma migrate reset --force\n\
-echo "Creating initial migration..."\n\
-npx prisma migrate dev --name init --create-only\n\
-echo "Applying migrations..."\n\
-npx prisma migrate deploy\n\
-echo "Starting application..."\n\
-npm start' > /app/start.sh && chmod +x /app/start.sh
+# Create start script
+RUN echo '#!/bin/sh' > /app/start.sh && \
+    echo 'echo "Waiting for database..."' >> /app/start.sh && \
+    echo 'sleep 5' >> /app/start.sh && \
+    echo 'echo "Resetting database state..."' >> /app/start.sh && \
+    echo 'npx prisma migrate reset --force' >> /app/start.sh && \
+    echo 'echo "Creating initial migration..."' >> /app/start.sh && \
+    echo 'npx prisma migrate dev --name init --create-only' >> /app/start.sh && \
+    echo 'echo "Applying migrations..."' >> /app/start.sh && \
+    echo 'npx prisma migrate deploy' >> /app/start.sh && \
+    echo 'echo "Starting application..."' >> /app/start.sh && \
+    echo 'npm start' >> /app/start.sh && \
+    chmod +x /app/start.sh
 
 CMD ["/app/start.sh"]
