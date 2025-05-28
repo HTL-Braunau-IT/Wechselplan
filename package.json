@@ -60,7 +60,7 @@
     "pdfkit": "^0.17.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-i18next": "^15.5.1",
+    "react-i18next": "^15.5.2",
     "server-only": "^0.0.1",
     "sonner": "^2.0.3",
     "superjson": "^2.2.1",
