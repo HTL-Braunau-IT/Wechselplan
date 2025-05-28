@@ -1,6 +1,6 @@
 'use client'
 
-import { AdminMenu } from '~/components/admin/admin-menu'
+import { AdminMenu } from '@/components/admin/admin-menu'
 
 export default function AdminLayout({
   children,

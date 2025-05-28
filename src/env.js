@@ -37,7 +37,6 @@ export const env = createEnv({
     LDAP_URL: process.env.LDAP_URL,
     LDAP_BASE_DN: process.env.LDAP_BASE_DN,
     LDAP_USERNAME: process.env.LDAP_USERNAME,
-    LDAP_PASSWORD: process.env.LDAP_PASSWORD,
     LDAP_STUDENTS_OU: process.env.LDAP_STUDENTS_OU,
     LDAP_TEACHERS_OU: process.env.LDAP_TEACHERS_OU,
     // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,

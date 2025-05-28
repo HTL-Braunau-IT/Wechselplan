@@ -42,6 +42,13 @@ const nextConfig = {
     serverActions: {
       allowedOrigins: ['*']
     }
+  },
+  webpack: (config) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': './src'
+    }
+    return config
   }
 };
 
