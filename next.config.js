@@ -35,6 +35,13 @@ const nextConfig = {
         ]
       }
     ]
+  },
+  // Add configuration for Node.js runtime
+  serverExternalPackages: ['ldapjs'],
+  experimental: {
+    serverActions: {
+      allowedOrigins: ['*']
+    }
   }
 };
 

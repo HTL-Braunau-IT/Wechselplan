@@ -21,16 +21,6 @@ interface ClassData {
 
 type ImportData = Record<string, ClassData>
 
-interface APIImportData {
-  classes: Array<{
-    name: string
-    students: Array<{
-      firstName: string
-      lastName: string
-    }>
-  }>
-}
-
 export default function ImportPage() {
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)

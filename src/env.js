@@ -11,6 +11,12 @@ export const env = createEnv({
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
+    LDAP_URL: z.string().url(),
+    LDAP_BASE_DN: z.string(),
+    LDAP_USERNAME: z.string(),
+    LDAP_PASSWORD: z.string(),
+    LDAP_STUDENTS_OU: z.string(),
+    LDAP_TEACHERS_OU: z.string(),
   },
 
   /**
@@ -29,6 +35,12 @@ export const env = createEnv({
   runtimeEnv: {
     DATABASE_URL: process.env.DATABASE_URL,
     NODE_ENV: process.env.NODE_ENV,
+    LDAP_URL: process.env.LDAP_URL,
+    LDAP_BASE_DN: process.env.LDAP_BASE_DN,
+    LDAP_USERNAME: process.env.LDAP_USERNAME,
+    LDAP_PASSWORD: process.env.LDAP_PASSWORD,
+    LDAP_STUDENTS_OU: process.env.LDAP_STUDENTS_OU,
+    LDAP_TEACHERS_OU: process.env.LDAP_TEACHERS_OU,
     // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
   },
   /**

@@ -1,23 +1,63 @@
+export const runtime = 'nodejs'
+
 import { NextResponse } from 'next/server'
 import * as ldap from 'ldapjs'
 
-// LDAP Configuration
-const LDAP_CONFIG = {
-  url: process.env.LDAP_URL ?? 'ldap://your-domain-controller',
-  baseDN: process.env.LDAP_BASE_DN ?? 'DC=your,DC=domain,DC=com',
-  username: process.env.LDAP_USERNAME ?? '',
-  password: process.env.LDAP_PASSWORD ?? '',
-  studentsOU: process.env.LDAP_STUDENTS_OU ?? 'OU=Students,DC=your,DC=domain,DC=com'
+// Debug logging for environment variables
+console.log('LDAP Configuration:', {
+  NODE_ENV: process.env.NODE_ENV,
+  LDAP_URL: process.env.LDAP_URL,
+  LDAP_BASE_DN: process.env.LDAP_BASE_DN,
+  LDAP_USERNAME: process.env.LDAP_USERNAME,
+  LDAP_PASSWORD: Boolean(process.env.LDAP_PASSWORD),
+  LDAP_STUDENTS_OU: process.env.LDAP_STUDENTS_OU
+});
+
+// Add runtime check
+if (process.env.NEXT_RUNTIME !== 'nodejs') {
+  console.error('Warning: LDAP route is not running in Node.js runtime!')
+}
+
+interface LDAPConfig {
+  url: string
+  baseDN: string
+  username: string
+  password: string
+  studentsOU: string
+}
+
+// LDAP Configuration with runtime validation
+const getLDAPConfig = (): LDAPConfig => {
+  const config = {
+    url: process.env.LDAP_URL,
+    baseDN: process.env.LDAP_BASE_DN,
+    username: process.env.LDAP_USERNAME,
+    password: process.env.LDAP_PASSWORD,
+    studentsOU: process.env.LDAP_STUDENTS_OU
+  }
+
+  // Validate required environment variables
+  const missingVars = Object.entries(config)
+    .filter(([_, value]) => !value)
+    .map(([key]) => key)
+
+  if (missingVars.length > 0) {
+    throw new Error(`Missing required LDAP environment variables: ${missingVars.join(', ')}`)
+  }
+
+  return config as LDAPConfig
 }
 
 // Log configuration (without sensitive data)
-console.log('LDAP Configuration:', {
-  url: LDAP_CONFIG.url,
-  baseDN: LDAP_CONFIG.baseDN,
-  studentsOU: LDAP_CONFIG.studentsOU,
-  hasUsername: !!LDAP_CONFIG.username,
-  hasPassword: !!LDAP_CONFIG.password
-})
+const logConfig = (config: LDAPConfig) => {
+  console.log('LDAP Configuration:', {
+    url: config.url,
+    baseDN: config.baseDN,
+    studentsOU: config.studentsOU,
+    hasUsername: !!config.username,
+    hasPassword: !!config.password
+  })
+}
 
 interface LDAPClass {
   ou: string
@@ -37,6 +77,7 @@ interface LDAPAttribute {
 interface LDAPEntry {
   attributes: LDAPAttribute[]
   dn: string
+  objectName: string
 }
 
 interface LDAPSearchResponse {
@@ -59,12 +100,18 @@ interface ImportData {
 export async function POST() {
   console.log('Starting students import...')
   
-  if (!LDAP_CONFIG.username || !LDAP_CONFIG.password) {
-    console.error('LDAP credentials are not configured')
+  let LDAP_CONFIG: LDAPConfig
+  try {
+    LDAP_CONFIG = getLDAPConfig()
+  } catch (error) {
+    console.error('LDAP configuration error:', error)
     return NextResponse.json(
       { 
-        error: 'LDAP credentials are not configured',
-        userMessage: 'LDAP credentials are not configured. Please check your environment variables.'
+        error: 'LDAP configuration error',
+        details: error instanceof Error ? error.message : 'Unknown error',
+        userMessage: 'LDAP configuration is incomplete. Please check your environment variables.',
+        runtime: process.env.NEXT_RUNTIME,
+        nodeEnv: process.env.NODE_ENV
       },
       { status: 500 }
     )
@@ -72,32 +119,23 @@ export async function POST() {
 
   const client = ldap.createClient({
     url: LDAP_CONFIG.url,
-    log: {
-      trace: (msg: string) => console.log('LDAP Trace:', msg),
-      debug: (msg: string) => console.log('LDAP Debug:', msg),
-      info: (msg: string) => console.log('LDAP Info:', msg),
-      warn: (msg: string) => console.log('LDAP Warn:', msg),
-      error: (msg: string) => console.log('LDAP Error:', msg)
+    timeout: 5000,
+    connectTimeout: 10000,
+    idleTimeout: 5000,
+    reconnect: true,
+    strictDN: false,
+    tlsOptions: {
+      rejectUnauthorized: false
     }
   })
 
   try {
-    console.log('Creating LDAP client...')
-    
     // Connect to LDAP
     try {
       await new Promise<void>((resolve, reject) => {
-        console.log('Attempting to connect to LDAP server:', LDAP_CONFIG.url)
-        console.log('Using credentials:', {
-          username: LDAP_CONFIG.username,
-          baseDN: LDAP_CONFIG.baseDN,
-          studentsOU: LDAP_CONFIG.studentsOU
-        })
-        
         client.bind(LDAP_CONFIG.username, LDAP_CONFIG.password, (err: Error | null) => {
           if (err) {
             console.error('Error binding to LDAP:', err)
-            // Check for specific LDAP error codes and messages
             const errorMessage = err.message.toLowerCase()
             if (
               errorMessage.includes('invalid credentials') || 
@@ -112,7 +150,6 @@ export async function POST() {
             }
             return
           }
-          console.log('Successfully bound to LDAP server')
           resolve()
         })
       })
@@ -146,33 +183,48 @@ export async function POST() {
     // First, try a simple search to verify permissions
     try {
       await new Promise<void>((resolve, reject) => {
-        console.log('Testing simple search with base DN:', LDAP_CONFIG.baseDN)
-        client.search(LDAP_CONFIG.baseDN, {
-          filter: '(objectClass=*)',
-          scope: 'base',
-          attributes: ['*']
-        }, (err: Error | null, res: LDAPSearchResponse) => {
+        const searchOptions = {
+          filter: '(|(objectClass=organizationalUnit)(objectClass=container))',
+          scope: 'sub' as const,
+          attributes: ['ou', 'distinguishedName', 'objectClass'],
+          sizeLimit: 100000,
+          timeLimit: 10
+        }
+
+        let timedOut = false;
+        const timeout = setTimeout(() => {
+          timedOut = true;
+          console.error('LDAP search timed out after 5 seconds');
+          reject(new Error('LDAP search timed out'));
+        }, 5000);
+        
+        client.search(LDAP_CONFIG.baseDN, searchOptions, (err: Error | null, res: LDAPSearchResponse) => {
           if (err) {
-            console.error('Error in simple search:', err)
-            reject(err)
-            return
+            clearTimeout(timeout);
+            console.error('Search error:', err);
+            reject(err);
+            return;
           }
 
-          res.on('searchEntry', (entry: LDAPEntry) => {
-            console.log('Simple search found entry:', entry.dn)
-            entry.attributes.forEach((attr: LDAPAttribute) => {
-              console.log(`  ${attr.type}: ${attr.values.join(', ')}`)
-            })
+          let hasError = false;
+
+          res.on('searchEntry', () => {
+            if (timedOut) return;
+            clearTimeout(timeout);
           })
 
           res.on('end', () => {
-            console.log('Simple search completed')
-            resolve()
+            clearTimeout(timeout);
+            if (!hasError) {
+              resolve();
+            }
           })
 
           res.on('error', (err: Error) => {
-            console.error('Simple search error:', err)
-            reject(err)
+            clearTimeout(timeout);
+            hasError = true;
+            console.error('Search error event:', err);
+            reject(err);
           })
         })
       })
@@ -183,65 +235,81 @@ export async function POST() {
           error: 'Failed to perform basic LDAP search',
           details: error instanceof Error ? error.message : 'Unknown error',
           userMessage: 'Failed to perform basic LDAP search. Please check LDAP permissions.',
+          runtime: process.env.NEXT_RUNTIME,
+          nodeEnv: process.env.NODE_ENV
         },
         { status: 503 }
       )
     }
 
     // Now try the OU search
-    console.log('Searching for Students OU:', LDAP_CONFIG.studentsOU)
-    // First try to list all OUs under the base DN to debug
-    client.search(LDAP_CONFIG.baseDN, {
-      filter: '(objectClass=organizationalUnit)',
-      scope: 'sub',
-      attributes: ['ou', 'distinguishedName'],
-      sizeLimit: 1000
-    }, (err: Error | null, res: LDAPSearchResponse) => {
-      if (err) {
-        console.error('Error listing OUs:', err)
-        console.error('Error details:', {
-          name: err.name,
-          message: err.message,
-          stack: err.stack
-        })
-        return
-      }
-
-      console.log('Available OUs in directory:')
-      let found = false
-      let entryCount = 0
-
-      res.on('searchEntry', (entry: LDAPEntry) => {
-        entryCount++
-        const ou = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'ou')?.values[0]
-        const dn = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'distinguishedName')?.values[0]
-        console.log(`Found OU: ${ou} (${dn})`)
-        // Check if the DN matches the students OU path
-        if (dn && dn.toLowerCase() === LDAP_CONFIG.studentsOU.toLowerCase()) {
-          found = true
+    const studentsOUExists = await new Promise<boolean>((resolve) => {
+      client.search(LDAP_CONFIG.baseDN, {
+        filter: '(objectClass=organizationalUnit)',
+        scope: 'sub',
+        attributes: ['ou', 'distinguishedName']
+      }, (err: Error | null, res: LDAPSearchResponse) => {
+        if (err) {
+          console.error('Error listing OUs:', err)
+          resolve(false)
+          return
         }
-      })
 
-      res.on('error', (err: Error) => {
-        console.error('Search error:', err)
-        console.error('Search error details:', {
-          name: err.name,
-          message: err.message,
-          stack: err.stack
+        let found = false
+
+        res.on('searchEntry', (entry: LDAPEntry) => {
+          const ou = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'ou')?.values[0]
+          const dn = entry.objectName
+          
+          if (!LDAP_CONFIG.studentsOU) {
+            console.error('Students OU is not configured')
+            resolve(false)
+            return
+          }
+
+          // Normalize both OUs for comparison
+          const studentsOU = LDAP_CONFIG.studentsOU
+          // @ts-expect-error - studentsOU is guaranteed to be string at this point
+          const searchOU = studentsOU.split(',')[0].replace('OU=', '').trim().toLowerCase()
+          const entryOU = (ou ?? '').trim().toLowerCase()
+          
+          if (entryOU === searchOU) {
+            found = true
+          }
         })
-      })
 
-      res.on('end', () => {
-        console.log(`Search completed. Found ${entryCount} entries.`)
-        console.log(`Students OU ${found ? 'found' : 'not found'} at path: ${LDAP_CONFIG.studentsOU}`)
+        res.on('end', () => {
+          resolve(found)
+        })
+
+        res.on('error', (err: Error) => {
+          console.error('Search error:', err)
+          resolve(false)
+        })
       })
     })
 
+    if (!studentsOUExists) {
+      console.error(`Students OU not found: ${LDAP_CONFIG.studentsOU}`)
+      return NextResponse.json(
+        { 
+          error: 'Students OU not found',
+          details: `Could not find OU at path: ${LDAP_CONFIG.studentsOU}`,
+          config: {
+            baseDN: LDAP_CONFIG.baseDN,
+            studentsOU: LDAP_CONFIG.studentsOU
+          }
+        },
+        { status: 404 }
+      )
+    }
+
     // Search for class OUs under the Students OU
     const classOUs = await new Promise<LDAPClass[]>((resolve, reject) => {
+      const classes: LDAPClass[] = []
       client.search(LDAP_CONFIG.studentsOU, {
         filter: '(objectClass=organizationalUnit)',
-        scope: 'sub', // Changed from 'one' to 'sub' to search recursively
+        scope: 'one',
         attributes: ['ou', 'distinguishedName']
       }, (err: Error | null, res: LDAPSearchResponse) => {
         if (err) {
@@ -250,20 +318,24 @@ export async function POST() {
           return
         }
 
-        const classes: LDAPClass[] = []
         res.on('searchEntry', (entry: LDAPEntry) => {
           const ou = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'ou')?.values[0]
-          const dn = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'distinguishedName')?.values[0]
-          console.log('Found class OU:', { ou, dn })
-          // Only include OUs that are direct children of the Students OU and start with a number
-          if (dn && dn.includes(LDAP_CONFIG.studentsOU) && /^\d/.test(ou ?? '')) {
-            classes.push({ ou: ou ?? '', distinguishedName: dn ?? '' })
+          const dn = String(entry.objectName)
+          
+          // Only include OUs that are direct children of the Students OU
+          const normalizedDN = dn.toLowerCase()
+          const normalizedStudentsOU = LDAP_CONFIG.studentsOU.toLowerCase()
+          if (normalizedDN.includes(normalizedStudentsOU) && 
+              !normalizedDN.includes('ou=klassen') && 
+              !normalizedDN.includes('ou=dummy')) {
+            classes.push({ ou: ou ?? '', distinguishedName: dn })
           }
         })
+
         res.on('end', () => {
-          console.log('Found classes:', classes)
           resolve(classes)
         })
+
         res.on('error', (err: Error) => {
           console.error('Search error:', err)
           reject(err)
@@ -279,11 +351,9 @@ export async function POST() {
     for (const classOU of classOUs) {
       const className = classOU.ou
       if (!classOU.distinguishedName) {
-        console.error(`No distinguishedName found for class ${className}`)
         continue
       }
       const studentsOU = classOU.distinguishedName
-      console.log('Searching for students in:', studentsOU)
 
       const students = await new Promise<LDAPStudent[]>((resolve, reject) => {
         const students: LDAPStudent[] = []
@@ -310,12 +380,8 @@ export async function POST() {
             }
           })
 
-          res.on('page', () => {
-            console.log(`Received page of results for ${className}`)
-          })
-
           res.on('end', () => {
-            console.log(`Found ${students.length} students in class ${className}`)
+            console.log(`Found ${students.length} students in class ${className}`);
             resolve(students)
           })
 
@@ -368,7 +434,6 @@ export async function POST() {
     )
   } finally {
     try {
-      console.log('Unbinding LDAP client...')
       client.unbind()
     } catch (error) {
       console.error('Error unbinding LDAP client:', error)
