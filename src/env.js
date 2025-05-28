@@ -14,7 +14,6 @@ export const env = createEnv({
     LDAP_URL: z.string().url(),
     LDAP_BASE_DN: z.string(),
     LDAP_USERNAME: z.string(),
-    LDAP_PASSWORD: z.string(),
     LDAP_STUDENTS_OU: z.string(),
     LDAP_TEACHERS_OU: z.string(),
   },
