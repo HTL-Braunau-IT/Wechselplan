@@ -4,10 +4,6 @@ on:
   push:
     branches: ["prod"]
 
-  pull_request:
-    branches: ["prod"]
-    types: [opened, synchronize, reopened, edited]
-
   workflow_dispatch:
 
 permissions:
