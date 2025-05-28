@@ -7,7 +7,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+  packages: write
 
 concurrency:
   group: pages-${{ github.ref }}
@@ -44,42 +45,44 @@ jobs:
     needs: test
 
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Update version
-        id: version
+      - name: Get latest release version
+        id: get_version
         run: |
-          # Read current version
-          VERSION=$(jq -r '.version' version.json)
+          LATEST_VERSION=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/latest" | \
+            jq -r '.tag_name // "v0.0.0"')
+          echo "LATEST_VERSION=${LATEST_VERSION#v}" >> $GITHUB_ENV
+
+      - name: Calculate new version
+        id: new_version
+        run: |
+          # Get the latest version or default to 0.0.0
+          LATEST_VERSION=${LATEST_VERSION:-0.0.0}
           # Split version into parts
-          IFS='.' read -r major minor patch <<< "$VERSION"
+          IFS='.' read -r major minor patch <<< "$LATEST_VERSION"
           # Increment patch version
           new_patch=$((patch + 1))
           # Create new version
           NEW_VERSION="$major.$minor.$new_patch"
-          # Get current date in ISO format
-          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          # Update version.json
-          jq --arg version "$NEW_VERSION" --arg date "$BUILD_DATE" '.version = $version | .buildDate = $date' version.json > version.json.tmp
-          mv version.json.tmp version.json
-          # Set output variables
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
-          echo "BUILD_DATE=$BUILD_DATE" >> $GITHUB_ENV
-          # Also set as step outputs
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "build_date=$BUILD_DATE" >> $GITHUB_OUTPUT
 
-      - name: Debug version values
-        run: |
-          echo "Version from step output: ${{ steps.version.outputs.version }}"
-          echo "Build date from step output: ${{ steps.version.outputs.build_date }}"
-          echo "Version from env: ${{ env.NEW_VERSION }}"
-          echo "Build date from env: ${{ env.BUILD_DATE }}"
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.new_version.outputs.version }}
+          name: Release v${{ steps.new_version.outputs.version }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -95,10 +98,10 @@ jobs:
           push: true
           tags: |
             ghcr.io/michelroegl-brunner/wechselplan-app:latest
-            ghcr.io/michelroegl-brunner/wechselplan-app:${{ steps.version.outputs.version }}
+            ghcr.io/michelroegl-brunner/wechselplan-app:v${{ steps.new_version.outputs.version }}
           build-args: |
-            VERSION=${{ steps.version.outputs.version }}
-            BUILD_DATE=${{ steps.version.outputs.build_date }}
+            VERSION=v${{ steps.new_version.outputs.version }}
+            BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           no-cache: true
 
       - name: Prune Buildx Cache
