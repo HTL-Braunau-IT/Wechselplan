@@ -2,11 +2,7 @@ name: CI/CD
 
 on:
   push:
-    branches: ["main"]
-
-  pull_request:
-    branches: ["main"]
-    types: [opened, synchronize, reopened, edited]
+    branches: ["prod"]
 
   workflow_dispatch:
 
@@ -19,7 +15,7 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     env:
       DATABASE_URL: "file:./db.sqlite"
       NODE_ENV: "test"
@@ -31,8 +27,8 @@ jobs:
       #  uses: actions/setup-node@v4
       #  with:
       #    node-version: "20"
-       #   cache: npm
-        #  cache-dependency-path: package-lock.json
+      #    cache: npm
+      #    cache-dependency-path: package-lock.json
 
       #- name: Install dependencies
       #  run: npm ci --prefer-offline --legacy-peer-deps
@@ -40,9 +36,12 @@ jobs:
       #- name: Run tests
       #  run: npm run test
 
+      #- name: Run build
+      #  run: npm run build
+
 
   build-docker-image:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: test
 
     permissions:
@@ -66,3 +65,8 @@ jobs:
           context: .
           push: true
           tags: ghcr.io/michelroegl-brunner/wechselplan-app:latest
+          no-cache: true
+
+      - name: Prune Buildx Cache
+        if: always()
+        run: docker buildx prune -af

@@ -39,12 +39,39 @@ export default function ImportPage() {
       const response = await fetch('/api/teachers/import', {
         method: 'POST'
       })
+
+      const data = await response.json() as { userMessage?: string; error?: string; details?: string; teachers?: Teacher[] }
+
       if (!response.ok) {
-        throw new Error(t('admin.teachers.import.errors.fetchTeachers'))
+        // Handle specific error cases
+        if (response.status === 401) {
+          throw new Error(data.userMessage ?? t('admin.teachers.import.errors.invalidCredentials'))
+        } else if (response.status === 404) {
+          throw new Error(data.userMessage ?? t('admin.teachers.import.errors.ouNotFound'))
+        } else if (response.status === 503) {
+          throw new Error(data.userMessage ?? t('admin.teachers.import.errors.connectionFailed'))
+        } else {
+          const errorMessage = data.userMessage ?? data.error ?? data.details ?? t('admin.teachers.import.errors.fetchTeachers')
+          console.error('Server error:', { status: response.status, data })
+          throw new Error(errorMessage)
+        }
       }
 
-      const data = await response.json() as ImportData
-      setImportData(data)
+      if (!data || !Array.isArray(data.teachers)) {
+        console.error('Invalid data format:', data)
+        throw new Error(t('admin.teachers.import.errors.invalidDataFormat'))
+      }
+
+      if (data.teachers.length === 0) {
+        console.error('No teachers found in data')
+        throw new Error(t('admin.teachers.import.errors.noTeachersFound'))
+      }
+
+      // Create properly typed ImportData object
+      const importData: ImportData = {
+        teachers: data.teachers
+      }
+      setImportData(importData)
 
       // Initialize all teachers as selected
       const initialSelection = data.teachers.reduce((acc: Record<string, boolean>, teacher: Teacher) => {
@@ -55,7 +82,7 @@ export default function ImportPage() {
       setSelectedTeachers(initialSelection)
     } catch (err) {
       console.error('Error fetching teachers:', err)
-      setError(t('admin.teachers.import.errors.fetchTeachers'))
+      setError(err instanceof Error ? err.message : t('admin.teachers.import.errors.fetchTeachers'))
     } finally {
       setIsLoading(false)
     }
@@ -97,19 +124,22 @@ export default function ImportPage() {
         body: JSON.stringify({ teachers: selectedTeachers }),
       })
 
+      const data = await response.json() as { userMessage?: string; error?: string; details?: string; teachers?: number; total?: number; skipped?: number }
+
       if (!response.ok) {
-        throw new Error(t('admin.teachers.import.errors.importTeachers'))
+        const errorMessage = data.userMessage ?? data.error ?? data.details ?? t('admin.teachers.import.errors.importTeachers')
+        console.error('Server error:', { status: response.status, data })
+        throw new Error(errorMessage)
       }
 
-      const responseData = await response.json() as { teachers: number, total: number, skipped: number }
       setSuccess(t('admin.teachers.import.success.importComplete', {
-        teachers: responseData.teachers
+        teachers: data.teachers ?? 0
       }))
       setImportData(null)
       setSelectedTeachers({})
     } catch (err) {
       console.error('Error importing teachers:', err)
-      setError(t('admin.teachers.import.errors.importTeachers'))
+      setError(err instanceof Error ? err.message : t('admin.teachers.import.errors.importTeachers'))
     } finally {
       setIsLoading(false)
     }
@@ -129,8 +159,12 @@ export default function ImportPage() {
         body: JSON.stringify({ teachers }),
       })
 
+      const data = await response.json() as { userMessage?: string; error?: string; details?: string }
+
       if (!response.ok) {
-        throw new Error(t('admin.teachers.import.errors.importTeachers'))
+        const errorMessage = data.userMessage ?? data.error ?? data.details ?? t('admin.teachers.import.errors.importTeachers')
+        console.error('Server error:', { status: response.status, data })
+        throw new Error(errorMessage)
       }
 
       setSuccess(t('admin.teachers.import.success.importComplete', {
@@ -138,7 +172,7 @@ export default function ImportPage() {
       }))
     } catch (err) {
       console.error('Error importing teachers:', err)
-      setError(t('admin.teachers.import.errors.importTeachers'))
+      setError(err instanceof Error ? err.message : t('admin.teachers.import.errors.importTeachers'))
     } finally {
       setIsLoading(false)
     }

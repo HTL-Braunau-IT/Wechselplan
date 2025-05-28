@@ -35,6 +35,20 @@ const nextConfig = {
         ]
       }
     ]
+  },
+  // Add configuration for Node.js runtime
+  serverExternalPackages: ['ldapjs'],
+  experimental: {
+    serverActions: {
+      allowedOrigins: ['*']
+    }
+  },
+  webpack: (config) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': './src'
+    }
+    return config
   }
 };
 
