@@ -54,10 +54,6 @@ COPY --from=builder /app/.env.example ./.env
 RUN echo '#!/bin/sh' > /app/start.sh && \
     echo 'echo "Waiting for database..."' >> /app/start.sh && \
     echo 'sleep 5' >> /app/start.sh && \
-    echo 'echo "Resetting database state..."' >> /app/start.sh && \
-    echo 'npx prisma migrate reset --force' >> /app/start.sh && \
-    echo 'echo "Creating initial migration..."' >> /app/start.sh && \
-    echo 'npx prisma migrate dev --name init --create-only' >> /app/start.sh && \
     echo 'echo "Applying migrations..."' >> /app/start.sh && \
     echo 'npx prisma migrate deploy' >> /app/start.sh && \
     echo 'echo "Starting application..."' >> /app/start.sh && \
