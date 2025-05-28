@@ -1,3 +1,5 @@
+import { beforeAll, afterAll } from '@jest/globals';
+
 // Suppress console.error and console.warn during tests
 const originalError = console.error
 const originalWarn = console.warn
