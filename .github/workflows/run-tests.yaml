@@ -81,6 +81,7 @@ jobs:
           tag_name: v${{ steps.new_version.outputs.version }}
           name: Release v${{ steps.new_version.outputs.version }}
           generate_release_notes: true
+          target_commitish: prod
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
