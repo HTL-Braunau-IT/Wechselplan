@@ -26,7 +26,11 @@ interface Assignment {
 	studentIds: number[]
 }
 
-
+interface Class {
+	id: number
+	name: string
+	description: string | null
+}
 
 interface AssignmentsResponse {
 	assignments: Assignment[]
@@ -35,7 +39,7 @@ interface AssignmentsResponse {
 
 function StudentItem({ student, index, onRemove }: { student: Student, index: number, onRemove: (studentId: number) => void }) {
 	const { attributes, listeners, setNodeRef, transform } = useDraggable({
-		id: student.id.toString()
+		id: `student-${student.id}`
 	})
 
 	const style = transform ? {
@@ -52,7 +56,7 @@ function StudentItem({ student, index, onRemove }: { student: Student, index: nu
 		>
 			<div>
 				<span className="text-muted-foreground mr-2">{index + 1}.</span>
-				{student.lastName}, {student.firstName}
+				{`${student.lastName}, ${student.firstName}`}
 			</div>
 			<button
 				onClick={(e) => {
@@ -73,7 +77,7 @@ function StudentItem({ student, index, onRemove }: { student: Student, index: nu
 function GroupContainer({ group, children }: { group: Group, children: React.ReactNode }) {
 	const { t } = useTranslation('schedule')
 	const { setNodeRef, isOver } = useDroppable({
-		id: group.id.toString()
+		id: `group-${group.id}`
 	})
 
 	return (
@@ -93,7 +97,7 @@ export default function ScheduleClassSelectPage() {
 	const router = useRouter()
 	const { t } = useTranslation('schedule')
 
-	const [classes, setClasses] = useState<string[]>([])
+	const [classes, setClasses] = useState<Class[]>([])
 	const [selectedClass, setSelectedClass] = useState('')
 	const [students, setStudents] = useState<Student[]>([])
 	const [loading, setLoading] = useState(true)
@@ -124,7 +128,7 @@ export default function ScheduleClassSelectPage() {
 			try {
 				const res = await fetch('/api/classes')
 				if (!res.ok) throw new Error('Failed to fetch classes')
-				const data = await res.json() as string[]
+				const data = await res.json() as Class[]
 				setClasses(data)
 			} catch {
 				setError('Fehler beim Laden der Klassen.')
@@ -353,7 +357,9 @@ export default function ScheduleClassSelectPage() {
 		const { active } = event
 		if (!active?.id) return
 		
-		const student = students.find(s => s.id === Number(active.id))
+		// Extract the student ID from the prefixed string
+		const studentId = Number(active.id.toString().replace('student-', ''))
+		const student = students.find(s => s.id === studentId)
 		if (student) {
 			setActiveStudent(student)
 		}
@@ -364,8 +370,9 @@ export default function ScheduleClassSelectPage() {
 		
 		if (!over?.id || !active?.id) return
 
-		const studentId = Number(active.id)
-		const targetGroupId = Number(over.id)
+		// Extract the IDs from the prefixed strings
+		const studentId = Number(active.id.toString().replace('student-', ''))
+		const targetGroupId = Number(over.id.toString().replace('group-', ''))
 
 		setGroups(currentGroups => {
 			const newGroups = [...currentGroups]
@@ -429,8 +436,10 @@ export default function ScheduleClassSelectPage() {
 										<SelectValue placeholder={t('pleaseSelect')} />
 									</SelectTrigger>
 									<SelectContent>
-										{classes.map(cls => (
-											<SelectItem key={cls} value={cls}>{cls}</SelectItem>
+										{classes.map((cls) => (
+											<SelectItem key={cls.id} value={cls.name}>
+												{cls.name}
+											</SelectItem>
 										))}
 									</SelectContent>
 								</Select>
@@ -509,7 +518,7 @@ export default function ScheduleClassSelectPage() {
 											<DragOverlay>
 												{activeStudent ? (
 													<div className="text-sm p-2 bg-card border rounded shadow-lg">
-														{activeStudent.lastName}, {activeStudent.firstName}
+														{`${activeStudent.lastName}, ${activeStudent.firstName}`}
 													</div>
 												) : null}
 											</DragOverlay>

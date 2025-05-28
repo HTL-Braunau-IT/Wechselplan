@@ -52,8 +52,14 @@ export function Header() {
       </div>
 
       {/* Navigation Menu - Slides in from left */}
+      {isMenuOpen && (
+        <div
+          className="fixed inset-0 backdrop-blur-sm bg-background/30 z-40"
+          onClick={toggleMenu}
+        />
+      )}
       <div
-        className={`fixed top-0 left-0 h-full w-64 bg-background border-r shadow-lg transform transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 left-0 h-full w-64 bg-background border-r shadow-lg transform transition-transform duration-300 ease-in-out z-50 ${
           isMenuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >

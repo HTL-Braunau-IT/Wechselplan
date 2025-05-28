@@ -84,7 +84,7 @@ function TeacherSelect({
 
 	return (
 		<Select
-			value={value?.toString()}
+			value={value?.toString() ?? ''}
 			onValueChange={(value) => onChange(Number(value))}
 		>
 			<SelectTrigger className="w-[280px]">
@@ -93,7 +93,7 @@ function TeacherSelect({
 			<SelectContent>
 				{teachers.map((teacher) => (
 					<SelectItem key={teacher.id} value={teacher.id.toString()}>
-						{teacher.lastName}, {teacher.firstName}
+						{`${teacher.lastName}, ${teacher.firstName}`}
 					</SelectItem>
 				))}
 			</SelectContent>
@@ -114,7 +114,7 @@ function RoomSelect({
 
 	return (
 		<Select
-			value={value?.toString()}
+			value={value?.toString() ?? ''}
 			onValueChange={(value) => onChange(Number(value))}
 		>
 			<SelectTrigger className="w-[280px]">
@@ -144,7 +144,7 @@ function SubjectSelect({
 
 	return (
 		<Select
-			value={value?.toString()}
+			value={value?.toString() ?? ''}
 			onValueChange={(value) => onChange(Number(value))}
 		>
 			<SelectTrigger className="w-[280px]">
@@ -174,7 +174,7 @@ function LearningContentSelect({
 
 	return (
 		<Select
-			value={value?.toString()}
+			value={value?.toString() ?? ''}
 			onValueChange={(value) => onChange(Number(value))}
 		>
 			<SelectTrigger className="w-[280px]">

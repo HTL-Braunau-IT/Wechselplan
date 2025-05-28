@@ -3,17 +3,19 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-// GET /api/classes - Get all unique class names
+// GET /api/classes - Get all classes with full details
 export async function GET() {
     try {
         const classes = await prisma.class.findMany({
-            select: { name: true },
+            select: {
+                id: true,
+                name: true,
+                description: true
+            },
             orderBy: { name: 'asc' }
-        }) as { name: string }[]
+        })
         
-        // Flatten to array of strings
-        const classNames = classes.map((c) => c.name)
-        return NextResponse.json(classNames)
+        return NextResponse.json(classes)
     } catch (error) {
         console.error('Error fetching classes:', error)
         return NextResponse.json(
