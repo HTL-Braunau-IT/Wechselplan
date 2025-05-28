@@ -1,11 +1,3 @@
-# Add build arguments for version and build date
-ARG VERSION
-ARG BUILD_DATE
-
-# Set environment variables
-ENV NEXT_PUBLIC_APP_VERSION=$VERSION
-ENV NEXT_PUBLIC_BUILD_DATE=$BUILD_DATE
-
 # Install dependencies only when needed
 FROM node:22-alpine AS deps
 WORKDIR /app
@@ -28,6 +20,13 @@ RUN npm run build
 
 # Production image
 FROM node:22-alpine AS runner
+# Add build arguments for version and build date
+ARG VERSION
+ARG BUILD_DATE
+# Set environment variables
+ENV NEXT_PUBLIC_APP_VERSION=$VERSION
+ENV NEXT_PUBLIC_BUILD_DATE=$BUILD_DATE
+
 WORKDIR /app
 
 ENV NODE_ENV=production
