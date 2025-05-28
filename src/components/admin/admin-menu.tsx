@@ -43,6 +43,14 @@ export function AdminMenu() {
           <span>{t('settings.title')}</span>
         </Link>
         <Link
+          href="/admin/login-settings"
+          className="flex items-center space-x-2 p-2 hover:bg-accent hover:text-accent-foreground rounded-lg"
+          aria-label={t('login-settings.title')}
+        >
+          <Settings className="h-5 w-5" />
+          <span>{t('login-settings.title')}</span>
+        </Link>
+        <Link
           href="/admin/settings/holidays"
           className="flex items-center space-x-2 p-2 hover:bg-accent hover:text-accent-foreground rounded-lg"
           aria-label={t('settings.holidays.title')}
