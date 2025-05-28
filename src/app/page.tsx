@@ -421,7 +421,7 @@ export default function Home() {
             {/* Schedule Overview */}
             <Card>
               <CardHeader>
-                <CardTitle>Schedule Overview</CardTitle>
+                <CardTitle>Übersicht</CardTitle>
               </CardHeader>
               <CardContent>
                 {loading ? (
