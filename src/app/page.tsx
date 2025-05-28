@@ -281,7 +281,13 @@ export default function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center p-24">
       <div className="z-10 max-w-5xl w-full space-y-8">
-        <h1 className="text-4xl font-bold mb-8">{t('common.welcome')}</h1>
+        <div className="flex justify-between items-center">
+          <h1 className="text-4xl font-bold mb-8">{t('common.welcome')}</h1>
+          <div className="text-sm text-gray-500">
+            <div>Version: {process.env.NEXT_PUBLIC_APP_VERSION ?? '0.0.0'}</div>
+            <div>Build: {process.env.NEXT_PUBLIC_BUILD_DATE ? new Date(process.env.NEXT_PUBLIC_BUILD_DATE).toLocaleDateString() : 'N/A'}</div>
+          </div>
+        </div>
         
         <Card>
           <CardHeader>

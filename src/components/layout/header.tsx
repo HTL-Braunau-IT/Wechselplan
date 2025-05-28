@@ -34,6 +34,12 @@ export function Header() {
           </Link>
 
           <div className="flex items-center space-x-4">
+            {/* Version Info */}
+            <div className="text-xs text-muted-foreground">
+              <div>v{process.env.NEXT_PUBLIC_APP_VERSION ?? '0.0.0'}</div>
+              <div>{process.env.NEXT_PUBLIC_BUILD_DATE ? new Date(process.env.NEXT_PUBLIC_BUILD_DATE).toLocaleDateString() : 'N/A'}</div>
+            </div>
+
             {/* Theme Toggle */}
             <ThemeToggle />
 

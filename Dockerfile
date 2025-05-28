@@ -1,3 +1,11 @@
+# Add build arguments for version and build date
+ARG VERSION
+ARG BUILD_DATE
+
+# Set environment variables
+ENV NEXT_PUBLIC_APP_VERSION=$VERSION
+ENV NEXT_PUBLIC_BUILD_DATE=$BUILD_DATE
+
 # Install dependencies only when needed
 FROM node:22-alpine AS deps
 WORKDIR /app
