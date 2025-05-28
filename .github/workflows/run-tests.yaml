@@ -4,10 +4,6 @@ on:
   push:
     branches: ["prod"]
 
-  pull_request:
-    branches: ["prod"]
-    types: [opened, synchronize, reopened, edited]
-
   workflow_dispatch:
 
 permissions:
@@ -70,3 +66,7 @@ jobs:
           push: true
           tags: ghcr.io/michelroegl-brunner/wechselplan-app:latest
           no-cache: true
+
+      - name: Prune Buildx Cache
+        if: always()
+        run: docker buildx prune -af

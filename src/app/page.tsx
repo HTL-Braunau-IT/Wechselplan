@@ -78,6 +78,12 @@ interface Teacher {
   lastName: string;
 }
 
+interface Class {
+  id: number;
+  name: string;
+  description: string | null;
+}
+
 const GROUP_COLORS = [
   'bg-yellow-200', // Gruppe 1
   'bg-green-200',  // Gruppe 2
@@ -94,7 +100,7 @@ const DARK_GROUP_COLORS = [
 
 export default function Home() {
   const { t } = useTranslation()
-  const [classes, setClasses] = useState<string[]>([])
+  const [classes, setClasses] = useState<Class[]>([])
   const [selectedClass, setSelectedClass] = useState<string>('')
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [loading, setLoading] = useState(true)
@@ -122,8 +128,8 @@ export default function Home() {
       setLoading(true)
       const response = await fetch('/api/classes')
       if (!response.ok) throw new Error('Failed to fetch classes')
-      const data = await response.json() as string[]
-      console.log('Fetched classes:', data) // Debug log
+      const data = await response.json() as Class[]
+      console.log('Raw classes data:', data) // Debug log
       setClasses(data)
     } catch (err) {
       console.error('Error fetching classes:', err) // Debug log
@@ -288,12 +294,12 @@ export default function Home() {
               </SelectTrigger>
               <SelectContent>
                 {classes && classes.length > 0 ? (
-                  classes.map((className) => (
+                  classes.map((classItem) => (
                     <SelectItem 
-                      key={className} 
-                      value={className}
+                      key={`class-${classItem.id}`}
+                      value={classItem.name}
                     >
-                      {className}
+                      {classItem.name}
                     </SelectItem>
                   ))
                 ) : (
@@ -335,7 +341,7 @@ export default function Home() {
                       {[...Array(maxStudents)].map((_, rowIdx) => (
                         <tr key={rowIdx}>
                           {groups.map((group) => (
-                            <td key={group.id} className="border p-2 text-center">
+                            <td key={`${rowIdx}-${group.id}`} className="border p-2 text-center">
                               {group.students[rowIdx]
                                 ? `${group.students[rowIdx].lastName} ${group.students[rowIdx].firstName}`
                                 : ''}
@@ -381,16 +387,16 @@ export default function Home() {
                               const group = getGroupForTeacherAndTurn(teacherIdx, 0, period as 'AM' | 'PM');
                               const assignment = group ? getAssignment(teacher.id, group.id, period as 'AM' | 'PM') : null;
                               return [
-                                <td className="border p-2" key="subject">{assignment?.subject ?? ''}</td>,
-                                <td className="border p-2" key="learningContent">{assignment?.learningContent ?? ''}</td>,
-                                <td className="border p-2" key="room">{assignment?.room ?? ''}</td>,
+                                <td className="border p-2" key={`${teacher.id}-subject`}>{assignment?.subject ?? ''}</td>,
+                                <td className="border p-2" key={`${teacher.id}-learningContent`}>{assignment?.learningContent ?? ''}</td>,
+                                <td className="border p-2" key={`${teacher.id}-room`}>{assignment?.room ?? ''}</td>,
                               ];
                             })()}
                             {Object.keys(turns).map((turn, turnIdx) => {
                               const group = getGroupForTeacherAndTurn(teacherIdx, turnIdx, period as 'AM' | 'PM');
                               return (
                                 <td
-                                  key={turn}
+                                  key={`${teacher.id}-${turn}-${turnIdx}`}
                                   className={`border p-2 text-center font-bold text-black ${group ? GROUP_COLORS[groups.findIndex(g => g.id === group.id) % GROUP_COLORS.length] : ''} ${group ? DARK_GROUP_COLORS[groups.findIndex(g => g.id === group.id) % DARK_GROUP_COLORS.length] : ''}`}
                                 >
                                   {group ? group.id : ''}

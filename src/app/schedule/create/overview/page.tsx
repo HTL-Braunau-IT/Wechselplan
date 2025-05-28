@@ -80,8 +80,6 @@ export default function OverviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [turns, setTurns] = useState<TurnSchedule>({});
   const [saving, setSaving] = useState(false);
-  const [showDownloadDialog, setShowDownloadDialog] = useState(false);
-  const [, setPdfGenerated] = useState(false);
 
   // Debug logs
   console.log('teachers', teachers);
@@ -183,47 +181,17 @@ export default function OverviewPage() {
         throw new Error('Failed to save teacher rotation');
       }
 
-      // Generate PDF
-      const pdfResponse = await fetch(`/api/schedule/generate-pdf?classId=${classId}`, {
-        method: 'POST'
-      });
-
-      if (!pdfResponse.ok) {
-        throw new Error('Failed to generate PDF');
-      }
-
-      setPdfGenerated(true);
-      setShowDownloadDialog(true);
+      router.push('/');
+      
       
     } catch (error) {
-      setError('Failed to save and generate PDF.');
+      setError('Failed to save.');
       console.error('Error:', error);
     } finally {
       setSaving(false);
     }
   }
 
-  const handleDownloadPDF = async () => {
-    try {
-      const response = await fetch(`/api/schedule/get-pdf?classId=${classId}`);
-      if (!response.ok) throw new Error('Failed to download PDF');
-      
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `schedule-${classId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      
-      setShowDownloadDialog(false);
-      router.push('/');
-    } catch  {
-      setError('Failed to download PDF');
-    }
-  };
 
   if (loading || isLoadingCachedData) return <div className="p-8 text-center">Loading...</div>;
   if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
@@ -385,34 +353,6 @@ export default function OverviewPage() {
           {saving ? 'Saving...' : 'Save & Finish'}
         </button>
       </div>
-
-      <Dialog open={showDownloadDialog} onOpenChange={setShowDownloadDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>PDF Generated</DialogTitle>
-            <DialogDescription>
-              The schedule PDF has been generated successfully. Would you like to download it now?
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <button
-              className="bg-primary text-primary-foreground px-4 py-2 rounded hover:bg-primary/90"
-              onClick={handleDownloadPDF}
-            >
-              Download PDF
-            </button>
-            <button
-              className="bg-secondary text-secondary-foreground px-4 py-2 rounded hover:bg-secondary/90"
-              onClick={() => {
-                setShowDownloadDialog(false);
-                router.push('/');
-              }}
-            >
-              Skip
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
