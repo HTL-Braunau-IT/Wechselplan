@@ -6,6 +6,17 @@ RUN npm install --legacy-peer-deps
 
 # Rebuild the source code only when needed
 FROM node:22-alpine AS builder
+# Add build arguments for version and build date
+ARG VERSION
+ARG BUILD_DATE
+# Set environment variables
+ENV NEXT_PUBLIC_APP_VERSION=$VERSION
+ENV NEXT_PUBLIC_BUILD_DATE=$BUILD_DATE
+
+# Debug: Print environment variables
+RUN echo "NEXT_PUBLIC_APP_VERSION: $NEXT_PUBLIC_APP_VERSION"
+RUN echo "NEXT_PUBLIC_BUILD_DATE: $NEXT_PUBLIC_BUILD_DATE"
+
 WORKDIR /app
 COPY . .
 COPY --from=deps /app/node_modules ./node_modules
