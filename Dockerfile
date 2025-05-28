@@ -10,7 +10,6 @@ WORKDIR /app
 COPY . .
 COPY --from=deps /app/node_modules ./node_modules
 
-RUN apk add --no-cache sed
 RUN cp .env.example .env
 
 # Generate Prisma client
