@@ -70,3 +70,7 @@ jobs:
           push: true
           tags: ghcr.io/michelroegl-brunner/wechselplan-app:latest
           no-cache: true
+
+      - name: Prune Buildx Cache
+        if: always()
+        run: docker buildx prune -af
