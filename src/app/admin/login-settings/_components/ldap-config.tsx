@@ -130,7 +130,7 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 		)
 	}
 
-	console.log('LDAP config state:', config)
+	
 
 	if (!config) {
 		return (
