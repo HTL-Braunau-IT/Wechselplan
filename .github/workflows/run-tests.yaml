@@ -102,7 +102,7 @@ jobs:
             ghcr.io/michelroegl-brunner/wechselplan-app:v${{ steps.new_version.outputs.version }}
           build-args: |
             VERSION=${{ steps.new_version.outputs.version }}
-            BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            BUILD_DATE=${{ format('{0:yyyy-MM-ddTHH:mm:ssZ}', github.event.repository.updated_at) }}
           no-cache: true
 
       - name: Prune Buildx Cache
