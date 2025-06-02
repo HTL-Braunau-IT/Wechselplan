@@ -544,6 +544,10 @@ export default function TeacherAssignmentPage() {
 		setPendingAssignments(null)
 	}
 
+	function handleCopyAmToPm() {
+		setPmAssignments(amAssignments.map(assignment => ({ ...assignment })))
+	}
+
 	if (isLoadingCachedData || loading) return <div className="p-4">{t('loading')}</div>
 	if (error) return <div className="p-4 text-red-500">{error}</div>
 	if (!selectedClass) return <div className="p-4">{t('noClassSelected')}</div>
@@ -630,7 +634,17 @@ export default function TeacherAssignmentPage() {
 					{/* PM Assignments */}
 					<Card>
 						<CardHeader>
-							<CardTitle>{t('afternoonAssignments')}</CardTitle>
+							<div className="flex justify-between items-center">
+								<CardTitle>{t('afternoonAssignments')}</CardTitle>
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={handleCopyAmToPm}
+									className="ml-4"
+								>
+									{t('copyFromAm')}
+								</Button>
+							</div>
 						</CardHeader>
 						<CardContent>
 							<div className="space-y-4">

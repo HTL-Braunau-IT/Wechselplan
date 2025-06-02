@@ -1,6 +1,6 @@
 services:
   web:
-    image: wechselplan-app:latest
+    image: ghcr.io/michelroegl-brunner/wechselplan-app:latest
     ports:
       - "3000:3000"
     environment:
@@ -11,6 +11,10 @@ services:
       LDAP_PASSWORD: HtLbR_IT_2k17
       LDAP_STUDENTS_OU: "OU=Schueler,DC=htl-braunau,DC=int"
       LDAP_TEACHERS_OU: "OU=Lehrer,DC=htl-braunau,DC=int"
+      LDAP_STUDENT_GROUPS: "SCHUELER"
+      LDAP_TEACHER_GROUPS: "LEHRER"
+      NEXTAUTH_URL: "http://wp.htl-braunau.at"
+      NEXTAUTH_SECRET: "your-secret-key"
       DEBUG: "ldapjs:*"  # Enable LDAP debugging
       NODE_ENV: "development"  # Enable more verbose logging
     depends_on:

@@ -23,6 +23,9 @@ export function Header() {
 	const { t } = useTranslation()
 	const { data: session } = useSession()
 
+	// Add debug logging
+	console.log('Build Date:', process.env.NEXT_PUBLIC_BUILD_DATE)
+
 	const toggleMenu = () => {
 		setIsMenuOpen(!isMenuOpen)
 	}
@@ -54,7 +57,15 @@ export function Header() {
 						{/* Version Info */}
 						<div className="text-xs text-muted-foreground">
 							<div>v{process.env.NEXT_PUBLIC_APP_VERSION ?? '0.0.0'}</div>
-							<div>{process.env.NEXT_PUBLIC_BUILD_DATE ? new Date(process.env.NEXT_PUBLIC_BUILD_DATE).toLocaleDateString() : 'N/A'}</div>
+							<div>
+								{process.env.NEXT_PUBLIC_BUILD_DATE 
+									? new Date(process.env.NEXT_PUBLIC_BUILD_DATE).toLocaleDateString('de-DE', {
+											year: 'numeric',
+											month: '2-digit',
+											day: '2-digit'
+										})
+									: 'N/A'}
+							</div>
 						</div>
 
 						{/* Theme Toggle */}

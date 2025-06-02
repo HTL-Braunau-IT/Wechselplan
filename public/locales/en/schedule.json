@@ -28,6 +28,7 @@
   "noRoomsFound": "No rooms found",
   "loading": "Loading...",
   "noClassSelected": "No class selected",
+  "copyFromAm": "Copy from Morning",
   "steps": {
     "class": "Class & Groups",
     "teachers": "Assign Teachers",

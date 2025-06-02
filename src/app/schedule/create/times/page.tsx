@@ -42,9 +42,25 @@ export default function TimesPage() {
   const [, setTeacherAssignments] = useState<TeacherAssignment[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   const { t } = useTranslation(['admin', 'common'])
+
+  // New form states
+  const [newScheduleTime, setNewScheduleTime] = useState<Partial<ScheduleTime>>({
+    startTime: '',
+    endTime: '',
+    hours: 0,
+    period: 'AM'
+  })
+
+  const [newBreakTime, setNewBreakTime] = useState<Partial<BreakTime>>({
+    name: '',
+    startTime: '',
+    endTime: '',
+    period: 'AM'
+  })
 
   const classId = searchParams.get('class')
 
@@ -141,6 +157,64 @@ export default function TimesPage() {
     }
   }
 
+  const handleAddScheduleTime = async () => {
+    try {
+      const response = await fetch('/api/admin/settings/schedule-times', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newScheduleTime),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to add schedule time')
+      }
+
+      const data = await response.json() as ScheduleTime
+      setScheduleTimes([...scheduleTimes, data])
+      setNewScheduleTime({
+        startTime: '',
+        endTime: '',
+        hours: 0,
+        period: 'AM'
+      })
+      setSuccess(t('settings.times.scheduleTimeAdded'))
+    } catch (error) {
+      console.error('Error adding schedule time:', error)
+      setError(t('settings.times.scheduleTimeError'))
+    }
+  }
+
+  const handleAddBreakTime = async () => {
+    try {
+      const response = await fetch('/api/admin/settings/break-times', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newBreakTime),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to add break time')
+      }
+
+      const data = await response.json() as BreakTime
+      setBreakTimes([...breakTimes, data])
+      setNewBreakTime({
+        name: '',
+        startTime: '',
+        endTime: '',
+        period: 'AM'
+      })
+      setSuccess(t('settings.times.breakTimeAdded'))
+    } catch (error) {
+      console.error('Error adding break time:', error)
+      setError(t('settings.times.breakTimeError'))
+    }
+  }
+
   if (isLoading) return <div>Loading...</div>
 
   return (
@@ -155,11 +229,76 @@ export default function TimesPage() {
               {error}
             </div>
           )}
+          {success && (
+            <div className="mb-4 p-4 text-green-500 bg-green-50 rounded-md">
+              {success}
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* Schedule Times */}
             <div>
               <h2 className="text-xl font-semibold mb-4">{t('settings.times.scheduleTimes')}</h2>
+              
+              {/* Add new schedule time form */}
+              <div className="mb-6 p-4 border rounded-lg">
+                <h3 className="text-lg font-medium mb-3">{t('settings.times.addNewScheduleTime')}</h3>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="startTime">{t('settings.times.startTime')}</Label>
+                      <input
+                        type="time"
+                        id="startTime"
+                        value={newScheduleTime.startTime}
+                        onChange={(e) => setNewScheduleTime({ ...newScheduleTime, startTime: e.target.value })}
+                        className="w-full p-2 border rounded"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="endTime">{t('settings.times.endTime')}</Label>
+                      <input
+                        type="time"
+                        id="endTime"
+                        value={newScheduleTime.endTime}
+                        onChange={(e) => setNewScheduleTime({ ...newScheduleTime, endTime: e.target.value })}
+                        className="w-full p-2 border rounded"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="hours">{t('settings.times.hours')}</Label>
+                      <input
+                        type="number"
+                        id="hours"
+                        value={newScheduleTime.hours}
+                        onChange={(e) => setNewScheduleTime({ ...newScheduleTime, hours: parseFloat(e.target.value) })}
+                        className="w-full p-2 border rounded"
+                        min="0"
+                        step="0.5"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="period">{t('settings.times.period')}</Label>
+                      <select
+                        id="period"
+                        value={newScheduleTime.period}
+                        onChange={(e) => setNewScheduleTime({ ...newScheduleTime, period: e.target.value as 'AM' | 'PM' })}
+                        className="w-full p-2 border rounded"
+                      >
+                        <option value="AM">AM</option>
+                        <option value="PM">PM</option>
+                      </select>
+                    </div>
+                  </div>
+                  <Button onClick={handleAddScheduleTime} className="w-full">
+                    {t('settings.times.addScheduleTime')}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Existing schedule times */}
               <div className="space-y-4">
                 {scheduleTimes.map(time => (
                   <div key={time.id} className="flex items-center space-x-4 p-2 rounded-lg hover:bg-muted/50 transition-colors">
@@ -180,6 +319,63 @@ export default function TimesPage() {
             {/* Break Times */}
             <div>
               <h2 className="text-xl font-semibold mb-4">{t('settings.times.breakTimes')}</h2>
+              
+              {/* Add new break time form */}
+              <div className="mb-6 p-4 border rounded-lg">
+                <h3 className="text-lg font-medium mb-3">{t('settings.times.addNewBreakTime')}</h3>
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="breakName">{t('settings.times.breakName')}</Label>
+                    <input
+                      type="text"
+                      id="breakName"
+                      value={newBreakTime.name}
+                      onChange={(e) => setNewBreakTime({ ...newBreakTime, name: e.target.value })}
+                      className="w-full p-2 border rounded"
+                      placeholder={t('settings.times.breakNamePlaceholder')}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="breakStartTime">{t('settings.times.startTime')}</Label>
+                      <input
+                        type="time"
+                        id="breakStartTime"
+                        value={newBreakTime.startTime}
+                        onChange={(e) => setNewBreakTime({ ...newBreakTime, startTime: e.target.value })}
+                        className="w-full p-2 border rounded"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="breakEndTime">{t('settings.times.endTime')}</Label>
+                      <input
+                        type="time"
+                        id="breakEndTime"
+                        value={newBreakTime.endTime}
+                        onChange={(e) => setNewBreakTime({ ...newBreakTime, endTime: e.target.value })}
+                        className="w-full p-2 border rounded"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="breakPeriod">{t('settings.times.period')}</Label>
+                    <select
+                      id="breakPeriod"
+                      value={newBreakTime.period}
+                      onChange={(e) => setNewBreakTime({ ...newBreakTime, period: e.target.value as 'AM' | 'PM' })}
+                      className="w-full p-2 border rounded"
+                    >
+                      <option value="AM">AM</option>
+                      <option value="PM">PM</option>
+                    </select>
+                  </div>
+                  <Button onClick={handleAddBreakTime} className="w-full">
+                    {t('settings.times.addBreakTime')}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Existing break times */}
               <div className="space-y-4">
                 {breakTimes.map(time => (
                   <div key={time.id} className="flex items-center space-x-4 p-2 rounded-lg hover:bg-muted/50 transition-colors">
@@ -200,10 +396,10 @@ export default function TimesPage() {
 
           <div className="mt-8 flex justify-end gap-4">
             <Button variant="outline" onClick={() => router.back()}>
-              {t('common.cancel')}
+              {t('common:common.cancel')}
             </Button>
             <Button onClick={handleSave}>
-              {t('common.next')}
+              {t('common:common.next')}
             </Button>
           </div>
         </CardContent>
