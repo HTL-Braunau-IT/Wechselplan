@@ -10,7 +10,18 @@
     "schoolYear": "Schuljahr",
     "appName": "Wechselplan",
     "selectSchoolYear": "Schuljahr auswählen",
-    "cancel": "Abbrechen"
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "add": "Hinzufügen",
+    "search": "Suchen",
+    "loading": "Lädt...",
+    "error": "Fehler",
+    "success": "Erfolg",
+    "warning": "Warnung",
+    "confirm": "Bestätigen",
+    "back": "Zurück"
   },
   "navigation": {
     "home": "Startseite",

@@ -28,6 +28,7 @@
   "noRoomsFound": "Keine Räume gefunden",
   "loading": "Laden...",
   "noClassSelected": "Keine Klasse ausgewählt",
+  "copyFromAm": "Von Vormittag kopieren",
   "steps": {
     "class": "Klasse & Gruppen",
     "teachers": "Lehrer zuweisen",

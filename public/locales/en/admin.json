@@ -62,18 +62,23 @@
     },
     "times": {
       "title": "Schedule Times",
-      "description": "Manage schedule and break times",
       "scheduleTimes": "Schedule Times",
       "breakTimes": "Break Times",
-      "addScheduleTime": "Add Schedule Time",
-      "addBreakTime": "Add Break Time",
+      "hours": "hours",
+      "addNewScheduleTime": "Add New Schedule Time",
+      "addNewBreakTime": "Add New Break Time",
       "startTime": "Start Time",
       "endTime": "End Time",
       "hours": "Hours",
       "period": "Period",
       "breakName": "Break Name",
-      "morning": "Morning",
-      "afternoon": "Afternoon"
+      "breakNamePlaceholder": "e.g., Morning Break",
+      "addScheduleTime": "Add Schedule Time",
+      "addBreakTime": "Add Break Time",
+      "scheduleTimeAdded": "Schedule time added successfully",
+      "breakTimeAdded": "Break time added successfully",
+      "scheduleTimeError": "Failed to add schedule time",
+      "breakTimeError": "Failed to add break time"
     }
   }
 } 
