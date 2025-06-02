@@ -172,7 +172,7 @@ export function Header() {
 											{t('navigation.createSchedule')}
 										</Link>
 									</li>
-									{session?.user?.role === 'admin' && (
+									{session?.user?.role === 'teacher' && (
 										<li>
 											<Link
 												href="/admin/students"

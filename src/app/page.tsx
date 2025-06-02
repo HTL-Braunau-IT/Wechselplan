@@ -91,6 +91,7 @@ interface Teacher {
   id: number;
   firstName: string;
   lastName: string;
+  username: string;
 }
 
 interface Class {
@@ -196,10 +197,10 @@ export default function Home() {
       const teachers = await teachersRes.json() as Teacher[]
       console.log('All teachers:', teachers)
       console.log('Current user name:', session?.user?.name)
-      const teacher = teachers.find(t => `${t.lastName} ${t.firstName}` === session?.user?.name)
+      const teacher = teachers.find(t => t.username === session?.user?.name)
       
       if (!teacher) {
-        console.error('Teacher not found. Available teachers:', teachers.map(t => `${t.lastName} ${t.firstName}`))
+        console.error('Teacher not found. Available teachers:', teachers.map(t => t.username))
         throw new Error('Teacher not found')
       }
 

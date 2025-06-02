@@ -7,7 +7,8 @@ export async function GET() {
 			select: {
 				id: true,
 				firstName: true,
-				lastName: true
+				lastName: true,
+				username: true
 			},
 			orderBy: {
 				lastName: 'asc'
