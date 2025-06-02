@@ -12,6 +12,7 @@ datasource db {
 
 model Student {
   id        Int      @id @default(autoincrement())
+  username  String   @unique
   firstName String
   lastName  String
   classId   Int?
@@ -27,6 +28,7 @@ model Student {
 
 model Teacher {
   id          Int                 @id @default(autoincrement())
+  username    String              @unique
   firstName   String
   lastName    String
   assignments TeacherAssignment[]
@@ -191,4 +193,28 @@ model TeacherRotation {
   updatedAt DateTime @updatedAt
 
   @@unique([classId, groupId, turnId, period])
+}
+
+model Role {
+  id          Int         @id @default(autoincrement())
+  name        String      @unique
+  description String?
+  userRoles   UserRole[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([name])
+}
+
+model UserRole {
+  id        Int      @id @default(autoincrement())
+  userId    String   // This will store either teacher or student username
+  roleId    Int
+  role      Role     @relation(fields: [roleId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
 }

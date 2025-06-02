@@ -7,7 +7,8 @@ export async function GET() {
 			select: {
 				id: true,
 				firstName: true,
-				lastName: true
+				lastName: true,
+				username: true
 			},
 			orderBy: {
 				lastName: 'asc'
@@ -21,5 +22,26 @@ export async function GET() {
 			{ error: 'Failed to fetch teachers' },
 			{ status: 500 }
 		)
+	}
+}
+
+export async function POST(request: Request) {
+	if (!prisma) {
+		return NextResponse.json({ error: 'Database not initialized' }, { status: 500 })
+	}
+
+	try {
+		const { firstName, lastName, username } = await request.json()
+		const teacher = await prisma.teacher.create({
+			data: {
+				firstName,
+				lastName,
+				username
+			}
+		})
+		return NextResponse.json(teacher)
+	} catch (error) {
+		console.error('Error creating teacher:', error)
+		return NextResponse.json({ error: 'Failed to create teacher' }, { status: 500 })
 	}
 } 

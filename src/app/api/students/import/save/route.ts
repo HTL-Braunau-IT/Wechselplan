@@ -28,6 +28,7 @@ export async function POST(request: Request) {
         students: {
           firstName: string;
           lastName: string;
+          username: string;
         }[];
       }[];
     }
@@ -59,6 +60,7 @@ export async function POST(request: Request) {
           data: {
             firstName: student.firstName,
             lastName: student.lastName,
+            username: student.username,
             classId: classRecord.id
           }
         })

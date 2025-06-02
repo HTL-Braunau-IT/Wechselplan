@@ -7,12 +7,14 @@ interface ImportRequest {
   teachers: {
     firstName: string
     lastName: string
+    username: string
   }[]
 }
 
 interface ExistingTeacher {
   firstName: string
   lastName: string
+  username: string
 }
 
 export async function POST(request: Request) {
@@ -29,7 +31,8 @@ export async function POST(request: Request) {
     const existingTeachers = await (prisma as unknown as { teacher: { findMany: (args: Prisma.TeacherFindManyArgs) => Promise<ExistingTeacher[]> } }).teacher.findMany({
       select: {
         firstName: true,
-        lastName: true
+        lastName: true,
+        username: true
       }
     })
 
@@ -49,7 +52,8 @@ export async function POST(request: Request) {
         await (prisma as unknown as { teacher: { create: (args: Prisma.TeacherCreateArgs) => Promise<ExistingTeacher> } }).teacher.create({
           data: {
             firstName: teacher.firstName,
-            lastName: teacher.lastName
+            lastName: teacher.lastName,
+            username: teacher.username
           }
         })
         importedCount++

@@ -49,15 +49,7 @@ const getLDAPConfig = (): LDAPConfig => {
 }
 
 // Log configuration (without sensitive data)
-const logConfig = (config: LDAPConfig) => {
-  console.log('LDAP Configuration:', {
-    url: config.url,
-    baseDN: config.baseDN,
-    studentsOU: config.studentsOU,
-    hasUsername: !!config.username,
-    hasPassword: !!config.password
-  })
-}
+
 
 interface LDAPClass {
   ou: string
@@ -67,6 +59,7 @@ interface LDAPClass {
 interface LDAPStudent {
   givenName: string
   sn: string
+  sAMAccountName: string
 }
 
 interface LDAPAttribute {
@@ -93,6 +86,7 @@ interface ImportData {
     students: {
       firstName: string
       lastName: string
+      username: string
     }[]
   }[]
 }
@@ -259,7 +253,7 @@ export async function POST() {
 
         res.on('searchEntry', (entry: LDAPEntry) => {
           const ou = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'ou')?.values[0]
-          const dn = entry.objectName
+
           
           if (!LDAP_CONFIG.studentsOU) {
             console.error('Students OU is not configured')
@@ -360,7 +354,7 @@ export async function POST() {
         const searchOptions: ldap.SearchOptions = {
           filter: '(objectClass=user)',
           scope: 'sub' as const,
-          attributes: ['givenName', 'sn'],
+          attributes: ['givenName', 'sn', 'sAMAccountName'],
           paged: true,
           sizeLimit: 1000
         }
@@ -375,8 +369,9 @@ export async function POST() {
           res.on('searchEntry', (entry: LDAPEntry) => {
             const givenName = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'givenName')?.values[0]
             const sn = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'sn')?.values[0]
-            if (givenName && sn) {
-              students.push({ givenName, sn })
+            const username = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'sAMAccountName')?.values[0]
+            if (givenName && sn && username) {
+              students.push({ givenName, sn, sAMAccountName: username })
             }
           })
 
@@ -398,7 +393,8 @@ export async function POST() {
           name: className,
           students: students.map(student => ({
             firstName: student.givenName,
-            lastName: student.sn
+            lastName: student.sn,
+            username: student.sAMAccountName
           }))
         })
       }
