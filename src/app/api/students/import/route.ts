@@ -49,15 +49,7 @@ const getLDAPConfig = (): LDAPConfig => {
 }
 
 // Log configuration (without sensitive data)
-const logConfig = (config: LDAPConfig) => {
-  console.log('LDAP Configuration:', {
-    url: config.url,
-    baseDN: config.baseDN,
-    studentsOU: config.studentsOU,
-    hasUsername: !!config.username,
-    hasPassword: !!config.password
-  })
-}
+
 
 interface LDAPClass {
   ou: string
@@ -261,7 +253,7 @@ export async function POST() {
 
         res.on('searchEntry', (entry: LDAPEntry) => {
           const ou = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'ou')?.values[0]
-          const dn = entry.objectName
+
           
           if (!LDAP_CONFIG.studentsOU) {
             console.error('Students OU is not configured')

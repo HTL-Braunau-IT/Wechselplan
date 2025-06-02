@@ -194,9 +194,12 @@ export default function Home() {
       const teachersRes = await fetch('/api/teachers')
       if (!teachersRes.ok) throw new Error('Failed to fetch teachers')
       const teachers = await teachersRes.json() as Teacher[]
+      console.log('All teachers:', teachers)
+      console.log('Current user name:', session?.user?.name)
       const teacher = teachers.find(t => `${t.lastName} ${t.firstName}` === session?.user?.name)
       
       if (!teacher) {
+        console.error('Teacher not found. Available teachers:', teachers.map(t => `${t.lastName} ${t.firstName}`))
         throw new Error('Teacher not found')
       }
 
@@ -370,15 +373,15 @@ export default function Home() {
   const fetchAll = async () => {
     try {
       setLoading(true)
-      const [schedulesRes, groupsRes, amAssignmentsRes, pmAssignmentsRes, scheduleTimesRes, breakTimesRes, turnsRes, teachersRes] = await Promise.all([
+      const [schedulesRes, groupsRes, amAssignmentsRes, pmAssignmentsRes, scheduleTimesRes, breakTimesRes, teachersRes, turnsRes] = await Promise.all([
         fetch(`/api/schedules?classId=${selectedClass}`),
         fetch(`/api/schedule/assignments?class=${selectedClass}`),
         fetch(`/api/schedule/teacher-assignments?class=${selectedClass}`),
         fetch(`/api/schedule/teacher-assignments?class=${selectedClass}`),
         fetch(`/api/schedules/times?class=${selectedClass}`),
         fetch(`/api/schedules/times?class=${selectedClass}`),
-        fetch(`/api/schedules?classId=${selectedClass}`),
         fetch(`/api/teachers?class=${selectedClass}`),
+        fetch(`/api/schedules?classId=${selectedClass}`),
       ])
 
       if (!schedulesRes.ok) throw new Error('Failed to fetch schedules')
@@ -387,18 +390,18 @@ export default function Home() {
       if (!pmAssignmentsRes.ok) throw new Error('Failed to fetch PM assignments')
       if (!scheduleTimesRes.ok) throw new Error('Failed to fetch schedule times')
       if (!breakTimesRes.ok) throw new Error('Failed to fetch break times')
-      if (!turnsRes.ok) throw new Error('Failed to fetch turns')
       if (!teachersRes.ok) throw new Error('Failed to fetch teachers')
+      if (!turnsRes.ok) throw new Error('Failed to fetch turns')
 
-      const [schedules, groupAssignments, amAssignments, pmAssignments, timesData, breakTimesData, turns, teachers] = await Promise.all([
+      const [schedules, groupAssignments, amAssignments, pmAssignments, timesData, breakTimesData, teachers, turnsData] = await Promise.all([
         schedulesRes.json() as Promise<Schedule[]>,
         groupsRes.json() as Promise<GroupAssignmentsResponse>,
         amAssignmentsRes.json() as Promise<TeacherAssignmentsResponse>,
         pmAssignmentsRes.json() as Promise<TeacherAssignmentsResponse>,
         scheduleTimesRes.json() as Promise<{ scheduleTimes: ScheduleTime[], breakTimes: BreakTime[] }>,
         breakTimesRes.json() as Promise<{ scheduleTimes: ScheduleTime[], breakTimes: BreakTime[] }>,
-        turnsRes.json() as Promise<TurnSchedule>,
         teachersRes.json() as Promise<Teacher[]>,
+        turnsRes.json() as Promise<TurnSchedule>,
       ])
 
       // Convert group assignments to groups with students
@@ -419,8 +422,8 @@ export default function Home() {
       setPmAssignments(pmAssignments.pmAssignments)
       setScheduleTimes(timesData.scheduleTimes)
       setBreakTimes(timesData.breakTimes)
-      setTurns(turns)
       setTeachers(teachers)
+      setTurns(turnsData)
     } catch (err) {
       console.error('Error fetching data:', err)
       setError('Failed to load data')
@@ -481,16 +484,7 @@ export default function Home() {
   }
 
   // Helper: get weekday from first turn (dynamic)
-  function getWeekday() {
-    // Try to get from scheduleTimes, fallback to Montag
-    if (scheduleTimes.length > 0) {
-      const first = scheduleTimes[0];
-      // Try to parse weekday from startTime (if possible)
-      // Otherwise fallback
-      return first?.startTime ? new Date(`1970-01-01T${first.startTime}`).toLocaleDateString('de-DE', { weekday: 'long' }) : 'Montag';
-    }
-    return 'Montag';
-  }
+  
 
   // Helper: get assignment for a teacher, group, and period
   function getAssignment(teacherId: number, groupId: number, period: 'AM' | 'PM') {
@@ -532,7 +526,7 @@ export default function Home() {
     if (!groupList[0]) return null;
 
     // Check if current date is in any schedule's range
-    const currentDate = new Date();
+    
     const isInScheduleRange = schedules.some(schedule => {
       const scheduleData = Object.values(schedule.scheduleData)[0];
       return scheduleData?.weeks?.some(week => {
@@ -548,7 +542,7 @@ export default function Home() {
   }
 
   // Find the max number of students in any group for row rendering
-  const maxStudents = Math.max(...groups.map(g => g.students.length), 0);
+  
 
   if (status === 'loading') {
     return (

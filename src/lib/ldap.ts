@@ -73,10 +73,13 @@ export class LDAPClient {
 						const dn = decodeLDAPDN(rawDN)
 						console.log('Found user DN (raw):', rawDN)
 						console.log('Found user DN (decoded):', dn)
+						const displayName = attributes.find(attr => attr.type === 'displayName')?.values[0]
+						const mail = attributes.find(attr => attr.type === 'mail')?.values[0]
+						if (!displayName || !mail) return
 						user = {
 							dn,
-							displayName: attributes.find(attr => attr.type === 'displayName')?.values[0] as string,
-							mail: attributes.find(attr => attr.type === 'mail')?.values[0] as string,
+							displayName,
+							mail,
 						}
 					})
 
@@ -136,7 +139,8 @@ export class LDAPClient {
 					res.on('searchEntry', (entry: ldap.SearchEntry) => {
 						const rawDN = entry.dn.toString()
 						const dn = decodeLDAPDN(rawDN)
-						const cn = entry.attributes.find(attr => attr.type === 'cn')?.values[0] as string
+						const cn = entry.attributes.find(attr => attr.type === 'cn')?.values[0]
+						if (!cn) return
 						console.log('Found group DN (raw):', rawDN)
 						console.log('Found group DN (decoded):', dn)
 						console.log('Found group CN:', cn)

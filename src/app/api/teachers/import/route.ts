@@ -49,16 +49,6 @@ const getLDAPConfig = (): LDAPConfig => {
   return config as LDAPConfig
 }
 
-// Log configuration (without sensitive data)
-const logConfig = (config: LDAPConfig) => {
-  console.log('LDAP Configuration:', {
-    url: config.url,
-    baseDN: config.baseDN,
-    teachersOU: config.teachersOU,
-    hasUsername: !!config.username,
-    hasPassword: !!config.password
-  })
-}
 
 interface LDAPAttribute {
   type: string
@@ -75,29 +65,16 @@ interface LDAPTeacher {
   sAMAccountName: string
 }
 
-interface LDAPSearchResponse {
-  on(event: 'searchEntry', callback: (entry: LDAPEntry) => void): void
-  on(event: 'page', callback: (result: unknown) => void): void
-  on(event: 'end', callback: (result: unknown) => void): void
-  on(event: 'error', callback: (err: Error) => void): void
-}
 
-interface ImportData {
-  teachers: {
-    firstName: string
-    lastName: string
-    username: string
-  }[]
-}
-
-export async function POST() {
+export async function POST(): Promise<Response> {
   if (!prisma) {
     return NextResponse.json({ error: 'Database not initialized' }, { status: 500 })
   }
 
   try {
+    const config = getLDAPConfig()
     const client = ldap.createClient({
-      url: process.env.LDAP_URL ?? 'ldap://localhost:389',
+      url: config.url,
       timeout: 5000,
       connectTimeout: 10000,
       idleTimeout: 5000,
@@ -110,12 +87,12 @@ export async function POST() {
 
     const teachers: LDAPTeacher[] = []
 
-    return new Promise((resolve, reject) => {
-      client.bind(process.env.LDAP_USERNAME ?? '', process.env.LDAP_PASSWORD ?? '', (err) => {
+    return new Promise<Response>((resolve) => {
+      client.bind(config.username, config.password, (err) => {
         if (err) {
           console.error('LDAP bind error:', err)
           client.unbind()
-          reject(new Error('LDAP bind failed'))
+          resolve(NextResponse.json({ error: 'LDAP bind failed' }, { status: 500 }))
           return
         }
 
@@ -127,11 +104,11 @@ export async function POST() {
           sizeLimit: 1000
         }
 
-        client.search(process.env.LDAP_TEACHERS_OU ?? '', searchOptions, (err, res) => {
+        client.search(config.teachersOU, searchOptions, (err, res) => {
           if (err) {
             console.error('LDAP search error:', err)
             client.unbind()
-            reject(new Error('LDAP search failed'))
+            resolve(NextResponse.json({ error: 'LDAP search failed' }, { status: 500 }))
             return
           }
 
@@ -147,7 +124,7 @@ export async function POST() {
           res.on('error', (err: Error) => {
             console.error('LDAP search error:', err)
             client.unbind()
-            reject(new Error('LDAP search failed'))
+            resolve(NextResponse.json({ error: 'LDAP search failed' }, { status: 500 }))
           })
 
           res.on('end', () => {

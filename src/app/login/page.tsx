@@ -35,7 +35,7 @@ export default function LoginPage() {
 			}
 
 			router.push('/')
-		} catch (err) {
+		} catch {
 			setError('An error occurred during login')
 		} finally {
 			setIsLoading(false)
@@ -48,7 +48,7 @@ export default function LoginPage() {
 
 		try {
 			await signIn('azure-ad', { callbackUrl: '/' })
-		} catch (err) {
+		} catch  {
 			setError('An error occurred during login')
 			setIsLoading(false)
 		}
