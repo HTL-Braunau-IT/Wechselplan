@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     const data = await request.json()
     
     // Validate required fields
-    if (!data.startTime || !data.endTime || !data.hours || !data.period) {
+    if (!data.startTime || !data.endTime || data.hours == null || !data.period) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
