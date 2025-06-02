@@ -21,8 +21,27 @@ export default function LoginSettingsPage() {
 	}
 
 	const handleLDAPSave = async (config: LDAPConfigType) => {
-		// TODO: Implement API call to save LDAP configuration
-		setActiveProviders((prev) => ({ ...prev, ldap: config }))
+		try {
+			console.log('Making API call to save LDAP config:', config)
+			const response = await fetch('/api/auth/ldap-config', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify(config),
+			})
+
+			if (!response.ok) {
+				console.error('API call failed:', response.status, response.statusText)
+				throw new Error('Failed to save LDAP configuration')
+			}
+
+			console.log('LDAP config saved successfully')
+			setActiveProviders((prev) => ({ ...prev, ldap: config }))
+		} catch (error) {
+			console.error('Error saving LDAP configuration:', error)
+			throw error
+		}
 	}
 
 	const addMicrosoftProvider = () => {
@@ -50,6 +69,8 @@ export default function LoginSettingsPage() {
 				userSearchBase: '',
 				userSearchFilter: '',
 				enabled: false,
+				studentGroups: [],
+				teacherGroups: [],
 			},
 		}))
 		setActiveTab('active')

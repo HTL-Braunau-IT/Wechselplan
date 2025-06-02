@@ -22,6 +22,8 @@ export interface LDAPConfig {
 	userSearchBase: string
 	userSearchFilter: string
 	enabled: boolean
+	studentGroups: string[]
+	teacherGroups: string[]
 }
 
 export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
@@ -29,6 +31,8 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 	const [isSaving, setIsSaving] = useState(false)
 	const [error, setError] = useState<string | null>(null)
 	const [isLoading, setIsLoading] = useState(true)
+	const [newStudentGroup, setNewStudentGroup] = useState('')
+	const [newTeacherGroup, setNewTeacherGroup] = useState('')
 
 	useEffect(() => {
 		async function fetchConfig() {
@@ -44,6 +48,8 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 					userSearchBase: data.userSearchBase ?? '',
 					userSearchFilter: data.userSearchFilter ?? '(sAMAccountName={0})',
 					enabled: data.enabled ?? false,
+					studentGroups: data.studentGroups ?? [],
+					teacherGroups: data.teacherGroups ?? [],
 				})
 			} catch (err) {
 				setError(err instanceof Error ? err.message : 'Failed to load configuration')
@@ -52,7 +58,6 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 			}
 		}
 
-		// Only use initialConfig if it is fully populated (not all values are empty or false)
 		if (
 			initialConfig &&
 			Object.values(initialConfig).some((v) => v !== '' && v !== false)
@@ -64,14 +69,51 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 		}
 	}, [initialConfig])
 
+	const handleAddStudentGroup = () => {
+		if (!newStudentGroup.trim() || !config) return
+		setConfig({
+			...config,
+			studentGroups: [...config.studentGroups, newStudentGroup.trim()]
+		})
+		setNewStudentGroup('')
+	}
+
+	const handleAddTeacherGroup = () => {
+		if (!newTeacherGroup.trim() || !config) return
+		setConfig({
+			...config,
+			teacherGroups: [...config.teacherGroups, newTeacherGroup.trim()]
+		})
+		setNewTeacherGroup('')
+	}
+
+	const handleRemoveStudentGroup = (index: number) => {
+		if (!config) return
+		setConfig({
+			...config,
+			studentGroups: config.studentGroups.filter((_, i) => i !== index)
+		})
+	}
+
+	const handleRemoveTeacherGroup = (index: number) => {
+		if (!config) return
+		setConfig({
+			...config,
+			teacherGroups: config.teacherGroups.filter((_, i) => i !== index)
+		})
+	}
+
 	const handleSave = async () => {
 		if (!config) return
 		setIsSaving(true)
 		setError(null)
 
 		try {
+			console.log('Saving LDAP config:', config)
 			await onSave(config)
+			console.log('LDAP config saved successfully')
 		} catch (err) {
+			console.error('Error saving LDAP config:', err)
 			setError(err instanceof Error ? err.message : 'Failed to save configuration')
 		} finally {
 			setIsSaving(false)
@@ -198,6 +240,64 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 						}
 					/>
 					<Label htmlFor="enabled">Enable LDAP Authentication</Label>
+				</div>
+
+				<div className="space-y-4">
+					<div className="space-y-2">
+						<Label>Student Groups</Label>
+						<div className="flex gap-2">
+							<Input
+								value={newStudentGroup}
+								onChange={(e) => setNewStudentGroup(e.target.value)}
+								placeholder="Enter LDAP group DN"
+							/>
+							<Button onClick={handleAddStudentGroup} type="button">
+								Add
+							</Button>
+						</div>
+						<div className="space-y-2 mt-2">
+							{config.studentGroups.map((group, index) => (
+								<div key={index} className="flex items-center gap-2">
+									<span className="text-sm">{group}</span>
+									<Button
+										variant="ghost"
+										size="sm"
+										onClick={() => handleRemoveStudentGroup(index)}
+									>
+										Remove
+									</Button>
+								</div>
+							))}
+						</div>
+					</div>
+
+					<div className="space-y-2">
+						<Label>Teacher Groups</Label>
+						<div className="flex gap-2">
+							<Input
+								value={newTeacherGroup}
+								onChange={(e) => setNewTeacherGroup(e.target.value)}
+								placeholder="Enter LDAP group DN"
+							/>
+							<Button onClick={handleAddTeacherGroup} type="button">
+								Add
+							</Button>
+						</div>
+						<div className="space-y-2 mt-2">
+							{config.teacherGroups.map((group, index) => (
+								<div key={index} className="flex items-center gap-2">
+									<span className="text-sm">{group}</span>
+									<Button
+										variant="ghost"
+										size="sm"
+										onClick={() => handleRemoveTeacherGroup(index)}
+									>
+										Remove
+									</Button>
+								</div>
+							))}
+						</div>
+					</div>
 				</div>
 
 				<div className="flex justify-end">
