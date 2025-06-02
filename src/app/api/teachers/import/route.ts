@@ -67,9 +67,6 @@ interface LDAPTeacher {
 
 
 export async function POST(): Promise<Response> {
-  if (!prisma) {
-    return NextResponse.json({ error: 'Database not initialized' }, { status: 500 })
-  }
 
   try {
     const config = getLDAPConfig()
