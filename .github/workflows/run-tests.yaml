@@ -101,7 +101,7 @@ jobs:
             ghcr.io/michelroegl-brunner/wechselplan-app:latest
             ghcr.io/michelroegl-brunner/wechselplan-app:v${{ steps.new_version.outputs.version }}
           build-args: |
-            VERSION=v${{ steps.new_version.outputs.version }}
+            VERSION=${{ steps.new_version.outputs.version }}
             BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           no-cache: true
 

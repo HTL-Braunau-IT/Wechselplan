@@ -591,7 +591,7 @@ export default function Home() {
           <h1 className="text-4xl font-bold mb-8">{t('common.welcome')}</h1>
           <div className="text-sm text-gray-500">
             <div>Version: {process.env.NEXT_PUBLIC_APP_VERSION ?? '0.0.0'}</div>
-            <div>Build: {process.env.NEXT_PUBLIC_BUILD_DATE ? new Date(process.env.NEXT_PUBLIC_BUILD_DATE).toLocaleDateString() : 'N/A'}</div>
+            <div>Build: {process.env.NEXT_PUBLIC_BUILD_DATE ? new Date(process.env.NEXT_PUBLIC_BUILD_DATE).toLocaleDateString('de-DE') : 'N/A'}</div>
           </div>
         </div>
         
