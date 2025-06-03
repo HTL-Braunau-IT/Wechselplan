@@ -125,12 +125,13 @@ export function TeacherOverview() {
 
         const getScheduleInfo = (classId: number) => {
             console.log("Looking for schedule for classId:", classId)
-            console.log("Available schedules:", scheduleData.schedules)
-            const schedule = scheduleData.schedules.find(schedules => 
+            // Find the schedule array for this class
+            const classSchedule = scheduleData.schedules.find(schedules => 
                 schedules.some(s => Number(s.classId) === classId)
-            )?.[0]
-            console.log("Found schedule:", schedule)
-            return schedule?.scheduleData
+            )
+            console.log("Found class schedule:", classSchedule)
+            // Return the schedule data from the first (and should be only) schedule
+            return classSchedule?.[0]?.scheduleData
         }
 
         const getCurrentWeek = (scheduleInfo: Record<string, ScheduleTerm> | undefined) => {

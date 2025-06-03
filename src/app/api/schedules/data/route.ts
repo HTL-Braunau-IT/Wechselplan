@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { Sheet } from 'lucide-react'
+
 
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
@@ -45,6 +45,7 @@ export async function GET(req: Request) {
     const schedules = []
     const students = []
     const classdata: { id: number; name: string }[] = []
+    const validClassIds = new Set<number>()
 
     // First fetch all class data
     for (const classId of classIds) {
@@ -60,15 +61,26 @@ export async function GET(req: Request) {
 
     // Then fetch schedules and students for each class
     for (const classId of classIds) {
-        const schedule = await prisma.schedule.findMany({
+        console.log("Fetching schedule for class", classId, "on weekday", currentWeekday)
+        const schedule = await prisma.schedule.findFirst({
             where: {
                 classId: classId,
                 selectedWeekday: parseInt(currentWeekday)
+            },
+            orderBy: {
+                createdAt: 'desc'
             }
         })
-        console.log("Schedule for class", classId, ":", schedule)
-        // Always add an array for this class, even if empty
-        schedules.push(schedule)
+        console.log("Found schedule for class", classId, ":", schedule)
+        
+        // Add schedule if it exists for this weekday
+        if (schedule) {
+            schedules.push([schedule])
+            validClassIds.add(classId)
+        } else {
+            // Add empty array to maintain index alignment with classIds
+            schedules.push([])
+        }
         
         // Always fetch students for each class, regardless of schedule
         const student = await prisma.student.findMany({
@@ -81,9 +93,14 @@ export async function GET(req: Request) {
         }
     }
 
+    // Filter assignments to only include those with valid schedules for this weekday
+    const filteredAssignments = asignments.filter(assignment => 
+        validClassIds.has(assignment.classId)
+    )
+
+    
+    console.log("Filtered assignments:", filteredAssignments)
     console.log("Class data:", classdata)
-    console.log("Schedules:", schedules)
-    console.log("Students:", students)
 
     // Only return error if we have no students
     if (students.length === 0) {
@@ -94,7 +111,7 @@ export async function GET(req: Request) {
         schedules,
         students,
         teacherRotation,
-        assignments: asignments,
+        assignments: filteredAssignments,
         classdata: classdata
     }, { status: 200 })
 }
