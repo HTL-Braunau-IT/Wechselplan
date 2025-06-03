@@ -23,6 +23,7 @@ interface Holiday {
 }
 
 type ScheduleEntry = {
+  name: string
   weeks: WeekInfo[]
   holidays: Holiday[]
   customLength?: number
@@ -249,6 +250,7 @@ export default function RotationPage() {
           return holidayStartDay === selectedWeekday;
         });
         newSchedule[turnusKey] = {
+          name: turnusKey,
           weeks: weeksWithHolidays
             .filter(week => !week.isHoliday)
             .map(({ week, date }) => ({ week, date, isHoliday: false })),
@@ -279,6 +281,19 @@ export default function RotationPage() {
       setIsSaving(true)
       setSaveError(null)
 
+      // First, get the numeric class ID from the class name
+      const classResponse = await fetch(`/api/classes/get-by-name?name=${classId}`)
+      if (!classResponse.ok) {
+        throw new Error('Failed to fetch class information')
+      }
+      const classData = await classResponse.json()
+      if (!classData?.id) {
+        throw new Error('Class not found')
+      }
+
+      const firstSchedule = Object.values(schedule)[0]
+      console.log("Schedule: ", firstSchedule?.name)
+
       const response = await fetch('/api/schedules', {
         method: 'POST',
         headers: {
@@ -291,7 +306,7 @@ export default function RotationPage() {
           endDate: endDate.toISOString(),
           selectedWeekday,
           schedule,
-          classId
+          classId: classData.id
         }),
       })
 
