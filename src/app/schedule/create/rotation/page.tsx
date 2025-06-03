@@ -107,7 +107,9 @@ export default function RotationPage() {
       const response = await fetch(`/api/schedules?classId=${classId}&weekday=${selectedWeekday}`);
       if (!response.ok) throw new Error('Failed to fetch schedule');
       const schedules = await response.json();
-      console.log('Schedules:', schedules);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('Schedules:', schedules);
+      }
       if (schedules && schedules.length > 0) {
         const latest = schedules[0];
         // Populate state from loaded schedule
