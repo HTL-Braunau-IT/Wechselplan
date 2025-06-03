@@ -81,7 +81,9 @@ export function TeacherOverview() {
         }
         
         setScheduleData(data as ScheduleData)
-        console.log(data)
+        if (process.env.NODE_ENV === "development") {
+            console.log(data)
+        }
     }
 
     const handleTabChange = (value: string) => {
