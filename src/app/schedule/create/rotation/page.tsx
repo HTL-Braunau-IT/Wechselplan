@@ -170,7 +170,7 @@ export default function RotationPage() {
   
 
   const calculateSchedule = () => {
-    if (isCustomLehgth && loadedFromDb) {
+    if ((isCustomLehgth && loadedFromDb) || !loadedFromDb) {
       const newSchedule: Schedule = {}
       // Generate all rotation dates for the year
       const allRotationDates = getAllRotationDates(schoolYearStart, schoolYearEnd, selectedWeekday);
