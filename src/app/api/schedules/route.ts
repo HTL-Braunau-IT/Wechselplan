@@ -39,10 +39,12 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
     const classId = searchParams.get('classId')
+    const weekday = searchParams.get('weekday')
 
     const schedules = await db.schedule.findMany({
       where: {
-        classId: classId ? parseInt(classId) : null
+        classId: classId ? parseInt(classId) : undefined,
+        selectedWeekday: weekday ? parseInt(weekday) : undefined
       },
       orderBy: {
         createdAt: 'desc'
