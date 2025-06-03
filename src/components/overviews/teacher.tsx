@@ -9,7 +9,7 @@ export function TeacherOverview() {
     const fetchData = async () => {
         const response = await fetch('/api/classes?teacher=${session?.user?.name')
         const data = await response.json()
-        console.log(data)
+        //console.log(data)
     }
 
     useEffect(() => {
