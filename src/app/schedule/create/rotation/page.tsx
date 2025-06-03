@@ -23,6 +23,7 @@ interface Holiday {
 }
 
 type ScheduleEntry = {
+  name: string
   weeks: WeekInfo[]
   holidays: Holiday[]
   customLength?: number
@@ -249,6 +250,7 @@ export default function RotationPage() {
           return holidayStartDay === selectedWeekday;
         });
         newSchedule[turnusKey] = {
+          name: turnusKey,
           weeks: weeksWithHolidays
             .filter(week => !week.isHoliday)
             .map(({ week, date }) => ({ week, date, isHoliday: false })),
@@ -278,6 +280,9 @@ export default function RotationPage() {
     try {
       setIsSaving(true)
       setSaveError(null)
+
+      const firstSchedule = Object.values(schedule)[0]
+      console.log("Schedule: ", firstSchedule?.name)
 
       const response = await fetch('/api/schedules', {
         method: 'POST',
