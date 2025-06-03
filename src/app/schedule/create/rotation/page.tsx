@@ -281,6 +281,16 @@ export default function RotationPage() {
       setIsSaving(true)
       setSaveError(null)
 
+      // First, get the numeric class ID from the class name
+      const classResponse = await fetch(`/api/classes/get-by-name?name=${classId}`)
+      if (!classResponse.ok) {
+        throw new Error('Failed to fetch class information')
+      }
+      const classData = await classResponse.json()
+      if (!classData?.id) {
+        throw new Error('Class not found')
+      }
+
       const firstSchedule = Object.values(schedule)[0]
       console.log("Schedule: ", firstSchedule?.name)
 
@@ -296,7 +306,7 @@ export default function RotationPage() {
           endDate: endDate.toISOString(),
           selectedWeekday,
           schedule,
-          classId
+          classId: classData.id
         }),
       })
 
