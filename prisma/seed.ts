@@ -32,9 +32,9 @@ async function main() {
   // Create school holidays
   const holidays = [
     {
-      name: 'Herbstferien',
+      name: 'Erste Schulwoche',
       startDate: new Date('2024-09-09'),
-      endDate: new Date('2024-09-09')
+      endDate: new Date('2024-09-16')
     },
     {
       name: 'Herbstferien',
@@ -75,6 +75,11 @@ async function main() {
       name: 'Fronleichnam',
       startDate: new Date('2025-06-19'),
       endDate: new Date('2025-06-20')
+    },
+    {
+      name: 'Letzten zwei Schulwoche',
+      startDate: new Date('2025-06-23'),
+      endDate: new Date('2025-07-04')
     }
   ]
 
@@ -85,6 +90,113 @@ async function main() {
   }
 
   console.log('School holidays created successfully')
+
+  // Create rooms
+  const rooms = [
+    {
+      name: 'Room 101',
+      capacity: 30,
+      description: 'Main classroom for general subjects'
+    },
+    {
+      name: 'Room 102',
+      capacity: 25,
+      description: 'Computer lab'
+    },
+    {
+      name: 'Room 103',
+      capacity: 20,
+      description: 'Science laboratory'
+    },
+    {
+      name: 'Room 104',
+      capacity: 35,
+      description: 'Large lecture hall'
+    },
+    {
+      name: 'Room 105',
+      capacity: 15,
+      description: 'Small group room'
+    }
+  ]
+
+  for (const room of rooms) {
+    await prisma.room.upsert({
+      where: { name: room.name },
+      update: {},
+      create: room
+    })
+  }
+
+  console.log('Rooms created successfully')
+
+  // Create subjects
+  const subjects = [
+    {
+      name: 'Mathematics',
+      description: 'Core mathematics curriculum including algebra, geometry, and calculus'
+    },
+    {
+      name: 'Physics',
+      description: 'Study of matter, energy, and their interactions'
+    },
+    {
+      name: 'Computer Science',
+      description: 'Programming, algorithms, and computer systems'
+    },
+    {
+      name: 'English',
+      description: 'English language and literature'
+    },
+    {
+      name: 'German',
+      description: 'German language and literature'
+    }
+  ]
+
+  for (const subject of subjects) {
+    await prisma.subject.upsert({
+      where: { name: subject.name },
+      update: {},
+      create: subject
+    })
+  }
+
+  console.log('Subjects created successfully')
+
+  // Create learning content
+  const learningContents = [
+    {
+      name: 'Basic Algebra',
+      description: 'Introduction to algebraic concepts and equations'
+    },
+    {
+      name: 'Mechanics',
+      description: 'Study of motion, forces, and energy'
+    },
+    {
+      name: 'Web Development',
+      description: 'HTML, CSS, and JavaScript fundamentals'
+    },
+    {
+      name: 'Grammar and Composition',
+      description: 'English grammar rules and writing techniques'
+    },
+    {
+      name: 'German Literature',
+      description: 'Study of German literary works and analysis'
+    }
+  ]
+
+  for (const content of learningContents) {
+    await prisma.learningContent.upsert({
+      where: { name: content.name },
+      update: {},
+      create: content
+    })
+  }
+
+  console.log('Learning content created successfully')
 }
 
 main()
