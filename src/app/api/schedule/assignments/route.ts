@@ -100,17 +100,29 @@ export async function POST(request: Request) {
 
 		// Update each student's groupId
 		for (const assignment of assignments) {
-			await prisma.student.updateMany({
-				where: {
-					id: { in: assignment.studentIds }
-				},
-				data: {
-					groupId: assignment.groupId
-				}
-			})
+			// Skip the unassigned group (groupId: 0)
+			if (assignment.groupId === 0) {
+				await prisma.student.updateMany({
+					where: {
+						id: { in: assignment.studentIds }
+					},
+					data: {
+						groupId: null
+					}
+				})
+			} else {
+				await prisma.student.updateMany({
+					where: {
+						id: { in: assignment.studentIds }
+					},
+					data: {
+						groupId: assignment.groupId
+					}
+				})
+			}
 		}
 
-		// Remove groupId from removed students
+		// Remove groupId from removed students (this is now handled by the unassigned group)
 		if (removedStudentIds.length > 0) {
 			await prisma.student.updateMany({
 				where: {

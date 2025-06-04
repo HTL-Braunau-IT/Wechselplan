@@ -1,13 +1,17 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors, useDroppable, useDraggable } from '@dnd-kit/core'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import { useTranslation } from 'next-i18next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { prisma } from '@/lib/prisma'
 
 interface Student {
 	id: number
@@ -36,6 +40,9 @@ interface AssignmentsResponse {
 	assignments: Assignment[]
 	unassignedStudents: Student[]
 }
+
+// Add constant for unassigned group ID
+const UNASSIGNED_GROUP_ID = 0
 
 function StudentItem({ student, index, onRemove }: { student: Student, index: number, onRemove: (studentId: number) => void }) {
 	const { attributes, listeners, setNodeRef, transform } = useDraggable({
@@ -87,7 +94,9 @@ function GroupContainer({ group, children }: { group: Group, children: React.Rea
 				isOver ? 'bg-accent/50 border-accent' : ''
 			}`}
 		>
-			<h3 className="font-semibold mb-2 text-foreground">{t('group')} {group.id}</h3>
+			<h3 className="font-semibold mb-2 text-foreground">
+				{group.id === UNASSIGNED_GROUP_ID ? t('unassigned') : `${t('group')} ${group.id}`}
+			</h3>
 			{children}
 		</div>
 	)
@@ -96,18 +105,43 @@ function GroupContainer({ group, children }: { group: Group, children: React.Rea
 export default function ScheduleClassSelectPage() {
 	const router = useRouter()
 	const { t } = useTranslation('schedule')
+	const searchParams = useSearchParams()
 
 	const [classes, setClasses] = useState<Class[]>([])
-	const [selectedClass, setSelectedClass] = useState('')
+	const [selectedClass, setSelectedClass] = useState<string>(searchParams.get('class') ?? '')
 	const [students, setStudents] = useState<Student[]>([])
-	const [loading, setLoading] = useState(true)
-	const [error, setError] = useState('')
-	const [numberOfGroups, setNumberOfGroups] = useState(2)
-	const [groups, setGroups] = useState<Group[]>([])
+	const [loading, setLoading] = useState<boolean>(false)
+	const [error, setError] = useState<string | null>(null)
+	const [numberOfGroups, setNumberOfGroups] = useState<number>(2)
+	const [groups, setGroups] = useState<Group[]>([
+		{
+			id: UNASSIGNED_GROUP_ID,
+			students: []
+		}
+	])
 	const [activeStudent, setActiveStudent] = useState<Student | null>(null)
 	const [showConfirmDialog, setShowConfirmDialog] = useState(false)
-	const [pendingAssignments, setPendingAssignments] = useState<{ assignments: Assignment[], removedStudentIds: number[] } | null>(null)
+	const [pendingAssignments, setPendingAssignments] = useState<{
+		assignments: Assignment[]
+		removedStudentIds: number[]
+	} | null>(null)
 	const hasExistingAssignmentsRef = useRef(false)
+	const [showAddStudentDialog, setShowAddStudentDialog] = useState(false)
+	const [newStudent, setNewStudent] = useState({
+		firstName: '',
+		lastName: '',
+		username: ''
+	})
+
+	// Add effect to automatically generate username
+	useEffect(() => {
+		if (newStudent.firstName && newStudent.lastName) {
+			setNewStudent(prev => ({
+				...prev,
+				username: `${newStudent.firstName.toLowerCase()}.${newStudent.lastName.toLowerCase()}`
+			}))
+		}
+	}, [newStudent.firstName, newStudent.lastName])
 
 	const sensors = useSensors(
 		useSensor(MouseSensor, {
@@ -158,16 +192,24 @@ export default function ScheduleClassSelectPage() {
 
 				if (assignmentsData.assignments && assignmentsData.assignments.length > 0) {
 					// If we have existing assignments, use them
-					const existingGroups: Group[] = assignmentsData.assignments.map(assignment => ({
-						id: assignment.groupId,
-						students: assignment.studentIds.map(id => {
-							const student = studentsData.find(s => s.id === id)
-							if (!student) throw new Error(`Student with id ${id} not found`)
-							return student
-						})
-					}))
+					const existingGroups: Group[] = [
+						// Always include unassigned group first
+						{
+							id: UNASSIGNED_GROUP_ID,
+							students: assignmentsData.unassignedStudents || []
+						},
+						// Then add regular groups
+						...assignmentsData.assignments.map(assignment => ({
+							id: assignment.groupId,
+							students: assignment.studentIds.map(id => {
+								const student = studentsData.find(s => s.id === id)
+								if (!student) throw new Error(`Student with id ${id} not found`)
+								return student
+							})
+						}))
+					]
 					setGroups(existingGroups)
-					setNumberOfGroups(existingGroups.length)
+					setNumberOfGroups(existingGroups.length - 1) // Subtract 1 for unassigned group
 					hasExistingAssignmentsRef.current = true
 				} else {
 					// Otherwise, create default groups
@@ -175,10 +217,18 @@ export default function ScheduleClassSelectPage() {
 						a.lastName.localeCompare(b.lastName)
 					)
 					const studentsPerGroup = Math.ceil(sortedStudents.length / numberOfGroups)
-					const newGroups: Group[] = Array.from({ length: numberOfGroups }, (_, i) => ({
-						id: i + 1,
-						students: sortedStudents.slice(i * studentsPerGroup, (i + 1) * studentsPerGroup)
-					}))
+					const newGroups: Group[] = [
+						// Always include unassigned group first
+						{
+							id: UNASSIGNED_GROUP_ID,
+							students: []
+						},
+						// Then add regular groups
+						...Array.from({ length: numberOfGroups }, (_, i) => ({
+							id: i + 1,
+							students: sortedStudents.slice(i * studentsPerGroup, (i + 1) * studentsPerGroup)
+						}))
+					]
 					setGroups(newGroups)
 					hasExistingAssignmentsRef.current = false
 				}
@@ -205,25 +255,41 @@ export default function ScheduleClassSelectPage() {
 			const allStudents = groups.flatMap(group => group.students)
 			
 			// Create new groups with the updated number of groups
-			const newGroups: Group[] = Array.from({ length: numberOfGroups }, (_, i) => ({
-				id: i + 1,
-				students: []
-			}))
+			const newGroups: Group[] = [
+				// Add unassigned group first
+				{
+					id: UNASSIGNED_GROUP_ID,
+					students: []
+				},
+				// Add regular groups
+				...Array.from({ length: numberOfGroups }, (_, i) => ({
+					id: i + 1,
+					students: []
+				}))
+			]
 
 			// Distribute students evenly across new groups
 			allStudents.forEach((student, index) => {
 				const targetGroupIndex = index % numberOfGroups
-				newGroups[targetGroupIndex]!.students.push(student)
+				newGroups[targetGroupIndex + 1]!.students.push(student) // +1 because of unassigned group
 			})
 
 			setGroups(newGroups)
 		} else {
 			// For new groups, distribute all students evenly
 			const studentsPerGroup = Math.ceil(sortedStudents.length / numberOfGroups)
-			const newGroups: Group[] = Array.from({ length: numberOfGroups }, (_, i) => ({
-				id: i + 1,
-				students: sortedStudents.slice(i * studentsPerGroup, (i + 1) * studentsPerGroup)
-			}))
+			const newGroups: Group[] = [
+				// Add unassigned group first
+				{
+					id: UNASSIGNED_GROUP_ID,
+					students: []
+				},
+				// Add regular groups
+				...Array.from({ length: numberOfGroups }, (_, i) => ({
+					id: i + 1,
+					students: sortedStudents.slice(i * studentsPerGroup, (i + 1) * studentsPerGroup)
+				}))
+			]
 			setGroups(newGroups)
 		}
 	}, [numberOfGroups, students])
@@ -238,6 +304,23 @@ export default function ScheduleClassSelectPage() {
 			}))
 		)
 	}, [numberOfGroups])
+
+	// Add effect to ensure unassigned group is always present
+	useEffect(() => {
+		setGroups(currentGroups => {
+			// If unassigned group doesn't exist, add it
+			if (!currentGroups.some(g => g.id === UNASSIGNED_GROUP_ID)) {
+				return [
+					{
+						id: UNASSIGNED_GROUP_ID,
+						students: []
+					},
+					...currentGroups
+				]
+			}
+			return currentGroups
+		})
+	}, [])
 
 	function handleGroupSizeChange(e: React.ChangeEvent<HTMLSelectElement>) {
 		setNumberOfGroups(Number(e.target.value))
@@ -409,6 +492,44 @@ export default function ScheduleClassSelectPage() {
 		setActiveStudent(null)
 	}
 
+	async function handleAddStudent(e: React.FormEvent) {
+		e.preventDefault() // Prevent form submission
+		if (!selectedClass) return
+
+		try {
+			// Create the new student
+			const response = await fetch('/api/students', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					...newStudent,
+					className: selectedClass
+				}),
+			})
+
+			if (!response.ok) {
+				const error = await response.json() as { error?: string }
+				throw new Error(error.error ?? 'Failed to create student')
+			}
+
+			// Reset form and close dialog
+			setNewStudent({
+				firstName: '',
+				lastName: '',
+				username: ''
+			})
+			setShowAddStudentDialog(false)
+
+			// Reload the page with the class parameter
+			router.push(`/schedule/create?class=${selectedClass}`)
+		} catch (error) {
+			console.error('Error adding student:', error)
+			setError(error instanceof Error ? error.message : 'Failed to add student')
+		}
+	}
+
 	return (
 		<div className="container mx-auto p-4">
 			<Card>
@@ -426,31 +547,45 @@ export default function ScheduleClassSelectPage() {
 								e.preventDefault()
 								await handleNext()
 							}} className="mb-8">
-								<Label htmlFor="class-select" className="block mb-2 font-medium">{t('class')}</Label>
-								<Select
-									value={selectedClass}
-									onValueChange={setSelectedClass}
-									required
-								>
-									<SelectTrigger className="w-full">
-										<SelectValue placeholder={t('pleaseSelect')} />
-									</SelectTrigger>
-									<SelectContent>
-										{classes.map((cls) => (
-											<SelectItem key={cls.id} value={cls.name}>
-												{cls.name}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-								<button
-									type="submit"
-									disabled={!selectedClass}
-									className="w-full bg-primary text-primary-foreground py-2 rounded hover:bg-primary/90 transition mt-4"
-								>
-									{t('next')}
-								</button>
+								<div className="space-y-4">
+									<div>
+										<Label htmlFor="class-select" className="block mb-2 font-medium">{t('class')}</Label>
+										<Select
+											value={selectedClass}
+											onValueChange={setSelectedClass}
+											required
+										>
+											<SelectTrigger className="w-full">
+												<SelectValue placeholder={t('pleaseSelect')} />
+											</SelectTrigger>
+											<SelectContent>
+												{classes.map((cls) => (
+													<SelectItem key={cls.id} value={cls.name}>
+														{cls.name}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+									</div>
+									<div className="flex gap-2">
+										<Button
+											type="submit"
+											disabled={!selectedClass}
+											className="bg-primary text-primary-foreground hover:bg-primary/90"
+										>
+											{t('next')}
+										</Button>
+									</div>
+								</div>
 							</form>
+							<div className="flex gap-2 mb-8">
+								<Button
+									onClick={() => setShowAddStudentDialog(true)}
+									className="bg-primary text-primary-foreground hover:bg-primary/90"
+								>
+									{t('addStudent')}
+								</Button>
+							</div>
 
 							{selectedClass && (
 								<div>
@@ -487,7 +622,8 @@ export default function ScheduleClassSelectPage() {
 														? 'grid-cols-2 justify-items-center [&>*:nth-child(3)]:col-span-2 [&>*:nth-child(3)]:max-w-md [&>*:nth-child(3)]:mx-auto' 
 														: 'grid-cols-2 justify-items-center'
 											}`}>
-												{groups.sort((a, b) => a.id - b.id).map((group) => (
+												{/* Regular groups first */}
+												{groups.filter(g => g.id !== UNASSIGNED_GROUP_ID).sort((a, b) => a.id - b.id).map((group) => (
 													<GroupContainer key={group.id} group={group}>
 														<div className="space-y-2">
 															{group.students.map((student, index) => (
@@ -495,25 +631,101 @@ export default function ScheduleClassSelectPage() {
 																	key={student.id} 
 																	student={student} 
 																	index={index}
-																	onRemove={(studentId) => {
-																		setGroups(currentGroups => {
-																			const newGroups = [...currentGroups]
-																			const sourceGroupIndex = newGroups.findIndex(group => 
-																				group.students.some(s => s.id === studentId)
-																			)
-																			if (sourceGroupIndex !== -1) {
-																				newGroups[sourceGroupIndex]!.students = newGroups[sourceGroupIndex]!.students.filter(
-																					s => s.id !== studentId
-																				)
+																	onRemove={async (studentId) => {
+																		try {
+																			// Delete the student from the database
+																			const response = await fetch(`/api/students/${studentId}`, {
+																				method: 'DELETE'
+																			})
+
+																			if (!response.ok) {
+																				throw new Error('Failed to delete student')
 																			}
-																			return newGroups
-																		})
+
+																			// Update the students state
+																			setStudents(currentStudents => 
+																				currentStudents.filter(s => s.id !== studentId)
+																			)
+
+																			// Update the groups state
+																			setGroups(currentGroups => {
+																				const newGroups = currentGroups.map(group => ({
+																					...group,
+																					students: group.students.filter(s => s.id !== studentId)
+																				}))
+																				return newGroups
+																			})
+
+																			// Wait for state updates to be reflected
+																			await new Promise(resolve => setTimeout(resolve, 1000))
+
+																			// Reload the page with the class parameter
+																			router.push(`/schedule/create?class=${selectedClass}`)
+																		} catch (error) {
+																			console.error('Error deleting student:', error)
+																			setError(error instanceof Error ? error.message : 'Failed to delete student')
+																		}
 																	}}
 																/>
 															))}
 														</div>
 													</GroupContainer>
 												))}
+												{/* Unassigned group last */}
+												<div className="flex flex-col items-center gap-4">
+													<GroupContainer 
+														key={UNASSIGNED_GROUP_ID} 
+														group={{
+															id: UNASSIGNED_GROUP_ID,
+															students: groups.find(g => g.id === UNASSIGNED_GROUP_ID)?.students ?? []
+														}}
+													>
+														<div className="space-y-2">
+															{(groups.find(g => g.id === UNASSIGNED_GROUP_ID)?.students ?? []).map((student, index) => (
+																<StudentItem 
+																	key={student.id} 
+																	student={student} 
+																	index={index}
+																	onRemove={async (studentId) => {
+																		try {
+																			// Delete the student from the database
+																			const response = await fetch(`/api/students/${studentId}`, {
+																				method: 'DELETE'
+																			})
+
+																			if (!response.ok) {
+																				throw new Error('Failed to delete student')
+																			}
+
+																			// Update the students state
+																			setStudents(currentStudents => 
+																				currentStudents.filter(s => s.id !== studentId)
+																			)
+
+																			// Update the groups state
+																			setGroups(currentGroups => {
+																				const newGroups = currentGroups.map(group => ({
+																					...group,
+																					students: group.students.filter(s => s.id !== studentId)
+																				}))
+																				return newGroups
+																			})
+
+																			// Wait for state updates to be reflected
+																			await new Promise(resolve => setTimeout(resolve, 1000))
+
+																			// Reload the page with the class parameter
+																			router.push(`/schedule/create?class=${selectedClass}`)
+																		} catch (error) {
+																			console.error('Error deleting student:', error)
+																			setError(error instanceof Error ? error.message : 'Failed to delete student')
+																		}
+																	}}
+																/>
+															))}
+														</div>
+													</GroupContainer>
+												</div>
 											</div>
 											<DragOverlay>
 												{activeStudent ? (
@@ -554,6 +766,58 @@ export default function ScheduleClassSelectPage() {
 					</div>
 				</div>
 			)}
+
+			{/* Add Student Dialog */}
+			<Dialog open={showAddStudentDialog} onOpenChange={setShowAddStudentDialog}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>{t('addStudentTitle')}</DialogTitle>
+					</DialogHeader>
+					<div className="grid gap-4 py-4">
+						<div className="grid grid-cols-4 items-center gap-4">
+							<Label htmlFor="firstName" className="text-right">
+								{t('firstName')}
+							</Label>
+							<Input
+								id="firstName"
+								value={newStudent.firstName}
+								onChange={(e) => setNewStudent(prev => ({ ...prev, firstName: e.target.value }))}
+								className="col-span-3"
+							/>
+						</div>
+						<div className="grid grid-cols-4 items-center gap-4">
+							<Label htmlFor="lastName" className="text-right">
+								{t('lastName')}
+							</Label>
+							<Input
+								id="lastName"
+								value={newStudent.lastName}
+								onChange={(e) => setNewStudent(prev => ({ ...prev, lastName: e.target.value }))}
+								className="col-span-3"
+							/>
+						</div>
+						<div className="grid grid-cols-4 items-center gap-4">
+							<Label htmlFor="username" className="text-right">
+								{t('username')}
+							</Label>
+							<Input
+								id="username"
+								value={newStudent.username}
+								onChange={(e) => setNewStudent(prev => ({ ...prev, username: e.target.value }))}
+								className="col-span-3"
+							/>
+						</div>
+					</div>
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setShowAddStudentDialog(false)}>
+							{t('cancel')}
+						</Button>
+						<Button onClick={handleAddStudent}>
+							{t('add')}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	)
 } 
