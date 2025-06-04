@@ -33,7 +33,7 @@ export default function Home() {
       <div className="z-10 max-w-5xl w-full space-y-8">
         <div className="flex justify-between items-center">
           <h1 className="text-4xl font-bold mb-8">{t('common.welcome')}</h1>
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-gray-400">
             <div>Version: {process.env.NEXT_PUBLIC_APP_VERSION ?? '0.0.0'}</div>
             <div>Build: {process.env.NEXT_PUBLIC_BUILD_DATE ? new Date(process.env.NEXT_PUBLIC_BUILD_DATE).toLocaleDateString('de-DE') : 'N/A'}</div>
           </div>
