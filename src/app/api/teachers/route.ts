@@ -31,12 +31,13 @@ export async function POST(request: Request) {
 	}
 
 	try {
-		const { firstName, lastName, username } = await request.json()
+		const { firstName, lastName, username, email } = await request.json()
 		const teacher = await prisma.teacher.create({
 			data: {
 				firstName,
 				lastName,
-				username
+				username,
+				email
 			}
 		})
 		return NextResponse.json(teacher)

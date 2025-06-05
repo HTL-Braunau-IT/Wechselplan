@@ -63,6 +63,7 @@ interface LDAPTeacher {
   givenName: string
   sn: string
   sAMAccountName: string
+  mail?: string
 }
 
 
@@ -96,7 +97,7 @@ export async function POST(): Promise<Response> {
         const searchOptions: ldap.SearchOptions = {
           filter: '(objectClass=user)',
           scope: 'sub' as const,
-          attributes: ['givenName', 'sn', 'sAMAccountName'],
+          attributes: ['givenName', 'sn', 'sAMAccountName', 'mail'],
           paged: true,
           sizeLimit: 1000
         }
@@ -113,8 +114,9 @@ export async function POST(): Promise<Response> {
             const givenName = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'givenName')?.values[0]
             const sn = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'sn')?.values[0]
             const username = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'sAMAccountName')?.values[0]
+            const email = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'mail')?.values[0]
             if (givenName && sn && username) {
-              teachers.push({ givenName, sn, sAMAccountName: username })
+              teachers.push({ givenName, sn, sAMAccountName: username, mail: email })
             }
           })
 
@@ -130,7 +132,8 @@ export async function POST(): Promise<Response> {
               teachers: teachers.map(teacher => ({
                 firstName: teacher.givenName,
                 lastName: teacher.sn,
-                username: teacher.sAMAccountName
+                username: teacher.sAMAccountName,
+                email: teacher.mail
               }))
             }))
           })

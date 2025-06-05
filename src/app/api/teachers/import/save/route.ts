@@ -8,6 +8,7 @@ interface ImportRequest {
     firstName: string
     lastName: string
     username: string
+    email?: string
   }[]
 }
 
@@ -15,6 +16,7 @@ interface ExistingTeacher {
   firstName: string
   lastName: string
   username: string
+  email?: string
 }
 
 export async function POST(request: Request) {
@@ -48,15 +50,38 @@ export async function POST(request: Request) {
 
     // Only create new teachers if there are any
     if (newTeachers.length > 0) {
-      for (const teacher of newTeachers) {
-        await (prisma as unknown as { teacher: { create: (args: Prisma.TeacherCreateArgs) => Promise<ExistingTeacher> } }).teacher.create({
-          data: {
-            firstName: teacher.firstName,
-            lastName: teacher.lastName,
-            username: teacher.username
+      for (const newTeacher of newTeachers) {
+        const existingTeacher = existingTeachers.find(t => t.firstName === newTeacher.firstName && t.lastName === newTeacher.lastName)
+        if (existingTeacher) {
+          const teacherData: ExistingTeacher = {
+            firstName: newTeacher.firstName,
+            lastName: newTeacher.lastName,
+            username: newTeacher.username,
+            email: newTeacher.email
           }
-        })
-        importedCount++
+          const updatedTeacher = await prisma.teacher.update({
+            where: {
+              username: existingTeacher.username
+            },
+            data: teacherData
+          })
+          if (updatedTeacher) {
+            importedCount++
+          }
+        } else {
+          const teacherData: ExistingTeacher = {
+            firstName: newTeacher.firstName,
+            lastName: newTeacher.lastName,
+            username: newTeacher.username,
+            email: newTeacher.email
+          }
+          const createdTeacher = await prisma.teacher.create({
+            data: teacherData
+          })
+          if (createdTeacher) {
+            importedCount++
+          }
+        }
       }
     }
 
