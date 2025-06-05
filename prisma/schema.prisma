@@ -224,6 +224,7 @@ model SupportMessage {
   id        Int      @id @default(autoincrement())
   name      String
   message   String   @db.Text
+  currentUri String? @db.Text
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

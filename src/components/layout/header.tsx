@@ -77,16 +77,7 @@ export function Header() {
 
 						{/* Language Switcher */}
 						<LanguageSwitcher />
-
-						{/* School Year Selector - Only show for authenticated non-student users */}
-						{showMenu && (
-							<div className="flex items-center">
-								<p className='mr-4'>{t('common.schoolYear')}:</p>
-								<div className="flex items-center">
-									<SchoolYearSelector />
-								</div>
-							</div>
-						)}
+						
 
 						{/* User Menu */}
 						{session ? (

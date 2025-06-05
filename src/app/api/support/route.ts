@@ -4,7 +4,7 @@ import { sendSupportEmail } from '~/server/send-support-email-graph'
 
 export async function POST(request: Request) {
   try {
-    const { name, message } = await request.json()
+    const { name, message, currentUri } = await request.json()
 
     if (!name || !message) {
       return NextResponse.json(
@@ -17,13 +17,14 @@ export async function POST(request: Request) {
       data: {
         name,
         message,
+        currentUri: currentUri ?? null,
       },
     })
 
     // Send email notification to admin (do not block user if this fails)
     sendSupportEmail(
       `New support message from ${name}`,
-      `Name: ${name}\nMessage: ${message}`
+      `Name: ${name}\nMessage: ${message}\nLocation: ${currentUri ?? 'Not specified'}`
     ).catch(console.error)
 
     return NextResponse.json(supportMessage)
