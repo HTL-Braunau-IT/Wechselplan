@@ -3,6 +3,20 @@
   "importStudents": "Schüler importieren",
   "importTeachers": "Lehrer importieren",
   "deleteAllData": "Alle Daten löschen",
+  "importData": "Daten importieren",
+  "rooms": "Räume",
+  "subjects": "Fächer",
+  "learningContent": "Lerninhalte",
+  "import": "Importieren",
+  "importing": "Importiere...",
+  "downloadSample": "Beispiel-CSV herunterladen",
+  "importSuccess": "{{count}} Einträge erfolgreich importiert.",
+  "importDescription": "Importieren Sie eine CSV-Datei für {{type}}. Die erste Zeile muss die Spaltenüberschriften enthalten.",
+  "existingData": "Vorhandene Daten",
+  "name": "Name",
+  "capacity": "Kapazität",
+  "description": "Beschreibung",
+  "errorImportFailed": "Import fehlgeschlagen. Bitte überprüfen Sie Ihre CSV-Datei auf fehlende oder ungültige Felder.",
   "students": {
     "title": "Schülerverwaltung",
     "description": "Verwalten Sie hier Ihre Schüler. Sie können Schüler hinzufügen, bearbeiten und löschen.",
@@ -16,7 +30,33 @@
       "confirmDescription": "Möchten Sie wirklich alle Schülerdaten löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
       "confirmButton": "Ja, alle Daten löschen",
       "success": "Alle Daten wurden erfolgreich gelöscht",
-      "error": "Daten konnten nicht gelöscht werden"
+      "error": "Fehler beim Löschen der Daten"
+    },
+    "import": {
+      "title": "Schüler importieren",
+      "ldap": "Active Directory",
+      "manual": "Manueller Import",
+      "ldapTitle": "Aus Active Directory importieren",
+      "username": "Benutzername",
+      "password": "Passwort",
+      "server": "Server",
+      "importButton": "Importieren",
+      "importing": "Importiere...",
+      "loading": "Lade...",
+      "previewData": "Datenvorschau",
+      "previewTitle": "Vorschau der zu importierenden Daten",
+      "importSelected": "Ausgewählte importieren",
+      "classLabel": "Klasse {{name}} ({{count}} Schüler)",
+      "errors": {
+        "noClassesFound": "Keine Klassen gefunden",
+        "fetchStudents": "Fehler beim Abrufen der Schüler",
+        "missingFields": "Bitte füllen Sie alle Felder aus",
+        "invalidDataFormat": "Ungültiges Datenformat",
+        "importStudents": "Fehler beim Importieren der Schüler"
+      },
+      "success": {
+        "importComplete": "{{students}} Schüler in {{classes}} Klassen erfolgreich importiert"
+      }
     }
   },
   "settings": {
@@ -40,14 +80,14 @@
       "configSaved": "Konfiguration erfolgreich gespeichert"
     },
     "errors": {
-      "loadConfig": "Konfiguration konnte nicht geladen werden",
-      "saveConfig": "Konfiguration konnte nicht gespeichert werden"
+      "loadConfig": "Fehler beim Laden der Konfiguration",
+      "saveConfig": "Fehler beim Speichern der Konfiguration"
     },
     "holidays": {
       "title": "Ferien"
     },
     "times": {
-      "title": "Stundenplanzeiten",
+      "title": "Zeitplan",
       "scheduleTimes": "Unterrichtszeiten",
       "breakTimes": "Pausenzeiten",
       "hours": "Stunden",
@@ -55,9 +95,10 @@
       "addNewBreakTime": "Neue Pausenzeit hinzufügen",
       "startTime": "Startzeit",
       "endTime": "Endzeit",
-      "period": "Zeitraum",
+      "hours": "Stunden",
+      "period": "Stunde",
       "breakName": "Pausenname",
-      "breakNamePlaceholder": "z.B., Vormittagspause",
+      "breakNamePlaceholder": "z.B. Vormittagspause",
       "addScheduleTime": "Unterrichtszeit hinzufügen",
       "addBreakTime": "Pausenzeit hinzufügen",
       "scheduleTimeAdded": "Unterrichtszeit erfolgreich hinzugefügt",
@@ -65,19 +106,5 @@
       "scheduleTimeError": "Fehler beim Hinzufügen der Unterrichtszeit",
       "breakTimeError": "Fehler beim Hinzufügen der Pausenzeit"
     }
-  },
-  "importData": "Daten importieren",
-  "rooms": "Räume",
-  "subjects": "Fächer",
-  "learningContent": "Lerninhalte",
-  "import": "Importieren",
-  "importing": "Importiere...",
-  "downloadSample": "Beispiel-CSV herunterladen",
-  "importSuccess": "{{count}} Einträge erfolgreich importiert.",
-  "importDescription": "Importieren Sie eine CSV-Datei für {{type}}. Die erste Zeile muss die Spaltenüberschriften enthalten.",
-  "existingData": "Vorhandene Daten",
-  "name": "Name",
-  "capacity": "Kapazität",
-  "description": "Beschreibung",
-  "errorImportFailed": "Import fehlgeschlagen. Bitte überprüfen Sie Ihre CSV-Datei auf fehlende oder ungültige Felder."
+  }
 } 

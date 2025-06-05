@@ -21,7 +21,8 @@
     "success": "Erfolg",
     "warning": "Warnung",
     "confirm": "Bestätigen",
-    "back": "Zurück"
+    "back": "Zurück",
+    "submitting": "Wird gesendet..."
   },
   "navigation": {
     "home": "Startseite",
@@ -33,7 +34,8 @@
     "menu": "Menü",
     "closeMenu": "Menü schließen",
     "admin": "Administration",
-    "createSchedule": "Stundenplan erstellen"
+    "createSchedule": "Stundenplan erstellen",
+    "support": "Hilfe & Support"
   },
   "auth": {
     "login": "Anmelden",
@@ -205,5 +207,15 @@
         "error": "Einstellungen konnten nicht gespeichert werden"
       }
     }
+  },
+  "support": {
+    "title": "Support",
+    "name": "Name",
+    "namePlaceholder": "Geben Sie Ihren Namen ein",
+    "message": "Nachricht",
+    "messagePlaceholder": "Wie können wir Ihnen helfen?",
+    "submit": "Absenden",
+    "messageSent": "Ihre Nachricht wurde erfolgreich gesendet",
+    "error": "Nachricht konnte nicht gesendet werden. Bitte versuchen Sie es erneut."
   }
 } 

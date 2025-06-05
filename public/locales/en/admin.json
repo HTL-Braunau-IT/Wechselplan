@@ -31,6 +31,32 @@
       "confirmButton": "Yes, delete all data",
       "success": "All data has been successfully deleted",
       "error": "Failed to delete data"
+    },
+    "import": {
+      "title": "Import Students",
+      "ldap": "Active Directory",
+      "manual": "Manual Import",
+      "ldapTitle": "Import from Active Directory",
+      "username": "Username",
+      "password": "Password",
+      "server": "Server",
+      "importButton": "Import",
+      "importing": "Importing...",
+      "loading": "Loading...",
+      "previewData": "Preview Data",
+      "previewTitle": "Preview Data to Import",
+      "importSelected": "Import Selected",
+      "classLabel": "Class {{name}} ({{count}} students)",
+      "errors": {
+        "noClassesFound": "No classes found",
+        "fetchStudents": "Failed to fetch students",
+        "missingFields": "Please fill in all fields",
+        "invalidDataFormat": "Invalid data format",
+        "importStudents": "Failed to import students"
+      },
+      "success": {
+        "importComplete": "Successfully imported {{students}} students in {{classes}} classes"
+      }
     }
   },
   "settings": {

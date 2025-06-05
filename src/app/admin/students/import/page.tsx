@@ -162,14 +162,10 @@ export default function ImportPage() {
             </Alert>
           )}
 
-          <Tabs defaultValue="ldap" className="space-y-4">
-            <TabsList className="bg-muted/50">
-              <TabsTrigger value="ldap" className="data-[state=active]:bg-background data-[state=active]:text-foreground">
-                {t('admin.students.import.ldap')}
-              </TabsTrigger>
-              <TabsTrigger value="manual" className="data-[state=active]:bg-background data-[state=active]:text-foreground">
-                {t('admin.students.import.manual')}
-              </TabsTrigger>
+          <Tabs defaultValue="ldap">
+            <TabsList>
+              <TabsTrigger value="ldap">{t('admin.students.import.ldap')}</TabsTrigger>
+              <TabsTrigger value="manual">{t('admin.students.import.manual')}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="ldap">
@@ -183,7 +179,7 @@ export default function ImportPage() {
                   </Button>
 
                   {importData && (
-                    <div className="space-y-4">
+                    <div className="space-y-4 mt-4">
                       <h2 className="text-xl font-semibold">{t('admin.students.import.previewTitle')}</h2>
                       <div className="flex justify-begin">
                         <Button onClick={() => handleImport(Object.keys(selectedClasses).filter(key => selectedClasses[key]))} disabled={isLoading}>
