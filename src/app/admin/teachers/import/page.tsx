@@ -13,6 +13,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 interface Teacher {
   firstName: string
   lastName: string
+  email?: string
   schedules?: string[]
 }
 
@@ -216,6 +217,13 @@ export default function ImportPage() {
                   <Button onClick={handlePreview} disabled={isLoading} className="w-full md:w-auto">
                     {isLoading ? t('admin.teachers.import.loading') : t('admin.teachers.import.previewData')}
                   </Button>
+                  <Button 
+                    className="pl-6 w-full md:w-auto"
+                    onClick={handleImport} 
+                    disabled={isLoading || Object.values(selectedTeachers).every(v => !v)}
+                  >
+                    {isLoading ? t('admin.teachers.import.loading') : t('admin.teachers.import.importSelected')}
+                  </Button>
 
                   {importData && (
                     <div className="space-y-4">
@@ -244,13 +252,7 @@ export default function ImportPage() {
                           )
                         })}
                       </div>
-                      <Button 
-                        onClick={handleImport} 
-                        disabled={isLoading || Object.values(selectedTeachers).every(v => !v)}
-                        className="w-full md:w-auto"
-                      >
-                        {isLoading ? t('admin.teachers.import.loading') : t('admin.teachers.import.importSelected')}
-                      </Button>
+                      
                     </div>
                   )}
                 </CardContent>

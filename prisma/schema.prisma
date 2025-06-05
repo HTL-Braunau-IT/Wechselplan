@@ -31,6 +31,7 @@ model Teacher {
   username    String              @unique
   firstName   String
   lastName    String
+  email       String?             @unique
   assignments TeacherAssignment[]
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
