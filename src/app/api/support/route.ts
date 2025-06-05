@@ -4,9 +4,13 @@ import { sendSupportEmail } from '~/server/send-support-email-graph'
 
 export async function POST(request: Request) {
   try {
-    const { name, message, currentUri } = await request.json()
+    const body = await request.json()
+    console.log('Received request body:', body)
+
+    const { name, message, currentUri } = body
 
     if (!name || !message) {
+      console.error('Missing required fields:', { name, message })
       return NextResponse.json(
         { error: 'Name and message are required' },
         { status: 400 }
@@ -22,16 +26,21 @@ export async function POST(request: Request) {
     })
 
     // Send email notification to admin (do not block user if this fails)
-    sendSupportEmail(
-      `New support message from ${name}`,
-      `Name: ${name}\nMessage: ${message}\nLocation: ${currentUri ?? 'Not specified'}`
-    ).catch(console.error)
+    try {
+      await sendSupportEmail(
+        `New support message from ${name}`,
+        `Name: ${name}\nMessage: ${message}\nLocation: ${currentUri ?? 'Not specified'}`
+      )
+    } catch (emailError) {
+      console.error('Failed to send support email:', emailError)
+      // Don't throw here, we still want to return success to the user
+    }
 
     return NextResponse.json(supportMessage)
   } catch (error) {
-    console.error('Error creating support message:', error)
+    console.error('Error processing support request:', error)
     return NextResponse.json(
-      { error: 'Failed to create support message' },
+      { error: 'Failed to process support request' },
       { status: 500 }
     )
   }
