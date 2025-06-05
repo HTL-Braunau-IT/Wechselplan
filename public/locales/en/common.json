@@ -22,7 +22,8 @@
     "success": "Success",
     "warning": "Warning",
     "confirm": "Confirm",
-    "back": "Back"
+    "back": "Back",
+    "submitting": "Submitting..."
   },
   "navigation": {
     "home": "Home",
@@ -34,7 +35,8 @@
     "menu": "Menu",
     "closeMenu": "Close Menu",
     "admin": "Administration",
-    "createSchedule": "Create Schedule"
+    "createSchedule": "Create Schedule",
+    "support": "Help & Support"
   },
   "auth": {
     "login": "Login",
@@ -206,5 +208,15 @@
         "uploadCSV": "Upload CSV File"
       }
     }
+  },
+  "support": {
+    "title": "Support",
+    "name": "Name",
+    "namePlaceholder": "Enter your name",
+    "message": "Message",
+    "messagePlaceholder": "How can we help you?",
+    "submit": "Submit",
+    "messageSent": "Your message has been sent successfully",
+    "error": "Failed to send message. Please try again."
   }
 } 

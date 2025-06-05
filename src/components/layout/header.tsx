@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 import { ThemeToggle } from '~/components/theme-toggle'
 import { useSession, signIn, signOut } from 'next-auth/react'
 import { Button } from '~/components/ui/button'
+import { SupportDialog } from '~/components/support-dialog'
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -54,6 +55,9 @@ export function Header() {
 					</Link>
 
 					<div className="flex items-center space-x-4">
+						{/* Support Dialog */}
+						<SupportDialog />
+
 						{/* Version Info */}
 						<div className="text-xs text-muted-foreground">
 							<div>v{process.env.NEXT_PUBLIC_APP_VERSION ?? '0.0.0'}</div>
