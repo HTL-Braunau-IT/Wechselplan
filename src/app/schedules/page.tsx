@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Select,
@@ -91,7 +91,7 @@ const DARK_GROUP_COLORS = [
 ];
 
 export default function SchedulesPage() {
-  const [schedules, setSchedules] = useState<Schedule[]>([])
+  const [, setSchedules] = useState<Schedule[]>([])
   const [classes, setClasses] = useState<Class[]>([])
   const [selectedClass, setSelectedClass] = useState<string>('all')
   const [loading, setLoading] = useState(true)
@@ -104,7 +104,7 @@ export default function SchedulesPage() {
   const [scheduleTimes, setScheduleTimes] = useState<ScheduleTime[]>([])
   const [, setBreakTimes] = useState<BreakTime[]>([])
   const [turns, setTurns] = useState<TurnSchedule>({})
-  const { teachers, isLoading: isLoadingCachedData } = useCachedData()
+  const {  isLoading: isLoadingCachedData } = useCachedData()
 
   useEffect(() => {
     void fetchData()
@@ -146,12 +146,7 @@ export default function SchedulesPage() {
     router.push(`/schedules?class=${encodeURIComponent(value)}`)
   }
 
-  const filteredSchedules = selectedClass === 'all'
-    ? schedules
-    : schedules.filter(schedule => {
-        const scheduleClass = classes.find(c => c.id === schedule.classId)
-        return scheduleClass?.name === selectedClass
-      })
+
 
   // Fetch detailed overview data when a class is selected
   useEffect(() => {

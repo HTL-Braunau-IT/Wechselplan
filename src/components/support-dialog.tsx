@@ -48,7 +48,7 @@ export function SupportDialog() {
       setOpen(false)
       setName('')
       setMessage('')
-    } catch (error) {
+    } catch {
       toast.error(t('support.error'))
     } finally {
       setIsSubmitting(false)

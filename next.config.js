@@ -3,6 +3,7 @@
  * for Docker builds.
  */
 import "./src/env.js";
+import { withSentryConfig } from "@sentry/nextjs";
 
 /** @type {import("next").NextConfig} */
 const nextConfig = {
@@ -52,4 +53,15 @@ const nextConfig = {
   }
 };
 
-export default nextConfig;
+const sentryWebpackPluginOptions = {
+  silent: true,
+  org: "sentry",
+  project: "internal",
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  url: "http://sentry.htl-braunau.at/",
+  widenClientFileUpload: true,
+  tunnelRoute: "/monitoring",
+  disableLogger: true,
+};
+
+export default withSentryConfig(nextConfig, sentryWebpackPluginOptions);
