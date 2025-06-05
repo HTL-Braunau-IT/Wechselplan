@@ -11,7 +11,7 @@ import { StudentOverview } from '@/components/overviews/students'
 
 export default function Home() {
   const { t } = useTranslation()
-  const { data: session, status } = useSession()
+  const { data: session,  } = useSession()
 
   if (!session) {
     return (

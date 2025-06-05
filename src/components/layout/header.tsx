@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Menu, LogIn, LogOut, User } from 'lucide-react'
-import { SchoolYearSelector } from '../school-year-selector'
 import { LanguageSwitcher } from '../language-switcher'
 import { useTranslation } from 'react-i18next'
 import { ThemeToggle } from '~/components/theme-toggle'
