@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { captureError } from '@/lib/sentry'
 
 
 interface Assignment {
@@ -67,6 +68,13 @@ export async function GET(request: Request) {
 		})
 	} catch (error) {
 		console.error('Error fetching assignments:', error)
+		captureError(error, {
+			location: 'api/schedule/assignments',
+			type: 'fetch-assignments',
+			extra: {
+				searchParams: Object.fromEntries(new URL(request.url).searchParams)
+			}
+		})
 		return NextResponse.json(
 			{ error: 'Failed to fetch assignments' },
 			{ status: 500 }
@@ -136,9 +144,16 @@ export async function POST(request: Request) {
 
 		return NextResponse.json({ success: true })
 	} catch (error) {
-		console.error('Error storing assignments:', error)
+		console.error('Error creating assignments:', error)
+		captureError(error, {
+			location: 'api/schedule/assignments',
+			type: 'create-assignments',
+			extra: {
+				requestBody: await request.text()
+			}
+		})
 		return NextResponse.json(
-			{ error: 'Failed to store assignments' },
+			{ error: 'Failed to create assignments' },
 			{ status: 500 }
 		)
 	}

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { captureError } from '@/lib/sentry'
 
 
 const prisma = new PrismaClient()
@@ -23,6 +24,13 @@ export async function GET(request: Request) {
 		})
 
 		if (!classRecord) {
+			captureError(new Error('Class not found'), {
+				location: 'api/schedule/teacher-assignments',
+				type: 'fetch-assignments',
+				extra: {
+					searchParams: Object.fromEntries(new URL(request.url).searchParams)
+				}
+			})
 			return NextResponse.json(
 				{ error: 'Class not found' },
 				{ status: 404 }
@@ -75,6 +83,13 @@ export async function GET(request: Request) {
 		})
 	} catch (error) {
 		console.error('Error fetching teacher assignments:', error)
+		captureError(error, {
+			location: 'api/schedule/teacher-assignments',
+			type: 'fetch-assignments',
+			extra: {
+				searchParams: Object.fromEntries(new URL(request.url).searchParams)
+			}
+		})
 		return NextResponse.json(
 			{ error: 'Failed to fetch teacher assignments' },
 			{ status: 500 }
@@ -88,6 +103,13 @@ export async function POST(request: Request) {
 		const { class: className, amAssignments, pmAssignments, updateExisting } = data
 
 		if (!className) {
+			captureError(new Error('Class not found'), {
+				location: 'api/schedule/teacher-assignments',
+				type: 'fetch-assignments',
+				extra: {
+					searchParams: Object.fromEntries(new URL(request.url).searchParams)
+				}
+			})
 			return NextResponse.json(
 				{ error: 'Class parameter is required' },
 				{ status: 400 }
@@ -100,6 +122,13 @@ export async function POST(request: Request) {
 		})
 
 		if (!classRecord) {
+			captureError(new Error('Class not found'), {
+				location: 'api/schedule/teacher-assignments',
+				type: 'fetch-assignments',
+				extra: {
+					searchParams: Object.fromEntries(new URL(request.url).searchParams)
+				}
+			})
 			return NextResponse.json(
 				{ error: 'Class not found' },
 				{ status: 404 }
@@ -191,9 +220,16 @@ export async function POST(request: Request) {
 
 		return NextResponse.json({ message: 'Teacher assignments saved successfully' })
 	} catch (error) {
-		console.error('Error storing teacher assignments:', error)
+		console.error('Error updating teacher assignments:', error)
+		captureError(error, {
+			location: 'api/schedule/teacher-assignments',
+			type: 'update-assignments',
+			extra: {
+				requestBody: await request.text()
+			}
+		})
 		return NextResponse.json(
-			{ error: 'Failed to store teacher assignments' },
+			{ error: 'Failed to update teacher assignments' },
 			{ status: 500 }
 		)
 	}

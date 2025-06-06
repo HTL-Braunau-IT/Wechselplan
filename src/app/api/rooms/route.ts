@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
+import { captureError } from '@/lib/sentry'
 
 export async function GET() {
 	try {
@@ -16,13 +17,11 @@ export async function GET() {
 
 		return NextResponse.json({ rooms })
 	} catch (error) {
-		if (error instanceof Prisma.PrismaClientKnownRequestError) {
-			console.error('Prisma error fetching rooms:', error.message)
-		} else if (error instanceof Error) {
-			console.error('Error fetching rooms:', error.message)
-		} else {
-			console.error('Unknown error fetching rooms:', error)
-		}
+		console.error('Error fetching rooms:', error)
+		captureError(error, {
+			location: 'api/rooms',
+			type: 'fetch-rooms'
+		})
 		return NextResponse.json(
 			{ error: 'Failed to fetch rooms' },
 			{ status: 500 }

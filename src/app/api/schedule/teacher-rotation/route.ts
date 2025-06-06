@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { captureError } from '@/lib/sentry'
 
 interface TeacherRotationRequest {
   classId: string
@@ -71,9 +72,16 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error saving teacher rotation:', error)
+    console.error('Error updating teacher rotation:', error)
+    captureError(error, {
+      location: 'api/schedule/teacher-rotation',
+      type: 'update-rotation',
+      extra: {
+        requestBody: await request.text()
+      }
+    })
     return NextResponse.json(
-      { error: 'Failed to save teacher rotation' },
+      { error: 'Failed to update teacher rotation' },
       { status: 500 }
     )
   }

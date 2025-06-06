@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { captureError } from '@/lib/sentry'
 
 export async function GET(request: Request) {
   try {
@@ -28,7 +29,14 @@ export async function GET(request: Request) {
 
     return NextResponse.json(classData)
   } catch (error) {
-    console.error('Error fetching class:', error)
+    console.error('Error fetching class by name:', error)
+    captureError(error, {
+      location: 'api/classes/get-by-name',
+      type: 'fetch-class-by-name',
+      extra: {
+        searchParams: Object.fromEntries(new URL(request.url).searchParams)
+      }
+    })
     return NextResponse.json(
       { error: 'Failed to fetch class' },
       { status: 500 }

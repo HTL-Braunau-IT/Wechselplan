@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useCachedData } from '@/hooks/use-cached-data';
+import { captureFrontendError } from '@/lib/frontend-error'
 
 
 interface Student {
@@ -132,9 +133,17 @@ export default function OverviewPage() {
       const latestSchedule = schedules[0];
       const scheduleData = latestSchedule?.scheduleData ?? {};
       setTurns(scheduleData as TurnSchedule);
-    } catch (e: unknown) {
-      const errMsg = e instanceof Error ? e.message : 'Failed to load overview data';
-      setError(errMsg ?? 'Failed to load overview data');
+    } catch (err) {
+      console.error('Error fetching overview data:', err);
+      captureFrontendError(err, {
+        location: 'schedule/create/overview',
+        type: 'fetch-data',
+        extra: {
+          classId
+        }
+      });
+      const errMsg = err instanceof Error ? err.message : 'Failed to load overview data';
+      setError(errMsg);
     } finally {
       setLoading(false);
     }
@@ -182,11 +191,17 @@ export default function OverviewPage() {
       }
 
       router.push('/');
-      
-      
-    } catch (error) {
+    } catch (err) {
+      console.error('Error saving teacher rotation:', err);
+      captureFrontendError(err, {
+        location: 'schedule/create/overview',
+        type: 'save-rotation',
+        extra: {
+          classId,
+          turns: Object.keys(turns)
+        }
+      });
       setError('Failed to save.');
-      console.error('Error:', error);
     } finally {
       setSaving(false);
     }

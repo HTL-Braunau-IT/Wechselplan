@@ -8,6 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
+import { captureFrontendError } from '@/lib/frontend-error'
 
 interface Student {
 	id: number
@@ -319,9 +320,16 @@ export default function TeacherAssignmentPage() {
 					setPmAssignments(initialAssignments)
 					setHasExistingAssignments(false)
 				}
-			} catch (error) {
-				console.error('Error:', error)
-				setError('Fehler beim Laden der Daten.')
+			} catch (err) {
+				console.error('Error fetching data:', err)
+				captureFrontendError(err, {
+					location: 'schedule/create/teachers',
+					type: 'fetch-data',
+					extra: {
+						selectedClass
+					}
+				})
+				setError('Failed to load data. Please try again.')
 			} finally {
 				setLoading(false)
 			}
@@ -488,9 +496,20 @@ export default function TeacherAssignmentPage() {
 			}
 
 			router.push(`/schedule/create/rotation?class=${selectedClass}`)
-		} catch (error) {
-			console.error('Error:', error)
-			setError(error instanceof Error ? error.message : 'Fehler beim Speichern der Lehrerzuweisungen.')
+		} catch (err) {
+			console.error('Error saving assignments:', err)
+			captureFrontendError(err, {
+				location: 'schedule/create/teachers',
+				type: 'save-assignments',
+				extra: {
+					selectedClass,
+					assignments: {
+						am: amAssignments,
+						pm: pmAssignments
+					}
+				}
+			})
+			setError('Failed to save assignments. Please try again.')
 		}
 	}
 
@@ -533,9 +552,20 @@ export default function TeacherAssignmentPage() {
 			setShowConfirmDialog(false)
 			setPendingAssignments(null)
 			router.push(`/schedule/create/rotation?class=${selectedClass}`)
-		} catch (error) {
-			console.error('Error:', error)
-			setError(error instanceof Error ? error.message : 'Fehler beim Aktualisieren der Lehrerzuweisungen.')
+		} catch (err) {
+			console.error('Error updating assignments:', err)
+			captureFrontendError(err, {
+				location: 'schedule/create/teachers',
+				type: 'update-assignments',
+				extra: {
+					selectedClass,
+					assignments: {
+						am: amAssignments,
+						pm: pmAssignments
+					}
+				}
+			})
+			setError('Failed to update assignments. Please try again.')
 		}
 	}
 

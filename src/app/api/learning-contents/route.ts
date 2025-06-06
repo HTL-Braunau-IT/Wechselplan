@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
+import { captureError } from '@/lib/sentry'
 
 interface LearningContent {
 	id: string
@@ -28,6 +29,10 @@ export async function GET() {
 		} else {
 			console.error('Unknown error fetching learning contents:', error)
 		}
+		captureError(error, {
+			location: 'api/learning-contents',
+			type: 'fetch-contents'
+		})
 		return NextResponse.json(
 			{ error: 'Failed to fetch learning contents' },
 			{ status: 500 }

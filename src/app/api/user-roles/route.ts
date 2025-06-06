@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { captureError } from '@/lib/sentry'
 
 export async function GET(request: Request) {
   try {
@@ -25,6 +26,13 @@ export async function GET(request: Request) {
     return NextResponse.json(userRoles)
   } catch (error) {
     console.error('Error fetching user roles:', error)
+    captureError(error, {
+      location: 'api/user-roles',
+      type: 'fetch-user-roles',
+      extra: {
+        searchParams: Object.fromEntries(new URL(request.url).searchParams)
+      }
+    })
     return NextResponse.json(
       { error: 'Failed to fetch user roles' },
       { status: 500 }
@@ -85,6 +93,13 @@ export async function POST(request: Request) {
     return NextResponse.json(userRole)
   } catch (error) {
     console.error('Error assigning role to user:', error)
+    captureError(error, {
+      location: 'api/user-roles',
+      type: 'assign-role',
+      extra: {
+        requestBody: await request.text()
+      }
+    })
     return NextResponse.json(
       { error: 'Failed to assign role to user' },
       { status: 500 }
@@ -117,6 +132,13 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ message: 'Role assignment removed successfully' })
   } catch (error) {
     console.error('Error removing role assignment:', error)
+    captureError(error, {
+      location: 'api/user-roles',
+      type: 'remove-role',
+      extra: {
+        requestBody: await request.text()
+      }
+    })
     return NextResponse.json(
       { error: 'Failed to remove role assignment' },
       { status: 500 }

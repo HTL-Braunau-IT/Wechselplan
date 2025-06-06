@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import PDFDocument from 'pdfkit';
 import { Buffer } from 'buffer';
+import { captureError } from '@/lib/sentry';
 
 interface Student {
   id: number;
@@ -147,6 +148,13 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error('Error generating PDF:', error);
+    captureError(error, {
+      location: 'api/schedule/generate-pdf',
+      type: 'generate-pdf',
+      extra: {
+        requestBody: await request.text()
+      }
+    });
     return NextResponse.json(
       { error: 'Failed to generate PDF' },
       { status: 500 }
