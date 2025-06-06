@@ -9,6 +9,7 @@ import { CSVImport } from '@/components/admin/csv-import'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Label } from '@/components/ui/label'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { captureFrontendError } from '@/lib/frontend-error'
 
 interface Student {
   givenName: string
@@ -94,6 +95,13 @@ export default function ImportPage() {
       setSelectedClasses(initialSelection)
     } catch (err) {
       console.error('Error fetching students:', err)
+      captureFrontendError(err, {
+        location: 'admin/students/import',
+        type: 'fetch-students',
+        extra: {
+          response: err instanceof Error ? err.message : 'Unknown error'
+        }
+      })
       setError(err instanceof Error ? err.message : t('admin.students.import.errors.fetchStudents'))
     } finally {
       setIsLoading(false)
@@ -130,6 +138,14 @@ export default function ImportPage() {
       setSelectedClasses({})
     } catch (err) {
       console.error('Error importing students:', err)
+      captureFrontendError(err, {
+        location: 'admin/students/import',
+        type: 'import-students',
+        extra: {
+          selectedClasses: selectedClassNames,
+          response: err instanceof Error ? err.message : 'Unknown error'
+        }
+      })
       setError(err instanceof Error ? err.message : t('admin.students.import.errors.importStudents'))
     } finally {
       setIsLoading(false)

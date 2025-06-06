@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Label } from '@/components/ui/label'
 import { Download, Upload } from 'lucide-react'
+import { captureFrontendError } from '@/lib/frontend-error'
 
 interface Teacher {
   firstName: string
@@ -80,6 +81,14 @@ export function TeacherCSVImport({ onImport }: TeacherCSVImportProps) {
       setCSVData(teachers)
     } catch (err) {
       console.error('Error parsing CSV:', err)
+      captureFrontendError(err, {
+        location: 'admin/teacher-csv-import',
+        type: 'parse-csv',
+        extra: {
+          fileName: file.name,
+          fileSize: file.size
+        }
+      })
       setError(t('admin.teachers.import.errors.invalidCSV'))
     } finally {
       setIsLoading(false)
@@ -97,6 +106,13 @@ export function TeacherCSVImport({ onImport }: TeacherCSVImportProps) {
       setCSVData(null)
     } catch (err) {
       console.error('Error importing CSV:', err)
+      captureFrontendError(err, {
+        location: 'admin/teacher-csv-import',
+        type: 'import-csv',
+        extra: {
+          teachersCount: csvData.length
+        }
+      })
       setError(t('admin.teachers.import.errors.importFailed'))
     } finally {
       setIsLoading(false)
