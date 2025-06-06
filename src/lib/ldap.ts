@@ -6,6 +6,7 @@ interface LDAPConfig {
 	baseDN: string
 	bindDN: string
 	bindPassword: string
+	timeout?: number
 }
 
 interface LDAPUser {
@@ -32,12 +33,16 @@ function decodeLDAPDN(dn: string): string {
 export class LDAPClient {
 	private client: ldap.Client
 	private config: LDAPConfig
+	private readonly DEFAULT_TIMEOUT = 5000 // 5 seconds
 
 	constructor(config: LDAPConfig) {
 		this.config = config
 		console.log('Initializing LDAP client with URL:', config.url)
 		this.client = ldap.createClient({
 			url: config.url,
+			timeout: config.timeout ?? this.DEFAULT_TIMEOUT,
+			connectTimeout: config.timeout ?? this.DEFAULT_TIMEOUT,
+			reconnect: true
 		})
 
 		// Add error event listener
@@ -62,15 +67,35 @@ export class LDAPClient {
 				type: 'connection_timeout'
 			})
 		})
+
+		// Add timeout event listener
+		this.client.on('timeout', () => {
+			console.error('LDAP operation timeout')
+			captureError(new Error('LDAP operation timeout'), {
+				location: 'LDAPClient',
+				type: 'operation_timeout'
+			})
+		})
 	}
 
 	async authenticate(username: string, password: string): Promise<LDAPUser | null> {
 		return new Promise((resolve, reject) => {
+			const timeout = setTimeout(() => {
+				console.error('LDAP authentication timeout')
+				captureError(new Error('LDAP authentication timeout'), {
+					location: 'LDAPClient',
+					type: 'authentication_timeout',
+					extra: { username }
+				})
+				reject(new Error('Authentication timeout'))
+			}, this.config.timeout ?? this.DEFAULT_TIMEOUT)
+
 			console.log('Starting LDAP authentication for user:', username)
 			// First bind with the service account
 			console.log('Attempting to bind with service account:', this.config.bindDN)
 			this.client.bind(this.config.bindDN, this.config.bindPassword, (err: Error | null) => {
 				if (err) {
+					clearTimeout(timeout)
 					console.error('LDAP bind error with service account:', err)
 					captureError(err, {
 						location: 'LDAPClient',
@@ -87,6 +112,7 @@ export class LDAPClient {
 					filter: `(sAMAccountName=${escapeLDAPFilterValue(username)})`,
 					scope: 'sub' as const,
 					attributes: ['dn', 'displayName', 'mail'],
+					timeLimit: 5 // 5 seconds timeout for search
 				}
 
 				console.log('LDAP Search Options:', JSON.stringify(searchOptions, null, 2))
@@ -94,6 +120,7 @@ export class LDAPClient {
 
 				this.client.search(this.config.baseDN, searchOptions, (err: Error | null, res: ldap.SearchCallbackResponse) => {
 					if (err) {
+						clearTimeout(timeout)
 						console.error('LDAP search error:', err)
 						captureError(err, {
 							location: 'LDAPClient',
@@ -137,6 +164,7 @@ export class LDAPClient {
 					})
 
 					res.on('error', (err: Error) => {
+						clearTimeout(timeout)
 						console.error('LDAP search error:', err)
 						captureError(err, {
 							location: 'LDAPClient',
@@ -148,6 +176,7 @@ export class LDAPClient {
 
 					res.on('end', () => {
 						if (!user) {
+							clearTimeout(timeout)
 							console.log('No user found with username:', username)
 							captureError(new Error('User not found in LDAP'), {
 								location: 'LDAPClient',
@@ -161,6 +190,7 @@ export class LDAPClient {
 						// Try to bind with the user's credentials
 						console.log('Attempting to bind with user DN:', user.dn)
 						this.client.bind(user.dn, password, (err: Error | null) => {
+							clearTimeout(timeout)
 							if (err) {
 								console.error('LDAP user bind error:', err)
 								captureError(err, {
@@ -182,8 +212,19 @@ export class LDAPClient {
 
 	async getUserGroups(userDN: string): Promise<string[]> {
 		return new Promise((resolve, reject) => {
+			const timeout = setTimeout(() => {
+				console.error('LDAP group search timeout')
+				captureError(new Error('LDAP group search timeout'), {
+					location: 'LDAPClient',
+					type: 'group_search_timeout',
+					extra: { userDN }
+				})
+				reject(new Error('Group search timeout'))
+			}, this.config.timeout ?? this.DEFAULT_TIMEOUT)
+
 			this.client.bind(this.config.bindDN, this.config.bindPassword, (err: Error | null) => {
 				if (err) {
+					clearTimeout(timeout)
 					console.error('LDAP bind error:', err)
 					captureError(err, {
 						location: 'LDAPClient',
@@ -198,12 +239,14 @@ export class LDAPClient {
 					filter: `(member=${escapeLDAPFilterValue(userDN)})`,
 					scope: 'sub' as const,
 					attributes: ['dn', 'cn'],
+					timeLimit: 5 // 5 seconds timeout for search
 				}
 
 				console.log('LDAP Group Search Options:', JSON.stringify(searchOptions, null, 2))
 
 				this.client.search(this.config.baseDN, searchOptions, (err: Error | null, res: ldap.SearchCallbackResponse) => {
 					if (err) {
+						clearTimeout(timeout)
 						console.error('LDAP search error:', err)
 						captureError(err, {
 							location: 'LDAPClient',
@@ -232,6 +275,7 @@ export class LDAPClient {
 					})
 
 					res.on('error', (err: Error) => {
+						clearTimeout(timeout)
 						console.error('LDAP search error:', err)
 						captureError(err, {
 							location: 'LDAPClient',
@@ -242,6 +286,7 @@ export class LDAPClient {
 					})
 
 					res.on('end', () => {
+						clearTimeout(timeout)
 						console.log('All found groups:', groups)
 						resolve(groups)
 					})
