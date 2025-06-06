@@ -9,6 +9,7 @@ import { CSVImport } from '@/components/admin/csv-import'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Label } from '@/components/ui/label'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { captureFrontendError } from '@/lib/frontend-error'
 
 interface Teacher {
   firstName: string
@@ -83,6 +84,13 @@ export default function ImportPage() {
       setSelectedTeachers(initialSelection)
     } catch (err) {
       console.error('Error fetching teachers:', err)
+      captureFrontendError(err, {
+        location: 'admin/teachers/import',
+        type: 'fetch-teachers',
+        extra: {
+          response: err instanceof Error ? err.message : 'Unknown error'
+        }
+      })
       setError(err instanceof Error ? err.message : t('admin.teachers.import.errors.fetchTeachers'))
     } finally {
       setIsLoading(false)
@@ -140,6 +148,14 @@ export default function ImportPage() {
       setSelectedTeachers({})
     } catch (err) {
       console.error('Error importing teachers:', err)
+      captureFrontendError(err, {
+        location: 'admin/teachers/import',
+        type: 'import-teachers',
+        extra: {
+          selectedTeachers: selectedTeacherKeys,
+          response: err instanceof Error ? err.message : 'Unknown error'
+        }
+      })
       setError(err instanceof Error ? err.message : t('admin.teachers.import.errors.importTeachers'))
     } finally {
       setIsLoading(false)
@@ -173,6 +189,14 @@ export default function ImportPage() {
       }))
     } catch (err) {
       console.error('Error importing teachers:', err)
+      captureFrontendError(err, {
+        location: 'admin/teachers/import',
+        type: 'import-teachers-csv',
+        extra: {
+          teachersCount: teachers.length,
+          response: err instanceof Error ? err.message : 'Unknown error'
+        }
+      })
       setError(err instanceof Error ? err.message : t('admin.teachers.import.errors.importTeachers'))
     } finally {
       setIsLoading(false)

@@ -2,6 +2,7 @@ export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
 import * as ldap from 'ldapjs'
+import { captureError } from '@/lib/sentry'
 
 // Debug logging for environment variables
 console.log('LDAP Configuration:', {
@@ -99,6 +100,14 @@ export async function POST() {
     LDAP_CONFIG = getLDAPConfig()
   } catch (error) {
     console.error('LDAP configuration error:', error)
+    captureError(error, {
+      location: 'api/students/import',
+      type: 'ldap-config',
+      extra: {
+        runtime: process.env.NEXT_RUNTIME,
+        nodeEnv: process.env.NODE_ENV
+      }
+    })
     return NextResponse.json(
       { 
         error: 'LDAP configuration error',
@@ -149,6 +158,17 @@ export async function POST() {
       })
     } catch (error) {
       console.error('LDAP connection failed:', error)
+      captureError(error, {
+        location: 'api/students/import',
+        type: 'ldap-connection',
+        extra: {
+          config: {
+            url: LDAP_CONFIG.url,
+            baseDN: LDAP_CONFIG.baseDN,
+            studentsOU: LDAP_CONFIG.studentsOU
+          }
+        }
+      })
       const errorMessage = error instanceof Error ? error.message.toLowerCase() : 'unknown error'
       const isAuthError = 
         errorMessage.includes('invalid ldap credentials') ||

@@ -23,6 +23,9 @@ COPY --from=deps /app/node_modules ./node_modules
 
 RUN cp .env.example .env
 
+# Install missing OpenTelemetry dependency
+RUN npm install @opentelemetry/core
+
 # Generate Prisma client
 RUN npx prisma generate
 

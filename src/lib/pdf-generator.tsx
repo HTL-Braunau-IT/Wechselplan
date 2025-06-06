@@ -1,5 +1,6 @@
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, renderToBuffer} from '@react-pdf/renderer';
+import { captureError } from '@/lib/sentry';
 
 
 // Create styles
@@ -190,16 +191,24 @@ const MyDocument = ({ data }: { data: PDFData }) => (
 
 
 export async function generateSchedulePDF(data: PDFData): Promise<Buffer> {
-    try {
-      if (!data || typeof data !== 'object') {
-        throw new Error('Invalid data: data must be an object');
-      }
-  
-      const buffer = await renderToBuffer(<MyDocument data={data} />);
-  
-      return buffer;
-    } catch (error) {
-      console.error('Error in generateSchedulePDF:', error);
-      throw error instanceof Error ? error : new Error('Failed to generate PDF');
+  try {
+    if (!data || typeof data !== 'object') {
+      throw new Error('Invalid data: data must be an object');
     }
+
+    const buffer = await renderToBuffer(<MyDocument data={data} />);
+
+    return buffer;
+  } catch (error) {
+    console.error('Error in generateSchedulePDF:', error);
+    captureError(error, {
+      location: 'pdf-generator',
+      type: 'generate-pdf',
+      extra: {
+        dataType: typeof data,
+        hasData: !!data
+      }
+    });
+    throw error instanceof Error ? error : new Error('Failed to generate PDF');
   }
+}

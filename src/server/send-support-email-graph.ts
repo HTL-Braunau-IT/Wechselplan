@@ -1,4 +1,5 @@
 import fetch from 'node-fetch';
+import { captureError } from '@/lib/sentry';
 
 const tenantId = process.env.GRAPH_TENANT_ID!;
 const clientId = process.env.GRAPH_CLIENT_ID!;
@@ -37,6 +38,14 @@ async function getGraphToken(): Promise<string> {
     return data.access_token;
   } catch (error) {
     console.error('Error getting Graph token:', error);
+    captureError(error, {
+      location: 'support-email',
+      type: 'graph-token',
+      extra: {
+        tenantId,
+        clientId
+      }
+    });
     throw error;
   }
 }
@@ -83,6 +92,15 @@ export async function sendSupportEmail(subject: string, text: string) {
     console.log('Support email sent successfully');
   } catch (error) {
     console.error('Error in sendSupportEmail:', error);
+    captureError(error, {
+      location: 'support-email',
+      type: 'send-email',
+      extra: {
+        subject,
+        mailTo,
+        mailFrom
+      }
+    });
     throw error;
   }
 } 

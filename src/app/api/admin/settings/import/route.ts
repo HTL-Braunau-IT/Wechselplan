@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { parse } from 'csv-parse/sync'
 import { type Prisma } from '@prisma/client'
+import { captureError } from '@/lib/sentry'
 
 interface ImportRequest {
 	type: 'room' | 'subject' | 'learningContent'
@@ -98,6 +99,13 @@ export async function POST(request: Request) {
 		})
 	} catch (error: unknown) {
 		console.error('Error importing data:', error)
+		captureError(error, {
+			location: 'api/admin/settings/import',
+			type: 'data-import',
+			extra: {
+				requestBody: await request.text()
+			}
+		})
 		return NextResponse.json(
 			{ error: 'Failed to import data', message: error instanceof Error ? error.message : 'Unknown error' },
 			{ status: 500 }
