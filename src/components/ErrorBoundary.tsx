@@ -47,7 +47,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
                 Something went wrong
               </h2>
               <p className="mt-2 text-center text-sm text-gray-600">
-                We've been notified and are working to fix the issue.
+                We&apos;ve been notified and are working to fix the issue.
               </p>
             </div>
             <div className="mt-8">
