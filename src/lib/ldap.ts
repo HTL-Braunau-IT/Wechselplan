@@ -1,4 +1,5 @@
 import * as ldap from 'ldapjs'
+import { captureError } from '@/lib/sentry'
 
 interface LDAPConfig {
 	url: string
@@ -34,20 +35,52 @@ export class LDAPClient {
 
 	constructor(config: LDAPConfig) {
 		this.config = config
+		console.log('Initializing LDAP client with URL:', config.url)
 		this.client = ldap.createClient({
 			url: config.url,
+		})
+
+		// Add error event listener
+		this.client.on('error', (err) => {
+			console.error('LDAP client error:', err)
+			captureError(err, {
+				location: 'LDAPClient',
+				type: 'client_error'
+			})
+		})
+
+		// Add connect event listener
+		this.client.on('connect', () => {
+			console.log('LDAP client connected successfully')
+		})
+
+		// Add connectTimeout event listener
+		this.client.on('connectTimeout', () => {
+			console.error('LDAP connection timeout')
+			captureError(new Error('LDAP connection timeout'), {
+				location: 'LDAPClient',
+				type: 'connection_timeout'
+			})
 		})
 	}
 
 	async authenticate(username: string, password: string): Promise<LDAPUser | null> {
 		return new Promise((resolve, reject) => {
+			console.log('Starting LDAP authentication for user:', username)
 			// First bind with the service account
+			console.log('Attempting to bind with service account:', this.config.bindDN)
 			this.client.bind(this.config.bindDN, this.config.bindPassword, (err: Error | null) => {
 				if (err) {
-					console.error('LDAP bind error:', err)
+					console.error('LDAP bind error with service account:', err)
+					captureError(err, {
+						location: 'LDAPClient',
+						type: 'service_account_bind_error',
+						extra: { username }
+					})
 					reject(new Error('Failed to bind with service account'))
 					return
 				}
+				console.log('Successfully bound with service account')
 
 				// Search for the user
 				const searchOptions: ldap.SearchOptions = {
@@ -57,10 +90,16 @@ export class LDAPClient {
 				}
 
 				console.log('LDAP Search Options:', JSON.stringify(searchOptions, null, 2))
+				console.log('Searching in base DN:', this.config.baseDN)
 
 				this.client.search(this.config.baseDN, searchOptions, (err: Error | null, res: ldap.SearchCallbackResponse) => {
 					if (err) {
 						console.error('LDAP search error:', err)
+						captureError(err, {
+							location: 'LDAPClient',
+							type: 'user_search_error',
+							extra: { username }
+						})
 						reject(new Error('Failed to search for user'))
 						return
 					}
@@ -68,6 +107,7 @@ export class LDAPClient {
 					let user: LDAPUser | null = null
 
 					res.on('searchEntry', (entry: ldap.SearchEntry) => {
+						console.log('Received search entry with DN:', entry.dn)
 						const attributes = entry.attributes
 						const rawDN = entry.dn.toString()
 						const dn = decodeLDAPDN(rawDN)
@@ -75,7 +115,20 @@ export class LDAPClient {
 						console.log('Found user DN (decoded):', dn)
 						const displayName = attributes.find(attr => attr.type === 'displayName')?.values[0]
 						const mail = attributes.find(attr => attr.type === 'mail')?.values[0]
-						if (!displayName || !mail) return
+						console.log('Found attributes:', { displayName, mail })
+						if (!displayName || !mail) {
+							console.log('Missing required attributes (displayName or mail)')
+							captureError(new Error('Missing required LDAP attributes'), {
+								location: 'LDAPClient',
+								type: 'missing_attributes',
+								extra: {
+									username,
+									hasDisplayName: !!displayName,
+									hasMail: !!mail
+								}
+							})
+							return
+						}
 						user = {
 							dn,
 							displayName,
@@ -85,23 +138,40 @@ export class LDAPClient {
 
 					res.on('error', (err: Error) => {
 						console.error('LDAP search error:', err)
+						captureError(err, {
+							location: 'LDAPClient',
+							type: 'search_error',
+							extra: { username }
+						})
 						reject(new Error('Error during user search'))
 					})
 
 					res.on('end', () => {
 						if (!user) {
+							console.log('No user found with username:', username)
+							captureError(new Error('User not found in LDAP'), {
+								location: 'LDAPClient',
+								type: 'user_not_found',
+								extra: { username }
+							})
 							resolve(null)
 							return
 						}
 
 						// Try to bind with the user's credentials
-						console.log('Attempting to bind with DN:', user.dn)
+						console.log('Attempting to bind with user DN:', user.dn)
 						this.client.bind(user.dn, password, (err: Error | null) => {
 							if (err) {
 								console.error('LDAP user bind error:', err)
+								captureError(err, {
+									location: 'LDAPClient',
+									type: 'user_bind_error',
+									extra: { username }
+								})
 								resolve(null)
 								return
 							}
+							console.log('Successfully authenticated user:', username)
 							resolve(user)
 						})
 					})
@@ -115,6 +185,11 @@ export class LDAPClient {
 			this.client.bind(this.config.bindDN, this.config.bindPassword, (err: Error | null) => {
 				if (err) {
 					console.error('LDAP bind error:', err)
+					captureError(err, {
+						location: 'LDAPClient',
+						type: 'group_search_bind_error',
+						extra: { userDN }
+					})
 					reject(new Error('Failed to bind with service account'))
 					return
 				}
@@ -130,6 +205,11 @@ export class LDAPClient {
 				this.client.search(this.config.baseDN, searchOptions, (err: Error | null, res: ldap.SearchCallbackResponse) => {
 					if (err) {
 						console.error('LDAP search error:', err)
+						captureError(err, {
+							location: 'LDAPClient',
+							type: 'group_search_error',
+							extra: { userDN }
+						})
 						reject(new Error('Failed to search for groups'))
 						return
 					}
@@ -153,6 +233,11 @@ export class LDAPClient {
 
 					res.on('error', (err: Error) => {
 						console.error('LDAP search error:', err)
+						captureError(err, {
+							location: 'LDAPClient',
+							type: 'group_search_error',
+							extra: { userDN }
+						})
 						reject(new Error('Error during group search'))
 					})
 
