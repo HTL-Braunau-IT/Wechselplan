@@ -7,6 +7,7 @@ CREATE TABLE "Student" (
     "groupId" INTEGER,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "username" TEXT NOT NULL,
 
     CONSTRAINT "Student_pkey" PRIMARY KEY ("id")
 );
@@ -18,6 +19,8 @@ CREATE TABLE "Teacher" (
     "lastName" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "username" TEXT NOT NULL,
+    "email" TEXT,
 
     CONSTRAINT "Teacher_pkey" PRIMARY KEY ("id")
 );
@@ -174,6 +177,40 @@ CREATE TABLE "TeacherRotation" (
 );
 
 -- CreateTable
+CREATE TABLE "Role" (
+    "id" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Role_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "UserRole" (
+    "id" SERIAL NOT NULL,
+    "userId" TEXT NOT NULL,
+    "roleId" INTEGER NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "UserRole_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "SupportMessage" (
+    "id" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+    "message" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "currentUri" TEXT,
+
+    CONSTRAINT "SupportMessage_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "_ScheduleToScheduleTime" (
     "A" INTEGER NOT NULL,
     "B" INTEGER NOT NULL,
@@ -190,6 +227,9 @@ CREATE TABLE "_BreakTimeToSchedule" (
 );
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Student_username_key" ON "Student"("username");
+
+-- CreateIndex
 CREATE INDEX "Student_firstName_lastName_idx" ON "Student"("firstName", "lastName");
 
 -- CreateIndex
@@ -197,6 +237,12 @@ CREATE INDEX "Student_groupId_idx" ON "Student"("groupId");
 
 -- CreateIndex
 CREATE INDEX "Student_classId_idx" ON "Student"("classId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Teacher_username_key" ON "Teacher"("username");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Teacher_email_key" ON "Teacher"("email");
 
 -- CreateIndex
 CREATE INDEX "Teacher_firstName_lastName_idx" ON "Teacher"("firstName", "lastName");
@@ -265,6 +311,24 @@ CREATE UNIQUE INDEX "SchedulePDF_classId_key" ON "SchedulePDF"("classId");
 CREATE UNIQUE INDEX "TeacherRotation_classId_groupId_turnId_period_key" ON "TeacherRotation"("classId", "groupId", "turnId", "period");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Role_name_key" ON "Role"("name");
+
+-- CreateIndex
+CREATE INDEX "Role_name_idx" ON "Role"("name");
+
+-- CreateIndex
+CREATE INDEX "UserRole_userId_idx" ON "UserRole"("userId");
+
+-- CreateIndex
+CREATE INDEX "UserRole_roleId_idx" ON "UserRole"("roleId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "UserRole_userId_roleId_key" ON "UserRole"("userId", "roleId");
+
+-- CreateIndex
+CREATE INDEX "SupportMessage_createdAt_idx" ON "SupportMessage"("createdAt");
+
+-- CreateIndex
 CREATE INDEX "_ScheduleToScheduleTime_B_index" ON "_ScheduleToScheduleTime"("B");
 
 -- CreateIndex
@@ -280,16 +344,19 @@ ALTER TABLE "Schedule" ADD CONSTRAINT "Schedule_classId_fkey" FOREIGN KEY ("clas
 ALTER TABLE "TeacherAssignment" ADD CONSTRAINT "TeacherAssignment_classId_fkey" FOREIGN KEY ("classId") REFERENCES "Class"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "TeacherAssignment" ADD CONSTRAINT "TeacherAssignment_teacherId_fkey" FOREIGN KEY ("teacherId") REFERENCES "Teacher"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "TeacherAssignment" ADD CONSTRAINT "TeacherAssignment_learningContentId_fkey" FOREIGN KEY ("learningContentId") REFERENCES "LearningContent"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TeacherAssignment" ADD CONSTRAINT "TeacherAssignment_roomId_fkey" FOREIGN KEY ("roomId") REFERENCES "Room"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "TeacherAssignment" ADD CONSTRAINT "TeacherAssignment_subjectId_fkey" FOREIGN KEY ("subjectId") REFERENCES "Subject"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "TeacherAssignment" ADD CONSTRAINT "TeacherAssignment_learningContentId_fkey" FOREIGN KEY ("learningContentId") REFERENCES "LearningContent"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "TeacherAssignment" ADD CONSTRAINT "TeacherAssignment_teacherId_fkey" FOREIGN KEY ("teacherId") REFERENCES "Teacher"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "TeacherAssignment" ADD CONSTRAINT "TeacherAssignment_roomId_fkey" FOREIGN KEY ("roomId") REFERENCES "Room"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "UserRole" ADD CONSTRAINT "UserRole_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "Role"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "_ScheduleToScheduleTime" ADD CONSTRAINT "_ScheduleToScheduleTime_A_fkey" FOREIGN KEY ("A") REFERENCES "Schedule"("id") ON DELETE CASCADE ON UPDATE CASCADE;
