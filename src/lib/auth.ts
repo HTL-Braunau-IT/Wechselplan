@@ -83,6 +83,7 @@ export const authOptions: NextAuthOptions = {
             baseDN: process.env.LDAP_BASE_DN!,
             bindDN: process.env.LDAP_USERNAME!,
             bindPassword: process.env.LDAP_PASSWORD!,
+            timeout: 3000 // 3 seconds timeout for initial auth
           })
 
           const user = await client.authenticate(
@@ -98,7 +99,16 @@ export const authOptions: NextAuthOptions = {
           const studentGroups = process.env.LDAP_STUDENT_GROUPS?.split(',') ?? []
           const teacherGroups = process.env.LDAP_TEACHER_GROUPS?.split(',') ?? []
 
-          const userGroups = await client.getUserGroups(user.dn)
+          // Create a new client instance for group search to avoid connection issues
+          const groupClient = new LDAPClient({
+            url: process.env.LDAP_URL!,
+            baseDN: process.env.LDAP_BASE_DN!,
+            bindDN: process.env.LDAP_USERNAME!,
+            bindPassword: process.env.LDAP_PASSWORD!,
+            timeout: 3000 // 3 seconds timeout for group search
+          })
+
+          const userGroups = await groupClient.getUserGroups(user.dn)
           console.log('User groups from LDAP:', userGroups)
           console.log('Student groups from env:', studentGroups)
           console.log('Teacher groups from env:', teacherGroups)
@@ -114,8 +124,11 @@ export const authOptions: NextAuthOptions = {
           const role = isTeacher ? 'teacher' : isStudent ? 'student' : 'user'
           console.log('Assigned role:', role)
           
-          // Save the role to the database
-          await saveUserRole(credentials.username, role)
+          // Save the role to the database asynchronously
+          saveUserRole(credentials.username, role).catch(error => {
+            console.error('Error saving user role:', error)
+            // Don't throw here, we still want to return the user even if role saving fails
+          })
 
           return {
             id: credentials.username,
