@@ -7,7 +7,6 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useTranslation } from 'react-i18next'
-import { captureFrontendError } from '@/lib/frontend-error'
 
 interface ScheduleTime {
   id: number
@@ -109,15 +108,8 @@ export default function TimesPage() {
         setSelectedScheduleTimes(savedTimes.scheduleTimes.map(time => time.id))
         setSelectedBreakTimes(savedTimes.breakTimes.map(time => time.id))
       }
-    } catch (err) {
-      console.error('Error fetching data:', err)
-      captureFrontendError(err, {
-        location: 'schedule/create/times',
-        type: 'fetch-data',
-        extra: {
-          classId
-        }
-      })
+    } catch (error) {
+      console.error('Error fetching data:', error)
       setError('Failed to load times')
     } finally {
       setIsLoading(false)
@@ -158,18 +150,9 @@ export default function TimesPage() {
         throw new Error('Failed to save times')
       }
 
-      router.push(`/schedule/create/overview?class=${classId}`)
-    } catch (err) {
-      console.error('Error saving times:', err)
-      captureFrontendError(err, {
-        location: 'schedule/create/times',
-        type: 'save-times',
-        extra: {
-          classId,
-          scheduleTimes: selectedScheduleTimes,
-          breakTimes: selectedBreakTimes
-        }
-      })
+      router.push(`/schedule/create/overview?class=${classId}`) // Navigate to the overview step with class parameter
+    } catch (error) {
+      console.error('Error saving times:', error)
       setError('Failed to save times')
     }
   }
@@ -197,15 +180,8 @@ export default function TimesPage() {
         period: 'AM'
       })
       setSuccess(t('settings.times.scheduleTimeAdded'))
-    } catch (err) {
-      console.error('Error adding schedule time:', err)
-      captureFrontendError(err, {
-        location: 'schedule/create/times',
-        type: 'add-schedule-time',
-        extra: {
-          newScheduleTime
-        }
-      })
+    } catch (error) {
+      console.error('Error adding schedule time:', error)
       setError(t('settings.times.scheduleTimeError'))
     }
   }
@@ -233,15 +209,8 @@ export default function TimesPage() {
         period: 'AM'
       })
       setSuccess(t('settings.times.breakTimeAdded'))
-    } catch (err) {
-      console.error('Error adding break time:', err)
-      captureFrontendError(err, {
-        location: 'schedule/create/times',
-        type: 'add-break-time',
-        extra: {
-          newBreakTime
-        }
-      })
+    } catch (error) {
+      console.error('Error adding break time:', error)
       setError(t('settings.times.breakTimeError'))
     }
   }
@@ -339,4 +308,102 @@ export default function TimesPage() {
                       onCheckedChange={() => toggleScheduleTime(time.id)}
                       className="h-5 w-5 border-2 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                     />
-                    <Label htmlFor={`
+                    <Label htmlFor={`schedule-${time.id}`} className="flex-1 cursor-pointer">
+                      {time.startTime} - {time.endTime} | {time.hours} {t('settings.times.hours')} ({time.period})
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Break Times */}
+            <div>
+              <h2 className="text-xl font-semibold mb-4">{t('settings.times.breakTimes')}</h2>
+              
+              {/* Add new break time form */}
+              <div className="mb-6 p-4 border rounded-lg">
+                <h3 className="text-lg font-medium mb-3">{t('settings.times.addNewBreakTime')}</h3>
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="breakName">{t('settings.times.breakName')}</Label>
+                    <input
+                      type="text"
+                      id="breakName"
+                      value={newBreakTime.name}
+                      onChange={(e) => setNewBreakTime({ ...newBreakTime, name: e.target.value })}
+                      className="w-full p-2 border rounded"
+                      placeholder={t('settings.times.breakNamePlaceholder')}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="breakStartTime">{t('settings.times.startTime')}</Label>
+                      <input
+                        type="time"
+                        id="breakStartTime"
+                        value={newBreakTime.startTime}
+                        onChange={(e) => setNewBreakTime({ ...newBreakTime, startTime: e.target.value })}
+                        className="w-full p-2 border rounded"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="breakEndTime">{t('settings.times.endTime')}</Label>
+                      <input
+                        type="time"
+                        id="breakEndTime"
+                        value={newBreakTime.endTime}
+                        onChange={(e) => setNewBreakTime({ ...newBreakTime, endTime: e.target.value })}
+                        className="w-full p-2 border rounded"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="breakPeriod">{t('settings.times.period')}</Label>
+                    <select
+                      id="breakPeriod"
+                      value={newBreakTime.period}
+                      onChange={(e) => setNewBreakTime({ ...newBreakTime, period: e.target.value as 'AM' | 'PM' })}
+                      className="w-full p-2 border rounded"
+                    >
+                      <option value="AM">AM</option>
+                      <option value="PM">PM</option>
+                    </select>
+                  </div>
+                  <Button onClick={handleAddBreakTime} className="w-full">
+                    {t('settings.times.addBreakTime')}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Existing break times */}
+              <div className="space-y-4">
+                {breakTimes.map(time => (
+                  <div key={time.id} className="flex items-center space-x-4 p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                    <Checkbox
+                      id={`break-${time.id}`}
+                      checked={selectedBreakTimes.includes(time.id)}
+                      onCheckedChange={() => toggleBreakTime(time.id)}
+                      className="h-5 w-5 border-2 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                    />
+                    <Label htmlFor={`break-${time.id}`} className="flex-1 cursor-pointer">
+                      {time.name}: {time.startTime} - {time.endTime} ({time.period})
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 flex justify-end gap-4">
+            <Button variant="outline" onClick={() => router.back()}>
+              {t('common:common.cancel')}
+            </Button>
+            <Button onClick={handleSave}>
+              {t('common:common.next')}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+} 
