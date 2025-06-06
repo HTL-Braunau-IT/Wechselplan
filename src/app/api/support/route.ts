@@ -34,6 +34,15 @@ export async function POST(request: Request) {
       )
     } catch (emailError) {
       console.error('Failed to send support email:', emailError)
+      captureError(emailError, {
+        location: 'api/support',
+        type: 'send-support-email',
+        extra: {
+          name,
+          message,
+          currentUri
+        }
+      })
       // Don't throw here, we still want to return success to the user
     }
 

@@ -1,8 +1,8 @@
 export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
-
-import * as ldap from 'ldapjs'
+import ldap from 'ldapjs'
+import { captureError } from '@/lib/sentry'
 
 // Debug logging for environment variables
 console.log('LDAP Configuration:', {
@@ -89,6 +89,17 @@ export async function POST(): Promise<Response> {
       client.bind(config.username, config.password, (err) => {
         if (err) {
           console.error('LDAP bind error:', err)
+          captureError(err, {
+            location: 'api/teachers/import',
+            type: 'ldap-bind',
+            extra: {
+              config: {
+                url: config.url,
+                baseDN: config.baseDN,
+                teachersOU: config.teachersOU
+              }
+            }
+          })
           client.unbind()
           resolve(NextResponse.json({ error: 'LDAP bind failed' }, { status: 500 }))
           return
@@ -105,6 +116,17 @@ export async function POST(): Promise<Response> {
         client.search(config.teachersOU, searchOptions, (err, res) => {
           if (err) {
             console.error('LDAP search error:', err)
+            captureError(err, {
+              location: 'api/teachers/import',
+              type: 'ldap-search',
+              extra: {
+                config: {
+                  url: config.url,
+                  baseDN: config.baseDN,
+                  teachersOU: config.teachersOU
+                }
+              }
+            })
             client.unbind()
             resolve(NextResponse.json({ error: 'LDAP search failed' }, { status: 500 }))
             return
@@ -122,6 +144,17 @@ export async function POST(): Promise<Response> {
 
           res.on('error', (err: Error) => {
             console.error('LDAP search error:', err)
+            captureError(err, {
+              location: 'api/teachers/import',
+              type: 'ldap-search-event',
+              extra: {
+                config: {
+                  url: config.url,
+                  baseDN: config.baseDN,
+                  teachersOU: config.teachersOU
+                }
+              }
+            })
             client.unbind()
             resolve(NextResponse.json({ error: 'LDAP search failed' }, { status: 500 }))
           })
@@ -142,6 +175,14 @@ export async function POST(): Promise<Response> {
     })
   } catch (error) {
     console.error('Error importing teachers:', error)
+    captureError(error, {
+      location: 'api/teachers/import',
+      type: 'import-teachers',
+      extra: {
+        runtime: process.env.NEXT_RUNTIME,
+        nodeEnv: process.env.NODE_ENV
+      }
+    })
     return NextResponse.json({ error: 'Failed to import teachers' }, { status: 500 })
   }
 } 
