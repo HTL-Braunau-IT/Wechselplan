@@ -10,10 +10,15 @@ Sentry.init({
   // Add optional integrations for additional features
   integrations: [
     Sentry.replayIntegration(),
+    Sentry.browserTracingIntegration(),
+    Sentry.browserProfilingIntegration()
   ],
 
   // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
   tracesSampleRate: 1,
+
+  // Set sampling rate for profiling - this is evaluated only once per SDK.init call
+  profilesSampleRate: 1.0,
 
   // Define how likely Replay events are sampled.
   // This sets the sample rate to be 10%. You may want this to be 100% while

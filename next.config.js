@@ -32,6 +32,10 @@ const nextConfig = {
           {
             key: 'Access-Control-Allow-Headers',
             value: '*'
+          },
+          {
+            key: 'Document-Policy',
+            value: 'js-profiling'
           }
         ]
       }
