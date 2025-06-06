@@ -1,8 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
-  provider        = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -12,14 +9,14 @@ datasource db {
 
 model Student {
   id        Int      @id @default(autoincrement())
-  username  String   @unique
   firstName String
   lastName  String
   classId   Int?
-  class     Class?   @relation(fields: [classId], references: [id])
   groupId   Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  username  String   @unique
+  class     Class?   @relation(fields: [classId], references: [id])
 
   @@index([firstName, lastName])
   @@index([groupId])
@@ -28,32 +25,32 @@ model Student {
 
 model Teacher {
   id          Int                 @id @default(autoincrement())
-  username    String              @unique
   firstName   String
   lastName    String
-  email       String?             @unique
-  assignments TeacherAssignment[]
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
+  username    String              @unique
+  email       String?             @unique
+  assignments TeacherAssignment[]
 
   @@index([firstName, lastName])
 }
 
 model Class {
   id          Int                 @id @default(autoincrement())
-  name        String              @unique // e.g., "1AHITS", "2AFELC", "3BHME"
+  name        String              @unique
   description String?
-  students    Student[]
-  schedules   Schedule[]
-  assignments TeacherAssignment[]
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
+  schedules   Schedule[]
+  students    Student[]
+  assignments TeacherAssignment[]
 
   @@index([name])
 }
 
 model Schedule {
-  id              Int           @id @default(autoincrement())
+  id              Int            @id @default(autoincrement())
   name            String
   description     String?
   startDate       DateTime
@@ -61,11 +58,11 @@ model Schedule {
   selectedWeekday Int
   scheduleData    Json
   classId         Int?
-  class           Class?        @relation(fields: [classId], references: [id])
-  scheduleTimes   ScheduleTime[]
-  breakTimes      BreakTime[]
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  class           Class?         @relation(fields: [classId], references: [id])
+  breakTimes      BreakTime[]    @relation("BreakTimeToSchedule")
+  scheduleTimes   ScheduleTime[] @relation("ScheduleToScheduleTime")
 
   @@index([classId])
 }
@@ -73,7 +70,7 @@ model Schedule {
 model GroupAssignment {
   id        Int      @id @default(autoincrement())
   groupId   Int
-  class     String // e.g., "1AHITS", "2AFELC", "3BHME"
+  class     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -84,19 +81,19 @@ model GroupAssignment {
 model TeacherAssignment {
   id                Int             @id @default(autoincrement())
   classId           Int
-  class             Class           @relation(fields: [classId], references: [id])
-  period            String // "AM" or "PM"
+  period            String
   groupId           Int
   teacherId         Int
-  teacher           Teacher         @relation(fields: [teacherId], references: [id])
   subjectId         Int
-  subject           Subject         @relation(fields: [subjectId], references: [id])
   learningContentId Int
-  learningContent   LearningContent @relation(fields: [learningContentId], references: [id])
   roomId            Int
-  room              Room            @relation(fields: [roomId], references: [id])
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
+  class             Class           @relation(fields: [classId], references: [id])
+  learningContent   LearningContent @relation(fields: [learningContentId], references: [id])
+  room              Room            @relation(fields: [roomId], references: [id])
+  subject           Subject         @relation(fields: [subjectId], references: [id])
+  teacher           Teacher         @relation(fields: [teacherId], references: [id])
 
   @@unique([classId, period, groupId])
   @@index([classId])
@@ -111,9 +108,9 @@ model Room {
   name        String              @unique
   capacity    Int?
   description String?
-  assignments TeacherAssignment[]
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
+  assignments TeacherAssignment[]
 
   @@index([name])
 }
@@ -150,27 +147,27 @@ model SchoolHoliday {
 }
 
 model ScheduleTime {
-  id          Int        @id @default(autoincrement())
-  startTime   String     // Format: "HH:mm"
-  endTime     String     // Format: "HH:mm"
-  hours       Float
-  period      String     // "AM" or "PM"
-  schedules   Schedule[]
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id        Int        @id @default(autoincrement())
+  startTime String
+  endTime   String
+  hours     Float
+  period    String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  schedules Schedule[] @relation("ScheduleToScheduleTime")
 
   @@unique([startTime, endTime, period])
 }
 
 model BreakTime {
-  id          Int        @id @default(autoincrement())
-  name        String     // e.g., "Morning Break", "Lunch Break", "Afternoon Break"
-  startTime   String     // Format: "HH:mm"
-  endTime     String     // Format: "HH:mm"
-  period      String     // "AM" or "PM"
-  schedules   Schedule[]
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id        Int        @id @default(autoincrement())
+  name      String
+  startTime String
+  endTime   String
+  period    String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  schedules Schedule[] @relation("BreakTimeToSchedule")
 
   @@unique([startTime, endTime, period])
 }
@@ -189,7 +186,7 @@ model TeacherRotation {
   groupId   Int
   teacherId Int
   turnId    String
-  period    String   // 'AM' or 'PM'
+  period    String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -197,23 +194,23 @@ model TeacherRotation {
 }
 
 model Role {
-  id          Int         @id @default(autoincrement())
-  name        String      @unique
+  id          Int        @id @default(autoincrement())
+  name        String     @unique
   description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
   userRoles   UserRole[]
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
 
   @@index([name])
 }
 
 model UserRole {
   id        Int      @id @default(autoincrement())
-  userId    String   // This will store either teacher or student username
+  userId    String
   roleId    Int
-  role      Role     @relation(fields: [roleId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  role      Role     @relation(fields: [roleId], references: [id])
 
   @@unique([userId, roleId])
   @@index([userId])
@@ -221,12 +218,12 @@ model UserRole {
 }
 
 model SupportMessage {
-  id        Int      @id @default(autoincrement())
-  name      String
-  message   String   @db.Text
-  currentUri String? @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         Int      @id @default(autoincrement())
+  name       String
+  message    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  currentUri String?
 
   @@index([createdAt])
 }
