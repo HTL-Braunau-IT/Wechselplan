@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle } from 'lucide-react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import { captureFrontendError } from '@/lib/frontend-error'
 
 export default function LoginPage() {
 	const [username, setUsername] = useState('')
@@ -35,7 +36,15 @@ export default function LoginPage() {
 			}
 
 			router.push('/')
-		} catch {
+		} catch (err) {
+			console.error('Error during LDAP login:', err)
+			captureFrontendError(err, {
+				location: 'login',
+				type: 'ldap-login',
+				extra: {
+					username
+				}
+			})
 			setError('An error occurred during login')
 		} finally {
 			setIsLoading(false)
@@ -48,7 +57,12 @@ export default function LoginPage() {
 
 		try {
 			await signIn('azure-ad', { callbackUrl: '/' })
-		} catch  {
+		} catch (err) {
+			console.error('Error during Microsoft login:', err)
+			captureFrontendError(err, {
+				location: 'login',
+				type: 'microsoft-login'
+			})
 			setError('An error occurred during login')
 			setIsLoading(false)
 		}

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
+import { captureError } from '@/lib/sentry'
 
 const envFilePath = path.join(process.cwd(), '.env')
 
@@ -17,17 +18,29 @@ interface LDAPConfig {
 }
 
 export async function GET() {
-	return NextResponse.json({
-		serverUrl: process.env.LDAP_URL,
-		baseDN: process.env.LDAP_BASE_DN,
-		bindDN: process.env.LDAP_USERNAME,
-		bindPassword: process.env.LDAP_PASSWORD,
-		userSearchBase: process.env.LDAP_BASE_DN,
-		userSearchFilter: '(sAMAccountName={0})',
-		enabled: true,
-		studentGroups: process.env.LDAP_STUDENT_GROUPS?.split(',') ?? [],
-		teacherGroups: process.env.LDAP_TEACHER_GROUPS?.split(',') ?? [],
-	})
+	try {
+		return NextResponse.json({
+			serverUrl: process.env.LDAP_URL,
+			baseDN: process.env.LDAP_BASE_DN,
+			bindDN: process.env.LDAP_USERNAME,
+			bindPassword: process.env.LDAP_PASSWORD,
+			userSearchBase: process.env.LDAP_BASE_DN,
+			userSearchFilter: '(sAMAccountName={0})',
+			enabled: true,
+			studentGroups: process.env.LDAP_STUDENT_GROUPS?.split(',') ?? [],
+			teacherGroups: process.env.LDAP_TEACHER_GROUPS?.split(',') ?? [],
+		})
+	} catch (error) {
+		console.error('Error fetching LDAP config:', error)
+		captureError(error, {
+			location: 'api/auth/ldap-config',
+			type: 'fetch-config'
+		})
+		return NextResponse.json(
+			{ error: 'Failed to fetch LDAP configuration' },
+			{ status: 500 }
+		)
+	}
 }
 
 export async function POST(request: Request) {
@@ -80,9 +93,16 @@ export async function POST(request: Request) {
 
 		return NextResponse.json({ success: true })
 	} catch (error) {
-		console.error('Error saving LDAP config:', error)
+		console.error('Error updating LDAP config:', error)
+		captureError(error, {
+			location: 'api/auth/ldap-config',
+			type: 'update-config',
+			extra: {
+				requestBody: await request.text()
+			}
+		})
 		return NextResponse.json(
-			{ error: 'Failed to save LDAP configuration' },
+			{ error: 'Failed to update LDAP configuration' },
 			{ status: 500 }
 		)
 	}

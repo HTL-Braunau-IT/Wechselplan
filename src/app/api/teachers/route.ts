@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { captureError } from '@/lib/sentry'
 
 export async function GET() {
 	try {
@@ -18,6 +19,10 @@ export async function GET() {
 		return NextResponse.json(teachers)
 	} catch (error) {
 		console.error('Error fetching teachers:', error)
+		captureError(error, {
+			location: 'api/teachers',
+			type: 'fetch-teachers'
+		})
 		return NextResponse.json(
 			{ error: 'Failed to fetch teachers' },
 			{ status: 500 }
@@ -43,6 +48,13 @@ export async function POST(request: Request) {
 		return NextResponse.json(teacher)
 	} catch (error) {
 		console.error('Error creating teacher:', error)
+		captureError(error, {
+			location: 'api/teachers',
+			type: 'create-teachers',
+			extra: {
+				requestBody: await request.text()
+			}
+		})
 		return NextResponse.json({ error: 'Failed to create teacher' }, { status: 500 })
 	}
 } 

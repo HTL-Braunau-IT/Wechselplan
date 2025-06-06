@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
+import { captureError } from '@/lib/sentry'
 
 export async function GET() {
   try {
@@ -11,13 +12,11 @@ export async function GET() {
     })
     return NextResponse.json(holidays)
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      console.error('Prisma error fetching holidays:', error.message)
-    } else if (error instanceof Error) {
-      console.error('Error fetching holidays:', error.message)
-    } else {
-      console.error('Unknown error fetching holidays:', error)
-    }
+    console.error('Error fetching holidays:', error)
+    captureError(error, {
+      location: 'api/settings/holidays',
+      type: 'fetch-holidays'
+    })
     return NextResponse.json(
       { error: 'Failed to fetch holidays' },
       { status: 500 }
@@ -39,15 +38,16 @@ export async function POST(request: Request) {
     
     return NextResponse.json(holiday)
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      console.error('Prisma error adding holiday:', error.message)
-    } else if (error instanceof Error) {
-      console.error('Error adding holiday:', error.message)
-    } else {
-      console.error('Unknown error adding holiday:', error)
-    }
+    console.error('Error creating holiday:', error)
+    captureError(error, {
+      location: 'api/settings/holidays',
+      type: 'create-holiday',
+      extra: {
+        requestBody: await request.text()
+      }
+    })
     return NextResponse.json(
-      { error: 'Failed to add holiday' },
+      { error: 'Failed to create holiday' },
       { status: 500 }
     )
   }

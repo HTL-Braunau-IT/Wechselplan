@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { addWeeks, format, setDay, getDay, isWithinInterval } from 'date-fns'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { captureFrontendError } from '@/lib/frontend-error'
 
 interface WeekInfo {
   week: string
@@ -94,9 +95,13 @@ export default function RotationPage() {
         startDate: new Date(holiday.startDate),
         endDate: new Date(holiday.endDate)
       })))
-    } catch {
-         setFetchError('Failed to load holidays.')
-
+    } catch (err) {
+      console.error('Error fetching holidays:', err)
+      captureFrontendError(err, {
+        location: 'schedule/create/rotation',
+        type: 'fetch-holidays'
+      })
+      setFetchError('Failed to load holidays.')
     } finally {
       setIsLoading(false)
     }
@@ -104,30 +109,39 @@ export default function RotationPage() {
 
   const fetchExistingSchedule = async (classId: string) => {
     try {
-      setIsLoading(true);
-      const response = await fetch(`/api/schedules?classId=${classId}&weekday=${selectedWeekday}`);
-      if (!response.ok) throw new Error('Failed to fetch schedule');
-      const schedules = await response.json();
+      setIsLoading(true)
+      const response = await fetch(`/api/schedules?classId=${classId}&weekday=${selectedWeekday}`)
+      if (!response.ok) throw new Error('Failed to fetch schedule')
+      const schedules = await response.json()
       if (process.env.NODE_ENV !== 'production') {
-        console.log('Schedules:', schedules);
+        console.log('Schedules:', schedules)
       }
       if (schedules && schedules.length > 0) {
-        const latest = schedules[0];
+        const latest = schedules[0]
         // Populate state from loaded schedule
-        setSchedule((latest.scheduleData as Schedule) ?? {});
-        setNumberOfTerms(Object.keys((latest.scheduleData as Schedule) ?? {}).length);
-        setSelectedWeekday((latest.selectedWeekday as number) ?? 1);
+        setSchedule((latest.scheduleData as Schedule) ?? {})
+        setNumberOfTerms(Object.keys((latest.scheduleData as Schedule) ?? {}).length)
+        setSelectedWeekday((latest.selectedWeekday as number) ?? 1)
 
-        setLoadedFromDb(true);
+        setLoadedFromDb(true)
       } else {
-        setLoadedFromDb(false);
-        calculateSchedule();
+        setLoadedFromDb(false)
+        calculateSchedule()
       }
-    } catch {
-      setLoadedFromDb(false);
-      calculateSchedule();
+    } catch (err) {
+      console.error('Error fetching existing schedule:', err)
+      captureFrontendError(err, {
+        location: 'schedule/create/rotation',
+        type: 'fetch-schedule',
+        extra: {
+          classId,
+          selectedWeekday
+        }
+      })
+      setLoadedFromDb(false)
+      calculateSchedule()
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
   }
 
@@ -316,9 +330,19 @@ export default function RotationPage() {
 
       // Navigate to the times page with the class parameter
       router.push(`/schedule/create/times?class=${classId}`)
-    } catch (error) {
-      console.error('Error saving schedule:', error instanceof Error ? error.message : 'Unknown error')
-      setSaveError('Failed to save schedule. Please try again.')
+    } catch (err) {
+      console.error('Error saving schedule:', err)
+      captureFrontendError(err, {
+        location: 'schedule/create/rotation',
+        type: 'save-schedule',
+        extra: {
+          classId,
+          schedule,
+          numberOfTerms,
+          selectedWeekday
+        }
+      })
+      setSaveError('Failed to save schedule.')
     } finally {
       setIsSaving(false)
     }

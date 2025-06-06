@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
+import { captureError } from '@/lib/sentry'
 
 const prisma = new PrismaClient()
 
@@ -18,6 +19,10 @@ export async function GET() {
         return NextResponse.json(classes)
     } catch (error) {
         console.error('Error fetching classes:', error)
+        captureError(error, {
+            location: 'api/classes',
+            type: 'fetch-classes'
+        })
         return NextResponse.json(
             { error: 'Failed to fetch classes' },
             { status: 500 }

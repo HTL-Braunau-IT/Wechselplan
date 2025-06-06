@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { captureFrontendError } from '@/lib/frontend-error'
 
 
 interface Student {
@@ -164,7 +165,12 @@ export default function ScheduleClassSelectPage() {
 				if (!res.ok) throw new Error('Failed to fetch classes')
 				const data = await res.json() as Class[]
 				setClasses(data)
-			} catch {
+			} catch (err) {
+				console.error('Error fetching classes:', err)
+				captureFrontendError(err, {
+					location: 'schedule/create',
+					type: 'fetch-classes'
+				})
 				setError('Fehler beim Laden der Klassen.')
 			} finally {
 				setLoading(false)
@@ -232,9 +238,16 @@ export default function ScheduleClassSelectPage() {
 					setGroups(newGroups)
 					hasExistingAssignmentsRef.current = false
 				}
-			} catch (error) {
-				console.error('Error:', error)
-				setError('Fehler beim Laden der Schüler.')
+			} catch (err) {
+				console.error('Error fetching students and assignments:', err)
+				captureFrontendError(err, {
+					location: 'schedule/create',
+					type: 'fetch-students-assignments',
+					extra: {
+						selectedClass
+					}
+				})
+				setError('Fehler beim Laden der Schüler und Zuweisungen.')
 			} finally {
 				setLoading(false)
 			}
@@ -393,9 +406,18 @@ export default function ScheduleClassSelectPage() {
 
 			// Navigate to the teachers page
 			router.push(`/schedule/create/teachers?class=${selectedClass}`)
-		} catch (error) {
-			console.error('Error storing assignments:', error)
-			setError('Failed to store assignments. Please try again.')
+		} catch (err) {
+			console.error('Error saving assignments:', err)
+			captureFrontendError(err, {
+				location: 'schedule/create',
+				type: 'save-assignments',
+				extra: {
+					selectedClass,
+					numberOfGroups,
+					assignments: pendingAssignments
+				}
+			})
+			setError('Fehler beim Speichern der Zuweisungen.')
 		}
 	}
 
@@ -422,9 +444,17 @@ export default function ScheduleClassSelectPage() {
 
 			// Navigate to the teachers page
 			router.push(`/schedule/create/teachers?class=${selectedClass}`)
-		} catch (error) {
-			console.error('Error updating assignments:', error)
-			setError('Failed to update assignments. Please try again.')
+		} catch (err) {
+			console.error('Error updating assignments:', err)
+			captureFrontendError(err, {
+				location: 'schedule/create',
+				type: 'update-assignments',
+				extra: {
+					selectedClass,
+					assignments: pendingAssignments
+				}
+			})
+			setError('Fehler beim Aktualisieren der Zuweisungen.')
 		} finally {
 			setShowConfirmDialog(false)
 			setPendingAssignments(null)
@@ -524,9 +554,17 @@ export default function ScheduleClassSelectPage() {
 
 			// Reload the page with the class parameter
 			router.push(`/schedule/create?class=${selectedClass}`)
-		} catch (error) {
-			console.error('Error adding student:', error)
-			setError(error instanceof Error ? error.message : 'Failed to add student')
+		} catch (err) {
+			console.error('Error adding student:', err)
+			captureFrontendError(err, {
+				location: 'schedule/create',
+				type: 'add-student',
+				extra: {
+					selectedClass,
+					newStudent
+				}
+			})
+			setError('Fehler beim Hinzufügen des Schülers.')
 		}
 	}
 

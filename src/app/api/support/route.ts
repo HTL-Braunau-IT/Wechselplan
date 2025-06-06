@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '~/lib/prisma'
 import { sendSupportEmail } from '~/server/send-support-email-graph'
+import { captureError } from '@/lib/sentry'
 
 export async function POST(request: Request) {
   try {
@@ -39,6 +40,13 @@ export async function POST(request: Request) {
     return NextResponse.json(supportMessage)
   } catch (error) {
     console.error('Error processing support request:', error)
+    captureError(error, {
+      location: 'api/support',
+      type: 'send-support-email',
+      extra: {
+        requestBody: await request.text()
+      }
+    })
     return NextResponse.json(
       { error: 'Failed to process support request' },
       { status: 500 }

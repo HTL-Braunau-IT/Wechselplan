@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { captureError } from '@/lib/sentry'
 
 export async function GET() {
   try {
@@ -11,6 +12,10 @@ export async function GET() {
     return NextResponse.json(roles)
   } catch (error) {
     console.error('Error fetching roles:', error)
+    captureError(error, {
+      location: 'api/roles',
+      type: 'fetch-roles'
+    })
     return NextResponse.json(
       { error: 'Failed to fetch roles' },
       { status: 500 }
@@ -39,6 +44,13 @@ export async function POST(request: Request) {
     return NextResponse.json(role)
   } catch (error) {
     console.error('Error creating role:', error)
+    captureError(error, {
+      location: 'api/roles',
+      type: 'create-role',
+      extra: {
+        requestBody: await request.text()
+      }
+    })
     return NextResponse.json(
       { error: 'Failed to create role' },
       { status: 500 }

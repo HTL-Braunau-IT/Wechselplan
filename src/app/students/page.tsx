@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { captureFrontendError } from '@/lib/frontend-error'
 
 interface Student {
   id: number
@@ -46,6 +47,11 @@ export default function StudentsPage() {
       const classesData = await classesRes.json() as Class[]
       setClasses(classesData)
     } catch (e) {
+      console.error('Error fetching students data:', e)
+      captureFrontendError(e, {
+        location: 'students',
+        type: 'fetch-data'
+      })
       const errMsg = e instanceof Error ? e.message : 'Failed to load data'
       setError(errMsg)
     } finally {

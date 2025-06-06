@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
+import { captureError } from '@/lib/sentry'
 
 export async function GET() {
 	try {
@@ -16,13 +17,11 @@ export async function GET() {
 
 		return NextResponse.json({ subjects })
 	} catch (error) {
-		if (error instanceof Prisma.PrismaClientKnownRequestError) {
-			console.error('Prisma error fetching subjects:', error.message)
-		} else if (error instanceof Error) {
-			console.error('Error fetching subjects:', error.message)
-		} else {
-			console.error('Unknown error fetching subjects:', error)
-		}
+		console.error('Error fetching subjects:', error)
+		captureError(error, {
+			location: 'api/subjects',
+			type: 'fetch-subjects'
+		})
 		return NextResponse.json(
 			{ error: 'Failed to fetch subjects' },
 			{ status: 500 }

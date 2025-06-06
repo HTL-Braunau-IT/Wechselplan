@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { captureFrontendError } from '@/lib/frontend-error'
 
 interface LDAPConfig {
   url: string
@@ -36,7 +37,14 @@ export default function SettingsPage() {
     fetch('/api/admin/ldap-config')
       .then(res => res.json())
       .then(data => setConfig(data as LDAPConfig))
-      .catch(() => setError(t('admin.settings.errors.loadConfig')))
+      .catch((err) => {
+        console.error('Error loading LDAP config:', err)
+        captureFrontendError(err, {
+          location: 'admin/settings',
+          type: 'load-config'
+        })
+        setError(t('admin.settings.errors.loadConfig'))
+      })
   }, [t])
 
   const handleSaveConfig = async (e: React.FormEvent) => {
@@ -54,7 +62,20 @@ export default function SettingsPage() {
 
       if (!response.ok) throw new Error()
       setSuccess(t('admin.settings.ldap.success'))
-    } catch {
+    } catch (err) {
+      console.error('Error saving LDAP config:', err)
+      captureFrontendError(err, {
+        location: 'admin/settings',
+        type: 'save-config',
+        extra: {
+          config: {
+            url: config.url,
+            baseDN: config.baseDN,
+            studentsOU: config.studentsOU,
+            teachersOU: config.teachersOU
+          }
+        }
+      })
       setError(t('admin.settings.ldap.error'))
     } finally {
       setIsLoading(false)
