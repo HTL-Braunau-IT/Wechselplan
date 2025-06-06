@@ -4,17 +4,26 @@ import AzureADProvider from 'next-auth/providers/azure-ad'
 import { LDAPClient } from '@/lib/ldap'
 import { prisma } from '@/lib/prisma'
 import type { User } from 'next-auth'
+import { captureError } from '@/lib/sentry'
 
 async function ensureRolesExist() {
-  const roles = ['admin', 'teacher', 'student', 'user']
-  for (const role of roles) {
-    await prisma.role.upsert({
-      where: { name: role },
-      update: {},
-      create: {
-        name: role,
-        description: `${role.charAt(0).toUpperCase() + role.slice(1)} role`
-      }
+  try {
+    const roles = ['admin', 'teacher', 'student', 'user']
+    for (const role of roles) {
+      await prisma.role.upsert({
+        where: { name: role },
+        update: {},
+        create: {
+          name: role,
+          description: `${role.charAt(0).toUpperCase() + role.slice(1)} role`
+        }
+      })
+    }
+  } catch (error) {
+    console.error('Error ensuring roles exist:', error)
+    captureError(error, {
+      location: 'auth',
+      type: 'ensure_roles_error'
     })
   }
 }
@@ -35,6 +44,11 @@ async function saveUserRole(username: string, role: 'admin' | 'teacher' | 'stude
 
     if (!roleRecord) {
       console.error(`Role ${role} not found in database`)
+      captureError(new Error(`Role ${role} not found in database`), {
+        location: 'auth',
+        type: 'role_not_found',
+        extra: { username, role }
+      })
       return
     }
 
@@ -56,6 +70,11 @@ async function saveUserRole(username: string, role: 'admin' | 'teacher' | 'stude
     console.log('Created user role:', userRole)
   } catch (error) {
     console.error('Error saving user role:', error)
+    captureError(error, {
+      location: 'auth',
+      type: 'save_user_role_error',
+      extra: { username, role }
+    })
   }
 }
 
@@ -127,7 +146,11 @@ export const authOptions: NextAuthOptions = {
           // Save the role to the database asynchronously
           saveUserRole(credentials.username, role).catch(error => {
             console.error('Error saving user role:', error)
-            // Don't throw here, we still want to return the user even if role saving fails
+            captureError(error, {
+              location: 'auth',
+              type: 'async_save_user_role_error',
+              extra: { username: credentials.username, role }
+            })
           })
 
           return {
@@ -138,6 +161,11 @@ export const authOptions: NextAuthOptions = {
           } as LDAPUser
         } catch (error) {
           console.error('LDAP authentication error:', error)
+          captureError(error, {
+            location: 'auth',
+            type: 'ldap_authentication_error',
+            extra: { username: credentials.username }
+          })
           return null
         }
       },
@@ -189,6 +217,11 @@ export const authOptions: NextAuthOptions = {
           }
         } catch (error) {
           console.error('Error fetching Microsoft groups:', error)
+          captureError(error, {
+            location: 'auth',
+            type: 'azure_ad_groups_error',
+            extra: { userId: token.sub }
+          })
         }
       }
 
@@ -223,6 +256,11 @@ export async function hasRole(userId: string, roleName: string): Promise<boolean
     return !!userRole
   } catch (error) {
     console.error('Error checking user role:', error)
+    captureError(error, {
+      location: 'auth',
+      type: 'check_role_error',
+      extra: { userId, roleName }
+    })
     return false
   }
 }
@@ -240,14 +278,37 @@ export async function getUserRoles(userId: string): Promise<string[]> {
     return userRoles.map(ur => ur.role.name)
   } catch (error) {
     console.error('Error getting user roles:', error)
+    captureError(error, {
+      location: 'auth',
+      type: 'get_user_roles_error',
+      extra: { userId }
+    })
     return []
   }
 }
 
 export async function requireRole(userId: string, roleName: string): Promise<boolean> {
-  const hasRequiredRole = await hasRole(userId, roleName)
-  if (!hasRequiredRole) {
-    throw new Error(`User does not have required role: ${roleName}`)
+  try {
+    const hasRequiredRole = await hasRole(userId, roleName)
+    if (!hasRequiredRole) {
+      const error = new Error(`User does not have required role: ${roleName}`)
+      captureError(error, {
+        location: 'auth',
+        type: 'missing_required_role',
+        extra: { userId, roleName }
+      })
+      throw error
+    }
+    return true
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('required role')) {
+      throw error
+    }
+    captureError(error, {
+      location: 'auth',
+      type: 'require_role_error',
+      extra: { userId, roleName }
+    })
+    throw error
   }
-  return true
 } 
