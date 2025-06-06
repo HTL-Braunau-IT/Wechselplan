@@ -244,6 +244,17 @@ export async function POST() {
       })
     } catch (error) {
       console.error('Simple search failed:', error)
+      captureError(error, {
+        location: 'api/students/import',
+        type: 'ldap-simple-search',
+        extra: {
+          config: {
+            url: LDAP_CONFIG.url,
+            baseDN: LDAP_CONFIG.baseDN,
+            studentsOU: LDAP_CONFIG.studentsOU
+          }
+        }
+      })
       return NextResponse.json(
         { 
           error: 'Failed to perform basic LDAP search',
@@ -265,6 +276,17 @@ export async function POST() {
       }, (err: Error | null, res: LDAPSearchResponse) => {
         if (err) {
           console.error('Error listing OUs:', err)
+          captureError(err, {
+            location: 'api/students/import',
+            type: 'ldap-ou-search',
+            extra: {
+              config: {
+                url: LDAP_CONFIG.url,
+                baseDN: LDAP_CONFIG.baseDN,
+                studentsOU: LDAP_CONFIG.studentsOU
+              }
+            }
+          })
           resolve(false)
           return
         }

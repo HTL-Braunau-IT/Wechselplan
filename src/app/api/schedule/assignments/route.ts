@@ -16,6 +16,13 @@ export async function GET(request: Request) {
 		const className = searchParams.get('class')
 
 		if (!className) {
+			captureError(new Error('Class parameter is required'), {
+				location: 'api/schedule/assignments',
+				type: 'validation-error',
+				extra: {
+					searchParams: Object.fromEntries(new URL(request.url).searchParams)
+				}
+			})
 			return NextResponse.json(
 				{ error: 'Class parameter is required' },
 				{ status: 400 }
@@ -28,6 +35,14 @@ export async function GET(request: Request) {
 		})
 
 		if (!classRecord) {
+			captureError(new Error('Class not found'), {
+				location: 'api/schedule/assignments',
+				type: 'not-found',
+				extra: {
+					className,
+					searchParams: Object.fromEntries(new URL(request.url).searchParams)
+				}
+			})
 			return NextResponse.json(
 				{ error: 'Class not found' },
 				{ status: 404 }
@@ -88,6 +103,13 @@ export async function POST(request: Request) {
 		const { class: className, assignments, removedStudentIds } = body
 
 		if (!className) {
+			captureError(new Error('Class parameter is required'), {
+				location: 'api/schedule/assignments',
+				type: 'validation-error',
+				extra: {
+					requestBody: await request.text()
+				}
+			})
 			return NextResponse.json(
 				{ error: 'Class parameter is required' },
 				{ status: 400 }
@@ -100,6 +122,14 @@ export async function POST(request: Request) {
 		})
 
 		if (!classRecord) {
+			captureError(new Error('Class not found'), {
+				location: 'api/schedule/assignments',
+				type: 'not-found',
+				extra: {
+					className,
+					requestBody: await request.text()
+				}
+			})
 			return NextResponse.json(
 				{ error: 'Class not found' },
 				{ status: 404 }
