@@ -242,5 +242,20 @@
     "submit": "Absenden",
     "messageSent": "Ihre Nachricht wurde erfolgreich gesendet",
     "error": "Nachricht konnte nicht gesendet werden. Bitte versuchen Sie es erneut."
+  },
+  "classSettings": {
+    "title": "Klasseneinstellungen",
+    "loading": "Klasseneinstellungen werden geladen...",
+    "classHead": "Klassenleiter",
+    "classLead": "Klassenlehrer",
+    "selectClassHead": "Klassenleiter auswählen",
+    "selectClassLead": "Klassenlehrer auswählen",
+    "none": "Keine",
+    "updating": "Wird aktualisiert...",
+    "success": "Klasse erfolgreich aktualisiert",
+    "error": {
+      "load": "Daten konnten nicht geladen werden",
+      "update": "Klasse konnte nicht aktualisiert werden"
+    }
   }
 } 

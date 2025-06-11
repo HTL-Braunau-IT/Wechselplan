@@ -52,6 +52,21 @@ export interface TeacherAssignmentsResponse {
     pmAssignments: TeacherAssignmentResponse[]
 }
 
+export interface Teacher {
+    id: number
+    firstName: string
+    lastName: string
+    username: string
+}
+
+export interface Class {
+    id: number
+    name: string
+    description: string | null
+    classHeadId: number | null
+    classLeadId: number | null
+}
+
 export interface ScheduleTime {
     id: string
     startTime: string

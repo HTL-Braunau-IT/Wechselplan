@@ -243,5 +243,20 @@
     "submit": "Submit",
     "messageSent": "Your message has been sent successfully",
     "error": "Failed to send message. Please try again."
+  },
+  "classSettings": {
+    "title": "Class Settings",
+    "loading": "Loading class settings...",
+    "classHead": "Class Head",
+    "classLead": "Class Lead",
+    "selectClassHead": "Select class head",
+    "selectClassLead": "Select class lead",
+    "none": "None",
+    "updating": "Updating...",
+    "success": "Class updated successfully",
+    "error": {
+      "load": "Failed to load data",
+      "update": "Failed to update class"
+    }
   }
 } 

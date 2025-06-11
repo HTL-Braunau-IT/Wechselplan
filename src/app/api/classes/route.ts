@@ -7,7 +7,8 @@ const prisma = new PrismaClient()
 /**
  * Handles GET requests to retrieve all classes with their full details.
  *
- * Returns a JSON array of class objects, each containing `id`, `name`, and `description`, ordered alphabetically by name.
+ * Returns a JSON array of class objects, each containing `id`, `name`, `description`, 
+ * `classHeadId`, and `classLeadId` information, ordered alphabetically by name.
  *
  * @returns A JSON response with the list of classes or an error message with status 500 if the query fails.
  */
@@ -17,14 +18,16 @@ export async function GET() {
             select: {
                 id: true,
                 name: true,
-                description: true
+                description: true,
+                classHeadId: true,
+                classLeadId: true
             },
-            orderBy: { name: 'asc' }
+            orderBy: { name: 'asc' },
+
         })
         
         return NextResponse.json(classes)
     } catch (error) {
-        
         captureError(error, {
             location: 'api/classes',
             type: 'fetch-classes'

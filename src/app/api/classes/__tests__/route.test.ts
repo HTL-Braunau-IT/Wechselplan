@@ -53,6 +53,8 @@ describe('Classes API', () => {
           id: true,
           name: true,
           description: true,
+          classHeadId: true,
+          classLeadId: true,
         },
         orderBy: { name: 'asc' },
       });

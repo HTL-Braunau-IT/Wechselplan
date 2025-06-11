@@ -183,6 +183,15 @@ export function Header() {
 											{t('navigation.createSchedule')}
 										</Link>
 									</li>
+									<li>
+										<Link
+											href="/class-settings"
+											className="block py-2 hover:text-primary"
+											onClick={() => setIsMenuOpen(false)}
+										>
+											{t('navigation.classSettings')}
+										</Link>
+									</li>
 									{session?.user?.role === 'teacher' && (
 										<li>
 											<Link
