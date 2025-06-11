@@ -5,6 +5,16 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { captureFrontendError } from '@/lib/frontend-error'
+import { captureError } from '@/lib/sentry'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 
 
 interface Student {
@@ -81,6 +91,8 @@ export default function OverviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [turns, setTurns] = useState<TurnSchedule>({});
   const [saving, setSaving] = useState(false);
+  const [showPdfDialog, setShowPdfDialog] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   // Debug logs
   console.log('teachers', teachers);
@@ -187,10 +199,16 @@ export default function OverviewPage() {
       });
 
       if (!response.ok) {
+        const error = new Error('Failed to save teacher rotation');
+        captureError(error, {
+          location: 'schedule/create/overview',
+          type: 'save-overview'
+        })
         throw new Error('Failed to save teacher rotation');
       }
 
-      router.push('/');
+      // Show PDF generation dialog
+      setShowPdfDialog(true);
     } catch (err) {
       console.error('Error saving teacher rotation:', err);
       captureFrontendError(err, {
@@ -207,6 +225,52 @@ export default function OverviewPage() {
     }
   }
 
+  async function handleGeneratePdf() {
+    setGeneratingPdf(true);
+    try {
+      const export_response = await fetch(`/api/export?classId=${classId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (!export_response.ok) {
+        const error = new Error('Failed to export schedule');
+        captureError(error, {
+          location: 'schedule/create/overview',
+          type: 'export-schedule'
+        })
+        throw new Error('Failed to export schedule');
+      }
+
+      // Handle PDF download
+      const blob = await export_response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `schedule-${classId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      router.push('/');
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      captureFrontendError(err, {
+        location: 'schedule/create/overview',
+        type: 'generate-pdf'
+      });
+      setError('Failed to generate PDF.');
+    } finally {
+      setGeneratingPdf(false);
+      setShowPdfDialog(false);
+    }
+  }
+
+  function handleSkipPdf() {
+    setShowPdfDialog(false);
+    router.push('/');
+  }
 
   if (loading || isLoadingCachedData) return <div className="p-8 text-center">Loading...</div>;
   if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
@@ -359,6 +423,37 @@ export default function OverviewPage() {
           </CardContent>
         </Card>
       ))}
+
+      {/* Custom blurred overlay for modal */}
+      {showPdfDialog && (
+        <div className="fixed inset-0 z-40 backdrop-blur-sm bg-background/80 transition-all" />
+      )}
+      <Dialog open={showPdfDialog} onOpenChange={setShowPdfDialog}>
+        <DialogContent className="z-50">
+          <DialogHeader>
+            <DialogTitle>Generate PDF Schedule?</DialogTitle>
+            <DialogDescription>
+              Would you like to generate and download a PDF version of the schedule?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 justify-end">
+            <Button
+              variant="outline"
+              onClick={handleSkipPdf}
+              disabled={generatingPdf}
+            >
+              Skip
+            </Button>
+            <Button
+              onClick={handleGeneratePdf}
+              disabled={generatingPdf}
+            >
+              {generatingPdf ? 'Generating...' : 'Generate PDF'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex justify-end mt-8">
         <button
           className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
