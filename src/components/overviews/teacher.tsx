@@ -152,7 +152,15 @@ export function TeacherOverview() {
                             </div>
                             <div className="border-t pt-4 mt-4">
                                 <p className="text-sm text-gray-500 mb-2">Additional Info</p>
-                                <p className="font-semibold text-lg">{scheduleData.schedules[0]?.[0]?.additionalInfo}</p>
+                                {/* Find the schedule matching the current assignment’s class */}
+                                <p className="font-semibold text-lg">
+                                    {
+                                        scheduleData.schedules
+                                            .find(sList => sList.some(s => Number(s.classId) === assignment.classId))
+                                            ?.at(0)
+                                            ?.additionalInfo ?? '—'
+                                    }
+                                </p>
                             </div>
                             
                             <div className="border-t pt-4 mt-4">
