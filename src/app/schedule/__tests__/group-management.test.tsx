@@ -78,12 +78,13 @@ describe('Group Management', () => {
   })
 
   const selectClass = async () => {
-    // Find the select trigger button
-    const selectTrigger = await screen.findByRole('combobox')
+    // Find the select trigger button for class selection
+    const selectTrigger = await screen.findByRole('combobox', { name: /class/i })
     fireEvent.click(selectTrigger)
     
     // Find and click the option within the select content
-    const option = await screen.findByRole('option', { name: '1A' })
+    const option = await screen.findByText('1A')
+    if (!option) throw new Error('Class option 1A not found')
     fireEvent.click(option)
     
     const submitButton = screen.getByRole('button', { name: /next/i })

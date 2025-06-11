@@ -620,7 +620,7 @@ export default function ScheduleClassSelectPage() {
 											onValueChange={setSelectedClass}
 											required
 										>
-											<SelectTrigger className="w-full">
+											<SelectTrigger id="class-select" className="w-full">
 												<SelectValue placeholder={t('pleaseSelect')} />
 											</SelectTrigger>
 											<SelectContent>
