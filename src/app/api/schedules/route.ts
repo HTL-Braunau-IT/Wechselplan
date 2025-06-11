@@ -12,7 +12,7 @@ const scheduleSchema = z.object({
     message: 'Invalid end date format'
   }),
   selectedWeekday: z.number().int().min(0).max(6),
-  schedule: z.any(), // Using any for now since the exact structure isn't clear
+  scheduleData: z.any(), // Using any for now since the exact structure isn't clear
   classId: z.string().optional(),
   additionalInfo: z.any().optional()
 })
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
       )
     }
 
-    const { name, description, startDate, endDate, selectedWeekday, schedule, classId, additionalInfo } = validationResult.data
+    const { name, description, startDate, endDate, selectedWeekday, scheduleData, classId, additionalInfo } = validationResult.data
 
     // Delete existing schedules with the same weekday for this class
     await db.schedule.deleteMany({
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
         endDate: new Date(endDate),
         selectedWeekday,
         classId: classId ? parseInt(classId) : null,
-        scheduleData: schedule,
+        scheduleData,
         additionalInfo
       }
     })

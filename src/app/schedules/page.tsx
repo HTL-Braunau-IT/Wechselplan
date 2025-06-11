@@ -272,12 +272,7 @@ export default function SchedulesPage() {
               </Card>
             ))}
             <div className="flex justify-end mt-8">
-              <button
-                className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
-                disabled={false}
-              >
-                Save & Finish
-              </button>
+             
             </div>
           </>
         )}

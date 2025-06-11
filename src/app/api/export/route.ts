@@ -17,7 +17,7 @@ import { prisma } from '@/lib/prisma'
 export async function POST(request: Request) {
     try {
         const { searchParams } = new URL(request.url)
-        const className = searchParams.get('classId')
+        const className = searchParams.get('className')
         if (!className) {
             const error = new Error('Class Name is required')
             captureError(error, {
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
         if (!class_response) {
             const error = new Error('Class not found')
             captureError(error, {
-                location: 'api/schedules/pdf-data',
+                location: 'api/export',
                 type: 'pdf-data-error'
             })
             return NextResponse.json({ error: 'Class not found' }, { status: 400 })

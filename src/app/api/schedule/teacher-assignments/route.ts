@@ -217,17 +217,17 @@ export async function POST(request: Request) {
 				)
 			}
 
-			await prisma.teacherAssignment.create({
-				data: {
-					classId: classRecord.id,
-					period: 'PM',
-					groupId: assignment.groupId,
-					teacherId: assignment.teacherId,
-					subjectId: subject.id,
-					learningContentId: learningContent.id,
-					roomId: room.id
-				}
-			})
+await prisma.teacherAssignment.create({
+ 				data: {
+ 					classId: classRecord.id,
+ 					period: 'PM',
+					groupId: assignment.groupId === 0 ? null : assignment.groupId,
+ 					teacherId: assignment.teacherId,
+ 					subjectId: subject.id,
+ 					learningContentId: learningContent.id,
+ 					roomId: room.id
+ 				}
+ 			})
 		}
 
 		return NextResponse.json({ message: 'Teacher assignments saved successfully' })

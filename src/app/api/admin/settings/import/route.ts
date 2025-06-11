@@ -75,9 +75,13 @@ export async function POST(request: Request) {
 				})
 				const existingNames = new Set(existing.map(r => r.name))
 				const filteredData = transformedData.filter(item => !existingNames.has(item.name))
-				result = await (prisma as unknown as { room: { createMany: (args: Prisma.RoomCreateManyArgs) => Promise<{ count: number }> } }).room.createMany({
-					data: filteredData
-				})
+				if (filteredData.length === 0) {
+					result = { count: 0 }
+				} else {
+					result = await prisma.room.createMany({
+						data: filteredData
+					})
+				}
 				break
 			}
 			case 'subject': {

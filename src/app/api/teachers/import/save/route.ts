@@ -92,10 +92,18 @@ export async function POST(request: Request) {
       teachers: importedCount,
       total: uniqueTeachers.length,
       skipped: uniqueTeachers.length - importedCount
-    })
-  } catch (error) {
-    console.error('Error importing teachers:', error)
-    return NextResponse.json(
+import { captureError } from '@/lib/sentry'
+
+ } catch (error) {
+   console.error('Error importing teachers:', error)
+  captureError(error, {
+    location: 'api/teachers/import/save',
+    type: 'import-teachers',
+    extra: {
+      teacherCount: data.teachers.length
+    }
+  })
+   return NextResponse.json(
       { error: 'Failed to import teachers' },
       { status: 500 }
     )

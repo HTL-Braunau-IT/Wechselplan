@@ -42,14 +42,15 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { userId, roleId } = await request.json()
-
-    if (!userId || !roleId) {
-      return NextResponse.json(
-        { error: 'User ID and Role ID are required' },
-        { status: 400 }
-      )
-    }
+const { userId, roleId } = await request.json() as { userId?: string; roleId?: number | string }
+const numericRoleId = Number(roleId)
+ 
+if (!userId || Number.isNaN(numericRoleId)) {
+   return NextResponse.json(
+     { error: 'User ID and Role ID are required' },
+     { status: 400 }
+   )
+ }
 
     // Check if the role exists
     const role = await prisma.role.findUnique({

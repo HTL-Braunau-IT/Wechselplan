@@ -182,11 +182,14 @@ export default function TimesPage() {
         throw new Error('Failed to add schedule time')
       }
 
-      const data = await response.json() as ScheduleTime
-      const periods = [...new Set(teacherAssignments.map((a: TeacherAssignment) => a.period))]
-      if (periods.includes(data.period)) {
-        setScheduleTimes([...scheduleTimes, data])
+      const data = await response.json()
+      if (!data || typeof data.id !== 'number' || !['AM', 'PM'].includes(data.period)) {
+        throw new Error('Invalid response format')
       }
+       const periods = [...new Set(teacherAssignments.map((a: TeacherAssignment) => a.period))]
+      if (periods.includes(data.period as 'AM' | 'PM')) {
+         setScheduleTimes([...scheduleTimes, data as ScheduleTime])
+       }
       setNewScheduleTime({
         startTime: '',
         endTime: '',

@@ -79,13 +79,13 @@ export async function GET() {
       )
     }
 
-    // Validate hours
-    if (hours <= 0) {
-      return NextResponse.json(
-        { error: 'Hours must be greater than 0' },
-        { status: 400 }
-      )
-    }
+const parsedHours = Number(hours);
+if (!Number.isFinite(parsedHours) || parsedHours <= 0) {
+   return NextResponse.json(
+     { error: 'Hours must be greater than 0' },
+     { status: 400 }
+   )
+ }
 
     const scheduleTime = await prisma.scheduleTime.create({
       data: {

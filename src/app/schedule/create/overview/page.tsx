@@ -170,7 +170,7 @@ export default function OverviewPage() {
   async function handleGeneratePdf() {
     setGeneratingPdf(true);
     try {
-      const export_response = await fetch(`/api/export?classId=${classId}`, {
+      const export_response = await fetch(`/api/export?className=${classId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
