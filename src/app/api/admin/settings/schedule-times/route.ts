@@ -42,11 +42,7 @@ export async function POST(request: Request) {
       )
     }
 
-    // Create new schedule time
-    const scheduleTime = await prisma.scheduleTime.create({
-      data: {
-        startTime: data.startTime,
-        endTime: data.endTime,
+    // Validate hours
     const hours = Number(data.hours)
     if (!Number.isFinite(hours) || hours <= 0) {
       return NextResponse.json(
@@ -55,14 +51,30 @@ export async function POST(request: Request) {
       )
     }
 
+    // Validate period
+    if (data.period !== 'AM' && data.period !== 'PM') {
+      return NextResponse.json(
+        { error: 'Invalid period. Must be AM or PM' },
+        { status: 400 }
+      )
+    }
+
+    // Validate time format
+    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
+    if (!timeRegex.test(data.startTime as string) || !timeRegex.test(data.endTime as string)) {
+      return NextResponse.json(
+        { error: 'Invalid time format. Use HH:mm' },
+        { status: 400 }
+      )
+    }
+
+    // Create new schedule time
     const scheduleTime = await prisma.scheduleTime.create({
       data: {
         startTime: data.startTime,
         endTime: data.endTime,
         hours,
         period: data.period
-      }
-    })
       }
     })
 

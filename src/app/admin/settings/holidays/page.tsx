@@ -11,20 +11,7 @@ import { toast } from 'sonner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-
-interface Holiday {
-  id: number
-  name: string
-  startDate: string
-  endDate: string
-}
-
-interface ScrapedHoliday {
-  name: string
-  startDate: string
-  endDate: string
-  isValid: boolean
-}
+import type { Holiday } from '~/types/types'
 
 /**
  * Displays and manages a list of school holidays, allowing users to add and delete holidays.

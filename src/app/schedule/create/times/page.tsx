@@ -183,7 +183,7 @@ export default function TimesPage() {
       }
 
       const data = await response.json()
-      if (!data || typeof data.id !== 'number' || !['AM', 'PM'].includes(data.period)) {
+      if (!data || typeof data.id !== 'number' || !['AM', 'PM'].includes(data.period as string)) {
         throw new Error('Invalid response format')
       }
        const periods = [...new Set(teacherAssignments.map((a: TeacherAssignment) => a.period))]

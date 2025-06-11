@@ -92,15 +92,26 @@ async function main() {
   ]
 
   for (const holiday of holidays) {
-    // Idempotent upsert – keyed on unique `name`
-    await prisma.schoolHoliday.upsert({
-      where: { name: holiday.name },
-      update: {
-        startDate: holiday.startDate,
-        endDate: holiday.endDate,
-      },
-      create: holiday,
+    // Find existing holiday by name
+    const existingHoliday = await prisma.schoolHoliday.findFirst({
+      where: { name: holiday.name }
     })
+
+    if (existingHoliday) {
+      // Update existing holiday
+      await prisma.schoolHoliday.update({
+        where: { id: existingHoliday.id },
+        data: {
+          startDate: holiday.startDate,
+          endDate: holiday.endDate,
+        }
+      })
+    } else {
+      // Create new holiday
+      await prisma.schoolHoliday.create({
+        data: holiday
+      })
+    }
   }
 
   console.log('School holidays created successfully')
@@ -218,6 +229,6 @@ main()
     console.error(e)
     process.exit(1)
   })
-  .finally(async () => {
-    await prisma.$disconnect()
+  .finally(() => {
+    void prisma.$disconnect()
   }) 

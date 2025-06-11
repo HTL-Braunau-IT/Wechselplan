@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { captureError } from '~/lib/sentry'
 
 const breakTimeSchema = z.object({
   name: z.string().min(1, 'Name is required'),

@@ -42,19 +42,19 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-const { userId, roleId } = await request.json() as { userId?: string; roleId?: number | string }
-const numericRoleId = Number(roleId)
+    const { userId, roleId } = await request.json() as { userId?: string; roleId?: string | number }
+    const numericRoleId = Number(roleId)
  
-if (!userId || Number.isNaN(numericRoleId)) {
-   return NextResponse.json(
-     { error: 'User ID and Role ID are required' },
-     { status: 400 }
-   )
- }
+    if (!userId || Number.isNaN(numericRoleId)) {
+      return NextResponse.json(
+        { error: 'User ID and Role ID are required' },
+        { status: 400 }
+      )
+    }
 
     // Check if the role exists
     const role = await prisma.role.findUnique({
-      where: { id: roleId }
+      where: { id: numericRoleId }
     })
 
     if (!role) {
@@ -84,7 +84,7 @@ if (!userId || Number.isNaN(numericRoleId)) {
     const userRole = await prisma.userRole.create({
       data: {
         userId,
-        roleId
+        roleId: numericRoleId
       },
       include: {
         role: true
@@ -121,11 +121,19 @@ export async function DELETE(request: Request) {
       )
     }
 
+    const numericRoleId = Number(roleId)
+    if (Number.isNaN(numericRoleId)) {
+      return NextResponse.json(
+        { error: 'Invalid Role ID format' },
+        { status: 400 }
+      )
+    }
+
     await prisma.userRole.delete({
       where: {
         userId_roleId: {
           userId,
-          roleId: parseInt(roleId)
+          roleId: numericRoleId
         }
       }
     })

@@ -12,20 +12,8 @@ interface ImportRequest {
   }[]
 }
 
-interface ExistingTeacher {
-  firstName: string
-  lastName: string
-  username: string
-  email?: string
-}
 
-/**
- * Handles importing teacher data via a POST request, updating existing records or creating new ones as needed.
- *
- * Deduplicates incoming teacher entries by first and last name, then updates existing teachers or creates new records in the database. Returns a JSON response summarizing the import results, including the number of teachers imported, total processed, and skipped entries.
- *
- * @returns A JSON response with the import summary, including counts of imported, total, and skipped teachers.
- */
+
 export async function POST(request: Request) {
   try {
     const data = await request.json() as ImportRequest
@@ -36,74 +24,26 @@ export async function POST(request: Request) {
       data.teachers.map(t => [`${t.firstName}_${t.lastName}`, t])
     ).values())
 
-    // Get existing teachers first
-    const existingTeachers = await prisma.teacher.findMany({
-       select: {
-         firstName: true,
-         lastName: true,
-         username: true
-       }
-     })
-
-    // Create a set of existing teacher names for quick lookup
-
 
     // Process all unique teachers
-    for (const teacher of uniqueTeachers) {
-      const existingTeacher = existingTeachers.find(
-        t => t.firstName === teacher.firstName && t.lastName === teacher.lastName
+    await Promise.all(
+      uniqueTeachers.map(t =>
+        prisma.teacher.upsert({
+          where: { username: t.username },
+          create: t,
+          update: t,
+        }).then(() => importedCount++)
       )
-      if (existingTeacher) {
-        // Update existing teacher
-         const teacherData: ExistingTeacher = {
-          firstName: teacher.firstName,
-          lastName: teacher.lastName,
-          username: teacher.username,
-          email: teacher.email
-         }
-         const updatedTeacher = await prisma.teacher.update({
-           where: {
-             username: existingTeacher.username
-           },
-           data: teacherData
-         })
-         if (updatedTeacher) {
-           importedCount++
-         }
-      } else {
-        // Create new teacher
-        const teacherData: ExistingTeacher = {
-          firstName: teacher.firstName,
-          lastName: teacher.lastName,
-          username: teacher.username,
-          email: teacher.email
-         }
-        const createdTeacher = await prisma.teacher.create({
-          data: teacherData
-        })
-        if (createdTeacher) {
-          importedCount++
-        }
-       }
-     }
-
+    )
     return NextResponse.json({
       message: 'Import completed successfully',
       teachers: importedCount,
       total: uniqueTeachers.length,
       skipped: uniqueTeachers.length - importedCount
-import { captureError } from '@/lib/sentry'
-
- } catch (error) {
-   console.error('Error importing teachers:', error)
-  captureError(error, {
-    location: 'api/teachers/import/save',
-    type: 'import-teachers',
-    extra: {
-      teacherCount: data.teachers.length
-    }
-  })
-   return NextResponse.json(
+    })
+  } catch (error) {
+    console.error('Error importing teachers:', error)
+    return NextResponse.json(
       { error: 'Failed to import teachers' },
       { status: 500 }
     )

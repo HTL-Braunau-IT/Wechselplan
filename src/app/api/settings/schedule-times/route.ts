@@ -2,11 +2,6 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 
-/**
- * Retrieves all schedule time records from the database, ordered by start time.
- *
- * @returns A JSON response containing the list of schedule times, or a 500 error response if retrieval fails.
- */
 export async function GET() {
   try {
     const scheduleTimes = await prisma.scheduleTime.findMany({
@@ -28,36 +23,19 @@ export async function GET() {
   }
 }
 
-/**
-   * Handles POST requests to create a new schedule time entry.
-   *
-   * Validates the request body for required fields and correct formats, then creates a new schedule time record in the database. Returns the created schedule time as JSON, or an error response if validation fails.
-   *
-   * @param request - The incoming HTTP request containing schedule time data in JSON format.
-   * @returns A JSON response with the created schedule time or an error message with an appropriate HTTP status code.
-   */
-  export async function POST(request: Request) {
+export async function POST(request: Request) {
   // Clone the request for error logging
   const requestClone = request.clone()
-  
--    const { startTime, endTime, hours, period } = body
-+    const { startTime, endTime, period } = body
-+    const hours = Number(body.hours)
-+
-+    if (!Number.isFinite(hours) || hours <= 0) {
-+      return NextResponse.json(
-+        { error: 'Hours must be a positive number' },
-+        { status: 400 }
-+      )
-+    }
+
   try {
     const body = await request.json()
-    const { startTime, endTime, hours, period } = body
+    const { startTime, endTime, period, hours: rawHours } = body
+    const hours = Number(rawHours)
 
-    // Validate required fields
-    if (!startTime || !endTime || !hours || !period) {
+    // Validate hours
+    if (!Number.isFinite(hours) || hours <= 0) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Hours must be a positive number' },
         { status: 400 }
       )
     }
@@ -78,14 +56,6 @@ export async function GET() {
         { status: 400 }
       )
     }
-
-const parsedHours = Number(hours);
-if (!Number.isFinite(parsedHours) || parsedHours <= 0) {
-   return NextResponse.json(
-     { error: 'Hours must be greater than 0' },
-     { status: 400 }
-   )
- }
 
     const scheduleTime = await prisma.scheduleTime.create({
       data: {
