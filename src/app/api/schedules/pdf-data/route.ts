@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 
+/**
+ * Handles HTTP GET requests to retrieve student data for a class by class name.
+ *
+ * Extracts the `className` query parameter from the request, validates its presence, and fetches the corresponding class from the database. If the class exists, retrieves all students in that class with a non-null group ID. Returns a JSON response containing the list of students or an error message with the appropriate HTTP status code.
+ *
+ * @returns A JSON response with the list of students and a 200 status on success, or an error message with a 400 or 500 status on failure.
+ */
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     try {
