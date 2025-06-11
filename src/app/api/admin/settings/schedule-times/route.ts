@@ -37,8 +37,22 @@ export async function POST(request: Request) {
       data: {
         startTime: data.startTime,
         endTime: data.endTime,
-        hours: Number(data.hours),
+    const hours = Number(data.hours)
+    if (!Number.isFinite(hours) || hours <= 0) {
+      return NextResponse.json(
+        { error: 'Hours must be a positive number' },
+        { status: 400 }
+      )
+    }
+
+    const scheduleTime = await prisma.scheduleTime.create({
+      data: {
+        startTime: data.startTime,
+        endTime: data.endTime,
+        hours,
         period: data.period
+      }
+    })
       }
     })
 
