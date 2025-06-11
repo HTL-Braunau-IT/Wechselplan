@@ -43,6 +43,13 @@ export async function GET() {
 	}
 }
 
+/**
+ * Updates LDAP configuration environment variables based on the provided request body.
+ *
+ * Accepts a JSON payload representing LDAP configuration, updates or adds the relevant LDAP environment variables in the `.env` file, and returns a JSON response indicating success. If the `.env` file does not exist, it will be created.
+ *
+ * @returns A JSON response with `{ success: true }` on success, or an error message with status 500 on failure.
+ */
 export async function POST(request: Request) {
 	try {
 		const config = await request.json() as LDAPConfig

@@ -2,6 +2,14 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
+/**
+ * Initializes the database with default roles, school holidays, rooms, subjects, and learning content.
+ *
+ * Performs idempotent upsert operations for each data category to ensure records are created or updated without duplication.
+ *
+ * @remark
+ * Existing school holidays are updated with new start and end dates if their names match; other entities are only created if absent.
+ */
 async function main() {
   // Create default roles
   const roles = [

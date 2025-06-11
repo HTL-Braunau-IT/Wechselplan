@@ -19,6 +19,13 @@ interface ExistingTeacher {
   email?: string
 }
 
+/**
+ * Handles importing teacher data via a POST request, updating existing records or creating new ones as needed.
+ *
+ * Deduplicates incoming teacher entries by first and last name, then updates existing teachers or creates new records in the database. Returns a JSON response summarizing the import results, including the number of teachers imported, total processed, and skipped entries.
+ *
+ * @returns A JSON response with the import summary, including counts of imported, total, and skipped teachers.
+ */
 export async function POST(request: Request) {
   try {
     const data = await request.json() as ImportRequest

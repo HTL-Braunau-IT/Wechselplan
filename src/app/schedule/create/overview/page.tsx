@@ -34,11 +34,11 @@ const DARK_GROUP_COLORS = [
 ];
 
 /**
- * Displays and manages the class schedule overview page, including group assignments, teacher schedules, rotation planning, and PDF export options.
+ * Renders the class schedule overview page, allowing users to view group assignments, teacher schedules, rotation planning, and export the schedule as a PDF.
  *
- * Fetches and presents group and teacher assignments, rotation turns, and additional schedule information for a selected class. Enables saving teacher rotations and generating a downloadable PDF of the schedule. Handles loading, error states, and user navigation.
+ * Fetches and displays group and teacher assignments, rotation turns, and additional schedule information for a selected class. Provides options to save teacher rotations and generate a downloadable PDF. Handles loading and error states, and manages navigation after actions.
  *
- * @returns The overview page UI for managing and exporting the class schedule.
+ * @returns The UI for managing and exporting the class schedule overview.
  */
 export default function OverviewPage() {
   const searchParams = useSearchParams();
@@ -209,6 +209,9 @@ export default function OverviewPage() {
     }
   }
 
+  /**
+   * Closes the PDF dialog and navigates to the home page.
+   */
   function handleSkipPdf() {
     setShowPdfDialog(false);
     router.push('/');
@@ -217,7 +220,15 @@ export default function OverviewPage() {
   if (loading || isLoadingCachedData || overviewLoading) return <div className="p-8 text-center">Loading...</div>;
   if (error ?? overviewError) return <div className="p-8 text-center text-red-500">{error ?? overviewError}</div>;
 
-  // Helper: round-robin rotate an array by n positions
+  /**
+   * Returns a new array with its elements rotated to the left by the specified number of positions.
+   *
+   * The rotation is performed in a round-robin fashion, moving the first {@link n} elements to the end of the array.
+   *
+   * @param arr - The array to rotate.
+   * @param n - The number of positions to rotate the array.
+   * @returns A new array with elements rotated by {@link n} positions.
+   */
   function rotateArray<T>(arr: T[], n: number): T[] {
     const rotated = [...arr];
     for (let i = 0; i < n; i++) {
@@ -248,7 +259,11 @@ export default function OverviewPage() {
     return { start, end, days };
   }
 
-  // Helper: get weekday from first turn (dynamic)
+  /**
+   * Returns the weekday name of the first schedule time, or "Montag" if unavailable.
+   *
+   * @returns The weekday name in German corresponding to the first schedule time's start time, or "Montag" if no schedule times exist.
+   */
   function getWeekday() {
     if (scheduleTimes.length > 0) {
       const first = scheduleTimes[0];
@@ -257,7 +272,14 @@ export default function OverviewPage() {
     return 'Montag';
   }
 
-  // Helper: get assignment for a teacher, group, and period
+  /**
+   * Returns the group assigned to a teacher for a specific turn and period by rotating the group list.
+   *
+   * @param teacherIdx - Index of the teacher in the period's teacher list.
+   * @param turnIdx - Index of the turn for which to determine the group.
+   * @param period - The period ('AM' or 'PM') to select the appropriate teacher list.
+   * @returns The assigned group for the teacher and turn, or null if unavailable.
+   */
   function getGroupForTeacherAndTurn(teacherIdx: number, turnIdx: number, period: 'AM' | 'PM') {
     const groupList = groups;
     const teacherList = period === 'AM' ? uniqueAmTeachers : uniquePmTeachers;

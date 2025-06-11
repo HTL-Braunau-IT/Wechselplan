@@ -3,6 +3,13 @@ import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 
 
+/**
+ * Handles GET requests to retrieve teacher assignments for a specified class.
+ *
+ * Parses the `class` query parameter from the request URL, fetches the corresponding class and its teacher assignments from the database, and returns the assignments grouped by AM and PM periods. Returns appropriate error responses if the class parameter is missing, the class is not found, or an unexpected error occurs.
+ *
+ * @returns A JSON response containing `amAssignments` and `pmAssignments` arrays, or an error message with the appropriate HTTP status code.
+ */
 export async function GET(request: Request) {
 	try {
 		const { searchParams } = new URL(request.url)
@@ -94,6 +101,13 @@ export async function GET(request: Request) {
 	}
 }
 
+/**
+ * Handles creation or updating of teacher assignments for a specified class.
+ *
+ * Accepts a JSON payload containing the class name, AM and PM teacher assignments, and an optional flag to update existing assignments. Validates the existence of the class and related entities, and either creates new assignments or updates existing ones accordingly. Returns appropriate error responses for missing or invalid data.
+ *
+ * @returns A JSON response indicating success or providing an error message with the corresponding HTTP status code.
+ */
 export async function POST(request: Request) {
 	let requestData;
 	try {

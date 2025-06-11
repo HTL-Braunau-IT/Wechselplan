@@ -16,6 +16,11 @@ import { Input } from '~/components/ui/input'
 import { Textarea } from '~/components/ui/textarea'
 import { toast } from 'sonner'
 
+/**
+ * Renders a dialog for users to submit a support request with their name and message.
+ *
+ * The dialog includes form validation, submission handling, and localized UI text. On successful submission, a confirmation toast is shown and the form is reset. If submission fails, an error toast is displayed.
+ */
 export function SupportDialog() {
   const { t } = useTranslation()
   const pathname = usePathname()

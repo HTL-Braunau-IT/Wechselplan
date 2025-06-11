@@ -9,7 +9,13 @@ interface CreateStudentRequest {
 	className: string
 }
 
-// GET /api/students?class=1AHITS - Get all students for a class
+/**
+ * Handles GET requests to retrieve all students belonging to a specified class.
+ *
+ * Expects a `class` query parameter in the request URL. Returns a JSON array of students ordered by last name and first name. Responds with a 400 error if the `class` parameter is missing, or a 500 error if the database query fails.
+ *
+ * @returns A JSON response containing the list of students or an error message.
+ */
 export async function GET(request: Request) {
 	const { searchParams } = new URL(request.url)
 	const className = searchParams.get('class')
@@ -51,6 +57,11 @@ export async function GET(request: Request) {
 	}
 }
 
+/**
+ * Handles HTTP POST requests to create a new student record.
+ *
+ * Expects a JSON body with `firstName`, `lastName`, `username`, and `className`. Validates required fields, ensures the username is unique, and associates the student with an existing class. Returns the created student as JSON, or an error response if validation fails or an error occurs.
+ */
 export async function POST(request: Request) {
 	let requestBody: CreateStudentRequest = {
 		firstName: '',

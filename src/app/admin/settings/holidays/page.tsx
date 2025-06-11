@@ -26,6 +26,11 @@ interface ScrapedHoliday {
   isValid: boolean
 }
 
+/**
+ * Displays and manages a list of school holidays, allowing users to add and delete holidays.
+ *
+ * Fetches holiday data from the server, provides a form for manual holiday entry, and displays holidays in a table with delete functionality. Success and error notifications are shown for relevant actions.
+ */
 export default function HolidaysPage() {
   const { t } = useTranslation()
   const [holidays, setHolidays] = useState<Holiday[]>([])

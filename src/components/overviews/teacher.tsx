@@ -5,11 +5,11 @@ import type { ScheduleData, ScheduleTerm} from "@/types/types"
 
 
 /**
- * Renders a weekly schedule overview for the logged-in teacher, with navigation tabs for each weekday.
+ * Displays a weekly schedule overview for the logged-in teacher with weekday navigation tabs.
  *
- * Displays assignments, class and term details, group information, remaining weeks, additional info, and lists of students for each group. Fetches and updates schedule data based on the selected weekday and the current user's session.
+ * Shows assignments, class and term details, group information, remaining weeks, additional info, and lists of students for each group. Fetches and updates schedule data based on the selected weekday and the current user's session.
  *
- * @returns A React component showing the teacher's schedule overview with weekday navigation.
+ * @returns A React component presenting the teacher's schedule overview and navigation for each weekday.
  */
 export function TeacherOverview() {
     const { data: session } = useSession()

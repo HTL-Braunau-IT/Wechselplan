@@ -3,6 +3,14 @@ import { prisma } from '~/lib/prisma'
 import { sendSupportEmail } from '~/server/send-support-email-graph'
 import { captureError } from '@/lib/sentry'
 
+/**
+ * Handles support message submissions via POST request.
+ *
+ * Parses the incoming request for a support message, validates required fields, stores the message in the database, and attempts to notify the admin via email. Returns the created support message as JSON. If required fields are missing, responds with a 400 error. If an unexpected error occurs, responds with a 500 error.
+ *
+ * @param request - The incoming HTTP request containing the support message data.
+ * @returns A JSON response with the created support message, or an error message with appropriate HTTP status.
+ */
 export async function POST(request: Request) {
   try {
     const body = await request.json()

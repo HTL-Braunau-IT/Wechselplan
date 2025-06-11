@@ -21,6 +21,11 @@ const breakTimeSchema = z.object({
   }
 )
 
+/**
+ * Retrieves all break time records, ordered by start time.
+ *
+ * @returns A JSON response containing an array of break time records.
+ */
 export async function GET() {
   try {
     const breakTimes = await prisma.breakTime.findMany({
@@ -38,6 +43,13 @@ export async function GET() {
   }
 }
 
+/**
+ * Handles POST requests to create a new break time record.
+ *
+ * Validates the incoming request body against the break time schema. If validation fails, responds with a 400 status and error details. On success, creates a new break time entry in the database and returns it as JSON.
+ *
+ * @returns The created break time record as JSON, or a validation error with status 400, or a server error with status 500.
+ */
 export async function POST(request: Request) {
   try {
     const data = await request.json()

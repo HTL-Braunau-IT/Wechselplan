@@ -3,6 +3,11 @@ import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 
 
+/**
+ * Handles GET requests to retrieve all schedule time records, ordered by start time.
+ *
+ * @returns A JSON response containing the list of schedule times or an error message with a 500 status code if retrieval fails.
+ */
 export async function GET() {
   try {
     const scheduleTimes = await prisma.scheduleTime.findMany({
@@ -20,6 +25,11 @@ export async function GET() {
   }
 }
 
+/**
+ * Handles HTTP POST requests to create a new schedule time record.
+ *
+ * Parses and validates the request body for required fields (`startTime`, `endTime`, `hours`, and `period`). Ensures that `hours` is a positive number before creating the schedule time in the database. Returns the created schedule time as a JSON response, or an error message with an appropriate status code if validation fails or an error occurs during creation.
+ */
 export async function POST(request: Request) {
   try {
     const data = await request.json()

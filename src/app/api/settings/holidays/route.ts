@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 
+/**
+ * Retrieves all school holiday records from the database, ordered by start date.
+ *
+ * @returns A JSON response containing an array of school holiday objects, or an error message with HTTP status 500 if retrieval fails.
+ */
 export async function GET() {
   try {
     const holidays = await prisma.schoolHoliday.findMany({

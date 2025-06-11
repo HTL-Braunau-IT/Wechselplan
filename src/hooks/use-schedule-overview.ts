@@ -12,6 +12,14 @@ interface UseScheduleOverviewResult {
   error: string | null
 }
 
+/**
+ * React hook that retrieves and manages an overview of scheduling data for a given class.
+ *
+ * Fetches and aggregates student groups, teacher assignments, schedule times, break times, and rotation schedules for the specified class ID. Returns the collected data along with loading and error states.
+ *
+ * @param classId - The identifier of the class to fetch scheduling data for. If null or falsy, an error is set and no data is fetched.
+ * @returns An object containing groups, teacher assignments, schedule times, break times, rotation schedule, loading status, and error message.
+ */
 export function useScheduleOverview(classId: string | null): UseScheduleOverviewResult {
   const [groups, setGroups] = useState<Group[]>([])
   const [amAssignments, setAmAssignments] = useState<TeacherAssignmentResponse[]>([])

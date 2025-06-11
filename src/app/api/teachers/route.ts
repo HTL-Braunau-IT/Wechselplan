@@ -14,6 +14,13 @@ const teacherSchema = z.object({
 	email: z.string().email('Invalid email address').trim().toLowerCase()
 })
 
+/**
+ * Retrieves a list of all teachers with basic information.
+ *
+ * Returns an array of teachers, each containing the `id`, `firstName`, `lastName`, and `username` fields, ordered by last name in ascending order.
+ *
+ * @returns A JSON response containing the list of teachers or an error message with status 500 if retrieval fails.
+ */
 export async function GET() {
 	try {
 		const teachers = await prisma.teacher.findMany({
@@ -42,6 +49,13 @@ export async function GET() {
 	}
 }
 
+/**
+ * Handles HTTP POST requests to create a new teacher record.
+ *
+ * Validates the incoming request body against the teacher schema, checks for username uniqueness, and creates a new teacher in the database if validation passes.
+ *
+ * @returns A JSON response containing the created teacher object, or an error message with appropriate HTTP status code if validation or creation fails.
+ */
 export async function POST(request: Request) {
 	if (!prisma) {
 		return NextResponse.json({ error: 'Database not initialized' }, { status: 500 })
