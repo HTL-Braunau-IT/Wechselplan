@@ -41,13 +41,19 @@ const styles = StyleSheet.create({
 });
 
 /**
- * @param {'AM'|'PM'} period
- * @param {any[]} assignments
- * @param {Record<string, unknown>} turns
- * @param {(turnKey: string) => { start: string, end: string, days: number }} getTurnusInfo
- * @param {(teacherIdx: number, turnIdx: number, period: 'AM'|'PM') => any} getGroupForTeacherAndTurn
- * @param {{ id: number, students: { firstName: string, lastName: string }[] }[]} groups
- * @param {any} styles
+ * Renders a schedule table for either the morning (AM) or afternoon (PM) period, displaying teacher assignments and group allocations for each turnus period.
+ *
+ * The table includes columns for teacher, workshop, content, room, and dynamically generated columns for each turnus period, showing the assigned group IDs.
+ *
+ * @param {'AM'|'PM'} period - Indicates whether to render the morning or afternoon schedule.
+ * @param {any[]} assignments - List of assignment objects containing teacher and subject information.
+ * @param {Record<string, unknown>} turns - Object representing the available turnus periods.
+ * @param {(turnKey: string) => { start: string, end: string, days: number }} getTurnusInfo - Function to retrieve start and end dates for a given turnus.
+ * @param {(teacherIdx: number, turnIdx: number, period: 'AM'|'PM') => any} getGroupForTeacherAndTurn - Function to get the group assigned to a teacher for a specific turnus and period.
+ * @param {{ id: number, students: { firstName: string, lastName: string }[] }[]} groups - Array of group objects with student details.
+ * @param {any} styles - StyleSheet object for styling the table elements.
+ *
+ * @returns {JSX.Element} A React PDF table component displaying the schedule for the specified period.
  */
 function renderScheduleTable(period, assignments, turns, getTurnusInfo, getGroupForTeacherAndTurn, groups, styles) {
   return (

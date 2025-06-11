@@ -76,6 +76,13 @@ const DARK_GROUP_COLORS = [
   'dark:bg-red-900/60',
 ];
 
+/**
+ * Displays and manages the class schedule overview, including group and teacher assignments, rotation planning, and PDF export.
+ *
+ * Fetches and presents group assignments, teacher schedules, and rotation turns for a selected class. Allows saving of teacher rotations and provides an option to generate and download a PDF version of the schedule after saving. Handles loading, error states, and user navigation.
+ *
+ * @returns The rendered overview page UI for managing and exporting the class schedule.
+ */
 export default function OverviewPage() {
   const searchParams = useSearchParams();
   const classId = searchParams.get('class');
