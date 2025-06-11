@@ -18,7 +18,7 @@ export async function GET() {
         
         return NextResponse.json(classes)
     } catch (error) {
-        console.error('Error fetching classes:', error)
+        
         captureError(error, {
             location: 'api/classes',
             type: 'fetch-classes'

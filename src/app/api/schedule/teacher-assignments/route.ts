@@ -86,7 +86,7 @@ export async function GET(request: Request) {
 			pmAssignments
 		})
 	} catch (error) {
-		console.error('Error fetching teacher assignments:', error)
+
 		captureError(error, {
 			location: 'api/schedule/teacher-assignments',
 			type: 'fetch-assignments',
@@ -232,7 +232,7 @@ await prisma.teacherAssignment.create({
 
 		return NextResponse.json({ message: 'Teacher assignments saved successfully' })
 	} catch (error) {
-		console.error('Error updating teacher assignments:', error)
+		
 		captureError(error, {
 			location: 'api/schedule/teacher-assignments',
 			type: 'update-assignments',

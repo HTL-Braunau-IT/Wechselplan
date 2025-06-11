@@ -25,7 +25,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(userRoles)
   } catch (error) {
-    console.error('Error fetching user roles:', error)
+   
     captureError(error, {
       location: 'api/user-roles',
       type: 'fetch-user-roles',
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(userRole)
   } catch (error) {
-    console.error('Error assigning role to user:', error)
+   
     captureError(error, {
       location: 'api/user-roles',
       type: 'assign-role',
@@ -140,7 +140,7 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ message: 'Role assignment removed successfully' })
   } catch (error) {
-    console.error('Error removing role assignment:', error)
+    
     captureError(error, {
       location: 'api/user-roles',
       type: 'remove-role',

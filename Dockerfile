@@ -22,7 +22,7 @@ COPY . .
 COPY --from=deps /app/node_modules ./node_modules
 
 RUN cp .env.example .env
-
+RUN npm install opentelemetry/core
 
 
 # Generate Prisma client

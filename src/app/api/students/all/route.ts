@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/prisma'
+import { captureError } from '~/lib/sentry'
 
 // GET /api/students/all - Get all students
 export async function GET() {
@@ -15,7 +14,10 @@ export async function GET() {
 
         return NextResponse.json(students)
     } catch (error) {
-        console.error('Error fetching all students:', error)
+        captureError(error, {
+            location: 'api/students/all',   
+            type: 'fetch-students'
+        })
         return NextResponse.json(
             { error: 'Failed to fetch students' },
             { status: 500 }

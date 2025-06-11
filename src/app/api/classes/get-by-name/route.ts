@@ -29,7 +29,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(classData)
   } catch (error) {
-    console.error('Error fetching class by name:', error)
+
     captureError(error, {
       location: 'api/classes/get-by-name',
       type: 'fetch-class-by-name',

@@ -4,20 +4,6 @@ import { NextResponse } from 'next/server'
 import ldap from 'ldapjs'
 import { captureError } from '@/lib/sentry'
 
-// Debug logging for environment variables
-console.log('LDAP Configuration:', {
-  NODE_ENV: process.env.NODE_ENV,
-  LDAP_URL: process.env.LDAP_URL,
-  LDAP_BASE_DN: process.env.LDAP_BASE_DN,
-  LDAP_USERNAME: process.env.LDAP_USERNAME,
-  LDAP_PASSWORD: Boolean(process.env.LDAP_PASSWORD),
-  LDAP_TEACHERS_OU: process.env.LDAP_TEACHERS_OU
-});
-
-// Add runtime check
-if (process.env.NEXT_RUNTIME !== 'nodejs') {
-  console.error('Warning: LDAP route is not running in Node.js runtime!')
-}
 
 interface LDAPConfig {
   url: string
@@ -88,7 +74,7 @@ export async function POST(): Promise<Response> {
     return new Promise<Response>((resolve) => {
       client.bind(config.username, config.password, (err) => {
         if (err) {
-          console.error('LDAP bind error:', err)
+
           captureError(err, {
             location: 'api/teachers/import',
             type: 'ldap-bind',
@@ -115,7 +101,7 @@ export async function POST(): Promise<Response> {
 
         client.search(config.teachersOU, searchOptions, (err, res) => {
           if (err) {
-            console.error('LDAP search error:', err)
+
             captureError(err, {
               location: 'api/teachers/import',
               type: 'ldap-search',
@@ -143,7 +129,7 @@ export async function POST(): Promise<Response> {
           })
 
           res.on('error', (err: Error) => {
-            console.error('LDAP search error:', err)
+
             captureError(err, {
               location: 'api/teachers/import',
               type: 'ldap-search-event',
@@ -174,7 +160,7 @@ export async function POST(): Promise<Response> {
       })
     })
   } catch (error) {
-    console.error('Error importing teachers:', error)
+
     captureError(error, {
       location: 'api/teachers/import',
       type: 'import-teachers',

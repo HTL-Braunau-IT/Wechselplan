@@ -16,10 +16,10 @@ export async function GET() {
     })
     return NextResponse.json(holidays)
   } catch (error) {
-    console.error('Error fetching holidays:', error)
+
     captureError(error, {
-      location: 'api/settings/holidays',
-      type: 'fetch-holidays'
+      type: 'fetch-holidays',
+      location: 'api/settings/holidays'
     })
     return NextResponse.json(
       { error: 'Failed to fetch holidays' },
@@ -28,26 +28,63 @@ export async function GET() {
   }
 }
 
+interface HolidayRequest {
+  name: string;
+  startDate: string;
+  endDate: string;
+}
+
 export async function POST(request: Request) {
+  // Initialize requestClone with the original request
+  const requestClone = request.clone();
   try {
-    const { name, startDate, endDate } = await request.json()
-    
+    const body = await request.json() as HolidayRequest;
+
+    const { name, startDate, endDate } = body;
+
+    if (!name || !startDate || !endDate) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    // Validate date format
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
+      return NextResponse.json(
+        { error: 'Invalid date format' },
+        { status: 400 }
+      );
+    }
+
+    // Validate date order
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (end < start) {
+      return NextResponse.json(
+        { error: 'End date must be after start date' },
+        { status: 400 }
+      );
+    }
+
     const holiday = await prisma.schoolHoliday.create({
       data: {
         name,
-        startDate: new Date(startDate as string),
-        endDate: new Date(endDate as string)
+        startDate: start,
+        endDate: end,
       }
     })
     
     return NextResponse.json(holiday)
   } catch (error) {
-    console.error('Error creating holiday:', error)
+
+    // Use the cloned request for error logging
     captureError(error, {
-      location: 'api/settings/holidays',
       type: 'create-holiday',
+      location: 'api/settings/holidays',
       extra: {
-        requestBody: await request.text()
+        requestBody: await requestClone.text()
       }
     })
     return NextResponse.json(

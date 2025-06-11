@@ -13,10 +13,18 @@ export async function GET(request: Request) {
       )
     }
 
+    const parsedClassId = parseInt(classId)
+    if (isNaN(parsedClassId)) {
+      return NextResponse.json(
+        { error: 'Class ID must be a number' },
+        { status: 400 }
+      )
+    }
+
     // Get assignments for the specified class
     const assignments = await prisma.teacherAssignment.findMany({
       where: {
-        classId: parseInt(classId)
+        classId: parsedClassId
       },
       select: {
         id: true,
@@ -26,7 +34,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(assignments)
   } catch (error) {
-    console.error('Error fetching assignments:', error)
+
     return NextResponse.json(
       { error: 'Failed to fetch assignments' },
       { status: 500 }

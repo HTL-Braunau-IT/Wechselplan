@@ -36,7 +36,6 @@ export async function GET() {
     })
     return NextResponse.json(breakTimes)
   } catch (error) {
-    console.error('Error fetching break times:', error)
     captureError(error, {
       location: 'api/settings/break-times',
       type: 'fetch-break-times'
@@ -78,7 +77,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json(breakTime)
   } catch (error) {
-    console.error('Error creating break time:', error)
+    captureError(error, {
+      location: 'api/settings/break-times',
+      type: 'create-break-time'
+    })
     return NextResponse.json(
       { error: 'Failed to create break time' },
       { status: 500 }

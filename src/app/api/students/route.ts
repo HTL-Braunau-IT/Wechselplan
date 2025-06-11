@@ -42,7 +42,7 @@ export async function GET(request: Request) {
 
 		return NextResponse.json(students)
 	} catch (error) {
-		console.error('Error fetching students:', error)
+		
 		captureError(error, {
 			location: 'api/students',
 			type: 'fetch-students',
@@ -116,7 +116,7 @@ export async function POST(request: Request) {
 
 		return NextResponse.json(student)
 	} catch (error) {
-		console.error('Error creating student:', error)
+		
 		captureError(error, {
 			location: 'api/students',
 			type: 'create-students',

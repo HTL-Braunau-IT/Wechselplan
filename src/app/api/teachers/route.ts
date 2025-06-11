@@ -37,7 +37,7 @@ export async function GET() {
 
 		return NextResponse.json(teachers)
 	} catch (error) {
-		console.error('Error fetching teachers:', error)
+
 		captureError(error, {
 			location: 'api/teachers',
 			type: 'fetch-teachers'
@@ -102,7 +102,7 @@ export async function POST(request: Request) {
 		})
 		return NextResponse.json(teacher)
 	} catch (error) {
-		console.error('Error creating teacher:', error)
+
 		captureError(error, {
 			location: 'api/teachers',
 			type: 'create-teachers',

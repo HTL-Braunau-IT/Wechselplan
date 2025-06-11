@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/server/db'
-
+import { captureError } from '~/lib/sentry'
 export async function POST(request: Request) {
   try {
     const holidays = await request.json() as Array<{
@@ -31,7 +31,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json(createdHolidays)
   } catch (error) {
-    console.error('Error saving holidays:', error)
+   
+    captureError(error, {
+      location: 'api/settings/holidays/bulk',
+      type: 'save-holidays'
+    })
     return NextResponse.json(
       { error: 'Failed to save holidays' },
       { status: 500 }

@@ -79,7 +79,7 @@ export async function GET() {
 
     return NextResponse.json(scheduleTimes)
   } catch (error) {
-    console.error('Error fetching schedule times:', error)
+
     captureError(error, {
       location: 'api/schedule/times',
       type: 'fetch-schedule-times'

@@ -27,7 +27,7 @@ export async function GET() {
     })
     return NextResponse.json(roles)
   } catch (error) {
-    console.error('Error fetching roles:', error)
+
     captureError(error, {
       location: 'api/roles',
       type: 'fetch-roles'
@@ -48,8 +48,10 @@ export async function GET() {
  * @returns A JSON response with the created role and a 201 status on success, or an error message with the appropriate status code on failure.
  */
 export async function POST(request: Request) {
+  let requestBody: string;
   try {
-    const body = await request.json()
+    requestBody = await request.text();
+    const body = JSON.parse(requestBody);
     
     // Validate the request body
     const validationResult = roleSchema.safeParse(body)
@@ -83,12 +85,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json(role, { status: 201 })
   } catch (error) {
-    console.error('Error creating role:', error)
+
     captureError(error, {
       location: 'api/roles',
       type: 'create-role',
       extra: {
-        requestBody: await request.text()
+        requestBody: requestBody || 'Failed to read request body'
       }
     })
     return NextResponse.json(

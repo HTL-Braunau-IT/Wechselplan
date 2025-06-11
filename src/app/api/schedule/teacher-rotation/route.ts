@@ -79,7 +79,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error updating teacher rotation:', error)
+  
     captureError(error, {
       location: 'api/schedule/teacher-rotation',
       type: 'update-rotation'

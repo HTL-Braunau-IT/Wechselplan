@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { captureError } from '~/lib/sentry'
 
 export async function DELETE(
   request: Request,
@@ -21,7 +22,10 @@ export async function DELETE(
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error deleting schedule time:', error)
+    captureError(error, {
+      location: 'api/settings/schedule-times/[id]',
+      type: 'delete-schedule-time'
+    })  
     return NextResponse.json(
       { error: 'Failed to delete schedule time' },
       { status: 500 }

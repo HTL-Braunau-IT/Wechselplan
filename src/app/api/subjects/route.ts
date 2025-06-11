@@ -21,7 +21,7 @@ export async function GET() {
 
 		return NextResponse.json({ subjects })
 	} catch (error) {
-		console.error('Error fetching subjects:', error)
+		
 		captureError(error, {
 			location: 'api/subjects',
 			type: 'fetch-subjects'

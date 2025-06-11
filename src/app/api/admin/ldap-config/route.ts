@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
+import { captureError } from '@/lib/sentry'
 
 const envFilePath = path.join(process.cwd(), '.env')
 
@@ -26,7 +27,15 @@ export async function GET() {
     }
     return NextResponse.json(config)
   } catch (error) {
-    console.error('Error reading LDAP config:', error)
+
+    captureError(error, {
+      location: 'api/admin/ldap-config',
+      type: 'ldap-config',
+      extra: {
+        runtime: process.env.NEXT_RUNTIME,
+        nodeEnv: process.env.NODE_ENV
+      }
+    })
     return NextResponse.json(
       { error: 'Failed to load LDAP configuration' },
       { status: 500 }
@@ -87,7 +96,14 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error saving LDAP config:', error)
+    captureError(error, {
+      location: 'api/admin/ldap-config',
+      type: 'ldap-config',
+      extra: {
+        runtime: process.env.NEXT_RUNTIME,
+        nodeEnv: process.env.NODE_ENV
+      }
+    })
     return NextResponse.json(
       { error: 'Failed to save LDAP configuration' },
       { status: 500 }

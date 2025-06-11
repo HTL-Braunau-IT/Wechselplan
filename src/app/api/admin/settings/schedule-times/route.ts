@@ -17,7 +17,10 @@ export async function GET() {
     })
     return NextResponse.json(scheduleTimes)
   } catch (error) {
-    console.error('Error fetching schedule times:', error)
+    captureError(error, {
+      location: 'api/settings/schedule-times',
+      type: 'fetch-schedule-times'
+    })
     return NextResponse.json(
       { error: 'Failed to fetch schedule times' },
       { status: 500 }
@@ -60,7 +63,7 @@ export async function POST(request: Request) {
     }
 
     // Validate time format
-    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
+    const timeRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/
     if (!timeRegex.test(data.startTime as string) || !timeRegex.test(data.endTime as string)) {
       return NextResponse.json(
         { error: 'Invalid time format. Use HH:mm' },
@@ -80,7 +83,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json(scheduleTime)
   } catch (error) {
-    console.error('Error creating schedule time:', error)
     captureError(error, {
       location: 'api/settings/schedule-times',
       type: 'create-schedule-time',

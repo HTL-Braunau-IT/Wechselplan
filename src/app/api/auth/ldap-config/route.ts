@@ -31,7 +31,6 @@ export async function GET() {
 			teacherGroups: process.env.LDAP_TEACHER_GROUPS?.split(',') ?? [],
 		})
 	} catch (error) {
-		console.error('Error fetching LDAP config:', error)
 		captureError(error, {
 			location: 'api/auth/ldap-config',
 			type: 'fetch-config'
@@ -105,7 +104,6 @@ export async function POST(request: Request) {
 
 		return NextResponse.json({ success: true })
 	} catch (error) {
-		console.error('Error updating LDAP config:', error)
 		captureError(error, {
 			location: 'api/auth/ldap-config',
 			type: 'update-config',

@@ -69,7 +69,7 @@ export async function GET(req: Request) {
 
         // Then fetch schedules and students for each class
         for (const classId of classIds) {
-            console.log("Fetching schedule for class", classId, "on weekday", currentWeekday)
+
             const schedule = await prisma.schedule.findFirst({
                 where: {
                     classId: classId,
@@ -109,7 +109,7 @@ export async function GET(req: Request) {
 
 
         // Only return error if we have no students
-        if (students.length === 0) {
+        if (students.flat().length === 0) {
             return NextResponse.json({ error: 'No students found' }, { status: 404 })
         }
         
@@ -121,7 +121,7 @@ export async function GET(req: Request) {
             classdata: classdata
         }, { status: 200 })
     } catch (error) {
-        console.error('Error fetching schedule data:', error)
+
         captureError(error, {
             location: 'api/schedules/data',
             type: 'schedule_data_error',

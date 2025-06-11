@@ -41,7 +41,7 @@ export async function GET() {
 
     return NextResponse.json(turns)
   } catch (error) {
-    console.error('Error fetching turns:', error)
+
     captureError(error, {
       location: 'api/schedule/turns',
       type: 'fetch-turns'

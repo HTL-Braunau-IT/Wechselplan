@@ -21,7 +21,6 @@ export async function GET() {
 
 		return NextResponse.json({ rooms })
 	} catch (error) {
-		console.error('Error fetching rooms:', error)
 		captureError(error instanceof Error ? error : new Error(String(error)), {
 			location: 'api/rooms',
 			type: 'fetch-rooms'

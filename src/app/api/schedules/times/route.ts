@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { captureError } from '~/lib/sentry'
 
 export async function POST(request: Request) {
   try {
@@ -50,7 +51,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json(updatedSchedule)
   } catch (error) {
-    console.error('Error saving times:', error)
+    captureError(error, {
+      location: 'api/schedules/times',
+      type: 'save-times'
+    })
     return NextResponse.json(
       { error: 'Failed to save times' },
       { status: 500 }
@@ -96,7 +100,10 @@ export async function GET(request: Request) {
       breakTimes: latestSchedule.breakTimes
     });
   } catch (error) {
-    console.error('Error fetching times:', error);
+    captureError(error, {
+      location: 'api/schedules/times',
+      type: 'fetch-times'
+    })
     return NextResponse.json(
       { error: 'Failed to fetch times' },
       { status: 500 }

@@ -110,7 +110,6 @@ export async function POST(request: Request) {
 
 		return NextResponse.json({ count: result.count })
 	} catch (error: unknown) {
-		console.error('Error importing data:', error)
 		captureError(error, {
 			location: 'api/admin/settings/import',
 			type: 'data-import',
@@ -157,7 +156,11 @@ export async function GET(request: Request) {
 
 		return NextResponse.json({ data })
 	} catch (error: unknown) {
-		console.error('Error fetching data:', error)
+		captureError(error, {
+			location: 'api/admin/settings/import',
+			type: 'data-import',
+			extra: { requestBody: request.text() }
+		})
 		return NextResponse.json(
 			{ error: 'Failed to fetch data', message: error instanceof Error ? error.message : 'Unknown error' },
 			{ status: 500 }

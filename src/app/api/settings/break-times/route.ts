@@ -11,10 +11,10 @@ export async function GET() {
     })
     return NextResponse.json(breakTimes)
   } catch (error) {
-    console.error('Error fetching break times:', error)
+
     captureError(error, {
-      location: 'api/settings/break-times',
-      type: 'fetch-break-times'
+      type: 'fetch-break-times',
+      location: 'api/settings/break-times'
     })
     return NextResponse.json(
       { error: 'Failed to fetch break times' },
@@ -23,9 +23,20 @@ export async function GET() {
   }
 }
 
+interface BreakTimeRequest {
+  name: string
+  startTime: string
+  endTime: string
+  period: 'AM' | 'PM'
+}
+
 export async function POST(request: Request) {
+  let requestClone: Request
   try {
-    const body = await request.json()
+    // Clone the request before reading its body
+    requestClone = request.clone()
+    const body = await request.json() as BreakTimeRequest
+
     const { name, startTime, endTime, period } = body
 
     // Validate required fields
@@ -46,7 +57,7 @@ export async function POST(request: Request) {
 
     // Validate time format
     const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
-    if (!timeRegex.test(startTime as string) || !timeRegex.test(endTime as string )) {
+    if (!timeRegex.test(startTime) || !timeRegex.test(endTime)) {
       return NextResponse.json(
         { error: 'Invalid time format. Use HH:mm' },
         { status: 400 }
@@ -64,12 +75,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json(breakTime)
   } catch (error) {
-    console.error('Error creating break time:', error)
+
     captureError(error, {
-      location: 'api/settings/break-times',
       type: 'create-break-time',
+      location: 'api/settings/break-times',
       extra: {
-        requestBody: await request.text()
+        requestBody: await requestClone.text()
       }
     })
     return NextResponse.json(

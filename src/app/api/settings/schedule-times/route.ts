@@ -11,7 +11,7 @@ export async function GET() {
     })
     return NextResponse.json(scheduleTimes)
   } catch (error) {
-    console.error('Error fetching schedule times:', error)
+    
     captureError(error, {
       location: 'api/settings/schedule-times',
       type: 'fetch-schedule-times'
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(scheduleTime)
   } catch (error) {
-    console.error('Error creating schedule time:', error)
+    
     captureError(error, {
       location: 'api/settings/schedule-times',
       type: 'create-schedule-time',

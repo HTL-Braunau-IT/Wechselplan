@@ -13,7 +13,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     try {
         const className = searchParams.get('className')
-        console.log("PDF DATA: ", className)
+
 
         if (!className) {
             const error = new Error('Class Name is required')
@@ -60,7 +60,7 @@ export async function GET(req: Request) {
             students: student_response
         }, { status: 200 })
     } catch (error) {
-        console.error('Error fetching schedule data:', error)
+
         captureError(error, {
             location: 'api/schedules/data',
             type: 'pdf_data_error',

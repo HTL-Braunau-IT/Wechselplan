@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-
+import { captureError } from '~/lib/sentry'
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -21,7 +21,10 @@ export async function DELETE(
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error deleting break time:', error)
+    captureError(error, {
+      location: 'api/settings/break-times/[id]',
+      type: 'delete-break-time'
+    })
     return NextResponse.json(
       { error: 'Failed to delete break time' },
       { status: 500 }

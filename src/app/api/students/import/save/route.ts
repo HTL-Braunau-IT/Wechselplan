@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { POST as importStudents } from '../route'
+import { captureError } from '~/lib/sentry'
 
 interface ImportRequest {
   classes: string[]
@@ -69,9 +70,12 @@ export async function POST(request: Request) {
       message: 'Import completed successfully',
       students: importedCount,
       classes: updatedCount
-    })
+    })  
   } catch (error) {
-    console.error('Error importing students:', error)
+    captureError(error, {
+      location: 'api/students/import/save',
+      type: 'import-students'
+    })
     return NextResponse.json(
       { error: 'Failed to import students' },
       { status: 500 }

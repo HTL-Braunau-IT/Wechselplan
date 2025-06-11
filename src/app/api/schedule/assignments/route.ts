@@ -2,13 +2,16 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 
-
 interface Assignment {
 	groupId: number
 	studentIds: number[]
 }
 
-
+interface RequestBody {
+	class: string
+	assignments: Assignment[]
+	removedStudentIds?: number[]
+}
 
 export async function GET(request: Request) {
 	try {
@@ -82,7 +85,7 @@ export async function GET(request: Request) {
 			unassignedStudents: students.filter(s => !s.groupId)
 		})
 	} catch (error) {
-		console.error('Error fetching assignments:', error)
+		
 		captureError(error, {
 			location: 'api/schedule/assignments',
 			type: 'fetch-assignments',
@@ -103,10 +106,25 @@ export async function GET(request: Request) {
  * Accepts a JSON payload containing the class name, an array of group assignments, and an optional array of student IDs to unassign. Updates each student's group assignment in the database accordingly, unassigning students when `groupId` is 0 or when listed in `removedStudentIds`. Returns a JSON response indicating success or an error message with the appropriate HTTP status code.
  */
 export async function POST(request: Request) {
+	let rawBody = ''
 	try {
 		// Capture raw body once so it can be reused in error reporting
-		const rawBody = await request.text()
-		const body = JSON.parse(rawBody)
+		rawBody = await request.text()
+		let body: RequestBody
+		try {
+			body = JSON.parse(rawBody)
+		} catch (error) {
+			captureError(new Error('Invalid request body'), {
+				location: 'api/schedule/assignments',
+				type: 'validation-error',
+				extra: { requestBody: rawBody }
+			})
+			return NextResponse.json(
+				{ error: 'Invalid request body' },
+				{ status: 400 }
+			)
+		}
+
 		const { class: className, assignments, removedStudentIds } = body
 
 		if (!className) {
@@ -119,6 +137,45 @@ export async function POST(request: Request) {
 				{ error: 'Class parameter is required' },
 				{ status: 400 }
 			)
+		}
+
+		if (!Array.isArray(assignments)) {
+			captureError(new Error('Assignments must be an array'), {
+				location: 'api/schedule/assignments',
+				type: 'validation-error',
+				extra: { requestBody: rawBody }
+			})
+			return NextResponse.json(
+				{ error: 'Assignments must be an array' },
+				{ status: 400 }
+			)
+		}
+
+		// Validate each assignment
+		for (const assignment of assignments) {
+			if (!assignment.studentIds) {
+				captureError(new Error('Each assignment must have studentIds'), {
+					location: 'api/schedule/assignments',
+					type: 'validation-error',
+					extra: { requestBody: rawBody }
+				})
+				return NextResponse.json(
+					{ error: 'Each assignment must have studentIds' },
+					{ status: 400 }
+				)
+			}
+
+			if (typeof assignment.groupId !== 'number') {
+				captureError(new Error('groupId must be a number'), {
+					location: 'api/schedule/assignments',
+					type: 'validation-error',
+					extra: { requestBody: rawBody }
+				})
+				return NextResponse.json(
+					{ error: 'groupId must be a number' },
+					{ status: 400 }
+				)
+			}
 		}
 
 		// First find the class by name
@@ -179,11 +236,11 @@ export async function POST(request: Request) {
 
 		return NextResponse.json({ success: true })
 	} catch (error) {
-		console.error('Error creating assignments:', error)
+
 		captureError(error, {
 			location: 'api/schedule/assignments',
 			type: 'create-assignments',
-
+			extra: { requestBody: rawBody }
 		})
 		return NextResponse.json(
 			{ error: 'Failed to create assignments' },

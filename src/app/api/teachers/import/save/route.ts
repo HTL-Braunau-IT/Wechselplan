@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { PrismaClient} from '@prisma/client'
+import { captureError } from '~/lib/sentry'
 
 const prisma = new PrismaClient()
 
@@ -42,7 +43,10 @@ export async function POST(request: Request) {
       skipped: uniqueTeachers.length - importedCount
     })
   } catch (error) {
-    console.error('Error importing teachers:', error)
+    captureError(error, {
+      location: 'api/teachers/import/save',
+      type: 'import-teachers'
+    })  
     return NextResponse.json(
       { error: 'Failed to import teachers' },
       { status: 500 }

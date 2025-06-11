@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { z } from 'zod'
+import { captureError } from '~/lib/sentry'
 
 const scheduleSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -63,7 +64,11 @@ export async function POST(req: Request) {
 
     return NextResponse.json(newSchedule)
   } catch (error) {
-    console.error('[SCHEDULES_POST]', error)
+
+    captureError(error, {
+      location: 'api/schedules',
+      type: 'create-schedule'
+    })
     return new NextResponse('Internal Error', { status: 500 })
   }
 }
@@ -86,7 +91,10 @@ export async function GET(req: Request) {
 
     return NextResponse.json(schedules)
   } catch (error) {
-    console.error('[SCHEDULES_GET]', error)
+    captureError(error, {
+      location: 'api/schedules',
+      type: 'fetch-schedules'
+    })
     return new NextResponse('Internal Error', { status: 500 })
   }
 } 

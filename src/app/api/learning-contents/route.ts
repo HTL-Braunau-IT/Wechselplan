@@ -22,13 +22,7 @@ export async function GET() {
 
 		return NextResponse.json({ learningContents })
 	} catch (error: unknown) {
-		if (error instanceof Prisma.PrismaClientKnownRequestError) {
-			console.error('Prisma error fetching learning contents:', error.message)
-		} else if (error instanceof Error) {
-			console.error('Error fetching learning contents:', error.message)
-		} else {
-			console.error('Unknown error fetching learning contents:', error)
-		}
+		
 		captureError(error, {
 			location: 'api/learning-contents',
 			type: 'fetch-contents'
