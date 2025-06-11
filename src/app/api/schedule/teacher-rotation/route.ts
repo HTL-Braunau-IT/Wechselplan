@@ -75,10 +75,7 @@ export async function POST(request: Request) {
     console.error('Error updating teacher rotation:', error)
     captureError(error, {
       location: 'api/schedule/teacher-rotation',
-      type: 'update-rotation',
-      extra: {
-        requestBody: await request.text()
-      }
+      type: 'update-rotation'
     })
     return NextResponse.json(
       { error: 'Failed to update teacher rotation' },

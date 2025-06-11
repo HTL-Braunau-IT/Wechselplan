@@ -7,9 +7,25 @@ const clientSecret = process.env.GRAPH_CLIENT_SECRET!;
 const mailFrom = process.env.GRAPH_MAIL_FROM!;
 const mailTo = process.env.GRAPH_MAIL_TO!;
 
-type TokenResponse = { access_token?: string; error_description?: string };
+// Token caching variables
+let cachedToken: string | null = null;
+let tokenExpiration: number | null = null;
+const TOKEN_BUFFER_TIME = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+type TokenResponse = { 
+  access_token?: string; 
+  error_description?: string;
+  expires_in?: number;
+};
 
 async function getGraphToken(): Promise<string> {
+  // Check if we have a valid cached token
+  const now = Date.now();
+  if (cachedToken && tokenExpiration && now < tokenExpiration - TOKEN_BUFFER_TIME) {
+    console.log('Using cached Graph token');
+    return cachedToken;
+  }
+
   try {
     const url = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
     const body = new URLSearchParams({
@@ -19,7 +35,7 @@ async function getGraphToken(): Promise<string> {
       grant_type: 'client_credentials',
     });
     
-    console.log('Requesting Graph token from:', url);
+    console.log('Requesting new Graph token from:', url);
     const res = await fetch(url, {
       method: 'POST',
       body,
@@ -35,16 +51,18 @@ async function getGraphToken(): Promise<string> {
       console.error('No access token in response:', data);
       throw new Error('No access token returned');
     }
+
+    // Update token cache
+    cachedToken = data.access_token;
+    // Set expiration time (default to 1 hour if not provided)
+    tokenExpiration = now + (data.expires_in ? data.expires_in * 1000 : 3600 * 1000);
+    
     return data.access_token;
   } catch (error) {
     console.error('Error getting Graph token:', error);
     captureError(error, {
       location: 'support-email',
       type: 'graph-token',
-      extra: {
-        tenantId,
-        clientId
-      }
     });
     throw error;
   }

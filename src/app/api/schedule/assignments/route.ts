@@ -99,16 +99,16 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
 	try {
-		const body = await request.json()
+		// Capture raw body once so it can be reused in error reporting
+		const rawBody = await request.text()
+		const body = JSON.parse(rawBody)
 		const { class: className, assignments, removedStudentIds } = body
 
 		if (!className) {
 			captureError(new Error('Class parameter is required'), {
 				location: 'api/schedule/assignments',
 				type: 'validation-error',
-				extra: {
-					requestBody: await request.text()
-				}
+				extra: { requestBody: rawBody }
 			})
 			return NextResponse.json(
 				{ error: 'Class parameter is required' },
@@ -127,7 +127,7 @@ export async function POST(request: Request) {
 				type: 'not-found',
 				extra: {
 					className,
-					requestBody: await request.text()
+					requestBody: rawBody
 				}
 			})
 			return NextResponse.json(
@@ -161,7 +161,7 @@ export async function POST(request: Request) {
 		}
 
 		// Remove groupId from removed students (this is now handled by the unassigned group)
-		if (removedStudentIds.length > 0) {
+		if (Array.isArray(removedStudentIds) && removedStudentIds.length > 0) {
 			await prisma.student.updateMany({
 				where: {
 					id: { in: removedStudentIds }
@@ -178,9 +178,7 @@ export async function POST(request: Request) {
 		captureError(error, {
 			location: 'api/schedule/assignments',
 			type: 'create-assignments',
-			extra: {
-				requestBody: await request.text()
-			}
+
 		})
 		return NextResponse.json(
 			{ error: 'Failed to create assignments' },

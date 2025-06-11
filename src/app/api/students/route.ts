@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 
+interface CreateStudentRequest {
+	firstName: string
+	lastName: string
+	username: string
+	className: string
+}
+
 // GET /api/students?class=1AHITS - Get all students for a class
 export async function GET(request: Request) {
 	const { searchParams } = new URL(request.url)
@@ -45,9 +52,15 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+	let requestBody: CreateStudentRequest = {
+		firstName: '',
+		lastName: '',
+		username: '',
+		className: ''
+	}
 	try {
-		const body = await request.json()
-		const { firstName, lastName, username, className } = body
+		requestBody = await request.json()
+		const { firstName, lastName, username, className } = requestBody
 
 		if (!firstName || !lastName || !username || !className) {
 			return NextResponse.json(
@@ -97,7 +110,7 @@ export async function POST(request: Request) {
 			location: 'api/students',
 			type: 'create-students',
 			extra: {
-				requestBody: await request.text()
+				requestBody
 			}
 		})
 		return NextResponse.json(

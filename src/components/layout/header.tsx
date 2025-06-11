@@ -23,8 +23,7 @@ export function Header() {
 	const { t } = useTranslation()
 	const { data: session } = useSession()
 
-	// Add debug logging
-	console.log('Build Date:', process.env.NEXT_PUBLIC_BUILD_DATE)
+
 
 	const toggleMenu = () => {
 		setIsMenuOpen(!isMenuOpen)

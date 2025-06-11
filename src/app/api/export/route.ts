@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { pdf } from '@react-pdf/renderer'
 import type { DocumentProps } from '@react-pdf/renderer'
+import type { ReactElement } from 'react'
 import PDFLayout from '@/components/PDFLayout'
-import React from 'react'
 
 import { prisma } from '@/lib/prisma'
 
@@ -108,12 +108,7 @@ export async function POST(request: Request) {
             .map(mapAssignment);
         const pmAssignments = teacherAssignments
             .filter(a => a.period === 'PM')
-            .map(mapAssignment);
-
-        // Get unique teachers for AM/PM
-        const uniqueAmTeachers = amAssignments.filter((a, idx, arr) => a.teacherId && arr.findIndex(b => b.teacherId === a.teacherId) === idx)
-        const uniquePmTeachers = pmAssignments.filter((a, idx, arr) => a.teacherId && arr.findIndex(b => b.teacherId === a.teacherId) === idx)
-
+            .map(mapAssignment); 
     
         const schedule = await prisma.schedule.findFirst({
             where: { classId: class_response.id },
@@ -158,8 +153,7 @@ export async function POST(request: Request) {
             const group = rotatedGroups[teacherIdx]
             return group
         }
-        console.log('amAssignments', amAssignments);
-        console.log('pmAssignments', pmAssignments);
+
         const doc = PDFLayout({
             groups,
             maxStudents,
@@ -169,7 +163,7 @@ export async function POST(request: Request) {
             amAssignments,
             pmAssignments,
             className: class_response.name
-        }) as React.ReactElement<DocumentProps>
+        }) as ReactElement<DocumentProps>
         const pdfBuffer = await pdf(doc).toBuffer()
 
         return new NextResponse(pdfBuffer as unknown as BodyInit, {

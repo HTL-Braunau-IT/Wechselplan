@@ -194,27 +194,38 @@ export const authOptions: NextAuthOptions = {
             }
           )
 
-          if (response.ok) {
-            const data = await response.json()
-            const groups = data.value.map((group: { id: string }) => group.id)
+if (response.ok) {
+             const data = await response.json()
+             const groups = data.value.map((group: { id: string }) => group.id)
 
-            const studentGroups = process.env.MS_STUDENT_GROUPS?.split(',') ?? []
-            const teacherGroups = process.env.MS_TEACHER_GROUPS?.split(',') ?? []
+             const studentGroups = process.env.MS_STUDENT_GROUPS?.split(',') ?? []
+             const teacherGroups = process.env.MS_TEACHER_GROUPS?.split(',') ?? []
 
-            let role: 'admin' | 'teacher' | 'student' | 'user' = 'user'
-            if (groups.some((id: string) => teacherGroups.includes(id))) {
-              role = 'teacher'
-            } else if (groups.some((id: string) => studentGroups.includes(id))) {
-              role = 'student'
-            }
+             let role: 'admin' | 'teacher' | 'student' | 'user' = 'user'
+             if (groups.some((id: string) => teacherGroups.includes(id))) {
+               role = 'teacher'
+             } else if (groups.some((id: string) => studentGroups.includes(id))) {
+               role = 'student'
+             }
 
-            // Save the role to the database
-            if (token.sub) {
-              await saveUserRole(token.sub, role)
-            }
+             // Save the role to the database
+             if (token.sub) {
+               await saveUserRole(token.sub, role)
+             }
 
-            token.role = role
-          }
+             token.role = role
+          } else {
+            console.error(`Microsoft Graph API error: ${response.status} ${response.statusText}`)
+            captureError(new Error(`Microsoft Graph API returned ${response.status}`), {
+              location: 'auth',
+              type: 'azure_ad_api_error',
+              extra: { 
+                status: response.status,
+                statusText: response.statusText,
+                userId: token.sub 
+              }
+            })
+           }
         } catch (error) {
           console.error('Error fetching Microsoft groups:', error)
           captureError(error, {

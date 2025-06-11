@@ -1,5 +1,25 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { z } from 'zod'
+
+const breakTimeSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  startTime: z.string().datetime('Start time must be a valid datetime'),
+  endTime: z.string().datetime('End time must be a valid datetime'),
+  period: z.string().refine(
+    (val) => {
+      const num = parseInt(val)
+      return !isNaN(num) && num > 0
+    },
+    'Period must be a positive integer'
+  )
+}).refine(
+  (data) => new Date(data.startTime) < new Date(data.endTime),
+  {
+    message: 'Start time must be before end time',
+    path: ['startTime']
+  }
+)
 
 export async function GET() {
   try {
@@ -22,22 +42,21 @@ export async function POST(request: Request) {
   try {
     const data = await request.json()
     
-    // Validate required fields
-    if (!data.name || !data.startTime || !data.endTime || !data.period) {
+    // Validate data against schema
+    const validationResult = breakTimeSchema.safeParse(data)
+    if (!validationResult.success) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { 
+          error: 'Validation failed',
+          details: validationResult.error.format()
+        },
         { status: 400 }
       )
     }
 
     // Create new break time
     const breakTime = await prisma.breakTime.create({
-      data: {
-        name: data.name,
-        startTime: data.startTime,
-        endTime: data.endTime,
-        period: data.period
-      }
+      data: validationResult.data
     })
 
     return NextResponse.json(breakTime)

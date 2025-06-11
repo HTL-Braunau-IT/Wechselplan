@@ -41,15 +41,17 @@ export function SupportDialog() {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to submit support message')
+        const errorData = await response.json().catch(() => ({ message: 'Failed to submit support message' })) as { message?: string }
+        throw new Error(errorData.message ?? 'Failed to submit support message')
       }
 
       toast.success(t('support.messageSent'))
       setOpen(false)
       setName('')
       setMessage('')
-    } catch {
-      toast.error(t('support.error'))
+    } catch (error) {
+      console.error('Support submission error:', error)
+      toast.error(error instanceof Error ? error.message : t('support.error'))
     } finally {
       setIsSubmitting(false)
     }
@@ -84,14 +86,15 @@ export function SupportDialog() {
             <label htmlFor="message" className="text-sm font-medium">
               {t('support.message')}
             </label>
-            <Textarea
-              id="message"
-              value={message}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setMessage(e.target.value)}
-              required
-              placeholder={t('support.messagePlaceholder')}
-              rows={4}
-            />
+<Textarea
+   id="message"
+   value={message}
+   onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setMessage(e.target.value)}
+   required
+  maxLength={1000}
+   placeholder={t('support.messagePlaceholder')}
+   rows={4}
+ />
           </div>
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? t('common.submitting') : t('support.submit')}

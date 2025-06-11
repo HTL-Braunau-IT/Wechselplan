@@ -1,9 +1,6 @@
 import { NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
 import { captureError } from '@/lib/sentry'
-
-
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/prisma'
 
 
 export async function GET(request: Request) {
@@ -98,9 +95,10 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+	let requestData;
 	try {
-		const data = await request.json()
-		const { class: className, amAssignments, pmAssignments, updateExisting } = data
+		requestData = await request.json()
+		const { class: className, amAssignments, pmAssignments, updateExisting } = requestData
 
 		if (!className) {
 			captureError(new Error('Class not found'), {
@@ -177,7 +175,7 @@ export async function POST(request: Request) {
 				data: {
 					classId: classRecord.id,
 					period: 'AM',
-					groupId: assignment.groupId,
+          groupId: assignment.groupId === 0 ? null : assignment.groupId,
 					teacherId: assignment.teacherId,
 					subjectId: subject.id,
 					learningContentId: learningContent.id,
@@ -225,7 +223,7 @@ export async function POST(request: Request) {
 			location: 'api/schedule/teacher-assignments',
 			type: 'update-assignments',
 			extra: {
-				requestBody: await request.text()
+				requestBody: JSON.stringify(requestData)
 			}
 		})
 		return NextResponse.json(

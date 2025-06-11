@@ -53,7 +53,7 @@ const styles = StyleSheet.create({
  * @param {{ id: number, students: { firstName: string, lastName: string }[] }[]} groups - Array of group objects with student information.
  * @param {any} styles - StyleSheet object for table styling.
  *
- * @returns {JSX.Element} The rendered React PDF table component for the given period.
+ *
  */
 function renderScheduleTable(period, assignments, turns, getTurnusInfo, getGroupForTeacherAndTurn, groups, styles) {
   return (

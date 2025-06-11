@@ -36,12 +36,12 @@ export function captureFrontendError(error: unknown, options: FrontendErrorOptio
   }
 }
 
-export function withFrontendErrorReporting<T>(
+export async function withFrontendErrorReporting<T>(
   operation: () => Promise<T>,
   options: FrontendErrorOptions
 ): Promise<T> {
   try {
-    return operation();
+    return await operation();
   } catch (error) {
     captureFrontendError(error, options);
     throw error;

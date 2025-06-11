@@ -84,9 +84,26 @@ async function main() {
   ]
 
   for (const holiday of holidays) {
-    await prisma.schoolHoliday.create({
-      data: holiday
+    // First check if a holiday with the same name and start date exists
+    const existingHoliday = await prisma.schoolHoliday.findFirst({
+      where: {
+        name: holiday.name,
+        startDate: holiday.startDate
+      }
     })
+
+    if (existingHoliday) {
+      // Update if exists
+      await prisma.schoolHoliday.update({
+        where: { id: existingHoliday.id },
+        data: holiday
+      })
+    } else {
+      // Create if doesn't exist
+      await prisma.schoolHoliday.create({
+        data: holiday
+      })
+    }
   }
 
   console.log('School holidays created successfully')

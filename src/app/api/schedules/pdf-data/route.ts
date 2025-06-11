@@ -47,20 +47,15 @@ export async function GET(req: Request) {
             }
         })
 
-        if (!student_response) {
+        if (student_response.length === 0) {
             const error = new Error('No students found')
             captureError(error, {
                 location: 'api/schedules/pdf-data',
                 type: 'pdf-data-error'
             })
-            return NextResponse.json({ error: 'No students found' }, { status: 400 })
+            return NextResponse.json({ error: 'No students found' }, { status: 404 })
         }
-        
-        
-        
 
- 
-        
         return NextResponse.json({
             students: student_response
         }, { status: 200 })
@@ -68,11 +63,8 @@ export async function GET(req: Request) {
         console.error('Error fetching schedule data:', error)
         captureError(error, {
             location: 'api/schedules/data',
-            type: 'schedule_data_error',
-            extra: {
-                teacherUsername: searchParams.get('teacher'),
-                weekday: searchParams.get('weekday')
-            }
+            type: 'pdf_data_error',
+            extra: { className: searchParams.get('className') }
         })
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }

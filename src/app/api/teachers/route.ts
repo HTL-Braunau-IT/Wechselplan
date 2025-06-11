@@ -1,6 +1,18 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { z } from 'zod'
+
+const teacherSchema = z.object({
+	firstName: z.string().min(1, 'First name is required').trim(),
+	lastName: z.string().min(1, 'Last name is required').trim(),
+	username: z.string()
+		.min(3, 'Username must be at least 3 characters')
+		.max(50, 'Username must be less than 50 characters')
+		.trim()
+		.toLowerCase(),
+	email: z.string().email('Invalid email address').trim().toLowerCase()
+})
 
 export async function GET() {
 	try {
@@ -35,14 +47,43 @@ export async function POST(request: Request) {
 		return NextResponse.json({ error: 'Database not initialized' }, { status: 500 })
 	}
 
+	let requestBody: z.infer<typeof teacherSchema> = {
+		firstName: '',
+		lastName: '',
+		username: '',
+		email: ''
+	}
 	try {
-		const { firstName, lastName, username, email } = await request.json()
+		const rawBody = await request.json()
+		const validationResult = teacherSchema.safeParse(rawBody)
+		
+		if (!validationResult.success) {
+			return NextResponse.json(
+				{ error: 'Validation failed', details: validationResult.error.format() },
+				{ status: 400 }
+			)
+		}
+
+		requestBody = validationResult.data
+
+		// Check for username uniqueness
+		const existingTeacher = await prisma.teacher.findUnique({
+			where: { username: requestBody.username }
+		})
+
+		if (existingTeacher) {
+			return NextResponse.json(
+				{ error: 'Username already exists' },
+				{ status: 400 }
+			)
+		}
+
 		const teacher = await prisma.teacher.create({
 			data: {
-				firstName,
-				lastName,
-				username,
-				email
+				firstName: requestBody.firstName,
+				lastName: requestBody.lastName,
+				username: requestBody.username,
+				email: requestBody.email
 			}
 		})
 		return NextResponse.json(teacher)
@@ -52,7 +93,7 @@ export async function POST(request: Request) {
 			location: 'api/teachers',
 			type: 'create-teachers',
 			extra: {
-				requestBody: await request.text()
+				requestBody
 			}
 		})
 		return NextResponse.json({ error: 'Failed to create teacher' }, { status: 500 })

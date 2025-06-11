@@ -70,7 +70,9 @@ export async function POST(request: Request) {
 		// Create a map of existing LDAP variables
 		const existingVars = new Map<string, string>()
 		for (const line of envLines) {
-			const [key, value] = line.split('=')
+ const idx = line.indexOf('=')
+ const key = idx === -1 ? line : line.slice(0, idx)
+ const value = idx === -1 ? ''  : line.slice(idx + 1)
 			if (key) {
 				existingVars.set(key, value ?? '')
 			}

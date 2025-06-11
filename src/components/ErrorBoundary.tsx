@@ -1,9 +1,15 @@
 import React from 'react';
 import * as Sentry from '@sentry/nextjs';
+import { useTranslation } from 'react-i18next';
 
-interface Props {
+interface ErrorBoundaryProps {
   children: React.ReactNode;
   fallback?: React.ReactNode;
+  translations?: {
+    title: string;
+    message: string;
+    reloadButton: string;
+  };
 }
 
 interface State {
@@ -11,8 +17,8 @@ interface State {
   error: Error | null;
 }
 
-export class ErrorBoundary extends React.Component<Props, State> {
-  constructor(props: Props) {
+class ErrorBoundaryBase extends React.Component<ErrorBoundaryProps, State> {
+  constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
   }
@@ -39,15 +45,21 @@ export class ErrorBoundary extends React.Component<Props, State> {
         return this.props.fallback;
       }
 
+      const { title, message, reloadButton } = this.props.translations ?? {
+        title: 'Something went wrong',
+        message: "We've been notified and are working to fix the issue.",
+        reloadButton: 'Reload page',
+      };
+
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
           <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow-lg">
             <div>
               <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-                Something went wrong
+                {title}
               </h2>
               <p className="mt-2 text-center text-sm text-gray-600">
-                We&apos;ve been notified and are working to fix the issue.
+                {message}
               </p>
             </div>
             <div className="mt-8">
@@ -55,7 +67,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
                 onClick={() => window.location.reload()}
                 className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               >
-                Reload page
+                {reloadButton}
               </button>
             </div>
           </div>
@@ -65,4 +77,16 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
     return this.props.children;
   }
+}
+
+export function ErrorBoundary(props: Omit<ErrorBoundaryProps, 'translations'>) {
+  const { t } = useTranslation();
+
+  const translations = {
+    title: t('errors.somethingWentWrong'),
+    message: t('errors.errorNotification'),
+    reloadButton: t('common.reloadPage'),
+  };
+
+  return <ErrorBoundaryBase {...props} translations={translations} />;
 } 

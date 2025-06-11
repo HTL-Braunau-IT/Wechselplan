@@ -10,6 +10,7 @@ import { AlertCircle } from 'lucide-react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { captureFrontendError } from '@/lib/frontend-error'
+import { useTranslation } from 'react-i18next'
 
 export default function LoginPage() {
 	const [username, setUsername] = useState('')
@@ -17,6 +18,7 @@ export default function LoginPage() {
 	const [error, setError] = useState<string | null>(null)
 	const [isLoading, setIsLoading] = useState(false)
 	const router = useRouter()
+	const { t } = useTranslation()
 
 	const handleLDAPLogin = async (e: React.FormEvent) => {
 		e.preventDefault()
@@ -31,7 +33,7 @@ export default function LoginPage() {
 			})
 
 			if (result?.error) {
-				setError('Invalid username or password')
+				setError(t('login.error.invalidCredentials'))
 				return
 			}
 
@@ -41,11 +43,8 @@ export default function LoginPage() {
 			captureFrontendError(err, {
 				location: 'login',
 				type: 'ldap-login',
-				extra: {
-					username
-				}
 			})
-			setError('An error occurred during login')
+			setError(t('login.error.generic'))
 		} finally {
 			setIsLoading(false)
 		}
@@ -63,7 +62,7 @@ export default function LoginPage() {
 				location: 'login',
 				type: 'microsoft-login'
 			})
-			setError('An error occurred during login')
+			setError(t('login.error.generic'))
 			setIsLoading(false)
 		}
 	}
@@ -72,9 +71,9 @@ export default function LoginPage() {
 		<div className="container flex h-screen w-screen flex-col items-center justify-center">
 			<Card className="w-full max-w-md">
 				<CardHeader>
-					<CardTitle>Login</CardTitle>
+					<CardTitle>{t('login.title')}</CardTitle>
 					<CardDescription>
-						Sign in to your account using your credentials
+						{t('login.description')}
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
@@ -87,24 +86,24 @@ export default function LoginPage() {
 
 					<form onSubmit={handleLDAPLogin} className="space-y-4">
 						<div className="space-y-2">
-							<Label htmlFor="username">Username</Label>
+							<Label htmlFor="username">{t('login.username.label')}</Label>
 							<Input
 								id="username"
 								value={username}
 								onChange={(e) => setUsername(e.target.value)}
-								placeholder="Enter your username"
+								placeholder={t('login.username.placeholder')}
 								required
 							/>
 						</div>
 
 						<div className="space-y-2">
-							<Label htmlFor="password">Password</Label>
+							<Label htmlFor="password">{t('login.password.label')}</Label>
 							<Input
 								id="password"
 								type="password"
 								value={password}
 								onChange={(e) => setPassword(e.target.value)}
-								placeholder="Enter your password"
+								placeholder={t('login.password.placeholder')}
 								required
 							/>
 						</div>
@@ -114,7 +113,7 @@ export default function LoginPage() {
 							className="w-full"
 							disabled={isLoading}
 						>
-							{isLoading ? 'Signing in...' : 'Sign in with LDAP'}
+							{isLoading ? t('login.button.signingIn') : t('login.button.signInLDAP')}
 						</Button>
 					</form>
 
@@ -124,7 +123,7 @@ export default function LoginPage() {
 						</div>
 						<div className="relative flex justify-center text-xs uppercase">
 							<span className="bg-background px-2 text-muted-foreground">
-								Or continue with
+								{t('login.orContinueWith')}
 							</span>
 						</div>
 					</div>
@@ -150,7 +149,7 @@ export default function LoginPage() {
 								d="M0 32h214.6v214.6H0V32zm233.4 0H448v214.6H233.4V32zM0 265.4h214.6V480H0V265.4zm233.4 0H448V480H233.4V265.4z"
 							></path>
 						</svg>
-						Sign in with Microsoft
+						{t('login.button.signInMicrosoft')}
 					</Button>
 				</CardContent>
 			</Card>

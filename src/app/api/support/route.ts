@@ -6,7 +6,7 @@ import { captureError } from '@/lib/sentry'
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    console.log('Received request body:', body)
+
 
     const { name, message, currentUri } = body
 

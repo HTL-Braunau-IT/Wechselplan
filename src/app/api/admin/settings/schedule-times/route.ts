@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { captureError } from '@/lib/sentry'
 
 
 export async function GET() {
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
       data: {
         startTime: data.startTime,
         endTime: data.endTime,
-        hours: data.hours,
+        hours: Number(data.hours),
         period: data.period
       }
     })
@@ -44,6 +45,10 @@ export async function POST(request: Request) {
     return NextResponse.json(scheduleTime)
   } catch (error) {
     console.error('Error creating schedule time:', error)
+    captureError(error, {
+      location: 'api/settings/schedule-times',
+      type: 'create-schedule-time',
+    })
     return NextResponse.json(
       { error: 'Failed to create schedule time' },
       { status: 500 }

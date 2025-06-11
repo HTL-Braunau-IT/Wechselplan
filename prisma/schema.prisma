@@ -140,7 +140,7 @@ model LearningContent {
 
 model SchoolHoliday {
   id        Int      @id @default(autoincrement())
-  name      String
+  name      String   @unique
   startDate DateTime
   endDate   DateTime
   createdAt DateTime @default(now())

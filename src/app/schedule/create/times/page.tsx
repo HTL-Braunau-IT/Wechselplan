@@ -39,10 +39,11 @@ export default function TimesPage() {
   const [breakTimes, setBreakTimes] = useState<BreakTime[]>([])
   const [selectedScheduleTimes, setSelectedScheduleTimes] = useState<number[]>([])
   const [selectedBreakTimes, setSelectedBreakTimes] = useState<number[]>([])
-  const [, setTeacherAssignments] = useState<TeacherAssignment[]>([])
+  const [teacherAssignments, setTeacherAssignments] = useState<TeacherAssignment[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [isSubmittingScheduleTime, setIsSubmittingScheduleTime] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const { t } = useTranslation(['admin', 'common'])
@@ -158,7 +159,10 @@ export default function TimesPage() {
   }
 
   const handleAddScheduleTime = async () => {
+    if (isSubmittingScheduleTime) return;
+    
     try {
+      setIsSubmittingScheduleTime(true)
       const response = await fetch('/api/admin/settings/schedule-times', {
         method: 'POST',
         headers: {
@@ -172,7 +176,10 @@ export default function TimesPage() {
       }
 
       const data = await response.json() as ScheduleTime
-      setScheduleTimes([...scheduleTimes, data])
+      const periods = [...new Set(teacherAssignments.map((a: TeacherAssignment) => a.period))]
+      if (periods.includes(data.period)) {
+        setScheduleTimes([...scheduleTimes, data])
+      }
       setNewScheduleTime({
         startTime: '',
         endTime: '',
@@ -183,6 +190,8 @@ export default function TimesPage() {
     } catch (error) {
       console.error('Error adding schedule time:', error)
       setError(t('settings.times.scheduleTimeError'))
+    } finally {
+      setIsSubmittingScheduleTime(false)
     }
   }
 
@@ -273,7 +282,7 @@ export default function TimesPage() {
                         type="number"
                         id="hours"
                         value={newScheduleTime.hours}
-                        onChange={(e) => setNewScheduleTime({ ...newScheduleTime, hours: parseFloat(e.target.value) })}
+                        onChange={(e) => setNewScheduleTime({ ...newScheduleTime, hours: e.target.valueAsNumber || 0 })}
                         className="w-full p-2 border rounded"
                         min="0"
                         step="0.5"
@@ -292,8 +301,14 @@ export default function TimesPage() {
                       </select>
                     </div>
                   </div>
-                  <Button onClick={handleAddScheduleTime} className="w-full">
-                    {t('settings.times.addScheduleTime')}
+                  <Button 
+                    onClick={handleAddScheduleTime} 
+                    className="w-full"
+                    disabled={isSubmittingScheduleTime}
+                  >
+                    {isSubmittingScheduleTime 
+                      ? t('common:common.loading') 
+                      : t('settings.times.addScheduleTime')}
                   </Button>
                 </div>
               </div>

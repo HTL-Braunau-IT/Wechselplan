@@ -14,7 +14,7 @@ services:
       LDAP_STUDENT_GROUPS: "SCHUELER"
       LDAP_TEACHER_GROUPS: "LEHRER"
       NEXTAUTH_URL: "http://wp.htl-braunau.at"
-      NEXTAUTH_SECRET: "your-secret-key"
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       DEBUG: "ldapjs:*"  # Enable LDAP debugging
       NODE_ENV: "development"  # Enable more verbose logging
     depends_on:

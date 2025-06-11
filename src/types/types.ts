@@ -17,14 +17,51 @@ export type Schedule = {
     additionalInfo?: string
 }
 
-export type Student = {
+export interface Student {
     id: number
-    classId: number | null
-    groupId: number | null
     firstName: string
     lastName: string
-
+    classId: number
+    groupId: number
 }
+
+export interface Group {
+    id: number
+    students: Student[]
+}
+
+export interface TeacherAssignmentResponse {
+    groupId: number
+    teacherId: number
+    subject: string
+    learningContent: string
+    room: string
+    teacherLastName: string
+    teacherFirstName: string
+}
+
+export interface TeacherAssignmentsResponse {
+    amAssignments: TeacherAssignmentResponse[]
+    pmAssignments: TeacherAssignmentResponse[]
+}
+
+export interface ScheduleTime {
+    id: string
+    startTime: string
+    endTime: string
+    hours: number
+    period: 'AM' | 'PM'
+}
+
+export interface BreakTime {
+    id: string
+    name: string
+    startTime: string
+    endTime: string
+    period: 'AM' | 'PM'
+}
+
+export type TurnSchedule = Record<string, unknown>
 
 export type TeacherRotation = {
     id: string
@@ -57,4 +94,16 @@ export type ScheduleData = {
 export type ClassData = {
     id: number
     name: string
+}
+
+export interface ScheduleResponse {
+    id: number
+    name: string
+    description?: string
+    startDate: string
+    endDate: string
+    selectedWeekday: number
+    scheduleData: unknown
+    additionalInfo?: string
+    classId?: number
 }

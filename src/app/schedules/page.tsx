@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Select,
@@ -12,6 +11,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useCachedData } from '@/hooks/use-cached-data'
+import { useScheduleOverview } from '@/hooks/use-schedule-overview'
+
 
 interface Schedule {
   id: number
@@ -30,51 +31,6 @@ interface Class {
   name: string
   description: string | null
 }
-
-interface Student {
-  id: number;
-  firstName: string;
-  lastName: string;
-  class: string;
-}
-
-interface Group {
-  id: number;
-  students: Student[];
-}
-
-interface TeacherAssignmentResponse {
-  groupId: number;
-  teacherId: number;
-  subject: string;
-  learningContent: string;
-  room: string;
-  teacherLastName: string;
-  teacherFirstName: string;
-}
-
-interface TeacherAssignmentsResponse {
-  amAssignments: TeacherAssignmentResponse[];
-  pmAssignments: TeacherAssignmentResponse[];
-}
-
-interface ScheduleTime {
-  id: string;
-  startTime: string;
-  endTime: string;
-  hours: number;
-  period: 'AM' | 'PM';
-}
-
-interface BreakTime {
-  id: string;
-  name: string;
-  startTime: string;
-  endTime: string;
-  period: 'AM' | 'PM';
-}
-
-type TurnSchedule = Record<string, unknown>;
 
 const GROUP_COLORS = [
   'bg-yellow-200', // Gruppe 1
@@ -98,13 +54,17 @@ export default function SchedulesPage() {
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [groups, setGroups] = useState<Group[]>([])
-  const [amAssignments, setAmAssignments] = useState<TeacherAssignmentResponse[]>([])
-  const [pmAssignments, setPmAssignments] = useState<TeacherAssignmentResponse[]>([])
-  const [scheduleTimes, setScheduleTimes] = useState<ScheduleTime[]>([])
-  const [, setBreakTimes] = useState<BreakTime[]>([])
-  const [turns, setTurns] = useState<TurnSchedule>({})
-  const {  isLoading: isLoadingCachedData } = useCachedData()
+  const { isLoading: isLoadingCachedData } = useCachedData()
+
+  const {
+    groups,
+    amAssignments,
+    pmAssignments,
+    scheduleTimes,
+    turns,
+    loading: overviewLoading,
+    error: overviewError
+  } = useScheduleOverview(selectedClass !== 'all' ? selectedClass : null)
 
   useEffect(() => {
     void fetchData()
@@ -145,60 +105,6 @@ export default function SchedulesPage() {
     setSelectedClass(value)
     router.push(`/schedules?class=${encodeURIComponent(value)}`)
   }
-
-
-
-  // Fetch detailed overview data when a class is selected
-  useEffect(() => {
-    if (selectedClass === 'all') return;
-    if (!selectedClass) return;
-    void fetchOverviewData(selectedClass);
-  }, [selectedClass]);
-
-  const fetchOverviewData = async (className: string) => {
-    try {
-      setLoading(true);
-      setError(null);
-      // Fetch all students for the class
-      const studentsRes = await fetch(`/api/students?class=${encodeURIComponent(className)}`);
-      if (!studentsRes.ok) throw new Error('Failed to fetch students');
-      const students: Student[] = await studentsRes.json();
-      // Fetch group assignments
-      const groupRes = await fetch(`/api/schedule/assignments?class=${encodeURIComponent(className)}`);
-      if (!groupRes.ok) throw new Error('Failed to fetch group assignments');
-      const groupData: { assignments: { groupId: number; studentIds: number[] }[] } = await groupRes.json();
-      setGroups(
-        groupData.assignments.map((g) => ({
-          id: g.groupId,
-          students: g.studentIds.map(id => students.find(s => s.id === id)).filter(Boolean) as Student[]
-        }))
-      );
-      // Fetch teacher assignments
-      const teacherRes = await fetch(`/api/schedule/teacher-assignments?class=${encodeURIComponent(className)}`);
-      if (!teacherRes.ok) throw new Error('Failed to fetch teacher assignments');
-      const teacherData: TeacherAssignmentsResponse = await teacherRes.json();
-      setAmAssignments(teacherData.amAssignments);
-      setPmAssignments(teacherData.pmAssignments);
-      // Fetch selected schedule times
-      const timesRes = await fetch(`/api/schedules/times?class=${encodeURIComponent(className)}`);
-      if (!timesRes.ok) throw new Error('Failed to fetch schedule times');
-      const timesData: { scheduleTimes?: ScheduleTime[]; breakTimes?: BreakTime[] } = await timesRes.json();
-      setScheduleTimes(timesData.scheduleTimes ?? []);
-      setBreakTimes(timesData.breakTimes ?? []);
-      // Fetch rotation/turn schedule
-      const schedulesRes = await fetch(`/api/schedules?classId=${encodeURIComponent(className)}`);
-      if (!schedulesRes.ok) throw new Error('Failed to fetch rotation schedule');
-      const schedules = await schedulesRes.json();
-      const latestSchedule = schedules[0];
-      const scheduleData = latestSchedule?.scheduleData ?? {};
-      setTurns(scheduleData as TurnSchedule);
-    } catch (e: unknown) {
-      const errMsg = e instanceof Error ? e.message : 'Failed to load overview data';
-      setError(errMsg ?? 'Failed to load overview data');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Helpers from overview/page.tsx
   function rotateArray<T>(arr: T[], n: number): T[] {
@@ -248,8 +154,8 @@ export default function SchedulesPage() {
 
   const maxStudents = Math.max(...groups.map(g => g.students.length), 0);
 
-  if (loading || isLoadingCachedData) return <div className="p-8 text-center">Loading...</div>
-  if (error) return <div className="p-8 text-center text-red-500">{error}</div>
+  if (loading || isLoadingCachedData || overviewLoading) return <div className="p-8 text-center">Loading...</div>
+  if (error ?? overviewError) return <div className="p-8 text-center text-red-500">{error ?? overviewError}</div>
 
   return (
     <div className="container mx-auto p-4">
@@ -363,7 +269,6 @@ export default function SchedulesPage() {
             <div className="flex justify-end mt-8">
               <button
                 className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
-                // onClick={handleSaveAndFinish} // Not needed for overview
                 disabled={false}
               >
                 Save & Finish

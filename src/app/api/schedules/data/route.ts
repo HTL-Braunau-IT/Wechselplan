@@ -106,8 +106,7 @@ export async function GET(req: Request) {
             validClassIds.has(assignment.classId)
         )
 
-        console.log("Filtered assignments:", filteredAssignments)
-        console.log("Class data:", classdata)
+
 
         // Only return error if we have no students
         if (students.length === 0) {

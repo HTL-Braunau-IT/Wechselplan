@@ -16,8 +16,9 @@ interface ImportData {
 }
 
 export async function POST(request: Request) {
+	const rawBody = await request.text() // Cache the raw body first
 	try {
-		const body = await request.json() as ImportRequest
+		const body = JSON.parse(rawBody) as ImportRequest
 		const { type, data } = body
 
 		// Parse CSV data
@@ -93,18 +94,13 @@ export async function POST(request: Request) {
 			}
 		}
 
-		return NextResponse.json({
-			success: true,
-			imported: result.count
-		})
+		return NextResponse.json({ count: result.count })
 	} catch (error: unknown) {
 		console.error('Error importing data:', error)
 		captureError(error, {
 			location: 'api/admin/settings/import',
 			type: 'data-import',
-			extra: {
-				requestBody: await request.text()
-			}
+			extra: { requestBody: rawBody }
 		})
 		return NextResponse.json(
 			{ error: 'Failed to import data', message: error instanceof Error ? error.message : 'Unknown error' },

@@ -493,6 +493,50 @@ export default function ScheduleClassSelectPage() {
 		setPendingAssignments(null)
 	}
 
+	async function handleStudentRemoval(studentId: number) {
+		try {
+			// Delete the student from the database
+			const response = await fetch(`/api/students/${studentId}`, {
+				method: 'DELETE'
+			})
+
+			if (!response.ok) {
+				throw new Error('Failed to delete student')
+			}
+
+			// Update the students state
+			setStudents(currentStudents => 
+				currentStudents.filter(s => s.id !== studentId)
+			)
+
+			// Update the groups state
+			setGroups(currentGroups => {
+				const newGroups = currentGroups.map(group => ({
+					...group,
+					students: group.students.filter(s => s.id !== studentId)
+				}))
+				return newGroups
+			})
+
+			// Wait for state updates to be reflected
+			await new Promise(resolve => setTimeout(resolve, 1000))
+
+			// Reload the page with the class parameter
+			router.push(`/schedule/create?class=${selectedClass}`)
+		} catch (error) {
+			console.error('Error deleting student:', error)
+			captureFrontendError(error, {
+				location: 'schedule/create',
+				type: 'delete-student',
+				extra: {
+					studentId,
+					selectedClass
+				}
+			})
+			setError(error instanceof Error ? error.message : 'Failed to delete student')
+		}
+	}
+
 	function handleDragStart(event: DragStartEvent) {
 		const { active } = event
 		if (!active?.id) return
@@ -696,41 +740,7 @@ export default function ScheduleClassSelectPage() {
 																	key={student.id} 
 																	student={student} 
 																	index={index}
-																	onRemove={async (studentId) => {
-																		try {
-																			// Delete the student from the database
-																			const response = await fetch(`/api/students/${studentId}`, {
-																				method: 'DELETE'
-																			})
-
-																			if (!response.ok) {
-																				throw new Error('Failed to delete student')
-																			}
-
-																			// Update the students state
-																			setStudents(currentStudents => 
-																				currentStudents.filter(s => s.id !== studentId)
-																			)
-
-																			// Update the groups state
-																			setGroups(currentGroups => {
-																				const newGroups = currentGroups.map(group => ({
-																					...group,
-																					students: group.students.filter(s => s.id !== studentId)
-																				}))
-																				return newGroups
-																			})
-
-																			// Wait for state updates to be reflected
-																			await new Promise(resolve => setTimeout(resolve, 1000))
-
-																			// Reload the page with the class parameter
-																			router.push(`/schedule/create?class=${selectedClass}`)
-																		} catch (error) {
-																			console.error('Error deleting student:', error)
-																			setError(error instanceof Error ? error.message : 'Failed to delete student')
-																		}
-																	}}
+																	onRemove={handleStudentRemoval}
 																/>
 															))}
 														</div>
@@ -751,41 +761,7 @@ export default function ScheduleClassSelectPage() {
 																	key={student.id} 
 																	student={student} 
 																	index={index}
-																	onRemove={async (studentId) => {
-																		try {
-																			// Delete the student from the database
-																			const response = await fetch(`/api/students/${studentId}`, {
-																				method: 'DELETE'
-																			})
-
-																			if (!response.ok) {
-																				throw new Error('Failed to delete student')
-																			}
-
-																			// Update the students state
-																			setStudents(currentStudents => 
-																				currentStudents.filter(s => s.id !== studentId)
-																			)
-
-																			// Update the groups state
-																			setGroups(currentGroups => {
-																				const newGroups = currentGroups.map(group => ({
-																					...group,
-																					students: group.students.filter(s => s.id !== studentId)
-																				}))
-																				return newGroups
-																			})
-
-																			// Wait for state updates to be reflected
-																			await new Promise(resolve => setTimeout(resolve, 1000))
-
-																			// Reload the page with the class parameter
-																			router.push(`/schedule/create?class=${selectedClass}`)
-																		} catch (error) {
-																			console.error('Error deleting student:', error)
-																			setError(error instanceof Error ? error.message : 'Failed to delete student')
-																		}
-																	}}
+																	onRemove={handleStudentRemoval}
 																/>
 															))}
 														</div>

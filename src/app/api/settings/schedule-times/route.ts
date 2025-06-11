@@ -24,6 +24,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  // Clone the request for error logging
+  const requestClone = request.clone()
+  
   try {
     const body = await request.json()
     const { startTime, endTime, hours, period } = body
@@ -77,7 +80,7 @@ export async function POST(request: Request) {
       location: 'api/settings/schedule-times',
       type: 'create-schedule-time',
       extra: {
-        requestBody: await request.text()
+        requestBody: await requestClone.text()
       }
     })
     return NextResponse.json(

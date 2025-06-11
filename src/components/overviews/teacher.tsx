@@ -91,12 +91,11 @@ export function TeacherOverview() {
             return Object.entries(scheduleInfo).find(([_, data]) => {
                 const termData = data as ScheduleTerm
                 return termData.weeks.some(week => {
-                    const parts = week.date.split('.')
-                    if (parts.length !== 3) return false
-                    const day = parseInt(parts[0]!)
-                    const month = parseInt(parts[1]!)
-                    const year = parseInt(parts[2]!)
-                    const weekDate = new Date(2000 + year, month - 1, day)
+                    const [day, month, year] = week.date.split('.').map(Number)
+                    if (!day || !month || !year) return false
+                    // Handle both 2-digit and 4-digit years
+                    const fullYear = year < 100 ? 2000 + year : year
+                    const weekDate = new Date(fullYear, month - 1, day)
                     return weekDate <= currentDate && weekDate.getTime() + (7 * 24 * 60 * 60 * 1000) > currentDate.getTime()
                 })
             })
@@ -189,7 +188,7 @@ export function TeacherOverview() {
 
     return (
         
-        <Tabs defaultValue={`${today}`} className="w-full" onValueChange={handleTabChange}>
+        <Tabs defaultValue={`${today === 0 || today === 6 ? 1 : today}`} className="w-full" onValueChange={handleTabChange}>
             <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="1">Monday</TabsTrigger>
                 <TabsTrigger value="2">Tuesday</TabsTrigger>

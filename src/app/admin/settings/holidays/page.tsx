@@ -35,9 +35,6 @@ export default function HolidaysPage() {
     endDate: ''
   })
   const [isLoading, setIsLoading] = useState(true)
-  const [scrapeUrl, setScrapeUrl] = useState('')
-  const [scrapedHolidays, setScrapedHolidays] = useState<ScrapedHoliday[]>([])
-  const [isScraping, setIsScraping] = useState(false)
   const [error, ] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
@@ -94,55 +91,7 @@ export default function HolidaysPage() {
     }
   }
 
-  
 
-  const handleSaveScraped = async () => {
-    try {
-      const validHolidays = scrapedHolidays.filter(h => h.isValid)
-      if (validHolidays.length === 0) {
-        toast.error('No valid holidays to save')
-        return
-      }
-
-      const response = await fetch('/api/settings/holidays/bulk', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(validHolidays)
-      })
-
-      if (!response.ok) throw new Error('Failed to save holidays')
-
-      await fetchHolidays()
-      setScrapedHolidays([])
-      setScrapeUrl('')
-      setSuccess('Holidays saved successfully')
-    } catch  {
-      toast.error('Failed to save holidays')
-    }
-  }
-
-  const handleEditScraped = (index: number, field: keyof Omit<ScrapedHoliday, 'isValid'>, value: string) => {
-    setScrapedHolidays(prev => {
-      const updated = [...prev]
-      const holiday = { ...updated[index] } as ScrapedHoliday
-      if (field === 'name') {
-        holiday.name = value
-      } else if (field === 'startDate') {
-        holiday.startDate = value
-      } else if (field === 'endDate') {
-        holiday.endDate = value
-      }
-      holiday.isValid = true
-      updated[index] = holiday
-      return updated
-    })
-  }
-
-  const handleRemoveScraped = (index: number) => {
-    setScrapedHolidays(prev => prev.filter((_, i) => i !== index))
-  }
 
   if (isLoading) return <div>Loading...</div>
 
