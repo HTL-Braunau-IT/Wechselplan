@@ -310,18 +310,22 @@ export default function ScheduleClassSelectPage() {
 	// Add a new effect to handle group ID updates
 	useEffect(() => {
 		// Update group IDs to be sequential
-		setGroups(currentGroups => {
-			const unassignedGroup = currentGroups.find(g => g.id === UNASSIGNED_GROUP_ID)
-			const regularGroups = currentGroups.filter(g => g.id !== UNASSIGNED_GROUP_ID)
-			
-			return [
-				unassignedGroup!,
-				...regularGroups.map((group, index) => ({
-					...group,
-					id: index + 1
-				}))
-			]
-		})
+        setGroups(currentGroups => {
+            const unassignedGroup =
+                currentGroups.find(g => g.id === UNASSIGNED_GROUP_ID)
+                ?? { id: UNASSIGNED_GROUP_ID, students: [] }
+            const regularGroups = currentGroups
+                .filter(g => g.id !== UNASSIGNED_GROUP_ID)
+                .sort((a, b) => a.id - b.id)        // keep deterministic order
+
+            return [
+                unassignedGroup!,
+                ...regularGroups.map((group, index) => ({
+                    ...group,
+                    id: index + 1
+                }))
+            ]
+        })
 	}, [numberOfGroups])
 
 	// Add effect to ensure unassigned group is always present
