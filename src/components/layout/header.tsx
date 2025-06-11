@@ -18,13 +18,19 @@ import {
 	DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu'
 
+/**
+ * Renders the application's top navigation header with conditional elements based on user authentication and role.
+ *
+ * Displays the app logo, support dialog, version and build date, theme and language toggles, and a user menu with login/logout options. For authenticated non-student users, provides a sidebar navigation menu with relevant links.
+ *
+ * @remark The sidebar navigation menu and menu toggle button are only available to authenticated users whose role is not 'student'.
+ */
 export function Header() {
 	const [isMenuOpen, setIsMenuOpen] = useState(false)
 	const { t } = useTranslation()
 	const { data: session } = useSession()
 
-	// Add debug logging
-	console.log('Build Date:', process.env.NEXT_PUBLIC_BUILD_DATE)
+
 
 	const toggleMenu = () => {
 		setIsMenuOpen(!isMenuOpen)

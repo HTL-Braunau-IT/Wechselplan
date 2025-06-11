@@ -1,22 +1,48 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { z } from 'zod'
+
+const scheduleSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  description: z.string().optional(),
+  startDate: z.string().refine((date) => !isNaN(Date.parse(date)), {
+    message: 'Invalid start date format'
+  }),
+  endDate: z.string().refine((date) => !isNaN(Date.parse(date)), {
+    message: 'Invalid end date format'
+  }),
+  selectedWeekday: z.number().int().min(0).max(6),
+  scheduleData: z.any(), // Using any for now since the exact structure isn't clear
+  classId: z.string().optional(),
+  additionalInfo: z.any().optional()
+})
 
 /**
- * Creates a new schedule for a class on a specified weekday, replacing any existing schedules for that class and weekday.
+ * Creates or replaces a schedule for a class on a specific weekday.
  *
- * Parses schedule details from the request body, deletes all schedules matching the provided `classId` and `selectedWeekday`, and creates a new schedule record with the supplied data, including optional `additionalInfo`.
+ * Validates the request body, deletes any existing schedules for the given class and weekday, and creates a new schedule record with the provided details.
  *
- * @returns A JSON response containing the newly created schedule.
+ * @returns A JSON response containing the newly created schedule, or an error response if validation fails.
  */
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const { name, description, startDate, endDate, selectedWeekday, schedule, classId, additionalInfo } = body
+    
+    // Validate the request body against the schema
+    const validationResult = scheduleSchema.safeParse(body)
+    if (!validationResult.success) {
+      return NextResponse.json(
+        { error: 'Invalid request data', details: validationResult.error.format() },
+        { status: 400 }
+      )
+    }
+
+    const { name, description, startDate, endDate, selectedWeekday, scheduleData, classId, additionalInfo } = validationResult.data
 
     // Delete existing schedules with the same weekday for this class
     await db.schedule.deleteMany({
       where: {
-        classId: classId ? parseInt(classId as string) : null,
+        classId: classId ? parseInt(classId) : null,
         selectedWeekday
       }
     })
@@ -26,13 +52,12 @@ export async function POST(req: Request) {
       data: {
         name,
         description,
-        startDate: new Date(startDate as string),
-        endDate: new Date(endDate as string),
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
         selectedWeekday,
-        classId: classId ? parseInt(classId as string) : null,
-        // Store the schedule data as JSON
-        scheduleData: schedule,
-        additionalInfo: additionalInfo
+        classId: classId ? parseInt(classId) : null,
+        scheduleData,
+        additionalInfo
       }
     })
 

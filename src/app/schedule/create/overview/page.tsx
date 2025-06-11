@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useCachedData } from '@/hooks/use-cached-data';
+import { useScheduleOverview } from '@/hooks/use-schedule-overview';
 import { captureFrontendError } from '@/lib/frontend-error'
 import { captureError } from '@/lib/sentry'
 import {
@@ -16,63 +17,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 
-
-interface Student {
-  id: number;
-  firstName: string;
-  lastName: string;
-  class: string;
-}
-
-interface Group {
-  id: number;
-  students: Student[];
-}
-
-interface TeacherAssignmentResponse {
-  groupId: number;
-  teacherId: number;
-  subject: string;
-  learningContent: string;
-  room: string;
-  teacherLastName: string;
-  teacherFirstName: string;
-}
-
-interface TeacherAssignmentsResponse {
-  amAssignments: TeacherAssignmentResponse[];
-  pmAssignments: TeacherAssignmentResponse[];
-}
-
-interface ScheduleTime {
-  id: string;
-  startTime: string;
-  endTime: string;
-  hours: number;
-  period: 'AM' | 'PM';
-}
-
-interface BreakTime {
-  id: string;
-  name: string;
-  startTime: string;
-  endTime: string;
-  period: 'AM' | 'PM';
-}
-
-type TurnSchedule = Record<string, unknown>
-
-interface ScheduleResponse {
-  id: number;
-  name: string;
-  description?: string;
-  startDate: string;
-  endDate: string;
-  selectedWeekday: number;
-  scheduleData: unknown;
-  additionalInfo?: string;
-  classId?: number;
-}
+import type {  ScheduleResponse } from '@/types/types'
 
 const GROUP_COLORS = [
   'bg-yellow-200', // Gruppe 1
@@ -89,11 +34,11 @@ const DARK_GROUP_COLORS = [
 ];
 
 /**
- * Displays and manages the class schedule overview page, including group assignments, teacher schedules, rotation planning, and PDF export options.
+ * Renders the class schedule overview page, allowing users to view group assignments, teacher schedules, rotation planning, and export the schedule as a PDF.
  *
- * Fetches and presents group and teacher assignments, rotation turns, and additional schedule information for a selected class. Enables saving teacher rotations and generating a downloadable PDF of the schedule. Handles loading, error states, and user navigation.
+ * Fetches and displays group and teacher assignments, rotation turns, and additional schedule information for a selected class. Provides options to save teacher rotations and generate a downloadable PDF. Handles loading and error states, and manages navigation after actions.
  *
- * @returns The overview page UI for managing and exporting the class schedule.
+ * @returns The UI for managing and exporting the class schedule overview.
  */
 export default function OverviewPage() {
   const searchParams = useSearchParams();
@@ -101,14 +46,18 @@ export default function OverviewPage() {
   const { teachers, isLoading: isLoadingCachedData } = useCachedData();
   const router = useRouter();
 
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [amAssignments, setAmAssignments] = useState<TeacherAssignmentResponse[]>([]);
-  const [pmAssignments, setPmAssignments] = useState<TeacherAssignmentResponse[]>([]);
-  const [scheduleTimes, setScheduleTimes] = useState<ScheduleTime[]>([]);
-  const [, setBreakTimes] = useState<BreakTime[]>([]);
+  const {
+    groups,
+    amAssignments,
+    pmAssignments,
+    scheduleTimes,
+    turns,
+    loading: overviewLoading,
+    error: overviewError
+  } = useScheduleOverview(classId);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [turns, setTurns] = useState<TurnSchedule>({});
   const [saving, setSaving] = useState(false);
   const [showPdfDialog, setShowPdfDialog] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
@@ -132,39 +81,11 @@ export default function OverviewPage() {
     try {
       setLoading(true);
       setError(null);
-      // Fetch all students for the class
-      const studentsRes = await fetch(`/api/students?class=${classId}`);
-      if (!studentsRes.ok) throw new Error('Failed to fetch students');
-      const students: Student[] = await studentsRes.json();
-      // Fetch group assignments
-      const groupRes = await fetch(`/api/schedule/assignments?class=${classId}`);
-      if (!groupRes.ok) throw new Error('Failed to fetch group assignments');
-      const groupData: { assignments: { groupId: number; studentIds: number[] }[] } = await groupRes.json();
-      setGroups(
-        groupData.assignments.map((g) => ({
-          id: g.groupId,
-          students: g.studentIds.map(id => students.find(s => s.id === id)).filter(Boolean) as Student[]
-        }))
-      );
-      // Fetch teacher assignments
-      const teacherRes = await fetch(`/api/schedule/teacher-assignments?class=${classId}`);
-      if (!teacherRes.ok) throw new Error('Failed to fetch teacher assignments');
-      const teacherData: TeacherAssignmentsResponse = await teacherRes.json();
-      setAmAssignments(teacherData.amAssignments);
-      setPmAssignments(teacherData.pmAssignments);
-      // Fetch selected schedule times
-      const timesRes = await fetch(`/api/schedules/times?class=${classId}`);
-      if (!timesRes.ok) throw new Error('Failed to fetch schedule times');
-      const timesData: { scheduleTimes?: ScheduleTime[]; breakTimes?: BreakTime[] } = await timesRes.json();
-      setScheduleTimes(timesData.scheduleTimes ?? []);
-      setBreakTimes(timesData.breakTimes ?? []);
       // Fetch rotation/turn schedule
       const schedulesRes = await fetch(`/api/schedules?classId=${classId}`);
       if (!schedulesRes.ok) throw new Error('Failed to fetch rotation schedule');
       const schedules = await schedulesRes.json() as ScheduleResponse[];
       const latestSchedule = schedules[0];
-      const scheduleData = latestSchedule?.scheduleData ?? {};
-      setTurns(scheduleData as TurnSchedule);
       setAdditionalInfo(latestSchedule?.additionalInfo ?? '');
     } catch (err) {
       console.error('Error fetching overview data:', err);
@@ -249,7 +170,7 @@ export default function OverviewPage() {
   async function handleGeneratePdf() {
     setGeneratingPdf(true);
     try {
-      const export_response = await fetch(`/api/export?classId=${classId}`, {
+      const export_response = await fetch(`/api/export?className=${classId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -288,15 +209,26 @@ export default function OverviewPage() {
     }
   }
 
+  /**
+   * Closes the PDF dialog and navigates to the home page.
+   */
   function handleSkipPdf() {
     setShowPdfDialog(false);
     router.push('/');
   }
 
-  if (loading || isLoadingCachedData) return <div className="p-8 text-center">Loading...</div>;
-  if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
+  if (loading || isLoadingCachedData || overviewLoading) return <div className="p-8 text-center">Loading...</div>;
+  if (error ?? overviewError) return <div className="p-8 text-center text-red-500">{error ?? overviewError}</div>;
 
-  // Helper: round-robin rotate an array by n positions
+  /**
+   * Returns a new array with its elements rotated to the left by the specified number of positions.
+   *
+   * The rotation is performed in a round-robin fashion, moving the first {@link n} elements to the end of the array.
+   *
+   * @param arr - The array to rotate.
+   * @param n - The number of positions to rotate the array.
+   * @returns A new array with elements rotated by {@link n} positions.
+   */
   function rotateArray<T>(arr: T[], n: number): T[] {
     const rotated = [...arr];
     for (let i = 0; i < n; i++) {
@@ -327,26 +259,31 @@ export default function OverviewPage() {
     return { start, end, days };
   }
 
-  // Helper: get weekday from first turn (dynamic)
+  /**
+   * Returns the weekday name of the first schedule time, or "Montag" if unavailable.
+   *
+   * @returns The weekday name in German corresponding to the first schedule time's start time, or "Montag" if no schedule times exist.
+   */
   function getWeekday() {
-    // Try to get from scheduleTimes, fallback to Montag
     if (scheduleTimes.length > 0) {
       const first = scheduleTimes[0];
-      // Try to parse weekday from startTime (if possible)
-      // Otherwise fallback
       return first?.startTime ? new Date(`1970-01-01T${first.startTime}`).toLocaleDateString('de-DE', { weekday: 'long' }) : 'Montag';
     }
     return 'Montag';
   }
 
-  // Helper: get assignment for a teacher, group, and period
-
-  // Helper: for a given teacher and turn, find the group assigned in the round-robin
+  /**
+   * Returns the group assigned to a teacher for a specific turn and period by rotating the group list.
+   *
+   * @param teacherIdx - Index of the teacher in the period's teacher list.
+   * @param turnIdx - Index of the turn for which to determine the group.
+   * @param period - The period ('AM' or 'PM') to select the appropriate teacher list.
+   * @returns The assigned group for the teacher and turn, or null if unavailable.
+   */
   function getGroupForTeacherAndTurn(teacherIdx: number, turnIdx: number, period: 'AM' | 'PM') {
     const groupList = groups;
     const teacherList = period === 'AM' ? uniqueAmTeachers : uniquePmTeachers;
     if (!groupList[0] || !teacherList[teacherIdx]) return null;
-    // For each turn, rotate the group list
     const rotatedGroups = rotateArray(groupList, turnIdx);
     const group = rotatedGroups[teacherIdx];
     return group;
@@ -443,17 +380,16 @@ export default function OverviewPage() {
             </div>
           </CardContent>
         </Card>
-        
       ))}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Zusätzliche Informationen</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>{additionalInfo}</p>
-          </CardContent>
-        </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Zusätzliche Informationen</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p>{additionalInfo}</p>
+        </CardContent>
+      </Card>
 
       {/* Custom blurred overlay for modal */}
       {showPdfDialog && (

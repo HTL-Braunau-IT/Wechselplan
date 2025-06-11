@@ -90,7 +90,6 @@
       "title": "Zeitplan",
       "scheduleTimes": "Unterrichtszeiten",
       "breakTimes": "Pausenzeiten",
-      "hours": "Stunden",
       "addNewScheduleTime": "Neue Unterrichtszeit hinzufügen",
       "addNewBreakTime": "Neue Pausenzeit hinzufügen",
       "startTime": "Startzeit",

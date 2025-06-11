@@ -24,14 +24,18 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  // Clone the request for error logging
+  const requestClone = request.clone()
+
   try {
     const body = await request.json()
-    const { startTime, endTime, hours, period } = body
+    const { startTime, endTime, period, hours: rawHours } = body
+    const hours = Number(rawHours)
 
-    // Validate required fields
-    if (!startTime || !endTime || !hours || !period) {
+    // Validate hours
+    if (!Number.isFinite(hours) || hours <= 0) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Hours must be a positive number' },
         { status: 400 }
       )
     }
@@ -53,14 +57,6 @@ export async function POST(request: Request) {
       )
     }
 
-    // Validate hours
-    if (hours <= 0) {
-      return NextResponse.json(
-        { error: 'Hours must be greater than 0' },
-        { status: 400 }
-      )
-    }
-
     const scheduleTime = await prisma.scheduleTime.create({
       data: {
         startTime,
@@ -77,7 +73,7 @@ export async function POST(request: Request) {
       location: 'api/settings/schedule-times',
       type: 'create-schedule-time',
       extra: {
-        requestBody: await request.text()
+        requestBody: await requestClone.text()
       }
     })
     return NextResponse.json(

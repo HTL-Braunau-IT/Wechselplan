@@ -15,9 +15,20 @@ interface ImportData {
 	description?: string | null
 }
 
+/**
+ * Handles importing CSV data for rooms, subjects, or learning content.
+ *
+ * Expects a JSON request body containing a `type` field (either `room`, `subject`, or `learningContent`) and a `data` field with CSV content. Parses and validates the CSV records, filters out entries with duplicate names already present in the database, and inserts new records accordingly.
+ *
+ * @returns A JSON response with the count of newly created records, or an error message if the import fails.
+ *
+ * @throws {Error} If the CSV data is invalid, required fields are missing, or the import type is not recognized.
+ * @remark Duplicate entries (by name) are ignored; only new records are imported.
+ */
 export async function POST(request: Request) {
+	const rawBody = await request.text() // Cache the raw body first
 	try {
-		const body = await request.json() as ImportRequest
+		const body = JSON.parse(rawBody) as ImportRequest
 		const { type, data } = body
 
 		// Parse CSV data
@@ -64,9 +75,13 @@ export async function POST(request: Request) {
 				})
 				const existingNames = new Set(existing.map(r => r.name))
 				const filteredData = transformedData.filter(item => !existingNames.has(item.name))
-				result = await (prisma as unknown as { room: { createMany: (args: Prisma.RoomCreateManyArgs) => Promise<{ count: number }> } }).room.createMany({
-					data: filteredData
-				})
+				if (filteredData.length === 0) {
+					result = { count: 0 }
+				} else {
+					result = await prisma.room.createMany({
+						data: filteredData
+					})
+				}
 				break
 			}
 			case 'subject': {
@@ -93,18 +108,13 @@ export async function POST(request: Request) {
 			}
 		}
 
-		return NextResponse.json({
-			success: true,
-			imported: result.count
-		})
+		return NextResponse.json({ count: result.count })
 	} catch (error: unknown) {
 		console.error('Error importing data:', error)
 		captureError(error, {
 			location: 'api/admin/settings/import',
 			type: 'data-import',
-			extra: {
-				requestBody: await request.text()
-			}
+			extra: { requestBody: rawBody }
 		})
 		return NextResponse.json(
 			{ error: 'Failed to import data', message: error instanceof Error ? error.message : 'Unknown error' },

@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 
-const prisma = new PrismaClient()
-
-// GET /api/students/class?username=1AHIF_dummy - Get a student's class
+/**
+ * Handles GET requests to retrieve a student's class by username.
+ *
+ * Extracts the `username` query parameter from the request URL and returns the name of the class assigned to the student. Responds with appropriate error messages and status codes if the username is missing, the student is not found, or the student has no class assigned.
+ *
+ * @returns A JSON response containing the class name, or an error message with the corresponding HTTP status code.
+ */
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const username = searchParams.get('username')

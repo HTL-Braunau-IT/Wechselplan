@@ -2,14 +2,15 @@ import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import type { ScheduleData, ScheduleTerm} from "@/types/types"
+import { parse, isValid, isWithinInterval, addWeeks } from "date-fns"
 
 
 /**
- * Renders a weekly schedule overview for the logged-in teacher, with navigation tabs for each weekday.
+ * Displays a weekly schedule overview for the logged-in teacher with weekday navigation tabs.
  *
- * Displays assignments, class and term details, group information, remaining weeks, additional info, and lists of students for each group. Fetches and updates schedule data based on the selected weekday and the current user's session.
+ * Shows assignments, class and term details, group information, remaining weeks, additional info, and lists of students for each group. Fetches and updates schedule data based on the selected weekday and the current user's session.
  *
- * @returns A React component showing the teacher's schedule overview with weekday navigation.
+ * @returns A React component presenting the teacher's schedule overview and navigation for each weekday.
  */
 export function TeacherOverview() {
     const { data: session } = useSession()
@@ -53,7 +54,7 @@ export function TeacherOverview() {
             setError(null)
             void fetchData(weekday)
         }
-    }, [session?.user?.role])
+    }, [session?.user?.role, today])
     
     const renderScheduleInfo = () => {
         if (!scheduleData?.schedules) return null
@@ -91,13 +92,16 @@ export function TeacherOverview() {
             return Object.entries(scheduleInfo).find(([_, data]) => {
                 const termData = data as ScheduleTerm
                 return termData.weeks.some(week => {
-                    const parts = week.date.split('.')
-                    if (parts.length !== 3) return false
-                    const day = parseInt(parts[0]!)
-                    const month = parseInt(parts[1]!)
-                    const year = parseInt(parts[2]!)
-                    const weekDate = new Date(2000 + year, month - 1, day)
-                    return weekDate <= currentDate && weekDate.getTime() + (7 * 24 * 60 * 60 * 1000) > currentDate.getTime()
+                    // Parse the date string using date-fns
+                    const parsedDate = parse(week.date, 'dd.MM.yy', new Date())
+                    if (!isValid(parsedDate)) return false
+                    
+                    // Check if current date is within the week
+                    const weekEnd = addWeeks(parsedDate, 1)
+                    return isWithinInterval(currentDate, {
+                        start: parsedDate,
+                        end: weekEnd
+                    })
                 })
             })
         }
@@ -107,13 +111,8 @@ export function TeacherOverview() {
             const currentWeek = getCurrentWeek(scheduleInfo)
             if (!currentWeek) return 0
             return (currentWeek[1] as ScheduleTerm).weeks.filter(week => {
-                const parts = week.date.split('.')
-                if (parts.length !== 3) return false
-                const day = parseInt(parts[0]!)
-                const month = parseInt(parts[1]!)
-                const year = parseInt(parts[2]!)
-                const weekDate = new Date(2000 + year, month - 1, day)
-                return weekDate > currentDate
+                const parsedDate = parse(week.date, 'dd.MM.yy', new Date())
+                return isValid(parsedDate) && parsedDate > currentDate
             }).length
         }
 
@@ -159,7 +158,7 @@ export function TeacherOverview() {
                             </div>
                             <div className="border-t pt-4 mt-4">
                                 <p className="text-sm text-gray-500 mb-2">Additional Info</p>
-                                {/* Find the schedule matching the current assignment’s class */}
+                                {/* Find the schedule matching the current assignment's class */}
                                 <p className="font-semibold text-lg">
                                     {
                                         scheduleData.schedules
@@ -189,7 +188,7 @@ export function TeacherOverview() {
 
     return (
         
-        <Tabs defaultValue={`${today}`} className="w-full" onValueChange={handleTabChange}>
+        <Tabs defaultValue={`${today === 0 || today === 6 ? 1 : today}`} className="w-full" onValueChange={handleTabChange}>
             <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="1">Monday</TabsTrigger>
                 <TabsTrigger value="2">Tuesday</TabsTrigger>

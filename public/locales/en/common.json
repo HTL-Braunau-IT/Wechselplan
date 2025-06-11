@@ -23,7 +23,8 @@
     "warning": "Warning",
     "confirm": "Confirm",
     "back": "Back",
-    "submitting": "Submitting..."
+    "submitting": "Submitting...",
+    "reloadPage": "Reload page"
   },
   "navigation": {
     "home": "Home",
@@ -38,19 +39,43 @@
     "createSchedule": "Create Schedule",
     "support": "Help & Support"
   },
+  "overview": {
+    "studentTitle": "Student Overview"
+  },
   "auth": {
     "login": "Login",
     "register": "Register",
     "email": "Email",
     "password": "Password",
     "forgotPassword": "Forgot Password?",
-    "rememberMe": "Remember Me"
+    "rememberMe": "Remember Me",
+    "title": "Login",
+    "description": "Sign in to your account using your credentials",
+    "username": {
+      "label": "Username",
+      "placeholder": "Enter your username"
+    },
+    "password": {
+      "label": "Password",
+      "placeholder": "Enter your password"
+    },
+    "button": {
+      "signingIn": "Signing in...",
+      "signInLDAP": "Sign in with LDAP",
+      "signInMicrosoft": "Sign in with Microsoft"
+    },
+    "orContinueWith": "Or continue with",
+    "error": {
+      "invalidCredentials": "Invalid username or password",
+      "generic": "An error occurred during login"
+    }
   },
   "errors": {
     "required": "This field is required",
     "invalidEmail": "Invalid email address",
     "passwordTooShort": "Password must be at least 8 characters",
-    "somethingWentWrong": "Something went wrong"
+    "somethingWentWrong": "Something went wrong",
+    "errorNotification": "We've been notified and are working to fix the issue."
   },
   "schedule": {
     "selectClass": "Select Class",

@@ -53,11 +53,11 @@ const WEEKDAYS = [
 ]
 
 /**
- * React component for creating and editing a rotation schedule with multiple terms, custom week lengths, and holiday management.
+ * React component for creating and editing a rotation schedule with configurable terms, custom week lengths, and holiday management.
  *
- * Users can configure the number of terms, select a rotation weekday, assign custom week lengths per term, and provide additional schedule information. The component automatically distributes weeks among terms, excludes holidays, and displays a summary table of the resulting schedule. Existing schedules can be loaded and edited if a class ID is provided.
+ * Users can specify the number of terms, select a rotation weekday, assign custom week lengths per term, and provide additional schedule information. The component automatically distributes weeks among terms, excludes holidays, and displays a summary table of the resulting schedule. Existing schedules can be loaded and edited if a class ID is provided.
  *
- * @returns The rendered UI for rotation schedule creation and editing.
+ * @returns The UI for creating or editing a rotation schedule.
  */
 
 export default function RotationPage() {
@@ -68,7 +68,7 @@ export default function RotationPage() {
   const [holidays, setHolidays] = useState<Holiday[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const [isCustomLehgth, setIsCustomLehgth] = useState(false)
+  const [isCustomLength, setIsCustomLength] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [weekError, setWeekError] = useState<string | null>(null)
@@ -86,7 +86,7 @@ export default function RotationPage() {
 
   const calculateSchedule = useCallback(() => {
     // Skip if we're loading from DB and not forcing a custom length change
-    if (loadedFromDb && !isCustomLehgth) {
+    if (loadedFromDb && !isCustomLength) {
       return;
     }
 
@@ -185,7 +185,7 @@ export default function RotationPage() {
       setWeekError(null);
     }
     setSchedule(newSchedule);
-  }, [isCustomLehgth, loadedFromDb, selectedWeekday, numberOfTerms, customLengths, holidays, schoolYearStart, schoolYearEnd]);
+  }, [isCustomLength, loadedFromDb, selectedWeekday, numberOfTerms, customLengths, holidays, schoolYearStart, schoolYearEnd]);
 
   // Effect to handle weekday changes
   useEffect(() => {
@@ -286,12 +286,7 @@ export default function RotationPage() {
         end: holidayEnd
       })
       
-      // Debug log
-      if (format(checkDate, 'dd.MM.yy') === '01.09.25') {
-        console.log('Checking date:', format(checkDate, 'dd.MM.yyyy'))
-        console.log('Holiday:', holiday.name, format(holidayStart, 'dd.MM.yyyy'), format(holidayEnd, 'dd.MM.yyyy'))
-        console.log('Is holiday:', isHoliday)
-      }
+
       
       return isHoliday
     })
@@ -387,7 +382,7 @@ export default function RotationPage() {
   }
 
   const handleCustomLengthChange = (turnusKey: string, length: number) => {
-    setIsCustomLehgth(true)
+    setIsCustomLength(true)
     if (isNaN(length) || length <= 0) {
       setCustomLengths(prev => {
         const newLengths = { ...prev }

@@ -199,7 +199,7 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 					<Input
 						id="bindPassword"
 						type="password"
-						value={config.bindPassword}
+ value={config.bindPassword ? '********' : ''}
 						onChange={(e) =>
 							setConfig((prev) => prev && { ...prev, bindPassword: e.target.value })
 						}

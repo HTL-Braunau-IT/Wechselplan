@@ -1,10 +1,20 @@
 import { NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/prisma'
+import { POST as importStudents } from '../route'
 
 interface ImportRequest {
   classes: string[]
+}
+
+interface ImportData {
+  classes: {
+    name: string
+    students: {
+      firstName: string
+      lastName: string
+      username: string
+    }[]
+  }[]
 }
 
 export async function POST(request: Request) {
@@ -13,31 +23,17 @@ export async function POST(request: Request) {
     let importedCount = 0
     let updatedCount = 0
 
-    // First, get the current import data
-    const importResponse = await fetch('http://localhost:3000/api/students/import', {
-      method: 'POST'
-    })
-    
+    // Get import data directly from the import function
+    const importResponse = await importStudents()
     if (!importResponse.ok) {
       throw new Error('Failed to fetch import data')
-    }
-
-    interface ImportData {
-      classes: {
-        name: string;
-        students: {
-          firstName: string;
-          lastName: string;
-          username: string;
-        }[];
-      }[];
     }
 
     const importData = await importResponse.json() as ImportData
 
     // Import each selected class
     for (const className of data.classes) {
-      const classData = importData.classes.find((c) => c.name === className)
+      const classData = importData.classes.find((c: { name: string }) => c.name === className)
       if (!classData) continue
 
       // Get or create the class

@@ -2,6 +2,14 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
+/**
+ * Initializes the database with default roles, school holidays, rooms, subjects, and learning content.
+ *
+ * Performs idempotent upsert operations for each data category to ensure records are created or updated without duplication.
+ *
+ * @remark
+ * Existing school holidays are updated with new start and end dates if their names match; other entities are only created if absent.
+ */
 async function main() {
   // Create default roles
   const roles = [
@@ -84,9 +92,26 @@ async function main() {
   ]
 
   for (const holiday of holidays) {
-    await prisma.schoolHoliday.create({
-      data: holiday
+    // Find existing holiday by name
+    const existingHoliday = await prisma.schoolHoliday.findFirst({
+      where: { name: holiday.name }
     })
+
+    if (existingHoliday) {
+      // Update existing holiday
+      await prisma.schoolHoliday.update({
+        where: { id: existingHoliday.id },
+        data: {
+          startDate: holiday.startDate,
+          endDate: holiday.endDate,
+        }
+      })
+    } else {
+      // Create new holiday
+      await prisma.schoolHoliday.create({
+        data: holiday
+      })
+    }
   }
 
   console.log('School holidays created successfully')
@@ -204,6 +229,6 @@ main()
     console.error(e)
     process.exit(1)
   })
-  .finally(async () => {
-    await prisma.$disconnect()
+  .finally(() => {
+    void prisma.$disconnect()
   }) 

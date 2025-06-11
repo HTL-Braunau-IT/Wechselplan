@@ -24,9 +24,9 @@ export async function GET() {
 			baseDN: process.env.LDAP_BASE_DN,
 			bindDN: process.env.LDAP_USERNAME,
 			bindPassword: process.env.LDAP_PASSWORD,
-			userSearchBase: process.env.LDAP_BASE_DN,
-			userSearchFilter: '(sAMAccountName={0})',
-			enabled: true,
+			userSearchBase: process.env.LDAP_USER_SEARCH_BASE ?? process.env.LDAP_BASE_DN,
+			userSearchFilter: process.env.LDAP_USER_SEARCH_FILTER ?? '(sAMAccountName={0})',
+			enabled: process.env.LDAP_ENABLED === 'true',
 			studentGroups: process.env.LDAP_STUDENT_GROUPS?.split(',') ?? [],
 			teacherGroups: process.env.LDAP_TEACHER_GROUPS?.split(',') ?? [],
 		})
@@ -43,6 +43,13 @@ export async function GET() {
 	}
 }
 
+/**
+ * Updates LDAP configuration environment variables based on the provided request body.
+ *
+ * Accepts a JSON payload representing LDAP configuration, updates or adds the relevant LDAP environment variables in the `.env` file, and returns a JSON response indicating success. If the `.env` file does not exist, it will be created.
+ *
+ * @returns A JSON response with `{ success: true }` on success, or an error message with status 500 on failure.
+ */
 export async function POST(request: Request) {
 	try {
 		const config = await request.json() as LDAPConfig
@@ -65,12 +72,17 @@ export async function POST(request: Request) {
 			{ envKey: 'LDAP_PASSWORD', value: config.bindPassword },
 			{ envKey: 'LDAP_STUDENT_GROUPS', value: config.studentGroups?.join(',') },
 			{ envKey: 'LDAP_TEACHER_GROUPS', value: config.teacherGroups?.join(',') },
+			{ envKey: 'LDAP_USER_SEARCH_BASE', value: config.userSearchBase },
+			{ envKey: 'LDAP_USER_SEARCH_FILTER', value: config.userSearchFilter },
+			{ envKey: 'LDAP_ENABLED', value: config.enabled.toString() },
 		]
 
 		// Create a map of existing LDAP variables
 		const existingVars = new Map<string, string>()
 		for (const line of envLines) {
-			const [key, value] = line.split('=')
+ const idx = line.indexOf('=')
+ const key = idx === -1 ? line : line.slice(0, idx)
+ const value = idx === -1 ? ''  : line.slice(idx + 1)
 			if (key) {
 				existingVars.set(key, value ?? '')
 			}
