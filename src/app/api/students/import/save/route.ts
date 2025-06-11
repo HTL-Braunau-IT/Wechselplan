@@ -18,6 +18,13 @@ interface ImportData {
   }[]
 }
 
+/**
+ * Handles importing student data for specified classes from an external source and updates the database accordingly.
+ *
+ * Parses the incoming request for class names, fetches corresponding student data, replaces existing students for each class, and returns a summary of the import operation.
+ *
+ * @returns A JSON response containing a success message and counts of imported students and updated classes, or an error message with status 500 if the import fails.
+ */
 export async function POST(request: Request) {
   try {
     const data = await request.json() as ImportRequest

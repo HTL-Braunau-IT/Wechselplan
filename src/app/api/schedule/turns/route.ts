@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 
+/**
+ * Handles GET requests by returning a JSON object containing predefined turn schedules.
+ *
+ * Each turn includes an array of weeks with associated date strings. If an error occurs, returns a JSON error message with a 500 status code.
+ *
+ * @returns A JSON response with turn schedules or an error message.
+ */
 export async function GET() {
   try {
     // Return default turns data

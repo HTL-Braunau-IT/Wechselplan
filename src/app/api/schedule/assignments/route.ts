@@ -13,6 +13,14 @@ interface RequestBody {
 	removedStudentIds?: number[]
 }
 
+/**
+ * Retrieves group assignments and unassigned students for a specified class.
+ *
+ * Returns a JSON response containing an array of group assignments and a list of students without a group assignment for the given class.
+ *
+ * @param request - The HTTP request containing the `class` query parameter.
+ * @returns A JSON response with `assignments` (group assignments) and `unassignedStudents` (students not assigned to any group).
+ */
 export async function GET(request: Request) {
 	try {
 		const { searchParams } = new URL(request.url)
@@ -101,9 +109,11 @@ export async function GET(request: Request) {
 }
 
 /**
- * Updates student group assignments for a specified class.
+ * Handles POST requests to update student group assignments for a given class.
  *
- * Accepts a JSON payload containing the class name, an array of group assignments, and an optional array of student IDs to unassign. Updates each student's group assignment in the database accordingly, unassigning students when `groupId` is 0 or when listed in `removedStudentIds`. Returns a JSON response indicating success or an error message with the appropriate HTTP status code.
+ * Expects a JSON payload with the class name, an array of group assignments, and optionally an array of student IDs to unassign. Validates the input, updates each student's group assignment in the database, and unassigns students as specified. Returns a JSON response indicating success or an error message with the appropriate HTTP status code.
+ *
+ * @returns A JSON response indicating success, or an error message with HTTP status 400, 404, or 500.
  */
 export async function POST(request: Request) {
 	let rawBody = ''

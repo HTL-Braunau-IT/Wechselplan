@@ -4,7 +4,13 @@ import { captureError } from '@/lib/sentry'
 
 const prisma = new PrismaClient()
 
-// GET /api/classes - Get all classes with full details
+/**
+ * Handles GET requests to retrieve all classes with their full details.
+ *
+ * Returns a JSON array of class objects, each containing `id`, `name`, and `description`, ordered alphabetically by name.
+ *
+ * @returns A JSON response with the list of classes or an error message with status 500 if the query fails.
+ */
 export async function GET() {
     try {
         const classes = await prisma.class.findMany({

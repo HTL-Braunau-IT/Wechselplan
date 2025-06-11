@@ -3,9 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 
 /**
- * Retrieves all school holiday records from the database, ordered by start date.
+ * Handles GET requests to retrieve all school holiday records, ordered by start date.
  *
- * @returns A JSON response containing an array of school holiday objects, or an error message with HTTP status 500 if retrieval fails.
+ * @returns A JSON response with an array of school holiday objects, or an error message with HTTP status 500 if retrieval fails.
  */
 export async function GET() {
   try {
@@ -34,6 +34,13 @@ interface HolidayRequest {
   endDate: string;
 }
 
+/**
+ * Handles HTTP POST requests to create a new school holiday record.
+ *
+ * Validates the request body for required fields and correct date formats, ensuring the end date is not before the start date. Returns the created holiday object as JSON on success, or an error message with an appropriate HTTP status code on failure.
+ *
+ * @returns A JSON response containing the created holiday object, or an error message with HTTP status 400 or 500.
+ */
 export async function POST(request: Request) {
   // Initialize requestClone with the original request
   const requestClone = request.clone();

@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 
+/**
+ * Retrieves all schedule time records from the database, ordered by start time.
+ *
+ * @returns A JSON response containing the list of schedule times, or an error message with status 500 if retrieval fails.
+ */
 export async function GET() {
   try {
     const scheduleTimes = await prisma.scheduleTime.findMany({
@@ -23,6 +28,13 @@ export async function GET() {
   }
 }
 
+/**
+ * Handles POST requests to create a new schedule time entry.
+ *
+ * Validates the request body for required fields and correct formats, then creates a new schedule time record in the database. Returns the created schedule time as a JSON response. If validation fails, responds with a 400 status and an error message. On processing or database errors, logs the error and responds with a 500 status.
+ *
+ * @returns A JSON response containing the created schedule time, or an error message with the appropriate HTTP status code.
+ */
 export async function POST(request: Request) {
   // Clone the request for error logging
   const requestClone = request.clone()

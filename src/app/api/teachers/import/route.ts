@@ -53,6 +53,13 @@ interface LDAPTeacher {
 }
 
 
+/**
+ * Handles a POST request to import teacher data from an LDAP server.
+ *
+ * Connects to the configured LDAP server, searches for user entries under the teachers organizational unit, and extracts teacher information. Returns a JSON response containing a list of teachers with their first name, last name, username, and email. Responds with an error message and HTTP 500 status if the LDAP connection, bind, or search fails.
+ *
+ * @returns A JSON response with an array of imported teachers or an error message on failure.
+ */
 export async function POST(): Promise<Response> {
 
   try {

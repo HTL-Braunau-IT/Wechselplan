@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 
+/**
+ * Handles GET requests to retrieve a predefined list of schedule time objects.
+ *
+ * Returns a JSON response containing an array of schedule times, each with an id, start and end times, hour number, and period (AM/PM). If an error occurs, reports the error and responds with a 500 status and an error message.
+ *
+ * @returns A JSON response with the schedule times array, or an error message with HTTP status 500 on failure.
+ */
 export async function GET() {
   try {
     // Return default schedule times

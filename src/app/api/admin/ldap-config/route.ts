@@ -14,7 +14,11 @@ interface LDAPConfig {
   teachersOU: string
 }
 
-// GET /api/admin/ldap-config - Get current LDAP configuration
+/**
+ * Handles GET requests to retrieve the current LDAP configuration from environment variables.
+ *
+ * @returns A JSON response containing the LDAP configuration object.
+ */
 export async function GET() {
   try {
     const config: LDAPConfig = {
@@ -43,7 +47,13 @@ export async function GET() {
   }
 }
 
-// POST /api/admin/ldap-config - Update LDAP configuration
+/**
+ * Handles POST requests to update the LDAP configuration by modifying LDAP-related environment variables in the `.env` file.
+ *
+ * Expects a JSON body containing LDAP configuration fields. Existing LDAP environment variables are replaced, and new ones are added as needed.
+ *
+ * @returns A JSON response indicating whether the update was successful.
+ */
 export async function POST(request: Request) {
   try {
     const config = await request.json() as LDAPConfig
