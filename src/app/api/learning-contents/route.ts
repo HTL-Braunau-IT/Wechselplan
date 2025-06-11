@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import type { Prisma } from '@prisma/client'
 
 interface LearningContent {
 	id: string
