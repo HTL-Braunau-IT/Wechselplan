@@ -27,6 +27,16 @@ export async function POST(request: Request) {
   // Clone the request for error logging
   const requestClone = request.clone()
   
+-    const { startTime, endTime, hours, period } = body
++    const { startTime, endTime, period } = body
++    const hours = Number(body.hours)
++
++    if (!Number.isFinite(hours) || hours <= 0) {
++      return NextResponse.json(
++        { error: 'Hours must be a positive number' },
++        { status: 400 }
++      )
++    }
   try {
     const body = await request.json()
     const { startTime, endTime, hours, period } = body
