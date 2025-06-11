@@ -116,6 +116,8 @@ export type ScheduleData = {
 export type ClassData = {
     id: number
     name: string
+    classHead: string | null
+    classLead: string | null
 }
 
 export interface ScheduleResponse {

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 
 /**
@@ -22,9 +22,23 @@ export async function GET(request: Request) {
       )
     }
 
-    const classData = await db.class.findUnique({
+    const classData = await prisma.class.findUnique({
       where: {
         name: name
+      },
+      include: {
+        classHead: {
+          select: {
+            firstName: true,
+            lastName: true
+          }
+        },
+        classLead: {
+          select: {
+            firstName: true,
+            lastName: true
+          }
+        }
       }
     })
 

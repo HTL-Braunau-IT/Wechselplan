@@ -52,7 +52,7 @@ export async function GET(req: Request) {
         const classIds = [...new Set(assignments.map(assignment => assignment.classId))]
         const schedules = []
         const students = []
-        const classdata: { id: number; name: string }[] = []
+        const classdata: { id: number; name: string; classHead?: string; classLead?: string }[] = []
         const validClassIds = new Set<number>()
 
         // First fetch all class data
@@ -60,10 +60,29 @@ export async function GET(req: Request) {
             const classInfo = await prisma.class.findUnique({
                 where: {
                     id: classId
+                },
+                include: {
+                    classHead: {
+                        select: {
+                            firstName: true,
+                            lastName: true
+                        }
+                    },
+                    classLead: {
+                        select: {
+                            firstName: true,
+                            lastName: true
+                        }
+                    }
                 }
             })
             if (classInfo) {
-                classdata.push(classInfo)
+                classdata.push({
+                    id: classInfo.id,
+                    name: classInfo.name,
+                    classHead: classInfo.classHead ? `${classInfo.classHead.firstName} ${classInfo.classHead.lastName}` : null,
+                    classLead: classInfo.classLead ? `${classInfo.classLead.firstName} ${classInfo.classLead.lastName}` : null
+                })
             }
         }
 

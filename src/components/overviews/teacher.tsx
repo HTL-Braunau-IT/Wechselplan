@@ -65,7 +65,9 @@ export function TeacherOverview() {
             const classInfo = scheduleData.classdata?.find(c => c.id === assignment.classId)
             return {
                 ...assignment,
-                className: classInfo?.name ?? `Class ${assignment.classId}`
+                className: classInfo?.name ?? `Class ${assignment.classId}`,
+                classHead: classInfo?.classHead ?? '—',
+                classLead: classInfo?.classLead ?? '—'
             }
         }).sort((a, b) => {
             // Sort AM before PM
@@ -154,6 +156,14 @@ export function TeacherOverview() {
                                 <div className="space-y-2">
                                     <p className="text-sm text-gray-500">Weeks Remaining</p>
                                     <p className="font-semibold text-lg">{remainingWeeks}</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <p className="text-sm text-gray-500">Class Head</p>
+                                    <p className="font-semibold text-lg">{assignment.classHead}</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <p className="text-sm text-gray-500">Class Lead</p>
+                                    <p className="font-semibold text-lg">{assignment.classLead}</p>
                                 </div>
                             </div>
                             <div className="border-t pt-4 mt-4">
