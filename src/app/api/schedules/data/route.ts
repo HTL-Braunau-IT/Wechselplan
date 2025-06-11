@@ -52,7 +52,7 @@ export async function GET(req: Request) {
         const classIds = [...new Set(assignments.map(assignment => assignment.classId))]
         const schedules = []
         const students = []
-        const classdata: { id: number; name: string; classHead?: string; classLead?: string }[] = []
+        const classdata: { id: number; name: string; classHead: string | null; classLead: string | null }[] = []
         const validClassIds = new Set<number>()
 
         // First fetch all class data
