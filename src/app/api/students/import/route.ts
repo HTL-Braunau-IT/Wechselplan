@@ -86,7 +86,7 @@ export async function POST() {
     try {
       LDAP_CONFIG = getLDAPConfig()
     } catch (error) {
-     s
+    
       captureError(error, {
         location: 'api/students/import',
         type: 'ldap-config',
@@ -304,7 +304,7 @@ export async function POST() {
           resolve(found)
         })
 
-        res.on('error', (err: Error) => {
+        res.on('error', () => {
           
           resolve(false)
         })

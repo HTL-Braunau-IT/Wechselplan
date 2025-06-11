@@ -113,7 +113,7 @@ export async function POST(request: Request) {
 		let body: RequestBody
 		try {
 			body = JSON.parse(rawBody)
-		} catch (error) {
+		} catch  {
 			captureError(new Error('Invalid request body'), {
 				location: 'api/schedule/assignments',
 				type: 'validation-error',

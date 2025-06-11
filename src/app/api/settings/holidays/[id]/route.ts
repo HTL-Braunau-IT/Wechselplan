@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { Prisma } from '@prisma/client'
+
 import { captureError } from '~/lib/sentry'
 export async function DELETE(
   request: Request,

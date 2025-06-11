@@ -89,9 +89,6 @@ export async function POST(request: Request) {
     captureError(error, {
       location: 'api/roles',
       type: 'create-role',
-      extra: {
-        requestBody: requestBody || 'Failed to read request body'
-      }
     })
     return NextResponse.json(
       { error: 'Failed to create role' },

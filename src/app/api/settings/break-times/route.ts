@@ -31,10 +31,10 @@ interface BreakTimeRequest {
 }
 
 export async function POST(request: Request) {
-  let requestClone: Request
+
   try {
     // Clone the request before reading its body
-    requestClone = request.clone()
+    
     const body = await request.json() as BreakTimeRequest
 
     const { name, startTime, endTime, period } = body
@@ -79,9 +79,6 @@ export async function POST(request: Request) {
     captureError(error, {
       type: 'create-break-time',
       location: 'api/settings/break-times',
-      extra: {
-        requestBody: await requestClone.text()
-      }
     })
     return NextResponse.json(
       { error: 'Failed to create break time' },
