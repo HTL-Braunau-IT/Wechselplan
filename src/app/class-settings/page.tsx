@@ -119,7 +119,7 @@ export default function ClassSettingsPage() {
     }
 
     return (
-        <div className="container mx-auto py-8">
+        <div className="container mx-auto py-8 size-1/2">
             <h1 className="text-2xl font-bold mb-6">{t('classSettings.title')}</h1>
             <div className="grid gap-6">
                 {classes.map((cls) => (

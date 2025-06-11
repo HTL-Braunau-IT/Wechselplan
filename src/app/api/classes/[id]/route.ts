@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
 import { captureError } from '@/lib/sentry'
 import { z } from 'zod'
 
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/prisma'   // centralised, reused instance
 
 const updateClassSchema = z.object({
-    classHeadId: z.number().nullable().optional(),
-    classLeadId: z.number().nullable().optional()
-})
+     classHeadId: z.number().nullable().optional(),
+     classLeadId: z.number().nullable().optional()
+}).refine(data => data.classHeadId !== undefined || data.classLeadId !== undefined,
+          { message: 'Nothing to update' })
 
 /**
  * Handles PATCH requests to update a class's head and lead teachers.
@@ -19,10 +19,10 @@ const updateClassSchema = z.object({
  */
 export async function PATCH(
     request: Request,
-    context: { params: Promise<{ id: string }> }
+    context: { params: { id: string } }
 ) {
     try {
-        const { id } = await context.params
+        const { id } = context.params
         const classId = parseInt(id)
         
         if (isNaN(classId)) {

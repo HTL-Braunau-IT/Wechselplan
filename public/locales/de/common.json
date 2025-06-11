@@ -35,8 +35,9 @@
     "menu": "Menü",
     "closeMenu": "Menü schließen",
     "admin": "Administration",
-    "createSchedule": "Stundenplan erstellen",
-    "support": "Hilfe & Support"
+"createSchedule": "Stundenplan erstellen",
+    "classSettings": "Klasseneinstellungen",
+     "support": "Hilfe & Support"
   },
   "overview": {
     "studentTitle": "Schülerübersicht"
@@ -45,7 +46,6 @@
     "login": "Anmelden",
     "register": "Registrieren",
     "email": "E-Mail",
-    "password": "Passwort",
     "forgotPassword": "Passwort vergessen?",
     "rememberMe": "Angemeldet bleiben",
     "title": "Anmelden",
