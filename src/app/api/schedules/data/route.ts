@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 
+/**
+ * Handles HTTP GET requests to retrieve schedule, student, rotation, assignment, and class data for a specified teacher and weekday.
+ *
+ * Parses the `teacher` (required) and `weekday` (optional, defaults to '0') query parameters from the request URL. Validates the presence of the teacher, retrieves related assignments, rotation data, class information, schedules for the specified weekday, and students for each class. Returns appropriate HTTP error responses if any required data is missing or not found.
+ *
+ * @returns A {@link NextResponse} containing a JSON object with schedules, students, teacher rotation, filtered assignments, and class information, or an error message with the corresponding HTTP status code.
+ */
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     try {
@@ -72,7 +79,7 @@ export async function GET(req: Request) {
                     createdAt: 'desc'
                 }
             })
-            console.log("Found schedule for class", classId, ":", schedule)
+        
             
             // Add schedule if it exists for this weekday
             if (schedule) {

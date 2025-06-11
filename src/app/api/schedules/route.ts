@@ -1,10 +1,17 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
+/**
+ * Creates a new schedule for a class on a specified weekday, replacing any existing schedules for that class and weekday.
+ *
+ * Parses schedule details from the request body, deletes all schedules matching the provided `classId` and `selectedWeekday`, and creates a new schedule record with the supplied data, including optional `additionalInfo`.
+ *
+ * @returns A JSON response containing the newly created schedule.
+ */
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const { name, description, startDate, endDate, selectedWeekday, schedule, classId } = body
+    const { name, description, startDate, endDate, selectedWeekday, schedule, classId, additionalInfo } = body
 
     // Delete existing schedules with the same weekday for this class
     await db.schedule.deleteMany({
@@ -24,7 +31,8 @@ export async function POST(req: Request) {
         selectedWeekday,
         classId: classId ? parseInt(classId as string) : null,
         // Store the schedule data as JSON
-        scheduleData: schedule
+        scheduleData: schedule,
+        additionalInfo: additionalInfo
       }
     })
 

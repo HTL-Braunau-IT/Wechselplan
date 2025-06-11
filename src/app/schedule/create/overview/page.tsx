@@ -62,6 +62,18 @@ interface BreakTime {
 
 type TurnSchedule = Record<string, unknown>
 
+interface ScheduleResponse {
+  id: number;
+  name: string;
+  description?: string;
+  startDate: string;
+  endDate: string;
+  selectedWeekday: number;
+  scheduleData: unknown;
+  additionalInfo?: string;
+  classId?: number;
+}
+
 const GROUP_COLORS = [
   'bg-yellow-200', // Gruppe 1
   'bg-green-200',  // Gruppe 2
@@ -76,6 +88,13 @@ const DARK_GROUP_COLORS = [
   'dark:bg-red-900/60',
 ];
 
+/**
+ * Displays and manages the class schedule overview page, including group assignments, teacher schedules, rotation planning, and PDF export options.
+ *
+ * Fetches and presents group and teacher assignments, rotation turns, and additional schedule information for a selected class. Enables saving teacher rotations and generating a downloadable PDF of the schedule. Handles loading, error states, and user navigation.
+ *
+ * @returns The overview page UI for managing and exporting the class schedule.
+ */
 export default function OverviewPage() {
   const searchParams = useSearchParams();
   const classId = searchParams.get('class');
@@ -93,6 +112,7 @@ export default function OverviewPage() {
   const [saving, setSaving] = useState(false);
   const [showPdfDialog, setShowPdfDialog] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [additionalInfo, setAdditionalInfo] = useState<string>('');
 
   // Debug logs
   console.log('teachers', teachers);
@@ -141,10 +161,11 @@ export default function OverviewPage() {
       // Fetch rotation/turn schedule
       const schedulesRes = await fetch(`/api/schedules?classId=${classId}`);
       if (!schedulesRes.ok) throw new Error('Failed to fetch rotation schedule');
-      const schedules = await schedulesRes.json();
+      const schedules = await schedulesRes.json() as ScheduleResponse[];
       const latestSchedule = schedules[0];
       const scheduleData = latestSchedule?.scheduleData ?? {};
       setTurns(scheduleData as TurnSchedule);
+      setAdditionalInfo(latestSchedule?.additionalInfo ?? '');
     } catch (err) {
       console.error('Error fetching overview data:', err);
       captureFrontendError(err, {
@@ -422,7 +443,17 @@ export default function OverviewPage() {
             </div>
           </CardContent>
         </Card>
+        
       ))}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Zusätzliche Informationen</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p>{additionalInfo}</p>
+          </CardContent>
+        </Card>
 
       {/* Custom blurred overlay for modal */}
       {showPdfDialog && (

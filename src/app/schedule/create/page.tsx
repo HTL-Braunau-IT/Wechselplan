@@ -82,6 +82,14 @@ function StudentItem({ student, index, onRemove }: { student: Student, index: nu
 	)
 }
 
+/**
+ * Renders a droppable container for a group, displaying its title and containing student items.
+ *
+ * Highlights the container when a draggable item is hovered over it. Shows "Unassigned" for the unassigned group or "Group X" for other groups.
+ *
+ * @param group - The group to display, including its ID.
+ * @param children - The student items or other elements to render inside the group container.
+ */
 function GroupContainer({ group, children }: { group: Group, children: React.ReactNode }) {
 	const { t } = useTranslation('schedule')
 	const { setNodeRef, isOver } = useDroppable({
@@ -103,6 +111,15 @@ function GroupContainer({ group, children }: { group: Group, children: React.Rea
 	)
 }
 
+/**
+ * Displays an interactive scheduling page for assigning students to groups within a selected class using drag-and-drop.
+ *
+ * Enables teachers to select a class, view and manage its students, create groups, assign students to groups via drag-and-drop, add or remove students, and save group assignments. Integrates with backend APIs for data retrieval and persistence, and prompts for confirmation when updating existing assignments.
+ *
+ * @returns The React component for the class scheduling interface.
+ *
+ * @remark The unassigned group is always present with an ID of 0 and is preserved across group changes. When existing assignments are detected and changes are made, a confirmation dialog is shown before updating assignments.
+ */
 export default function ScheduleClassSelectPage() {
 	const router = useRouter()
 	const { t } = useTranslation('schedule')
@@ -283,8 +300,8 @@ export default function ScheduleClassSelectPage() {
 
 			// Distribute students evenly across new groups
 			allStudents.forEach((student, index) => {
-				const targetGroupIndex = index % numberOfGroups
-				newGroups[targetGroupIndex + 1]!.students.push(student) // +1 because of unassigned group
+				const targetGroupIndex = (index % numberOfGroups) + 1 // +1 because of unassigned group
+				newGroups[targetGroupIndex]!.students.push(student)
 			})
 
 			setGroups(newGroups)
@@ -310,12 +327,22 @@ export default function ScheduleClassSelectPage() {
 	// Add a new effect to handle group ID updates
 	useEffect(() => {
 		// Update group IDs to be sequential
-		setGroups(currentGroups => 
-			currentGroups.map((group, index) => ({
-				...group,
-				id: index + 1
-			}))
-		)
+        setGroups(currentGroups => {
+            const unassignedGroup =
+                currentGroups.find(g => g.id === UNASSIGNED_GROUP_ID)
+                ?? { id: UNASSIGNED_GROUP_ID, students: [] }
+            const regularGroups = currentGroups
+                .filter(g => g.id !== UNASSIGNED_GROUP_ID)
+                .sort((a, b) => a.id - b.id)        // keep deterministic order
+
+            return [
+                unassignedGroup!,
+                ...regularGroups.map((group, index) => ({
+                    ...group,
+                    id: index + 1
+                }))
+            ]
+        })
 	}, [numberOfGroups])
 
 	// Add effect to ensure unassigned group is always present

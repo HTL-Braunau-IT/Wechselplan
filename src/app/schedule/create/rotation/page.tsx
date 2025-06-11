@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -32,6 +32,18 @@ type ScheduleEntry = {
 
 type Schedule = Record<string, ScheduleEntry>
 
+interface ScheduleResponse {
+  id: number;
+  name: string;
+  description?: string;
+  startDate: string;
+  endDate: string;
+  selectedWeekday: number;
+  scheduleData: unknown;
+  additionalInfo?: string;
+  classId?: number;
+}
+
 const WEEKDAYS = [
   { value: 1, label: 'Monday' },
   { value: 2, label: 'Tuesday' },
@@ -40,9 +52,13 @@ const WEEKDAYS = [
   { value: 5, label: 'Friday' }
 ]
 
-
-
-// Helper: generate all rotation dates (e.g., all Mondays) between start and end
+/**
+ * React component for creating and editing a rotation schedule with multiple terms, custom week lengths, and holiday management.
+ *
+ * Users can configure the number of terms, select a rotation weekday, assign custom week lengths per term, and provide additional schedule information. The component automatically distributes weeks among terms, excludes holidays, and displays a summary table of the resulting schedule. Existing schedules can be loaded and edited if a class ID is provided.
+ *
+ * @returns The rendered UI for rotation schedule creation and editing.
+ */
 
 export default function RotationPage() {
   const [schedule, setSchedule] = useState<Schedule>({})
@@ -59,12 +75,126 @@ export default function RotationPage() {
   const [loadedFromDb, setLoadedFromDb] = useState(false)
   const [startDate, ] = useState<Date>(new Date())
   const [endDate, ] = useState<Date>(new Date())
+  const [additionalInfo, setAdditionalInfo] = useState<string>('')
   const router = useRouter()
   const searchParams = useSearchParams()
   const classId = searchParams.get('class')
 
   const schoolYearStart = new Date(2024, 8, 9) // September 1st
   const schoolYearEnd = new Date(2025, 5, 28) // June 30th
+  const prevWeekdayRef = useRef(selectedWeekday)
+
+  const calculateSchedule = useCallback(() => {
+    // Skip if we're loading from DB and not forcing a custom length change
+    if (loadedFromDb && !isCustomLehgth) {
+      return;
+    }
+
+    const newSchedule: Schedule = {}
+    // Generate all rotation dates for the year
+    const allRotationDates = getAllRotationDates(schoolYearStart, schoolYearEnd, selectedWeekday);
+    const totalWeeks = allRotationDates.length;
+    let weeksLeft = totalWeeks;
+    let turnsLeft = numberOfTerms;
+    // Calculate how many weeks each term should get
+    const weeksPerTerm: number[] = [];
+
+    for (let i = 0; i < numberOfTerms; i++) {
+      const turnusKey = `TURNUS ${i + 1}`;
+      if (customLengths[turnusKey] && customLengths[turnusKey] > 0) {
+        weeksPerTerm.push(customLengths[turnusKey]);
+        weeksLeft -= customLengths[turnusKey];
+        turnsLeft--;
+
+      } else {
+        weeksPerTerm.push(0); // placeholder, will fill in next
+      }
+    }
+    // Distribute remaining weeks evenly
+    for (let i = 0; i < numberOfTerms; i++) {
+      if (weeksPerTerm[i] === 0 && turnsLeft > 0) {
+        const base = Math.floor(weeksLeft / turnsLeft);
+        const extra = weeksLeft % turnsLeft > 0 ? 1 : 0;
+        weeksPerTerm[i] = base + extra;
+        weeksLeft -= weeksPerTerm[i]!;
+        turnsLeft--;
+      }
+    }
+    let rotationIndex2 = 0;
+    for (let i = 0; i < numberOfTerms; i++) {
+      const turnusKey = `TURNUS ${i + 1}`;
+      const weeksForThisTerm = weeksPerTerm[i] ?? 0;
+      const termDates = allRotationDates.slice(rotationIndex2, rotationIndex2 + weeksForThisTerm);
+      rotationIndex2 += weeksForThisTerm;
+      const weeksWithHolidays = termDates.map((date) => {
+        const isHolidayDate = isHoliday(date);
+        return {
+          week: `KW${getWeekNumber(date)}`,
+          date: format(date, 'dd.MM.yy'),
+          isHoliday: isHolidayDate,
+          originalDate: date
+        };
+      });
+      const firstWeek = weeksWithHolidays.length > 0 ? weeksWithHolidays[0] : undefined;
+      const lastWeek = weeksWithHolidays.length > 0 ? weeksWithHolidays[weeksWithHolidays.length - 1] : undefined;
+      const turnDateRange = {
+        start: firstWeek && firstWeek.originalDate instanceof Date ? firstWeek.originalDate : new Date(),
+        end: lastWeek && lastWeek.originalDate instanceof Date ? lastWeek.originalDate : new Date()
+      };
+      const turnHolidays = holidays.filter(holiday => {
+        if (!turnDateRange.start || !turnDateRange.end) return false;
+        const holidayStart = holiday.startDate instanceof Date
+          ? new Date(holiday.startDate.getFullYear(), holiday.startDate.getMonth(), holiday.startDate.getDate())
+          : new Date();
+        const holidayEnd = holiday.endDate instanceof Date
+          ? new Date(holiday.endDate.getFullYear(), holiday.endDate.getMonth(), holiday.endDate.getDate())
+          : new Date();
+        const isInDateRange = isWithinInterval(holidayStart, {
+          start: turnDateRange.start,
+          end: turnDateRange.end
+        }) ?? isWithinInterval(holidayEnd, {
+          start: turnDateRange.start,
+          end: turnDateRange.end
+        }) ?? isWithinInterval(turnDateRange.start, {
+          start: holidayStart,
+          end: holidayEnd
+        });
+        if (!isInDateRange) return false;
+        const holidayStartDay = getDay(holidayStart);
+        const holidayEndDay = getDay(holidayEnd);
+        if (holidayStartDay !== holidayEndDay) {
+          return true;
+        }
+        return holidayStartDay === selectedWeekday;
+      });
+      newSchedule[turnusKey] = {
+        name: turnusKey,
+        weeks: weeksWithHolidays
+          .filter(week => !week.isHoliday)
+          .map(({ week, date }) => ({ week, date, isHoliday: false })),
+        holidays: turnHolidays
+      };
+    }
+    // Boundary check: warn if too few or too many weeks assigned (count all assigned weeks)
+    const assignedTotal = weeksPerTerm.reduce((a, b) => a + b, 0);
+    if (assignedTotal < totalWeeks) {
+      setWeekError(`Total assigned weeks (${assignedTotal}) is less than available weeks (${totalWeeks}). Please assign all weeks.`);
+    } else if (assignedTotal > totalWeeks) {
+      setWeekError(`Total assigned weeks (${assignedTotal}) is greater than available weeks (${totalWeeks}). Please reduce the assigned weeks.`);
+    } else {
+      setWeekError(null);
+    }
+    setSchedule(newSchedule);
+  }, [isCustomLehgth, loadedFromDb, selectedWeekday, numberOfTerms, customLengths, holidays, schoolYearStart, schoolYearEnd]);
+
+  // Effect to handle weekday changes
+  useEffect(() => {
+    if (!isLoading && prevWeekdayRef.current !== selectedWeekday) {
+      prevWeekdayRef.current = selectedWeekday;
+      setLoadedFromDb(false);
+      calculateSchedule();
+    }
+  }, [selectedWeekday, calculateSchedule, isLoading]);
 
   useEffect(() => {
     void fetchHolidays()
@@ -75,15 +205,7 @@ export default function RotationPage() {
     if (classId && !loadedFromDb) {
       void fetchExistingSchedule(classId);
     }
-
   }, [classId, loadedFromDb]);
-
-  // Only recalculate if not loaded from DB
-  useEffect(() => {
-    if (!isLoading && !loadedFromDb) {
-      calculateSchedule();
-    }
-  }, [numberOfTerms, selectedWeekday, holidays, isLoading, loadedFromDb]);
 
   const fetchHolidays = async () => {
     try {
@@ -112,18 +234,24 @@ export default function RotationPage() {
       setIsLoading(true)
       const response = await fetch(`/api/schedules?classId=${classId}&weekday=${selectedWeekday}`)
       if (!response.ok) throw new Error('Failed to fetch schedule')
-      const schedules = await response.json()
+      const schedules = await response.json() as ScheduleResponse[]
       if (process.env.NODE_ENV !== 'production') {
         console.log('Schedules:', schedules)
       }
       if (schedules && schedules.length > 0) {
         const latest = schedules[0]
-        // Populate state from loaded schedule
-        setSchedule((latest.scheduleData as Schedule) ?? {})
-        setNumberOfTerms(Object.keys((latest.scheduleData as Schedule) ?? {}).length)
-        setSelectedWeekday((latest.selectedWeekday as number) ?? 1)
+        if (latest) {
+          // Populate state from loaded schedule
+          setSchedule((latest.scheduleData as Schedule) ?? {})
+          setNumberOfTerms(Object.keys((latest.scheduleData as Schedule) ?? {}).length)
+          setSelectedWeekday(latest.selectedWeekday ?? 1)
+          setAdditionalInfo(latest.additionalInfo ?? '')
 
-        setLoadedFromDb(true)
+          setLoadedFromDb(true)
+        } else {
+          setLoadedFromDb(false)
+          calculateSchedule()
+        }
       } else {
         setLoadedFromDb(false)
         calculateSchedule()
@@ -169,6 +297,14 @@ export default function RotationPage() {
     })
   }
 
+  /**
+   * Returns all dates within the specified range that fall on the given weekday and are not holidays.
+   *
+   * @param start - The start date of the range.
+   * @param end - The end date of the range.
+   * @param weekday - The target weekday (0 for Sunday, 1 for Monday, etc.).
+   * @returns An array of dates matching the specified weekday and excluding holidays.
+   */
   function getAllRotationDates(start: Date, end: Date, weekday: number): Date[] {
     const dates: Date[] = [];
     let date: Date | undefined = setDay(new Date(start), weekday);
@@ -183,106 +319,6 @@ export default function RotationPage() {
     return dates;
   }
   
-
-  const calculateSchedule = () => {
-    if ((isCustomLehgth && loadedFromDb) || !loadedFromDb) {
-      const newSchedule: Schedule = {}
-      // Generate all rotation dates for the year
-      const allRotationDates = getAllRotationDates(schoolYearStart, schoolYearEnd, selectedWeekday);
-      const totalWeeks = allRotationDates.length;
-      let weeksLeft = totalWeeks;
-      let turnsLeft = numberOfTerms;
-      // Calculate how many weeks each term should get
-      const weeksPerTerm: number[] = [];
-
-      for (let i = 0; i < numberOfTerms; i++) {
-        const turnusKey = `TURNUS ${i + 1}`;
-        if (customLengths[turnusKey] && customLengths[turnusKey] > 0) {
-          weeksPerTerm.push(customLengths[turnusKey]);
-          weeksLeft -= customLengths[turnusKey];
-          turnsLeft--;
-
-        } else {
-          weeksPerTerm.push(0); // placeholder, will fill in next
-        }
-      }
-      // Distribute remaining weeks evenly
-      for (let i = 0; i < numberOfTerms; i++) {
-        if (weeksPerTerm[i] === 0 && turnsLeft > 0) {
-          const base = Math.floor(weeksLeft / turnsLeft);
-          const extra = weeksLeft % turnsLeft > 0 ? 1 : 0;
-          weeksPerTerm[i] = base + extra;
-          weeksLeft -= weeksPerTerm[i]!;
-          turnsLeft--;
-        }
-      }
-      let rotationIndex2 = 0;
-      for (let i = 0; i < numberOfTerms; i++) {
-        const turnusKey = `TURNUS ${i + 1}`;
-        const weeksForThisTerm = weeksPerTerm[i] ?? 0;
-        const termDates = allRotationDates.slice(rotationIndex2, rotationIndex2 + weeksForThisTerm);
-        rotationIndex2 += weeksForThisTerm;
-        const weeksWithHolidays = termDates.map((date) => {
-          const isHolidayDate = isHoliday(date);
-          return {
-            week: `KW${getWeekNumber(date)}`,
-            date: format(date, 'dd.MM.yy'),
-            isHoliday: isHolidayDate,
-            originalDate: date
-          };
-        });
-        const firstWeek = weeksWithHolidays.length > 0 ? weeksWithHolidays[0] : undefined;
-        const lastWeek = weeksWithHolidays.length > 0 ? weeksWithHolidays[weeksWithHolidays.length - 1] : undefined;
-        const turnDateRange = {
-          start: firstWeek && firstWeek.originalDate instanceof Date ? firstWeek.originalDate : new Date(),
-          end: lastWeek && lastWeek.originalDate instanceof Date ? lastWeek.originalDate : new Date()
-        };
-        const turnHolidays = holidays.filter(holiday => {
-          if (!turnDateRange.start || !turnDateRange.end) return false;
-          const holidayStart = holiday.startDate instanceof Date
-            ? new Date(holiday.startDate.getFullYear(), holiday.startDate.getMonth(), holiday.startDate.getDate())
-            : new Date();
-          const holidayEnd = holiday.endDate instanceof Date
-            ? new Date(holiday.endDate.getFullYear(), holiday.endDate.getMonth(), holiday.endDate.getDate())
-            : new Date();
-          const isInDateRange = isWithinInterval(holidayStart, {
-            start: turnDateRange.start,
-            end: turnDateRange.end
-          }) ?? isWithinInterval(holidayEnd, {
-            start: turnDateRange.start,
-            end: turnDateRange.end
-          }) ?? isWithinInterval(turnDateRange.start, {
-            start: holidayStart,
-            end: holidayEnd
-          });
-          if (!isInDateRange) return false;
-          const holidayStartDay = getDay(holidayStart);
-          const holidayEndDay = getDay(holidayEnd);
-          if (holidayStartDay !== holidayEndDay) {
-            return true;
-          }
-          return holidayStartDay === selectedWeekday;
-        });
-        newSchedule[turnusKey] = {
-          name: turnusKey,
-          weeks: weeksWithHolidays
-            .filter(week => !week.isHoliday)
-            .map(({ week, date }) => ({ week, date, isHoliday: false })),
-          holidays: turnHolidays
-        };
-      }
-      // Boundary check: warn if too few or too many weeks assigned (count all assigned weeks)
-      const assignedTotal = weeksPerTerm.reduce((a, b) => a + b, 0);
-      if (assignedTotal < totalWeeks) {
-        setWeekError(`Total assigned weeks (${assignedTotal}) is less than available weeks (${totalWeeks}). Please assign all weeks.`);
-      } else if (assignedTotal > totalWeeks) {
-        setWeekError(`Total assigned weeks (${assignedTotal}) is greater than available weeks (${totalWeeks}). Please reduce the assigned weeks.`);
-      } else {
-        setWeekError(null);
-      }
-      setSchedule(newSchedule);
-    }
-  }
 
   const getWeekNumber = (date: Date): number => {
     const firstDayOfYear = new Date(date.getFullYear(), 0, 1)
@@ -320,6 +356,7 @@ export default function RotationPage() {
           endDate: endDate.toISOString(),
           selectedWeekday,
           schedule,
+          additionalInfo,
           classId: classData.id
         }),
       })
@@ -339,7 +376,8 @@ export default function RotationPage() {
           classId,
           schedule,
           numberOfTerms,
-          selectedWeekday
+          selectedWeekday,
+          additionalInfo
         }
       })
       setSaveError('Failed to save schedule.')
@@ -424,6 +462,17 @@ export default function RotationPage() {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="mb-4">
+            <Label htmlFor="additionalInfo">Additional Information</Label>
+            <Input
+              id="additionalInfo"
+              value={additionalInfo}
+              onChange={(e) => setAdditionalInfo(e.target.value)}
+              placeholder="Enter any additional information about this schedule"
+              className="w-full"
+            />
           </div>
 
           <div className="mb-4">

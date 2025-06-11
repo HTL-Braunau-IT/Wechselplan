@@ -1,66 +1,16 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import type { ScheduleData, ScheduleTerm} from "@/types/types"
 
-type ScheduleWeek = {
-    date: string
-    week: string
-    isHoliday: boolean
-}
 
-type ScheduleTerm = {
-    name: string
-    weeks: ScheduleWeek[]
-}
-
-type Schedule = {
-    id: string
-    classId: string
-    selectedWeekday: number
-    scheduleData: Record<string, ScheduleTerm>
-}
-
-type Student = {
-    id: number
-    classId: number | null
-    groupId: number | null
-    firstName: string
-    lastName: string
-    // Add other student fields as needed
-}
-
-type TeacherRotation = {
-    id: string
-    teacherId: string
-    groupId: number
-    turnId: string
-    startDate: Date
-    endDate: Date
-    period: string
-    // Add other rotation fields as needed
-}
-
-type Assignment = {
-    id: number
-    teacherId: number
-    classId: number
-    period: string
-    groupId: number
-}
-
-type ScheduleData = {
-    schedules: Schedule[][]
-    students: Student[][]
-    teacherRotation: TeacherRotation[]
-    assignments: Assignment[]
-    classdata: ClassData[]
-}
-
-type ClassData = {
-    id: number
-    name: string
-}
-
+/**
+ * Renders a weekly schedule overview for the logged-in teacher, with navigation tabs for each weekday.
+ *
+ * Displays assignments, class and term details, group information, remaining weeks, additional info, and lists of students for each group. Fetches and updates schedule data based on the selected weekday and the current user's session.
+ *
+ * @returns A React component showing the teacher's schedule overview with weekday navigation.
+ */
 export function TeacherOverview() {
     const { data: session } = useSession()
     const [scheduleData, setScheduleData] = useState<ScheduleData | null>(null)
@@ -82,14 +32,13 @@ export function TeacherOverview() {
         
         setScheduleData(data as ScheduleData)
         if (process.env.NODE_ENV === "development") {
-            console.log(data)
+
         }
     }
 
     const handleTabChange = (value: string) => {
         const weekday = parseInt(value)
         if (weekday < 6 && weekday > 0) {
-            // Clear schedule data before fetching new data
             setScheduleData(null)
             setError(null)
             void fetchData(weekday)
@@ -113,7 +62,6 @@ export function TeacherOverview() {
         // Get all assignments for the teacher
         const assignments = scheduleData.assignments.map(assignment => {
             const classInfo = scheduleData.classdata?.find(c => c.id === assignment.classId)
-            console.log("Assignment:", assignment, "Class Info:", classInfo)
             return {
                 ...assignment,
                 className: classInfo?.name ?? `Class ${assignment.classId}`
@@ -126,13 +74,11 @@ export function TeacherOverview() {
         })
 
         const getScheduleInfo = (classId: number) => {
-            console.log("Looking for schedule for classId:", classId)
-            // Find the schedule array for this class
+
             const classSchedule = scheduleData.schedules.find(schedules => 
                 schedules.some(s => Number(s.classId) === classId)
             )
-            console.log("Found class schedule:", classSchedule)
-            // Return the schedule data from the first (and should be only) schedule
+
             return classSchedule?.[0]?.scheduleData
         }
 
@@ -141,7 +87,7 @@ export function TeacherOverview() {
                 console.log("No schedule info found")
                 return null
             }
-            console.log("Looking for current week in schedule:", scheduleInfo)
+
             return Object.entries(scheduleInfo).find(([_, data]) => {
                 const termData = data as ScheduleTerm
                 return termData.weeks.some(week => {
@@ -210,6 +156,18 @@ export function TeacherOverview() {
                                     <p className="text-sm text-gray-500">Weeks Remaining</p>
                                     <p className="font-semibold text-lg">{remainingWeeks}</p>
                                 </div>
+                            </div>
+                            <div className="border-t pt-4 mt-4">
+                                <p className="text-sm text-gray-500 mb-2">Additional Info</p>
+                                {/* Find the schedule matching the current assignment’s class */}
+                                <p className="font-semibold text-lg">
+                                    {
+                                        scheduleData.schedules
+                                            .find(sList => sList.some(s => Number(s.classId) === assignment.classId))
+                                            ?.at(0)
+                                            ?.additionalInfo ?? '—'
+                                    }
+                                </p>
                             </div>
                             
                             <div className="border-t pt-4 mt-4">
