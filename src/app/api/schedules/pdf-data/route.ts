@@ -14,7 +14,7 @@ export async function GET(req: Request) {
                 location: 'api/schedules/pdf-data',
                 type: 'pdf-data-error'
             })
-            return NextResponse.json({ error: 'Class ID is required' }, { status: 400 })
+            return NextResponse.json({ error: 'Class Name is required' }, { status: 400 })
         } 
 
         const class_response = await prisma.class.findUnique({
