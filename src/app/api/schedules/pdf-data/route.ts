@@ -5,9 +5,9 @@ import { captureError } from '@/lib/sentry'
 /**
  * Handles GET requests to retrieve students in a specified class who have a non-null group ID.
  *
- * Extracts the `className` query parameter from the request URL and returns a JSON response with the list of students in that class. Responds with appropriate error messages and status codes if the class name is missing, the class does not exist, or no students are found.
+ * Extracts the `className` query parameter from the request URL and returns a JSON response with the list of students in that class. Responds with a 400 status if the class name is missing or the class does not exist, a 404 status if no students are found, and a 500 status for unexpected errors.
  *
- * @returns A JSON response containing the list of students and a 200 status on success, or an error message with a 400, 404, or 500 status on failure.
+ * @returns A JSON response containing the list of students with a 200 status on success, or an error message with an appropriate status code on failure.
  */
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)

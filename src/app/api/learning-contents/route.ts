@@ -8,6 +8,13 @@ interface LearningContent {
 	name: string
 }
 
+/**
+ * Handles GET requests to retrieve a list of learning contents from the database.
+ *
+ * Returns a JSON response containing an array of learning content objects, each with `id` and `name` properties, ordered alphabetically by name.
+ *
+ * @returns A JSON response with the list of learning contents, or an error message with status 500 if retrieval fails.
+ */
 export async function GET() {
 	try {
 		const learningContents = await (prisma as unknown as { learningContent: { findMany: (args: Prisma.LearningContentFindManyArgs) => Promise<LearningContent[]> } }).learningContent.findMany({

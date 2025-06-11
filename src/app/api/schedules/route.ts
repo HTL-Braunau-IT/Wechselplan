@@ -19,11 +19,11 @@ const scheduleSchema = z.object({
 })
 
 /**
- * Creates or replaces a schedule for a class on a specific weekday.
+ * Handles HTTP POST requests to create or replace a schedule for a class on a specific weekday.
  *
- * Validates the request body, deletes any existing schedules for the given class and weekday, and creates a new schedule record with the provided details.
+ * Validates the request body, deletes any existing schedules for the specified class and weekday, and creates a new schedule with the provided details.
  *
- * @returns A JSON response containing the newly created schedule, or an error response if validation fails.
+ * @returns A JSON response containing the newly created schedule, or an error response with details if validation fails.
  */
 export async function POST(req: Request) {
   try {
@@ -73,6 +73,13 @@ export async function POST(req: Request) {
   }
 }
 
+/**
+ * Retrieves schedules filtered by optional class ID and weekday from the database.
+ *
+ * Extracts `classId` and `weekday` from the request's query parameters, queries for matching schedules, and returns them as a JSON response ordered by creation date descending.
+ *
+ * @returns A JSON response containing the list of matching schedules.
+ */
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)

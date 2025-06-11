@@ -80,6 +80,13 @@ interface ImportData {
   }[]
 }
 
+/**
+ * Handles a POST request to import student data from an LDAP server, returning classes and their students as structured JSON.
+ *
+ * Attempts to connect and authenticate with the LDAP server, verifies permissions, checks for the existence of the configured Students OU, retrieves class OUs, and fetches student entries for each class. Responds with detailed error information and appropriate HTTP status codes for configuration, authentication, permission, or data retrieval failures.
+ *
+ * @returns A JSON response containing imported class and student data, or an error object with details and user-friendly messages.
+ */
 export async function POST() {
   try {
     let LDAP_CONFIG: LDAPConfig

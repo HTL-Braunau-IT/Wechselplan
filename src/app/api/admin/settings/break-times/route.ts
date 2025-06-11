@@ -23,9 +23,9 @@ const breakTimeSchema = z.object({
 )
 
 /**
- * Retrieves all break time records, ordered by start time.
+ * Handles GET requests to fetch all break time records, ordered by start time.
  *
- * @returns A JSON response containing an array of break time records.
+ * @returns A JSON response containing an array of break time records, or an error message with status 500 if retrieval fails.
  */
 export async function GET() {
   try {
@@ -48,11 +48,9 @@ export async function GET() {
 }
 
 /**
- * Handles POST requests to create a new break time record.
+ * Creates a new break time record from a POST request.
  *
- * Validates the incoming request body against the break time schema. If validation fails, responds with a 400 status and error details. On success, creates a new break time entry in the database and returns it as JSON.
- *
- * @returns The created break time record as JSON, or a validation error with status 400, or a server error with status 500.
+ * Validates the request body against the break time schema and, if valid, stores the new record in the database. Returns the created record as JSON, or an error response with status 400 for validation errors or 500 for server errors.
  */
 export async function POST(request: Request) {
   try {

@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 
+/**
+ * Retrieves all break time records from the database, ordered by start time.
+ *
+ * @returns A JSON response containing an array of break time records, or an error message with status 500 if retrieval fails.
+ */
 export async function GET() {
   try {
     const breakTimes = await prisma.breakTime.findMany({
@@ -30,6 +35,13 @@ interface BreakTimeRequest {
   period: 'AM' | 'PM'
 }
 
+/**
+ * Handles POST requests to create a new break time record.
+ *
+ * Expects a JSON body with `name`, `startTime`, `endTime`, and `period` fields. Validates required fields, period value, and time format before creating the record.
+ *
+ * @returns A JSON response containing the created break time record, or an error message with an appropriate HTTP status code if validation fails or an error occurs.
+ */
 export async function POST(request: Request) {
 
   try {

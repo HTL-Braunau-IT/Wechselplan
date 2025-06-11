@@ -3,9 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 
 /**
- * Handles HTTP GET requests to retrieve a list of subjects from the database.
+ * Handles HTTP GET requests to retrieve all subjects from the database.
  *
- * Returns a JSON response containing an array of subjects, each with its `id` and `name`, ordered alphabetically by name. If an error occurs during retrieval, responds with a 500 status and an error message.
+ * Returns a JSON response with an array of subjects, each containing its `id` and `name`, ordered alphabetically by name. Responds with a 500 status and error message if retrieval fails.
  */
 export async function GET() {
 	try {
