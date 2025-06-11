@@ -16,14 +16,14 @@ interface ImportData {
 }
 
 /**
- * Handles importing CSV data for rooms, subjects, or learning content.
+ * Imports CSV data for rooms, subjects, or learning content based on the specified type.
  *
- * Expects a JSON request body containing a `type` field (either `room`, `subject`, or `learningContent`) and a `data` field with CSV content. Parses and validates the CSV records, filters out entries with duplicate names already present in the database, and inserts new records accordingly.
+ * Expects a JSON request body with a `type` field (`room`, `subject`, or `learningContent`) and a `data` field containing CSV records. Validates and transforms the records, filters out entries with names already present in the database, and inserts only new records.
  *
  * @returns A JSON response with the count of newly created records, or an error message if the import fails.
  *
  * @throws {Error} If the CSV data is invalid, required fields are missing, or the import type is not recognized.
- * @remark Duplicate entries (by name) are ignored; only new records are imported.
+ * @remark Duplicate entries by name are ignored; only records with unique names are imported.
  */
 export async function POST(request: Request) {
 	const rawBody = await request.text() // Cache the raw body first
@@ -110,7 +110,6 @@ export async function POST(request: Request) {
 
 		return NextResponse.json({ count: result.count })
 	} catch (error: unknown) {
-		console.error('Error importing data:', error)
 		captureError(error, {
 			location: 'api/admin/settings/import',
 			type: 'data-import',
@@ -123,7 +122,14 @@ export async function POST(request: Request) {
 	}
 }
 
-// GET endpoint to fetch existing data
+/**
+ * Handles HTTP GET requests to retrieve all records of a specified type (`room`, `subject`, or `learningContent`).
+ *
+ * Returns a JSON response containing the requested data, ordered by name. Responds with a 400 error if the `type` parameter is missing or invalid.
+ *
+ * @param request - The incoming HTTP request, expected to include a `type` query parameter.
+ * @returns A JSON response with the retrieved data or an error message.
+ */
 export async function GET(request: Request) {
 	try {
 		const { searchParams } = new URL(request.url)
@@ -157,7 +163,11 @@ export async function GET(request: Request) {
 
 		return NextResponse.json({ data })
 	} catch (error: unknown) {
-		console.error('Error fetching data:', error)
+		captureError(error, {
+			location: 'api/admin/settings/import',
+			type: 'data-import',
+			extra: { requestBody: request.text() }
+		})
 		return NextResponse.json(
 			{ error: 'Failed to fetch data', message: error instanceof Error ? error.message : 'Unknown error' },
 			{ status: 500 }

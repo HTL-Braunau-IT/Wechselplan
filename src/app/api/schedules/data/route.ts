@@ -5,7 +5,7 @@ import { captureError } from '@/lib/sentry'
 /**
  * Handles HTTP GET requests to retrieve schedule, student, rotation, assignment, and class data for a specified teacher and weekday.
  *
- * Parses the `teacher` (required) and `weekday` (optional, defaults to '0') query parameters from the request URL. Validates the presence of the teacher, retrieves related assignments, rotation data, class information, schedules for the specified weekday, and students for each class. Returns appropriate HTTP error responses if any required data is missing or not found.
+ * Extracts the `teacher` (required) and `weekday` (optional, defaults to '0') query parameters from the request URL. Validates the teacher's existence, gathers their assignments, rotation data, class information, schedules for the given weekday, and students in each class. Returns a JSON response with the aggregated data or an appropriate HTTP error if any required information is missing.
  *
  * @returns A {@link NextResponse} containing a JSON object with schedules, students, teacher rotation, filtered assignments, and class information, or an error message with the corresponding HTTP status code.
  */
@@ -69,7 +69,7 @@ export async function GET(req: Request) {
 
         // Then fetch schedules and students for each class
         for (const classId of classIds) {
-            console.log("Fetching schedule for class", classId, "on weekday", currentWeekday)
+
             const schedule = await prisma.schedule.findFirst({
                 where: {
                     classId: classId,
@@ -109,7 +109,7 @@ export async function GET(req: Request) {
 
 
         // Only return error if we have no students
-        if (students.length === 0) {
+        if (students.flat().length === 0) {
             return NextResponse.json({ error: 'No students found' }, { status: 404 })
         }
         
@@ -121,7 +121,7 @@ export async function GET(req: Request) {
             classdata: classdata
         }, { status: 200 })
     } catch (error) {
-        console.error('Error fetching schedule data:', error)
+
         captureError(error, {
             location: 'api/schedules/data',
             type: 'schedule_data_error',

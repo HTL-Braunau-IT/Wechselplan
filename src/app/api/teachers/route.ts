@@ -15,11 +15,9 @@ const teacherSchema = z.object({
 })
 
 /**
- * Retrieves a list of all teachers with basic information.
+ * Handles HTTP GET requests to retrieve all teachers with basic information.
  *
- * Returns an array of teachers, each containing the `id`, `firstName`, `lastName`, and `username` fields, ordered by last name in ascending order.
- *
- * @returns A JSON response containing the list of teachers or an error message with status 500 if retrieval fails.
+ * Returns a JSON array of teachers, each including `id`, `firstName`, `lastName`, and `username`, ordered by last name ascending. On failure, returns a JSON error message with status 500.
  */
 export async function GET() {
 	try {
@@ -37,7 +35,7 @@ export async function GET() {
 
 		return NextResponse.json(teachers)
 	} catch (error) {
-		console.error('Error fetching teachers:', error)
+
 		captureError(error, {
 			location: 'api/teachers',
 			type: 'fetch-teachers'
@@ -52,9 +50,9 @@ export async function GET() {
 /**
  * Handles HTTP POST requests to create a new teacher record.
  *
- * Validates the incoming request body against the teacher schema, checks for username uniqueness, and creates a new teacher in the database if validation passes.
+ * Validates the request body against the teacher schema, ensures the username is unique, and creates a new teacher in the database if all checks pass.
  *
- * @returns A JSON response containing the created teacher object, or an error message with appropriate HTTP status code if validation or creation fails.
+ * @returns A JSON response containing the created teacher object, or an error message with an appropriate HTTP status code if validation or creation fails.
  */
 export async function POST(request: Request) {
 	if (!prisma) {
@@ -102,7 +100,7 @@ export async function POST(request: Request) {
 		})
 		return NextResponse.json(teacher)
 	} catch (error) {
-		console.error('Error creating teacher:', error)
+
 		captureError(error, {
 			location: 'api/teachers',
 			type: 'create-teachers',

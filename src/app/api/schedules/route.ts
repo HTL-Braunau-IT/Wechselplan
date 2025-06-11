@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { z } from 'zod'
+import { captureError } from '~/lib/sentry'
 
 const scheduleSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -18,11 +19,11 @@ const scheduleSchema = z.object({
 })
 
 /**
- * Creates or replaces a schedule for a class on a specific weekday.
+ * Handles HTTP POST requests to create or replace a schedule for a class on a specific weekday.
  *
- * Validates the request body, deletes any existing schedules for the given class and weekday, and creates a new schedule record with the provided details.
+ * Validates the request body, deletes any existing schedules for the specified class and weekday, and creates a new schedule with the provided details.
  *
- * @returns A JSON response containing the newly created schedule, or an error response if validation fails.
+ * @returns A JSON response containing the newly created schedule, or an error response with details if validation fails.
  */
 export async function POST(req: Request) {
   try {
@@ -63,11 +64,22 @@ export async function POST(req: Request) {
 
     return NextResponse.json(newSchedule)
   } catch (error) {
-    console.error('[SCHEDULES_POST]', error)
+
+    captureError(error, {
+      location: 'api/schedules',
+      type: 'create-schedule'
+    })
     return new NextResponse('Internal Error', { status: 500 })
   }
 }
 
+/**
+ * Retrieves schedules filtered by optional class ID and weekday from the database.
+ *
+ * Extracts `classId` and `weekday` from the request's query parameters, queries for matching schedules, and returns them as a JSON response ordered by creation date descending.
+ *
+ * @returns A JSON response containing the list of matching schedules.
+ */
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
@@ -86,7 +98,10 @@ export async function GET(req: Request) {
 
     return NextResponse.json(schedules)
   } catch (error) {
-    console.error('[SCHEDULES_GET]', error)
+    captureError(error, {
+      location: 'api/schedules',
+      type: 'fetch-schedules'
+    })
     return new NextResponse('Internal Error', { status: 500 })
   }
 } 

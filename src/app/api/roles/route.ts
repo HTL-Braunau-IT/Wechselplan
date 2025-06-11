@@ -14,9 +14,9 @@ const roleSchema = z.object({
 })
 
 /**
- * Retrieves all roles from the database, ordered by name in ascending order.
+ * Handles HTTP GET requests to retrieve all roles, ordered by name ascending.
  *
- * @returns A JSON response containing the list of roles, or a 500 error response if retrieval fails.
+ * Returns a JSON array of role objects on success, or a 500 error response if retrieval fails.
  */
 export async function GET() {
   try {
@@ -27,7 +27,7 @@ export async function GET() {
     })
     return NextResponse.json(roles)
   } catch (error) {
-    console.error('Error fetching roles:', error)
+
     captureError(error, {
       location: 'api/roles',
       type: 'fetch-roles'
@@ -40,16 +40,18 @@ export async function GET() {
 }
 
 /**
- * Handles HTTP POST requests to create a new role.
+ * Processes HTTP POST requests to create a new role.
  *
- * Validates the request body against the role schema, checks for duplicate role names, and creates a new role if validation passes and no duplicate exists. Returns appropriate error responses for validation failures, conflicts, or server errors.
+ * Validates the incoming JSON payload against the role schema, checks for duplicate role names, and creates a new role if validation passes and no duplicate exists. Returns a 201 response with the created role on success, or an error response with an appropriate status code on failure.
  *
- * @param request - The incoming HTTP request containing role data in JSON format.
- * @returns A JSON response with the created role and a 201 status on success, or an error message with the appropriate status code on failure.
+ * @param request - The HTTP request containing role data in JSON format.
+ * @returns A JSON response with the created role and status 201 on success, or an error message with status 400, 409, or 500 on failure.
  */
 export async function POST(request: Request) {
+  let requestBody: string;
   try {
-    const body = await request.json()
+    requestBody = await request.text();
+    const body = JSON.parse(requestBody);
     
     // Validate the request body
     const validationResult = roleSchema.safeParse(body)
@@ -83,13 +85,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json(role, { status: 201 })
   } catch (error) {
-    console.error('Error creating role:', error)
+
     captureError(error, {
       location: 'api/roles',
       type: 'create-role',
-      extra: {
-        requestBody: await request.text()
-      }
     })
     return NextResponse.json(
       { error: 'Failed to create role' },

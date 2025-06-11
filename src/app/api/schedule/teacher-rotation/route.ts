@@ -16,11 +16,11 @@ interface TeacherRotationRequest {
 }
 
 /**
- * Handles a POST request to update teacher rotation schedules for a class.
+ * Processes a POST request to update the teacher rotation schedule for a class.
  *
- * Expects a JSON body containing `classId`, `turns`, `amRotation`, and `pmRotation`. Replaces all existing teacher rotation records for the specified class with the provided AM and PM rotation data.
+ * Replaces all existing teacher rotation records for the specified class with new AM and PM rotation data provided in the request body. Returns a JSON response indicating success, or an error message with an appropriate HTTP status code if validation fails or an internal error occurs.
  *
- * @returns A JSON response indicating success, or an error message with appropriate HTTP status code if validation fails or an internal error occurs.
+ * @returns A JSON response indicating the result of the update operation.
  */
 export async function POST(request: Request) {
   try {
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error updating teacher rotation:', error)
+  
     captureError(error, {
       location: 'api/schedule/teacher-rotation',
       type: 'update-rotation'

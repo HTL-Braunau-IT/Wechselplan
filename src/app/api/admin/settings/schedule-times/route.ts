@@ -4,9 +4,9 @@ import { captureError } from '@/lib/sentry'
 
 
 /**
- * Handles GET requests to retrieve all schedule time records, ordered by start time.
+ * Retrieves all schedule time records from the database, ordered by ascending start time.
  *
- * @returns A JSON response containing the list of schedule times or an error message with a 500 status code if retrieval fails.
+ * @returns A JSON response containing the list of schedule times, or an error message with HTTP status 500 if retrieval fails.
  */
 export async function GET() {
   try {
@@ -17,7 +17,10 @@ export async function GET() {
     })
     return NextResponse.json(scheduleTimes)
   } catch (error) {
-    console.error('Error fetching schedule times:', error)
+    captureError(error, {
+      location: 'api/settings/schedule-times',
+      type: 'fetch-schedule-times'
+    })
     return NextResponse.json(
       { error: 'Failed to fetch schedule times' },
       { status: 500 }
@@ -28,7 +31,10 @@ export async function GET() {
 /**
  * Handles HTTP POST requests to create a new schedule time record.
  *
- * Parses and validates the request body for required fields (`startTime`, `endTime`, `hours`, and `period`). Ensures that `hours` is a positive number before creating the schedule time in the database. Returns the created schedule time as a JSON response, or an error message with an appropriate status code if validation fails or an error occurs during creation.
+ * Validates the request body for required fields and correct formats, then creates a schedule time entry in the database. Returns the created record as JSON, or an error response with status 400 for validation failures and 500 for server errors.
+ *
+ * @param request - The incoming HTTP request containing schedule time data in JSON format.
+ * @returns A JSON response with the created schedule time record, or an error message with an appropriate HTTP status code.
  */
 export async function POST(request: Request) {
   try {
@@ -60,7 +66,7 @@ export async function POST(request: Request) {
     }
 
     // Validate time format
-    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
+    const timeRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/
     if (!timeRegex.test(data.startTime as string) || !timeRegex.test(data.endTime as string)) {
       return NextResponse.json(
         { error: 'Invalid time format. Use HH:mm' },
@@ -80,7 +86,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json(scheduleTime)
   } catch (error) {
-    console.error('Error creating schedule time:', error)
     captureError(error, {
       location: 'api/settings/schedule-times',
       type: 'create-schedule-time',

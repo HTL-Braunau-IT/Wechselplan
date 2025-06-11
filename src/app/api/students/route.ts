@@ -10,7 +10,7 @@ interface CreateStudentRequest {
 }
 
 /**
- * Handles GET requests to retrieve all students belonging to a specified class.
+ * Retrieves all students belonging to a specified class.
  *
  * Expects a `class` query parameter in the request URL. Returns a JSON array of students ordered by last name and first name. Responds with a 400 error if the `class` parameter is missing, or a 500 error if the database query fails.
  *
@@ -42,7 +42,7 @@ export async function GET(request: Request) {
 
 		return NextResponse.json(students)
 	} catch (error) {
-		console.error('Error fetching students:', error)
+		
 		captureError(error, {
 			location: 'api/students',
 			type: 'fetch-students',
@@ -60,7 +60,7 @@ export async function GET(request: Request) {
 /**
  * Handles HTTP POST requests to create a new student record.
  *
- * Expects a JSON body with `firstName`, `lastName`, `username`, and `className`. Validates required fields, ensures the username is unique, and associates the student with an existing class. Returns the created student as JSON, or an error response if validation fails or an error occurs.
+ * Expects a JSON body containing `firstName`, `lastName`, `username`, and `className`. Validates required fields, ensures the username is unique, and associates the student with an existing class. Returns the created student as a JSON response, or an error response with an appropriate status code if validation fails or an error occurs.
  */
 export async function POST(request: Request) {
 	let requestBody: CreateStudentRequest = {
@@ -116,7 +116,7 @@ export async function POST(request: Request) {
 
 		return NextResponse.json(student)
 	} catch (error) {
-		console.error('Error creating student:', error)
+		
 		captureError(error, {
 			location: 'api/students',
 			type: 'create-students',

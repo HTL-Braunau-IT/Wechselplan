@@ -4,20 +4,6 @@ import { NextResponse } from 'next/server'
 import ldap from 'ldapjs'
 import { captureError } from '@/lib/sentry'
 
-// Debug logging for environment variables
-console.log('LDAP Configuration:', {
-  NODE_ENV: process.env.NODE_ENV,
-  LDAP_URL: process.env.LDAP_URL,
-  LDAP_BASE_DN: process.env.LDAP_BASE_DN,
-  LDAP_USERNAME: process.env.LDAP_USERNAME,
-  LDAP_PASSWORD: Boolean(process.env.LDAP_PASSWORD),
-  LDAP_TEACHERS_OU: process.env.LDAP_TEACHERS_OU
-});
-
-// Add runtime check
-if (process.env.NEXT_RUNTIME !== 'nodejs') {
-  console.error('Warning: LDAP route is not running in Node.js runtime!')
-}
 
 interface LDAPConfig {
   url: string
@@ -67,6 +53,13 @@ interface LDAPTeacher {
 }
 
 
+/**
+ * Handles a POST request to import teacher data from an LDAP server.
+ *
+ * Connects to the configured LDAP server, searches for user entries under the teachers organizational unit, and extracts teacher information. Returns a JSON response containing a list of teachers with their first name, last name, username, and email. Responds with an error message and HTTP 500 status if the LDAP connection, bind, or search fails.
+ *
+ * @returns A JSON response with an array of imported teachers or an error message on failure.
+ */
 export async function POST(): Promise<Response> {
 
   try {
@@ -88,7 +81,7 @@ export async function POST(): Promise<Response> {
     return new Promise<Response>((resolve) => {
       client.bind(config.username, config.password, (err) => {
         if (err) {
-          console.error('LDAP bind error:', err)
+
           captureError(err, {
             location: 'api/teachers/import',
             type: 'ldap-bind',
@@ -115,7 +108,7 @@ export async function POST(): Promise<Response> {
 
         client.search(config.teachersOU, searchOptions, (err, res) => {
           if (err) {
-            console.error('LDAP search error:', err)
+
             captureError(err, {
               location: 'api/teachers/import',
               type: 'ldap-search',
@@ -143,7 +136,7 @@ export async function POST(): Promise<Response> {
           })
 
           res.on('error', (err: Error) => {
-            console.error('LDAP search error:', err)
+
             captureError(err, {
               location: 'api/teachers/import',
               type: 'ldap-search-event',
@@ -174,7 +167,7 @@ export async function POST(): Promise<Response> {
       })
     })
   } catch (error) {
-    console.error('Error importing teachers:', error)
+
     captureError(error, {
       location: 'api/teachers/import',
       type: 'import-teachers',

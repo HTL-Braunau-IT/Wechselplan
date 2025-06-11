@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/server/db'
-
+import { captureError } from '~/lib/sentry'
+/**
+ * Handles bulk creation of school holidays from a POST request.
+ *
+ * Expects a JSON array of holiday objects, each with `name`, `startDate`, and `endDate` fields. Returns the created holiday records on success, or an error response if validation fails or an internal error occurs.
+ *
+ * @returns A JSON response containing the created holiday records, or an error message with the appropriate HTTP status code.
+ */
 export async function POST(request: Request) {
   try {
     const holidays = await request.json() as Array<{
@@ -31,7 +38,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json(createdHolidays)
   } catch (error) {
-    console.error('Error saving holidays:', error)
+   
+    captureError(error, {
+      location: 'api/settings/holidays/bulk',
+      type: 'save-holidays'
+    })
     return NextResponse.json(
       { error: 'Failed to save holidays' },
       { status: 500 }

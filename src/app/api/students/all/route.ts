@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
+import { captureError } from '~/lib/sentry'
 
-const prisma = new PrismaClient()
-
-// GET /api/students/all - Get all students
+/**
+ * Handles GET requests to retrieve all student records, ordered by last name and first name.
+ *
+ * @returns A JSON response containing the list of students, or an error message with status 500 if the query fails.
+ */
 export async function GET() {
     try {
         const students = await prisma.student.findMany({
@@ -15,7 +18,10 @@ export async function GET() {
 
         return NextResponse.json(students)
     } catch (error) {
-        console.error('Error fetching all students:', error)
+        captureError(error, {
+            location: 'api/students/all',   
+            type: 'fetch-students'
+        })
         return NextResponse.json(
             { error: 'Failed to fetch students' },
             { status: 500 }

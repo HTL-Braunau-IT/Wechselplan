@@ -4,22 +4,27 @@ import { sendSupportEmail } from '~/server/send-support-email-graph'
 import { captureError } from '@/lib/sentry'
 
 /**
- * Handles support message submissions via POST request.
+ * Processes a support message submitted via HTTP POST, validating input, storing it in the database, and attempting to notify the admin.
  *
- * Parses the incoming request for a support message, validates required fields, stores the message in the database, and attempts to notify the admin via email. Returns the created support message as JSON. If required fields are missing, responds with a 400 error. If an unexpected error occurs, responds with a 500 error.
+ * Accepts a JSON payload with `name`, `message`, and optionally `currentUri`. Returns the created support message as JSON on success. Responds with a 400 error if required fields are missing, or a 500 error for unexpected failures.
  *
- * @param request - The incoming HTTP request containing the support message data.
- * @returns A JSON response with the created support message, or an error message with appropriate HTTP status.
+ * @param request - The HTTP request containing the support message data.
+ * @returns A JSON response with the created support message, or an error message with the appropriate HTTP status.
  */
 export async function POST(request: Request) {
+  // Store request body as string before parsing
+  const requestBody = await request.text()
+  let body: { name?: string; message?: string; currentUri?: string }
+
   try {
-    const body = await request.json()
-
-
+    body = JSON.parse(requestBody)
     const { name, message, currentUri } = body
 
     if (!name || !message) {
-      console.error('Missing required fields:', { name, message })
+      captureError(new Error('Missing required fields'), {
+        location: 'api/support',
+        type: 'missing-required-fields'
+      })
       return NextResponse.json(
         { error: 'Name and message are required' },
         { status: 400 }
@@ -41,7 +46,7 @@ export async function POST(request: Request) {
         `Name: ${name}\nMessage: ${message}\nLocation: ${currentUri ?? 'Not specified'}`
       )
     } catch (emailError) {
-      console.error('Failed to send support email:', emailError)
+      
       captureError(emailError, {
         location: 'api/support',
         type: 'send-support-email',
@@ -56,12 +61,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json(supportMessage)
   } catch (error) {
-    console.error('Error processing support request:', error)
+    
     captureError(error, {
       location: 'api/support',
       type: 'send-support-email',
       extra: {
-        requestBody: await request.text()
+        requestBody
       }
     })
     return NextResponse.json(

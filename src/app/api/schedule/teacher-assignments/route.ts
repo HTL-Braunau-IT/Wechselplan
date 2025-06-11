@@ -4,9 +4,9 @@ import { prisma } from '@/lib/prisma'
 
 
 /**
- * Handles GET requests to retrieve teacher assignments for a specified class.
+ * Retrieves teacher assignments for a specified class, grouped by AM and PM periods.
  *
- * Parses the `class` query parameter from the request URL, fetches the corresponding class and its teacher assignments from the database, and returns the assignments grouped by AM and PM periods. Returns appropriate error responses if the class parameter is missing, the class is not found, or an unexpected error occurs.
+ * Parses the `class` query parameter from the request URL, fetches the corresponding class and its teacher assignments from the database, and returns the assignments separated into `amAssignments` and `pmAssignments` arrays. Returns an error response if the class parameter is missing, the class is not found, or an unexpected error occurs.
  *
  * @returns A JSON response containing `amAssignments` and `pmAssignments` arrays, or an error message with the appropriate HTTP status code.
  */
@@ -86,7 +86,7 @@ export async function GET(request: Request) {
 			pmAssignments
 		})
 	} catch (error) {
-		console.error('Error fetching teacher assignments:', error)
+
 		captureError(error, {
 			location: 'api/schedule/teacher-assignments',
 			type: 'fetch-assignments',
@@ -102,11 +102,11 @@ export async function GET(request: Request) {
 }
 
 /**
- * Handles creation or updating of teacher assignments for a specified class.
+ * Creates or updates teacher assignments for a specified class based on the provided JSON payload.
  *
- * Accepts a JSON payload containing the class name, AM and PM teacher assignments, and an optional flag to update existing assignments. Validates the existence of the class and related entities, and either creates new assignments or updates existing ones accordingly. Returns appropriate error responses for missing or invalid data.
+ * Validates the existence of the class and related entities (subject, learning content, room), and either creates new assignments or replaces existing ones depending on the `updateExisting` flag. Returns appropriate error responses for missing parameters, nonexistent entities, or assignment conflicts.
  *
- * @returns A JSON response indicating success or providing an error message with the corresponding HTTP status code.
+ * @returns A JSON response indicating success, or an error message with the corresponding HTTP status code.
  */
 export async function POST(request: Request) {
 	let requestData;
@@ -232,7 +232,7 @@ await prisma.teacherAssignment.create({
 
 		return NextResponse.json({ message: 'Teacher assignments saved successfully' })
 	} catch (error) {
-		console.error('Error updating teacher assignments:', error)
+		
 		captureError(error, {
 			location: 'api/schedule/teacher-assignments',
 			type: 'update-assignments',

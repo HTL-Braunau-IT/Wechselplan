@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { POST as importStudents } from '../route'
+import { captureError } from '~/lib/sentry'
 
 interface ImportRequest {
   classes: string[]
@@ -17,6 +18,13 @@ interface ImportData {
   }[]
 }
 
+/**
+ * Handles importing student data for specified classes from an external source and updates the database accordingly.
+ *
+ * Parses the incoming request for class names, fetches corresponding student data, replaces existing students for each class, and returns a summary of the import operation.
+ *
+ * @returns A JSON response containing a success message and counts of imported students and updated classes, or an error message with status 500 if the import fails.
+ */
 export async function POST(request: Request) {
   try {
     const data = await request.json() as ImportRequest
@@ -69,9 +77,12 @@ export async function POST(request: Request) {
       message: 'Import completed successfully',
       students: importedCount,
       classes: updatedCount
-    })
+    })  
   } catch (error) {
-    console.error('Error importing students:', error)
+    captureError(error, {
+      location: 'api/students/import/save',
+      type: 'import-students'
+    })
     return NextResponse.json(
       { error: 'Failed to import students' },
       { status: 500 }

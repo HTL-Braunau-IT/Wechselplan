@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-
+import { captureError } from '~/lib/sentry'
 /**
- * Handles GET requests to retrieve a student's class by username.
+ * Processes a GET request to retrieve the class name assigned to a student by username.
  *
- * Extracts the `username` query parameter from the request URL and returns the name of the class assigned to the student. Responds with appropriate error messages and status codes if the username is missing, the student is not found, or the student has no class assigned.
+ * Extracts the `username` query parameter from the request URL and returns the student's class name in a JSON response. Responds with an error message and appropriate HTTP status code if the username is missing, the student does not exist, or the student has no class assigned.
  *
  * @returns A JSON response containing the class name, or an error message with the corresponding HTTP status code.
  */
@@ -46,7 +46,10 @@ export async function GET(request: Request) {
             class: student.class.name
         })
     } catch (error) {
-        console.error('Error fetching student class:', error)
+        captureError(error, {
+            location: 'api/students/class',
+            type: 'fetch-student-class'
+        })
         return NextResponse.json(
             { error: 'Failed to fetch student class' },
             { status: 500 }
