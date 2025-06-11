@@ -72,7 +72,7 @@ export async function GET(req: Request) {
                     createdAt: 'desc'
                 }
             })
-            console.log("Found schedule for class", classId, ":", schedule)
+        
             
             // Add schedule if it exists for this weekday
             if (schedule) {
