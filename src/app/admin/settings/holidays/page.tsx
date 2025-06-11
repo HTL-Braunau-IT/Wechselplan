@@ -94,38 +94,7 @@ export default function HolidaysPage() {
     }
   }
 
-  const handleScrape = async () => {
-    if (!scrapeUrl) {
-      toast.error('Please enter a URL')
-      return
-    }
-
-    setIsScraping(true)
-    try {
-      const response = await fetch('/api/settings/holidays/scrape', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ url: scrapeUrl })
-      })
-
-      if (!response.ok) throw new Error('Failed to scrape holidays')
-
-      const data = await response.json() as ScrapedHoliday[]
-      if (data.length === 0) {
-        toast.error('No holidays found on the page')
-        return
-      }
-      
-      setScrapedHolidays(data)
-      setSuccess(`Found ${data.length} holidays`)
-    } catch  {
-      toast.error('Failed to scrape holidays')
-    } finally {
-      setIsScraping(false)
-    }
-  }
+  
 
   const handleSaveScraped = async () => {
     try {
@@ -201,9 +170,6 @@ export default function HolidaysPage() {
               <TabsTrigger value="manual" className="data-[state=active]:bg-background data-[state=active]:text-foreground">
                 {t('admin.settings.holidays.manualEntry')}
               </TabsTrigger>
-              <TabsTrigger value="scrape" className="data-[state=active]:bg-background data-[state=active]:text-foreground">
-                {t('admin.settings.holidays.scrapeHolidays')}
-              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="manual">
@@ -230,7 +196,10 @@ export default function HolidaysPage() {
                           id="startDate"
                           type="date"
                           value={newHoliday.startDate}
-                          onChange={(e) => setNewHoliday({ ...newHoliday, startDate: e.target.value })}
+                          onChange={(e) => {
+                            const startDate = e.target.value;
+                            setNewHoliday({ ...newHoliday, startDate, endDate: startDate });
+                          }}
                           required
                         />
                       </div>
@@ -241,7 +210,6 @@ export default function HolidaysPage() {
                           type="date"
                           value={newHoliday.endDate}
                           onChange={(e) => setNewHoliday({ ...newHoliday, endDate: e.target.value })}
-                          required
                         />
                       </div>
                       <div className="flex items-end">
@@ -279,137 +247,6 @@ export default function HolidaysPage() {
                         ))}
                       </TableBody>
                     </Table>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="scrape">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Scrape Holidays</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex gap-4">
-                      <div className="flex-1">
-                        <Label htmlFor="scrapeUrl">URL</Label>
-                        <Input
-                          id="scrapeUrl"
-                          value={scrapeUrl}
-                          onChange={(e) => setScrapeUrl(e.target.value)}
-                          placeholder="Enter URL to scrape holidays from"
-                        />
-                      </div>
-                      <div className="flex items-end">
-                        <Button 
-                          onClick={handleScrape}
-                          disabled={isScraping}
-                        >
-                          {isScraping ? 'Scraping...' : 'Scrape'}
-                        </Button>
-                      </div>
-                    </div>
-
-                    {scrapedHolidays.length > 0 && (
-                      <>
-                        <div className="rounded-md border">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Name</TableHead>
-                                <TableHead>Start Date</TableHead>
-                                <TableHead>End Date</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Actions</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {scrapedHolidays.map((holiday, index) => (
-                                <TableRow key={index}>
-                                  <TableCell>
-                                    <Input
-                                      value={holiday.name}
-                                      onChange={(e) => handleEditScraped(index, 'name', e.target.value)}
-                                    />
-                                  </TableCell>
-                                  <TableCell>
-                                    <Input
-                                      type="date"
-                                      value={holiday.startDate}
-                                      onChange={(e) => handleEditScraped(index, 'startDate', e.target.value)}
-                                    />
-                                  </TableCell>
-                                  <TableCell>
-                                    <Input
-                                      type="date"
-                                      value={holiday.endDate}
-                                      onChange={(e) => handleEditScraped(index, 'endDate', e.target.value)}
-                                    />
-                                  </TableCell>
-                                  <TableCell>
-                                    {holiday.isValid ? (
-                                      <span className="text-green-500 dark:text-green-400">Valid</span>
-                                    ) : (
-                                      <span className="text-red-500 dark:text-red-400">Invalid</span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell>
-                                    <Button
-                                      variant="destructive"
-                                      size="sm"
-                                      onClick={() => handleRemoveScraped(index)}
-                                    >
-                                      Remove
-                                    </Button>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-
-                        <div className="flex justify-end">
-                          <Button onClick={handleSaveScraped}>
-                            Save Holidays
-                          </Button>
-                        </div>
-                      </>
-                    )}
-
-                    <div className="mt-8">
-                      <h3 className="text-lg font-semibold mb-4">Existing Holidays</h3>
-                      <div className="rounded-md border">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Name</TableHead>
-                              <TableHead>Start Date</TableHead>
-                              <TableHead>End Date</TableHead>
-                              <TableHead>Actions</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {holidays.map((holiday) => (
-                              <TableRow key={holiday.id}>
-                                <TableCell>{holiday.name}</TableCell>
-                                <TableCell>{format(new Date(holiday.startDate), 'dd.MM.yyyy')}</TableCell>
-                                <TableCell>{format(new Date(holiday.endDate), 'dd.MM.yyyy')}</TableCell>
-                                <TableCell>
-                                  <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    onClick={() => handleDelete(holiday.id)}
-                                  >
-                                    Delete
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </div>
                   </div>
                 </CardContent>
               </Card>
