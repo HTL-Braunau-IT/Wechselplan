@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const { name, description, startDate, endDate, selectedWeekday, schedule, classId } = body
+    const { name, description, startDate, endDate, selectedWeekday, schedule, classId, additionalInfo } = body
 
     // Delete existing schedules with the same weekday for this class
     await db.schedule.deleteMany({
@@ -24,7 +24,8 @@ export async function POST(req: Request) {
         selectedWeekday,
         classId: classId ? parseInt(classId as string) : null,
         // Store the schedule data as JSON
-        scheduleData: schedule
+        scheduleData: schedule,
+        additionalInfo: additionalInfo
       }
     })
 

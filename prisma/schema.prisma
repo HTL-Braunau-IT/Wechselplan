@@ -57,6 +57,7 @@ model Schedule {
   endDate         DateTime
   selectedWeekday Int
   scheduleData    Json
+  additionalInfo  String?
   classId         Int?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt

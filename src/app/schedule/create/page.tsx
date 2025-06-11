@@ -283,8 +283,8 @@ export default function ScheduleClassSelectPage() {
 
 			// Distribute students evenly across new groups
 			allStudents.forEach((student, index) => {
-				const targetGroupIndex = index % numberOfGroups
-				newGroups[targetGroupIndex + 1]!.students.push(student) // +1 because of unassigned group
+				const targetGroupIndex = (index % numberOfGroups) + 1 // +1 because of unassigned group
+				newGroups[targetGroupIndex]!.students.push(student)
 			})
 
 			setGroups(newGroups)
@@ -310,12 +310,18 @@ export default function ScheduleClassSelectPage() {
 	// Add a new effect to handle group ID updates
 	useEffect(() => {
 		// Update group IDs to be sequential
-		setGroups(currentGroups => 
-			currentGroups.map((group, index) => ({
-				...group,
-				id: index + 1
-			}))
-		)
+		setGroups(currentGroups => {
+			const unassignedGroup = currentGroups.find(g => g.id === UNASSIGNED_GROUP_ID)
+			const regularGroups = currentGroups.filter(g => g.id !== UNASSIGNED_GROUP_ID)
+			
+			return [
+				unassignedGroup!,
+				...regularGroups.map((group, index) => ({
+					...group,
+					id: index + 1
+				}))
+			]
+		})
 	}, [numberOfGroups])
 
 	// Add effect to ensure unassigned group is always present
