@@ -79,6 +79,11 @@ class ErrorBoundaryBase extends React.Component<ErrorBoundaryProps, State> {
   }
 }
 
+/**
+ * Provides a React error boundary with localized error messages using translations from `react-i18next`.
+ *
+ * Wraps its children with {@link ErrorBoundaryBase}, injecting translated strings for the error UI.
+ */
 export function ErrorBoundary(props: Omit<ErrorBoundaryProps, 'translations'>) {
   const { t } = useTranslation();
 

@@ -13,6 +13,11 @@ const roleSchema = z.object({
     .optional()
 })
 
+/**
+ * Retrieves all roles from the database, ordered by name in ascending order.
+ *
+ * @returns A JSON response containing the list of roles, or a 500 error response if retrieval fails.
+ */
 export async function GET() {
   try {
     const roles = await prisma.role.findMany({
@@ -34,6 +39,14 @@ export async function GET() {
   }
 }
 
+/**
+ * Handles HTTP POST requests to create a new role.
+ *
+ * Validates the request body against the role schema, checks for duplicate role names, and creates a new role if validation passes and no duplicate exists. Returns appropriate error responses for validation failures, conflicts, or server errors.
+ *
+ * @param request - The incoming HTTP request containing role data in JSON format.
+ * @returns A JSON response with the created role and a 201 status on success, or an error message with the appropriate status code on failure.
+ */
 export async function POST(request: Request) {
   try {
     const body = await request.json()

@@ -97,6 +97,11 @@ export async function GET(request: Request) {
 	}
 }
 
+/**
+ * Updates student group assignments for a specified class.
+ *
+ * Accepts a JSON payload containing the class name, an array of group assignments, and an optional array of student IDs to unassign. Updates each student's group assignment in the database accordingly, unassigning students when `groupId` is 0 or when listed in `removedStudentIds`. Returns a JSON response indicating success or an error message with the appropriate HTTP status code.
+ */
 export async function POST(request: Request) {
 	try {
 		// Capture raw body once so it can be reused in error reporting

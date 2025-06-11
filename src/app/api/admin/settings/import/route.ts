@@ -15,6 +15,16 @@ interface ImportData {
 	description?: string | null
 }
 
+/**
+ * Handles importing CSV data for rooms, subjects, or learning content.
+ *
+ * Expects a JSON request body containing a `type` field (either `room`, `subject`, or `learningContent`) and a `data` field with CSV content. Parses and validates the CSV records, filters out entries with duplicate names already present in the database, and inserts new records accordingly.
+ *
+ * @returns A JSON response with the count of newly created records, or an error message if the import fails.
+ *
+ * @throws {Error} If the CSV data is invalid, required fields are missing, or the import type is not recognized.
+ * @remark Duplicate entries (by name) are ignored; only new records are imported.
+ */
 export async function POST(request: Request) {
 	const rawBody = await request.text() // Cache the raw body first
 	try {

@@ -34,6 +34,13 @@ interface SavedTimesResponse {
   breakTimes: { id: number }[]
 }
 
+/**
+ * React page component for managing schedule and break times for a class.
+ *
+ * Fetches teacher assignments, filters available schedule and break times by relevant periods, allows users to add new times, select existing times, and save selections for a class. Handles loading, error, and success states, and provides forms for adding new schedule and break times.
+ *
+ * @returns The rendered schedule and break times management page.
+ */
 export default function TimesPage() {
   const [scheduleTimes, setScheduleTimes] = useState<ScheduleTime[]>([])
   const [breakTimes, setBreakTimes] = useState<BreakTime[]>([])

@@ -18,6 +18,13 @@ type TokenResponse = {
   expires_in?: number;
 };
 
+/**
+ * Obtains a valid OAuth access token for Microsoft Graph API using client credentials, with caching and automatic refresh before expiration.
+ *
+ * @returns The access token string for Microsoft Graph API.
+ *
+ * @throws {Error} If the token request fails or the response does not contain an access token.
+ */
 async function getGraphToken(): Promise<string> {
   // Check if we have a valid cached token
   const now = Date.now();

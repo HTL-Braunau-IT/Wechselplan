@@ -46,6 +46,11 @@ const DARK_GROUP_COLORS = [
   'dark:bg-red-900/60',
 ];
 
+/**
+ * Displays an overview of schedules and classes, allowing users to filter by class and view detailed group and teacher assignment tables.
+ *
+ * Fetches schedule and class data, manages loading and error states, and renders group overviews and AM/PM teacher assignment tables for the selected class. Provides a dropdown to select a class and conditionally displays detailed tables when a specific class is chosen.
+ */
 export default function SchedulesPage() {
   const [, setSchedules] = useState<Schedule[]>([])
   const [classes, setClasses] = useState<Class[]>([])
