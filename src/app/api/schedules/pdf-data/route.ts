@@ -3,9 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 
 /**
- * Handles HTTP GET requests to retrieve student data for a class by class name.
+ * Handles HTTP GET requests to retrieve students for a specified class.
  *
- * Extracts the `className` query parameter from the request, validates its presence, and fetches the corresponding class from the database. If the class exists, retrieves all students in that class with a non-null group ID. Returns a JSON response containing the list of students or an error message with the appropriate HTTP status code.
+ * Extracts the `className` query parameter from the request and returns a JSON response containing students in that class with a non-null group ID. Responds with an error message and appropriate HTTP status code if the class name is missing, the class is not found, or no students are found.
  *
  * @returns A JSON response with the list of students and a 200 status on success, or an error message with a 400 or 500 status on failure.
  */
