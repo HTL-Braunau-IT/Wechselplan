@@ -4,6 +4,13 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import type { ScheduleData, ScheduleTerm} from "@/types/types"
 
 
+/**
+ * Displays an overview of a teacher's weekly schedule, allowing navigation by weekday.
+ *
+ * Shows assignments, class and term information, group details, remaining weeks, additional info, and lists of students for each group. Fetches schedule data for the logged-in teacher and updates the view when the selected weekday changes.
+ *
+ * @returns A React component rendering the teacher's schedule overview with weekday tabs.
+ */
 export function TeacherOverview() {
     const { data: session } = useSession()
     const [scheduleData, setScheduleData] = useState<ScheduleData | null>(null)

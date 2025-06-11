@@ -52,7 +52,13 @@ const WEEKDAYS = [
   { value: 5, label: 'Friday' }
 ]
 
-// Helper: generate all rotation dates (e.g., all Mondays) between start and end
+/**
+ * React component for creating and editing a rotation schedule with multiple terms, custom week lengths, and holiday management.
+ *
+ * Allows users to configure the number of terms, select a rotation weekday, specify custom week lengths per term, and provide additional schedule information. The component automatically distributes weeks among terms, excludes holidays, and displays a summary table of the resulting schedule. Existing schedules can be loaded and edited if a class ID is provided.
+ *
+ * @returns The rendered rotation schedule creation and editing UI.
+ */
 
 export default function RotationPage() {
   const [schedule, setSchedule] = useState<Schedule>({})
@@ -291,6 +297,14 @@ export default function RotationPage() {
     })
   }
 
+  /**
+   * Generates all dates between the given start and end dates that fall on the specified weekday and are not holidays.
+   *
+   * @param start - The start date of the range.
+   * @param end - The end date of the range.
+   * @param weekday - The target weekday (0 for Sunday, 1 for Monday, etc.).
+   * @returns An array of dates matching the specified weekday and excluding holidays.
+   */
   function getAllRotationDates(start: Date, end: Date, weekday: number): Date[] {
     const dates: Date[] = [];
     let date: Date | undefined = setDay(new Date(start), weekday);

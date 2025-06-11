@@ -103,6 +103,15 @@ function GroupContainer({ group, children }: { group: Group, children: React.Rea
 	)
 }
 
+/**
+ * Renders the class scheduling interface for assigning students to groups with drag-and-drop functionality.
+ *
+ * Allows teachers to select a class, view and manage students, create groups, assign students to groups via drag-and-drop, add or remove students, and save group assignments. Integrates with backend APIs for data fetching and persistence, and provides confirmation dialogs for updating existing assignments.
+ *
+ * @returns The class scheduling page component.
+ *
+ * @remark The unassigned group always has an ID of 0 and is preserved across group changes. Group assignments are confirmed with the user if existing assignments are detected and changes are made.
+ */
 export default function ScheduleClassSelectPage() {
 	const router = useRouter()
 	const { t } = useTranslation('schedule')
