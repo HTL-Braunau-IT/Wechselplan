@@ -82,6 +82,14 @@ function StudentItem({ student, index, onRemove }: { student: Student, index: nu
 	)
 }
 
+/**
+ * Renders a droppable container for a group, displaying its title and containing student items.
+ *
+ * Highlights the container when a draggable item is hovered over it. Shows "Unassigned" for the unassigned group or "Group X" for other groups.
+ *
+ * @param group - The group to display, including its ID.
+ * @param children - The student items or other elements to render inside the group container.
+ */
 function GroupContainer({ group, children }: { group: Group, children: React.ReactNode }) {
 	const { t } = useTranslation('schedule')
 	const { setNodeRef, isOver } = useDroppable({
@@ -104,13 +112,13 @@ function GroupContainer({ group, children }: { group: Group, children: React.Rea
 }
 
 /**
- * Renders the class scheduling interface for assigning students to groups with drag-and-drop functionality.
+ * Displays an interactive scheduling page for assigning students to groups within a selected class using drag-and-drop.
  *
- * Allows teachers to select a class, view and manage students, create groups, assign students to groups via drag-and-drop, add or remove students, and save group assignments. Integrates with backend APIs for data fetching and persistence, and provides confirmation dialogs for updating existing assignments.
+ * Enables teachers to select a class, view and manage its students, create groups, assign students to groups via drag-and-drop, add or remove students, and save group assignments. Integrates with backend APIs for data retrieval and persistence, and prompts for confirmation when updating existing assignments.
  *
- * @returns The class scheduling page component.
+ * @returns The React component for the class scheduling interface.
  *
- * @remark The unassigned group always has an ID of 0 and is preserved across group changes. Group assignments are confirmed with the user if existing assignments are detected and changes are made.
+ * @remark The unassigned group is always present with an ID of 0 and is preserved across group changes. When existing assignments are detected and changes are made, a confirmation dialog is shown before updating assignments.
  */
 export default function ScheduleClassSelectPage() {
 	const router = useRouter()

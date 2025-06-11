@@ -3,11 +3,11 @@ import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 
 /**
- * Handles HTTP GET requests to retrieve students for a specified class.
+ * Handles HTTP GET requests to retrieve students belonging to a specified class.
  *
- * Extracts the `className` query parameter from the request and returns a JSON response containing students in that class with a non-null group ID. Responds with an error message and appropriate HTTP status code if the class name is missing, the class is not found, or no students are found.
+ * Extracts the `className` query parameter from the request URL and returns a JSON response containing students in that class who have a non-null group ID. Responds with a 400 status and error message if the class name is missing, the class does not exist, or no students are found. Returns a 500 status with a generic error message for unexpected server errors.
  *
- * @returns A JSON response with the list of students and a 200 status on success, or an error message with a 400 or 500 status on failure.
+ * @returns A JSON response with a list of students and a 200 status on success, or an error message with a 400 or 500 status on failure.
  */
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)

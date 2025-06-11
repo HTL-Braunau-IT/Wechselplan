@@ -55,9 +55,9 @@ const WEEKDAYS = [
 /**
  * React component for creating and editing a rotation schedule with multiple terms, custom week lengths, and holiday management.
  *
- * Allows users to configure the number of terms, select a rotation weekday, specify custom week lengths per term, and provide additional schedule information. The component automatically distributes weeks among terms, excludes holidays, and displays a summary table of the resulting schedule. Existing schedules can be loaded and edited if a class ID is provided.
+ * Users can configure the number of terms, select a rotation weekday, assign custom week lengths per term, and provide additional schedule information. The component automatically distributes weeks among terms, excludes holidays, and displays a summary table of the resulting schedule. Existing schedules can be loaded and edited if a class ID is provided.
  *
- * @returns The rendered rotation schedule creation and editing UI.
+ * @returns The rendered UI for rotation schedule creation and editing.
  */
 
 export default function RotationPage() {
@@ -298,7 +298,7 @@ export default function RotationPage() {
   }
 
   /**
-   * Generates all dates between the given start and end dates that fall on the specified weekday and are not holidays.
+   * Returns all dates within the specified range that fall on the given weekday and are not holidays.
    *
    * @param start - The start date of the range.
    * @param end - The end date of the range.
