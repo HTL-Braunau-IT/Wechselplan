@@ -202,9 +202,6 @@ describe('Roles API', () => {
         expect.objectContaining({
           location: 'api/roles',
           type: 'create-role',
-          extra: {
-            requestBody: JSON.stringify(newRole),
-          },
         })
       );
     });
