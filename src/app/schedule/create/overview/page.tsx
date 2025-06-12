@@ -56,7 +56,7 @@ function LoadingScreen() {
  * @returns The React UI for managing and exporting the class schedule overview.
  */
 export default function OverviewPage() {
-  
+
   const searchParams = useSearchParams();
   const classId = searchParams.get('class');
   const {  isLoading: isLoadingCachedData } = useCachedData();
@@ -66,7 +66,7 @@ export default function OverviewPage() {
     groups,
     amAssignments,
     pmAssignments,
-    scheduleTimes,
+
     turns,
     loading: overviewLoading,
     error: overviewError
@@ -77,7 +77,9 @@ export default function OverviewPage() {
   const [saving, setSaving] = useState(false);
   const [showPdfDialog, setShowPdfDialog] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [ setGenerateíngSchedulePDF] = useState(false);
   const [additionalInfo, setAdditionalInfo] = useState<string>('');
+  const [weekday, setWeekday] = useState<number>();
   const [classHead, setClassHead] = useState<string>('');
   const [classLead, setClassLead] = useState<string>('');
 
@@ -100,7 +102,7 @@ export default function OverviewPage() {
       const schedules = await schedulesRes.json() as ScheduleResponse[];
       const latestSchedule = schedules[0];
       setAdditionalInfo(latestSchedule?.additionalInfo ?? '');
-
+      setWeekday(latestSchedule?.selectedWeekday ?? 6);
       // Fetch class data
       const classRes = await fetch(`/api/classes/get-by-name?name=${classId}`);
       
@@ -188,6 +190,33 @@ export default function OverviewPage() {
       setSaving(false);
     }
   }
+  async function handleGenerateSchedulePDF() {
+    setGenerateíngSchedulePDF(true);
+    try {
+      const export_response = await fetch(`/api/export/schedule-dates?className=${classId}&selectedWeekday=${weekday}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (!export_response.ok) throw new Error('Failed to export PDF');
+
+      const today = new Date().toLocaleDateString('de-DE');
+      const blob = await export_response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${classId} - TURNUSTAGE ${getWeekday()} - ${today}-.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      setError('Failed to generate PDF.');
+    } finally {
+      setGenerateíngSchedulePDF(false);
+    }
+  }
 
   async function handleGeneratePdf() {
     setGeneratingPdf(true);
@@ -207,17 +236,20 @@ export default function OverviewPage() {
       }
 
       // Handle PDF download
+      const today = new Date().toLocaleDateString('de-DE');
       const blob = await export_response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `schedule-${classId}.pdf`;
+      a.download = `${classId} - ${getWeekday()} Wechselplan - ${today}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      router.push('/');
+      // Only close the dialog after successful download
+      setShowPdfDialog(true);
+      await handleGenerateSchedulePDF();
     } catch (err) {
       console.error('Error generating PDF:', err);
       captureFrontendError(err, {
@@ -227,9 +259,10 @@ export default function OverviewPage() {
       setError('Failed to generate PDF.');
     } finally {
       setGeneratingPdf(false);
-      setShowPdfDialog(false);
     }
   }
+
+  
 
   /**
    * Closes the PDF generation dialog and redirects the user to the home page.
@@ -281,17 +314,9 @@ export default function OverviewPage() {
     return { start, end, days };
   }
 
-  /**
-   * Returns the weekday name of the first schedule time, or "Montag" if unavailable.
-   *
-   * @returns The weekday name in German corresponding to the first schedule time's start time, or "Montag" if no schedule times exist.
-   */
   function getWeekday() {
-    if (scheduleTimes.length > 0) {
-      const first = scheduleTimes[0];
-      return first?.startTime ? new Date(`1970-01-01T${first.startTime}`).toLocaleDateString('de-DE', { weekday: 'long' }) : 'Montag';
-    }
-    return 'Montag';
+    const days = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+    return weekday === undefined ? '' : days[weekday];
   }
 
   /**
@@ -437,9 +462,9 @@ export default function OverviewPage() {
       <Dialog open={showPdfDialog} onOpenChange={setShowPdfDialog}>
         <DialogContent className="z-50">
           <DialogHeader>
-            <DialogTitle>Generate PDF Schedule?</DialogTitle>
+            <DialogTitle>PDF erstellen?</DialogTitle>
             <DialogDescription>
-              Would you like to generate and download a PDF version of the schedule?
+              Möchten Sie eine PDF-Version des Stundenplans erstellen und herunterladen?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2 justify-end">
@@ -448,7 +473,7 @@ export default function OverviewPage() {
               onClick={handleSkipPdf}
               disabled={generatingPdf}
             >
-              Skip
+              Überspringen
             </Button>
             <Button
               onClick={handleGeneratePdf}
