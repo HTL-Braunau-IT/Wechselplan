@@ -6,11 +6,11 @@ import { parse, isValid, isWithinInterval, addWeeks } from "date-fns"
 
 
 /**
- * Displays a weekly schedule overview for the logged-in teacher with weekday navigation tabs.
+ * Renders a weekly schedule overview for the logged-in teacher, allowing navigation between weekdays.
  *
- * Shows assignments, class and term details, group information, remaining weeks, additional info, and lists of students for each group. Fetches and updates schedule data based on the selected weekday and the current user's session.
+ * Displays assignments, class and term details, group information, remaining weeks, additional info, and lists of students for each group. Schedule data is fetched and updated based on the selected weekday and the current user's session.
  *
- * @returns A React component presenting the teacher's schedule overview and navigation for each weekday.
+ * @returns A React component presenting the teacher's schedule overview with weekday navigation tabs.
  */
 export function TeacherOverview() {
     const { data: session } = useSession()

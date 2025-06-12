@@ -14,6 +14,9 @@ interface ErrorResponse {
     error: string
 }
 
+/**
+ * Displays a centered loading spinner and a localized loading message.
+ */
 function LoadingScreen() {
     const { t } = useTranslation()
     return (
@@ -24,6 +27,11 @@ function LoadingScreen() {
     )
 }
 
+/**
+ * Displays and manages class settings, allowing assignment of teachers as class heads or leads.
+ *
+ * Fetches class and teacher data, displays a list of classes with dropdowns to select or remove class heads and leads, and updates assignments via API requests. Provides loading and updating indicators, and shows notifications for success or error states.
+ */
 export default function ClassSettingsPage() {
     const { t } = useTranslation()
     const [classes, setClasses] = useState<Class[]>([])

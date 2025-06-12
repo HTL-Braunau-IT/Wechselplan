@@ -48,15 +48,15 @@ const styles = StyleSheet.create({
 });
 
 /**
- * Generates a schedule table for a specified period, listing teacher assignments and their group allocations for each turnus.
+ * Renders a schedule table for the specified period, displaying teacher assignments and their group allocations for each turnus.
  *
- * Displays columns for teacher, workshop, content, room, and one column per turnus period, showing the assigned group ID if available.
+ * The table includes columns for teacher, workshop, content, room, and one column per turnus period, with group cells color-coded according to group ID.
  *
- * @param {'AM'|'PM'} period - Specifies whether to render the morning ('AM') or afternoon ('PM') schedule.
- * @param {any[]} assignments - Array of teacher assignment objects containing subject and room details.
+ * @param {'AM'|'PM'} period - Indicates whether to render the morning ('AM') or afternoon ('PM') schedule.
+ * @param {any[]} assignments - List of teacher assignment objects with subject and room details.
  * @param {Record<string, unknown>} turns - Object representing available turnus periods.
- * @param {(turnKey: string) => { start: string, end: string, days: number }} getTurnusInfo - Retrieves start and end dates for a turnus.
- * @param {(teacherIdx: number, turnIdx: number, period: 'AM'|'PM') => any} getGroupForTeacherAndTurn - Returns the group assigned to a teacher for a specific turnus and period.
+ * @param {(turnKey: string) => { start: string, end: string, days: number }} getTurnusInfo - Function to retrieve start and end dates for a turnus.
+ * @param {(teacherIdx: number, turnIdx: number, period: 'AM'|'PM') => any} getGroupForTeacherAndTurn - Function to get the group assigned to a teacher for a specific turnus and period.
  * @param {{ id: number, students: { firstName: string, lastName: string }[] }[]} groups - Array of group objects with student information.
  * @param {any} styles - StyleSheet object for table styling.
  */
