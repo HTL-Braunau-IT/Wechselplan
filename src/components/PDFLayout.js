@@ -70,11 +70,14 @@ function renderScheduleTable(period, assignments, turns, getTurnusInfo, getGroup
           <Text style={{ ...styles.tableCol, ...styles.tableHeader, width: '10%' }}>Werkstätte</Text>
           <Text style={{ ...styles.tableCol, ...styles.tableHeader, width: '10%' }}>Lehrinhalt</Text>
           <Text style={{ ...styles.tableCol, ...styles.tableHeader, width: '10%' }}>Raum</Text>
-          {Object.keys(turns).map((turn, turnIdx) => (
-            <Text key={turn} style={{ ...styles.tableCol, ...styles.tableHeader, width: `${60 / Object.keys(turns).length}%` }}>
-              Turnus {turnIdx + 1} ({getTurnusInfo(turn).start} - {getTurnusInfo(turn).end})
-            </Text>
-          ))}
+          {Object.keys(turns).map((turn, turnIdx) => {
+            const { start, end } = getTurnusInfo(turn);
+            return (
+              <Text key={turn} style={{ ...styles.tableCol, ...styles.tableHeader, width: `${60 / Object.keys(turns).length}%` }}>
+                Turnus {turnIdx + 1} ({start} - {end})
+              </Text>
+            );
+          })}
         </View>
         {assignments.map((assignment, teacherIdx) => (
           <View style={styles.tableRow} key={assignment.teacherId}>

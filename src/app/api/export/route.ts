@@ -146,10 +146,10 @@ export async function POST(request: Request) {
             type TurnusEntry = { weeks: { date: string }[] };
             if (!entry || typeof entry !== 'object' || !Array.isArray((entry as TurnusEntry).weeks) || !(entry as TurnusEntry).weeks.length) return { start: '', end: '', days: 0 };
             const weeks = (entry as TurnusEntry).weeks;
-            const start = weeks[0]?.date ?? ''
-            const end = weeks[weeks.length - 1]?.date ?? ''
-            const days = weeks.length
-            return { start, end, days }
+            const start = weeks[0]?.date?.replace(/^-\s*/, '')?.trim() ?? '';
+            const end = weeks[weeks.length - 1]?.date?.replace(/^-\s*/, '')?.trim() ?? '';
+            const days = weeks.length;
+            return { start, end, days };
         }
 
 
