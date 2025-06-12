@@ -26,7 +26,7 @@ export function CreationProgress() {
 	const currentStepIndex = steps.findIndex(step => pathname === step.path)
 
 	return (
-		<div className="flex flex-col items-start py-8 px-4">
+		<div className="sticky top-16 flex flex-col items-start py-8 px-4">
 			{steps.map((step, index) => {
 				const isCompleted = index < currentStepIndex
 				const isCurrent = index === currentStepIndex
