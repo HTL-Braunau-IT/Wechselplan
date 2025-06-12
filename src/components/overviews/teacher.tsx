@@ -6,11 +6,11 @@ import { parse, isValid, isWithinInterval, addWeeks } from "date-fns"
 
 
 /**
- * Displays a weekly schedule overview for the logged-in teacher with weekday navigation tabs.
+ * Renders a weekly schedule overview for the logged-in teacher, allowing navigation between weekdays.
  *
- * Shows assignments, class and term details, group information, remaining weeks, additional info, and lists of students for each group. Fetches and updates schedule data based on the selected weekday and the current user's session.
+ * Displays assignments, class and term details, group information, remaining weeks, additional info, and lists of students for each group. Schedule data is fetched and updated based on the selected weekday and the current user's session.
  *
- * @returns A React component presenting the teacher's schedule overview and navigation for each weekday.
+ * @returns A React component presenting the teacher's schedule overview with weekday navigation tabs.
  */
 export function TeacherOverview() {
     const { data: session } = useSession()
@@ -65,7 +65,9 @@ export function TeacherOverview() {
             const classInfo = scheduleData.classdata?.find(c => c.id === assignment.classId)
             return {
                 ...assignment,
-                className: classInfo?.name ?? `Class ${assignment.classId}`
+                className: classInfo?.name ?? `Class ${assignment.classId}`,
+                classHead: classInfo?.classHead ?? '—',
+                classLead: classInfo?.classLead ?? '—'
             }
         }).sort((a, b) => {
             // Sort AM before PM
@@ -154,6 +156,14 @@ export function TeacherOverview() {
                                 <div className="space-y-2">
                                     <p className="text-sm text-gray-500">Weeks Remaining</p>
                                     <p className="font-semibold text-lg">{remainingWeeks}</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <p className="text-sm text-gray-500">Class Head</p>
+                                    <p className="font-semibold text-lg">{assignment.classHead}</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <p className="text-sm text-gray-500">Class Lead</p>
+                                    <p className="font-semibold text-lg">{assignment.classLead}</p>
                                 </div>
                             </div>
                             <div className="border-t pt-4 mt-4">

@@ -5,7 +5,7 @@ import { captureError } from '@/lib/sentry'
 /**
  * Handles HTTP GET requests to retrieve schedule, student, rotation, assignment, and class data for a specified teacher and weekday.
  *
- * Extracts the `teacher` (required) and `weekday` (optional, defaults to '0') query parameters from the request URL. Validates the teacher's existence, gathers their assignments, rotation data, class information, schedules for the given weekday, and students in each class. Returns a JSON response with the aggregated data or an appropriate HTTP error if any required information is missing.
+ * Extracts the `teacher` (required) and `weekday` (optional, defaults to '0') query parameters from the request URL. Validates the teacher's existence, gathers their assignments, rotation data, class information (including class head and lead names), schedules for the given weekday, and students in each class. Returns a JSON response with the aggregated data or an appropriate HTTP error if any required information is missing.
  *
  * @returns A {@link NextResponse} containing a JSON object with schedules, students, teacher rotation, filtered assignments, and class information, or an error message with the corresponding HTTP status code.
  */
@@ -52,7 +52,7 @@ export async function GET(req: Request) {
         const classIds = [...new Set(assignments.map(assignment => assignment.classId))]
         const schedules = []
         const students = []
-        const classdata: { id: number; name: string }[] = []
+        const classdata: { id: number; name: string; classHead: string | null; classLead: string | null }[] = []
         const validClassIds = new Set<number>()
 
         // First fetch all class data
@@ -60,10 +60,29 @@ export async function GET(req: Request) {
             const classInfo = await prisma.class.findUnique({
                 where: {
                     id: classId
+                },
+                include: {
+                    classHead: {
+                        select: {
+                            firstName: true,
+                            lastName: true
+                        }
+                    },
+                    classLead: {
+                        select: {
+                            firstName: true,
+                            lastName: true
+                        }
+                    }
                 }
             })
             if (classInfo) {
-                classdata.push(classInfo)
+                classdata.push({
+                    id: classInfo.id,
+                    name: classInfo.name,
+                    classHead: classInfo.classHead ? `${classInfo.classHead.firstName} ${classInfo.classHead.lastName}` : null,
+                    classLead: classInfo.classLead ? `${classInfo.classLead.firstName} ${classInfo.classLead.lastName}` : null
+                })
             }
         }
 

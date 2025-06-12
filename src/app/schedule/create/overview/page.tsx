@@ -16,6 +16,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import type {  ScheduleResponse } from '@/types/types'
 
@@ -34,16 +36,30 @@ const DARK_GROUP_COLORS = [
 ];
 
 /**
- * Renders the class schedule overview page, allowing users to view group assignments, teacher schedules, rotation planning, and export the schedule as a PDF.
+ * Displays a centered loading spinner and a localized loading message.
+ */
+function LoadingScreen() {
+    const { t } = useTranslation()
+    return (
+        <div className="min-h-[50vh] flex flex-col items-center justify-center gap-4">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-lg text-muted-foreground">{t('schedule.loading')}</p>
+        </div>
+    )
+}
+
+/**
+ * Displays the class schedule overview page, enabling users to view group assignments, teacher schedules, rotation planning, and export the schedule as a PDF.
  *
- * Fetches and displays group and teacher assignments, rotation turns, and additional schedule information for a selected class. Provides options to save teacher rotations and generate a downloadable PDF. Handles loading and error states, and manages navigation after actions.
+ * Fetches and presents group and teacher assignments, rotation turns, class leadership information, and additional schedule details for a selected class. Provides actions to save teacher rotations and generate a downloadable PDF. Handles loading and error states, and manages navigation after user actions.
  *
- * @returns The UI for managing and exporting the class schedule overview.
+ * @returns The React UI for managing and exporting the class schedule overview.
  */
 export default function OverviewPage() {
+  
   const searchParams = useSearchParams();
   const classId = searchParams.get('class');
-  const { teachers, isLoading: isLoadingCachedData } = useCachedData();
+  const {  isLoading: isLoadingCachedData } = useCachedData();
   const router = useRouter();
 
   const {
@@ -62,11 +78,8 @@ export default function OverviewPage() {
   const [showPdfDialog, setShowPdfDialog] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [additionalInfo, setAdditionalInfo] = useState<string>('');
-
-  // Debug logs
-  console.log('teachers', teachers);
-  console.log('amAssignments', amAssignments);
-  console.log('pmAssignments', pmAssignments);
+  const [classHead, setClassHead] = useState<string>('');
+  const [classLead, setClassLead] = useState<string>('');
 
   useEffect(() => {
     if (!classId) {
@@ -87,6 +100,15 @@ export default function OverviewPage() {
       const schedules = await schedulesRes.json() as ScheduleResponse[];
       const latestSchedule = schedules[0];
       setAdditionalInfo(latestSchedule?.additionalInfo ?? '');
+
+      // Fetch class data
+      const classRes = await fetch(`/api/classes/get-by-name?name=${classId}`);
+      
+      if (!classRes.ok) throw new Error('Failed to fetch class data');
+      const classData = await classRes.json() as { classHead: { firstName: string, lastName: string } | null; classLead: { firstName: string, lastName: string } | null };
+      console.log(classData);
+      setClassHead(classData.classHead ? `${classData.classHead.firstName} ${classData.classHead.lastName}` : '—');
+      setClassLead(classData.classLead ? `${classData.classLead.firstName} ${classData.classLead.lastName}` : '—');
     } catch (err) {
       console.error('Error fetching overview data:', err);
       captureFrontendError(err, {
@@ -210,14 +232,14 @@ export default function OverviewPage() {
   }
 
   /**
-   * Closes the PDF dialog and navigates to the home page.
+   * Closes the PDF generation dialog and redirects the user to the home page.
    */
   function handleSkipPdf() {
     setShowPdfDialog(false);
     router.push('/');
   }
 
-  if (loading || isLoadingCachedData || overviewLoading) return <div className="p-8 text-center">Loading...</div>;
+  if (loading || isLoadingCachedData || overviewLoading) return <LoadingScreen />;
   if (error ?? overviewError) return <div className="p-8 text-center text-red-500">{error ?? overviewError}</div>;
 
   /**
@@ -332,6 +354,23 @@ export default function OverviewPage() {
         </CardContent>
       </Card>
 
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>Klassenleitung</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <p className="text-sm text-gray-500">Klassenvorstand</p>
+              <p className="font-semibold text-lg">{classHead}</p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm text-gray-500">Klassenleitung</p>
+              <p className="font-semibold text-lg">{classLead}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
       {/* AM and PM Schedule Tables */}
       {[{ period: 'AM', teachers: uniqueAmTeachers }, { period: 'PM', teachers: uniquePmTeachers }].map(({ period, teachers }) => (
         <Card className="mb-8" key={period}>

@@ -1,6 +1,13 @@
 // components/MyDocument.js
 import { Document, Page, Text, StyleSheet, View } from '@react-pdf/renderer';
 
+const GROUP_COLORS = [
+  '#fef9c3', // yellow-200
+  '#dcfce7', // green-200
+  '#dbeafe', // blue-200
+  '#fee2e2', // red-200
+];
+
 const styles = StyleSheet.create({
   page: {
     padding: 20,
@@ -41,15 +48,15 @@ const styles = StyleSheet.create({
 });
 
 /**
- * Generates a schedule table for a specified period, listing teacher assignments and their group allocations for each turnus.
+ * Renders a schedule table for the specified period, displaying teacher assignments and their group allocations for each turnus.
  *
- * Displays columns for teacher, workshop, content, room, and one column per turnus period, showing the assigned group ID if available.
+ * The table includes columns for teacher, workshop, content, room, and one column per turnus period, with group cells color-coded according to group ID.
  *
- * @param {'AM'|'PM'} period - Specifies whether to render the morning ('AM') or afternoon ('PM') schedule.
- * @param {any[]} assignments - Array of teacher assignment objects containing subject and room details.
+ * @param {'AM'|'PM'} period - Indicates whether to render the morning ('AM') or afternoon ('PM') schedule.
+ * @param {any[]} assignments - List of teacher assignment objects with subject and room details.
  * @param {Record<string, unknown>} turns - Object representing available turnus periods.
- * @param {(turnKey: string) => { start: string, end: string, days: number }} getTurnusInfo - Retrieves start and end dates for a turnus.
- * @param {(teacherIdx: number, turnIdx: number, period: 'AM'|'PM') => any} getGroupForTeacherAndTurn - Returns the group assigned to a teacher for a specific turnus and period.
+ * @param {(turnKey: string) => { start: string, end: string, days: number }} getTurnusInfo - Function to retrieve start and end dates for a turnus.
+ * @param {(teacherIdx: number, turnIdx: number, period: 'AM'|'PM') => any} getGroupForTeacherAndTurn - Function to get the group assigned to a teacher for a specific turnus and period.
  * @param {{ id: number, students: { firstName: string, lastName: string }[] }[]} groups - Array of group objects with student information.
  * @param {any} styles - StyleSheet object for table styling.
  */
@@ -63,11 +70,14 @@ function renderScheduleTable(period, assignments, turns, getTurnusInfo, getGroup
           <Text style={{ ...styles.tableCol, ...styles.tableHeader, width: '10%' }}>Werkstätte</Text>
           <Text style={{ ...styles.tableCol, ...styles.tableHeader, width: '10%' }}>Lehrinhalt</Text>
           <Text style={{ ...styles.tableCol, ...styles.tableHeader, width: '10%' }}>Raum</Text>
-          {Object.keys(turns).map((turn, turnIdx) => (
-            <Text key={turn} style={{ ...styles.tableCol, ...styles.tableHeader, width: `${60 / Object.keys(turns).length}%` }}>
-              Turnus {turnIdx + 1} ({getTurnusInfo(turn).start} - {getTurnusInfo(turn).end})
-            </Text>
-          ))}
+          {Object.keys(turns).map((turn, turnIdx) => {
+            const { start, end } = getTurnusInfo(turn);
+            return (
+              <Text key={turn} style={{ ...styles.tableCol, ...styles.tableHeader, width: `${60 / Object.keys(turns).length}%` }}>
+                Turnus {turnIdx + 1} ({start} - {end})
+              </Text>
+            );
+          })}
         </View>
         {assignments.map((assignment, teacherIdx) => (
           <View style={styles.tableRow} key={assignment.teacherId}>
@@ -78,7 +88,14 @@ function renderScheduleTable(period, assignments, turns, getTurnusInfo, getGroup
             {Object.keys(turns).map((turn, turnIdx) => {
               const group = getGroupForTeacherAndTurn(teacherIdx, turnIdx, period);
               return (
-                <Text key={turn} style={{ ...styles.tableCol, width: `${60 / Object.keys(turns).length}%` }}>
+                <Text 
+                  key={turn} 
+                  style={{ 
+                    ...styles.tableCol, 
+                    width: `${60 / Object.keys(turns).length}%`,
+                    backgroundColor: group ? GROUP_COLORS[(group.id - 1) % GROUP_COLORS.length] : undefined
+                  }}
+                >
                   {group ? group.id : ''}
                 </Text>
               );
@@ -100,6 +117,9 @@ function renderScheduleTable(period, assignments, turns, getTurnusInfo, getGroup
  *   amAssignments: any[],
  *   pmAssignments: any[],
  *   className: string,
+ *   classHead: string,
+ *   classLead: string,
+ *   additionalInfo: string,
  * }} props
  */
 const PDFLayout = ({
@@ -110,7 +130,10 @@ const PDFLayout = ({
   getGroupForTeacherAndTurn = () => ({}),
   amAssignments = [],
   pmAssignments = [],
-  className = ''
+  className = '',
+  classHead = '—',
+  classLead = '—',
+  additionalInfo = '—'
 }) => (
   <Document>
     <Page size="A4" orientation="landscape" style={styles.page}>
@@ -120,7 +143,15 @@ const PDFLayout = ({
         <View style={[styles.table, { width: '60%' }]}>
           <View style={[styles.tableRow]}>
             {groups.map((group) => (
-              <Text key={group.id} style={{ ...styles.tableCol, ...styles.tableHeader, width: `${100/groups.length}%` }}>
+              <Text 
+                key={group.id} 
+                style={{ 
+                  ...styles.tableCol, 
+                  ...styles.tableHeader, 
+                  width: `${100/groups.length}%`,
+                  backgroundColor: GROUP_COLORS[(group.id - 1) % GROUP_COLORS.length]
+                }}
+              >
                 Gruppe {group.id}
               </Text>
             ))}
@@ -128,7 +159,14 @@ const PDFLayout = ({
           {[...Array(maxStudents)].map((_, rowIdx) => (
             <View style={[styles.tableRow]} key={rowIdx} >
               {groups.map((group) => (
-                <Text key={group.id} style={{ ...styles.tableCol, width: `${100/groups.length}%` }}>
+                <Text 
+                  key={group.id} 
+                  style={{ 
+                    ...styles.tableCol, 
+                    width: `${100/groups.length}%`,
+                    backgroundColor: GROUP_COLORS[(group.id - 1) % GROUP_COLORS.length]
+                  }}
+                >
                   {group.students[rowIdx]
                     ? `${rowIdx + 1}. ${group.students[rowIdx].lastName} ${group.students[rowIdx].firstName}`
                     : ''}
@@ -136,6 +174,11 @@ const PDFLayout = ({
               ))}
             </View>
           ))}
+        </View>
+        <View style={{ marginTop: 10, fontSize: 10, fontFamily: 'Helvetica'}}>
+          <Text style={{ fontWeight: 'bold'}}>Klassenvorstand:</Text><Text style={{ paddingTop: 5}}>{classHead}</Text><Text style={{ fontWeight: 'bold'}}>Klassenleitung:</Text> <Text style={{ paddingTop: 5}}>{classLead}</Text>
+          <Text>  </Text>
+          <Text style={{ fontWeight: 'bold'}}>Zusätzliche Informationen:</Text><Text style={{ paddingTop: 5}}>{additionalInfo}</Text>
         </View>
       </View>
       {/* AM Schedule Table */}

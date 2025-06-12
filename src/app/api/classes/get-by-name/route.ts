@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 
 /**
- * Handles GET requests to retrieve class information by name.
+ * Handles GET requests to retrieve class information by its name.
  *
- * Extracts the `name` query parameter from the request URL and returns the corresponding class data as JSON.
- * Responds with a 400 status if the `name` parameter is missing, 404 if the class is not found, or 500 if an internal error occurs.
+ * Extracts the `name` query parameter from the request URL and returns the matching class data as JSON, including related `classHead` and `classLead` names. Responds with a 400 status if the `name` parameter is missing, 404 if the class is not found, or 500 if an internal error occurs.
  *
- * @returns A JSON response containing the class data, or an error message with the appropriate HTTP status code.
+ * @returns A JSON response containing the class data or an error message with the appropriate HTTP status code.
  */
 export async function GET(request: Request) {
   try {
@@ -22,9 +21,23 @@ export async function GET(request: Request) {
       )
     }
 
-    const classData = await db.class.findUnique({
+    const classData = await prisma.class.findUnique({
       where: {
         name: name
+      },
+      include: {
+        classHead: {
+          select: {
+            firstName: true,
+            lastName: true
+          }
+        },
+        classLead: {
+          select: {
+            firstName: true,
+            lastName: true
+          }
+        }
       }
     })
 

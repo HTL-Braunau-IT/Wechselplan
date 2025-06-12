@@ -17,6 +17,11 @@ const steps: Step[] = [
 	{ id: 'overview', path: '/schedule/create/overview' }
 ]
 
+/**
+ * Renders a vertical progress indicator for the schedule creation process, visually displaying completed, current, and upcoming steps.
+ *
+ * The progress indicator highlights the user's current position in the multi-step schedule creation flow, disables navigation to future steps, and preserves the selected class in the URL when navigating between steps.
+ */
 export function CreationProgress() {
 	const { t } = useTranslation('schedule')
 	const pathname = usePathname()
@@ -26,7 +31,7 @@ export function CreationProgress() {
 	const currentStepIndex = steps.findIndex(step => pathname === step.path)
 
 	return (
-		<div className="flex flex-col items-start py-8 px-4">
+		<div className="sticky top-16 flex flex-col items-start py-8 px-4">
 			{steps.map((step, index) => {
 				const isCompleted = index < currentStepIndex
 				const isCurrent = index === currentStepIndex

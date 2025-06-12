@@ -32,6 +32,8 @@ model Teacher {
   username    String              @unique
   email       String?             @unique
   assignments TeacherAssignment[]
+  headClasses Class[]             @relation("ClassHead")
+  leadClasses Class[]             @relation("ClassLead")
 
   @@index([firstName, lastName])
 }
@@ -42,9 +44,13 @@ model Class {
   description String?
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
+  classHeadId Int?
+  classLeadId Int?
   schedules   Schedule[]
   students    Student[]
   assignments TeacherAssignment[]
+  classHead   Teacher?            @relation("ClassHead", fields: [classHeadId], references: [id])
+  classLead   Teacher?            @relation("ClassLead", fields: [classLeadId], references: [id])
 
   @@index([name])
 }

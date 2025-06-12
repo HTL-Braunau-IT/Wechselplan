@@ -5,11 +5,11 @@ import { captureError } from '@/lib/sentry'
 const prisma = new PrismaClient()
 
 /**
- * Handles GET requests to retrieve all classes with their full details.
+ * Retrieves all classes from the database and returns them as a JSON array.
  *
- * Returns a JSON array of class objects, each containing `id`, `name`, and `description`, ordered alphabetically by name.
+ * Each class object includes `id`, `name`, `description`, `classHeadId`, and `classLeadId`, ordered alphabetically by name.
  *
- * @returns A JSON response with the list of classes or an error message with status 500 if the query fails.
+ * @returns A JSON response containing the list of classes, or an error message with status 500 if retrieval fails.
  */
 export async function GET() {
     try {
@@ -17,14 +17,16 @@ export async function GET() {
             select: {
                 id: true,
                 name: true,
-                description: true
+                description: true,
+                classHeadId: true,
+                classLeadId: true
             },
-            orderBy: { name: 'asc' }
+            orderBy: { name: 'asc' },
+
         })
         
         return NextResponse.json(classes)
     } catch (error) {
-        
         captureError(error, {
             location: 'api/classes',
             type: 'fetch-classes'

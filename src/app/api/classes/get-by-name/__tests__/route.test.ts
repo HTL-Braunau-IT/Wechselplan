@@ -1,12 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GET } from '../route';
-import { db } from '@/lib/db';
+import { prisma } from '@/lib/prisma';
 import { captureError } from '@/lib/sentry';
 
-
-// Mock db
-vi.mock('@/lib/db', () => ({
-  db: {
+// Mock prisma
+vi.mock('@/lib/prisma', () => ({
+  prisma: {
     class: {
       findUnique: vi.fn(),
     },
@@ -17,8 +16,6 @@ vi.mock('@/lib/db', () => ({
 vi.mock('@/lib/sentry', () => ({
   captureError: vi.fn(),
 }));
-
-
 
 describe('Classes Get By Name API', () => {
   beforeEach(() => {
@@ -33,9 +30,19 @@ describe('Classes Get By Name API', () => {
         description: 'Description A',
         createdAt: new Date('2024-03-20T09:30:00Z'),
         updatedAt: new Date('2024-03-20T09:30:00Z'),
+        classHeadId: 1,
+        classLeadId: 2,
+        classHead: {
+          firstName: 'John',
+          lastName: 'Doe'
+        },
+        classLead: {
+          firstName: 'Jane',
+          lastName: 'Smith'
+        }
       };
 
-      vi.mocked(db.class.findUnique).mockResolvedValue(mockClass);
+      vi.mocked(prisma.class.findUnique).mockResolvedValue(mockClass);
 
       const request = new Request('http://localhost/api/classes/get-by-name?name=Class%20A');
       const response = await GET(request);
@@ -45,10 +52,24 @@ describe('Classes Get By Name API', () => {
       expect(data).toEqual({
         ...mockClass,
         createdAt: mockClass.createdAt.toISOString(),
-        updatedAt: mockClass.updatedAt.toISOString(),
+        updatedAt: mockClass.updatedAt.toISOString()
       });
-      expect(db.class.findUnique).toHaveBeenCalledWith({
+      expect(prisma.class.findUnique).toHaveBeenCalledWith({
         where: { name: 'Class A' },
+        include: {
+          classHead: {
+            select: {
+              firstName: true,
+              lastName: true
+            }
+          },
+          classLead: {
+            select: {
+              firstName: true,
+              lastName: true
+            }
+          }
+        }
       });
     });
 
@@ -59,11 +80,11 @@ describe('Classes Get By Name API', () => {
 
       expect(response.status).toBe(400);
       expect(data).toEqual({ error: 'Class name is required' });
-      expect(db.class.findUnique).not.toHaveBeenCalled();
+      expect(prisma.class.findUnique).not.toHaveBeenCalled();
     });
 
     it('should return 404 when class is not found', async () => {
-      vi.mocked(db.class.findUnique).mockResolvedValue(null);
+      vi.mocked(prisma.class.findUnique).mockResolvedValue(null);
 
       const request = new Request('http://localhost/api/classes/get-by-name?name=NonexistentClass');
       const response = await GET(request);
@@ -71,14 +92,28 @@ describe('Classes Get By Name API', () => {
 
       expect(response.status).toBe(404);
       expect(data).toEqual({ error: 'Class not found' });
-      expect(db.class.findUnique).toHaveBeenCalledWith({
+      expect(prisma.class.findUnique).toHaveBeenCalledWith({
         where: { name: 'NonexistentClass' },
+        include: {
+          classHead: {
+            select: {
+              firstName: true,
+              lastName: true
+            }
+          },
+          classLead: {
+            select: {
+              firstName: true,
+              lastName: true
+            }
+          }
+        }
       });
     });
 
     it('should handle database errors', async () => {
       const error = new Error('Database error');
-      vi.mocked(db.class.findUnique).mockRejectedValue(error);
+      vi.mocked(prisma.class.findUnique).mockRejectedValue(error);
 
       const request = new Request('http://localhost/api/classes/get-by-name?name=Class%20A');
       const response = await GET(request);
@@ -90,8 +125,8 @@ describe('Classes Get By Name API', () => {
         location: 'api/classes/get-by-name',
         type: 'fetch-class-by-name',
         extra: {
-          searchParams: { name: 'Class A' },
-        },
+          searchParams: { name: 'Class A' }
+        }
       });
     });
   });
