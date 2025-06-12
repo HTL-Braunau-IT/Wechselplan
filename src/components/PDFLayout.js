@@ -175,8 +175,8 @@ const PDFLayout = ({
             </View>
           ))}
         </View>
-        <View style={{ marginTop: 10, fontSize: 10, fontFamily: 'Helvetica', fontWeight: 'bold'}}>
-          <Text>Klassenvorstand: {classHead}    Klassenleitung: {classLead}</Text>
+        <View style={{ marginTop: 10, fontSize: 10, fontFamily: 'Helvetica'}}>
+          <Text style={{ fontWeight: 'bold'}}>Klassenvorstand: {classHead}    Klassenleitung: {classLead}</Text>
           <Text>  </Text>
           <Text>Zusätzliche Informationen: {additionalInfo}</Text>
         </View>
