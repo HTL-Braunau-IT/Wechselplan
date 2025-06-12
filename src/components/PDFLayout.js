@@ -175,11 +175,11 @@ const PDFLayout = ({
             </View>
           ))}
         </View>
-        <view style={{ marginTop: 10, fontSize: 10, fontFamily: 'Helvetica', fontWeight: 'bold'}}>
+        <View style={{ marginTop: 10, fontSize: 10, fontFamily: 'Helvetica', fontWeight: 'bold'}}>
           <Text>Klassenvorstand: {classHead}    Klassenleitung: {classLead}</Text>
           <Text>  </Text>
           <Text>Zusätzliche Informationen: {additionalInfo}</Text>
-        </view>
+        </View>
       </View>
       {/* AM Schedule Table */}
       {renderScheduleTable('AM', amAssignments, turns, getTurnusInfo, getGroupForTeacherAndTurn, groups, styles)}
