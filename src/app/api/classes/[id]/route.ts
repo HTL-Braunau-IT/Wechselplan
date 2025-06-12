@@ -12,6 +12,13 @@ const updateClassSchema = z.object({
   { message: 'Nothing to update' }
 )
 
+/**
+ * Handles PATCH requests to update a class entity by ID.
+ *
+ * Validates the class ID and request body, ensures referenced teachers exist if provided, and updates the class record with new data. Returns the updated class fields or an appropriate error response if validation or existence checks fail.
+ *
+ * @returns A JSON response containing the updated class data, or an error message with the corresponding HTTP status code.
+ */
 export async function PATCH(
   request: NextRequest,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

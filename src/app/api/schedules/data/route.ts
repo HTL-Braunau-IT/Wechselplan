@@ -5,7 +5,7 @@ import { captureError } from '@/lib/sentry'
 /**
  * Handles HTTP GET requests to retrieve schedule, student, rotation, assignment, and class data for a specified teacher and weekday.
  *
- * Extracts the `teacher` (required) and `weekday` (optional, defaults to '0') query parameters from the request URL. Validates the teacher's existence, gathers their assignments, rotation data, class information, schedules for the given weekday, and students in each class. Returns a JSON response with the aggregated data or an appropriate HTTP error if any required information is missing.
+ * Extracts the `teacher` (required) and `weekday` (optional, defaults to '0') query parameters from the request URL. Validates the teacher's existence, gathers their assignments, rotation data, class information (including class head and lead names), schedules for the given weekday, and students in each class. Returns a JSON response with the aggregated data or an appropriate HTTP error if any required information is missing.
  *
  * @returns A {@link NextResponse} containing a JSON object with schedules, students, teacher rotation, filtered assignments, and class information, or an error message with the corresponding HTTP status code.
  */

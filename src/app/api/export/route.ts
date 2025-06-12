@@ -8,11 +8,11 @@ import PDFLayout from '@/components/PDFLayout'
 import { prisma } from '@/lib/prisma'
 
 /**
- * Handles a POST request to generate and return a PDF schedule for a specified class.
+ * Handles HTTP POST requests to generate and return a PDF schedule for a specified class.
  *
- * Extracts the class identifier from the request URL, retrieves class, student, group, teacher assignment, and schedule data from the database, and generates a PDF schedule document. Returns the PDF as a downloadable response, or a JSON error response with an appropriate HTTP status code if the class is not found or required data is missing.
+ * Extracts the class name from the request URL, retrieves class, student, group, teacher assignment, and schedule data from the database, and generates a PDF schedule document. Returns the PDF as a downloadable file, or a JSON error response with an appropriate HTTP status code if the class is not found, required data is missing, or an error occurs during processing.
  *
- * @returns A PDF file as a response if successful, or a JSON error response with an appropriate HTTP status code if an error occurs.
+ * @returns A PDF file as a response if successful, or a JSON error response with status 400 or 500 if an error occurs.
  */
 export async function POST(request: Request) {
     try {
@@ -138,7 +138,10 @@ export async function POST(request: Request) {
 
 
         /**
-         * @param {string} turnKey
+         * Retrieves the start date, end date, and number of days for a given turn key from the schedule data.
+         *
+         * @param turnKey - The key identifying the turn within the schedule.
+         * @returns An object containing the start date, end date, and total number of days for the specified turn. If the turn data is missing or invalid, returns empty strings and zero days.
          */
         function getTurnusInfo(turnKey: string) {
             if (!turns || typeof turns !== 'object') return { start: '', end: '', days: 0 };

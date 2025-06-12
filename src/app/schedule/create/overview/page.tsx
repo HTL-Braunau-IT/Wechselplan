@@ -35,6 +35,9 @@ const DARK_GROUP_COLORS = [
   'dark:bg-red-900/60',
 ];
 
+/**
+ * Displays a centered loading spinner and a localized loading message.
+ */
 function LoadingScreen() {
     const { t } = useTranslation()
     return (
@@ -46,11 +49,11 @@ function LoadingScreen() {
 }
 
 /**
- * Renders the class schedule overview page, allowing users to view group assignments, teacher schedules, rotation planning, and export the schedule as a PDF.
+ * Displays the class schedule overview page, enabling users to view group assignments, teacher schedules, rotation planning, and export the schedule as a PDF.
  *
- * Fetches and displays group and teacher assignments, rotation turns, and additional schedule information for a selected class. Provides options to save teacher rotations and generate a downloadable PDF. Handles loading and error states, and manages navigation after actions.
+ * Fetches and presents group and teacher assignments, rotation turns, class leadership information, and additional schedule details for a selected class. Provides actions to save teacher rotations and generate a downloadable PDF. Handles loading and error states, and manages navigation after user actions.
  *
- * @returns The UI for managing and exporting the class schedule overview.
+ * @returns The React UI for managing and exporting the class schedule overview.
  */
 export default function OverviewPage() {
   
@@ -229,7 +232,7 @@ export default function OverviewPage() {
   }
 
   /**
-   * Closes the PDF dialog and navigates to the home page.
+   * Closes the PDF generation dialog and redirects the user to the home page.
    */
   function handleSkipPdf() {
     setShowPdfDialog(false);

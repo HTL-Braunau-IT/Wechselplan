@@ -19,11 +19,11 @@ import {
 } from '~/components/ui/dropdown-menu'
 
 /**
- * Renders the application's top navigation header with conditional elements based on user authentication and role.
+ * Displays the application's top navigation header with dynamic elements based on user authentication and role.
  *
- * Displays the app logo, support dialog, version and build date, theme and language toggles, and a user menu with login/logout options. For authenticated non-student users, provides a sidebar navigation menu with relevant links.
+ * Shows the app logo, support dialog, version and build date, theme and language toggles, and a user menu for login/logout. Authenticated users who are not students can access a sidebar navigation menu with links to key sections, including class settings and, for teachers, an admin area.
  *
- * @remark The sidebar navigation menu and menu toggle button are only available to authenticated users whose role is not 'student'.
+ * @remark The sidebar navigation menu and its toggle button are only visible to authenticated users whose role is not 'student'.
  */
 export function Header() {
 	const [isMenuOpen, setIsMenuOpen] = useState(false)
