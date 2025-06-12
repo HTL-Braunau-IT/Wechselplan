@@ -29,7 +29,21 @@ export async function POST(request: Request) {
 
         // Get class
         const class_response = await prisma.class.findUnique({
-            where: { name: className }
+            where: { name: className },
+            include: {
+                classHead: {
+                    select: {
+                        firstName: true,
+                        lastName: true
+                    }
+                },
+                classLead: {
+                    select: {
+                        firstName: true,
+                        lastName: true
+                    }
+                }
+            }
         })
         if (!class_response) {
             const error = new Error('Class not found')
@@ -112,11 +126,15 @@ export async function POST(request: Request) {
     
         const schedule = await prisma.schedule.findFirst({
             where: { classId: class_response.id },
-            orderBy: [{ createdAt: 'desc' }]
+            orderBy: [{ createdAt: 'desc' }],
+            select: {
+                scheduleData: true,
+                additionalInfo: true
+            }
         })
         const turns = (schedule && typeof schedule.scheduleData === 'object' && schedule.scheduleData !== null && !Array.isArray(schedule.scheduleData))
-  ? schedule.scheduleData
-  : {};
+            ? schedule.scheduleData
+            : {};
 
 
         /**
@@ -167,7 +185,10 @@ export async function POST(request: Request) {
             getGroupForTeacherAndTurn,
             amAssignments,
             pmAssignments,
-            className: class_response.name
+            className: class_response.name,
+            classHead: class_response.classHead ? `${class_response.classHead.firstName} ${class_response.classHead.lastName}` : '—',
+            classLead: class_response.classLead ? `${class_response.classLead.firstName} ${class_response.classLead.lastName}` : '—',
+            additionalInfo: schedule?.additionalInfo ?? '—'
         }) as ReactElement<DocumentProps>
         const pdfBuffer = await pdf(doc).toBuffer()
 
