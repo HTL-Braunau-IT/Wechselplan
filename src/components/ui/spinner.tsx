@@ -6,19 +6,18 @@ interface SpinnerProps {
 }
 
 /**
- * A reusable loading spinner component with customizable size and styling.
- * 
- * @param {SpinnerProps} props - The component props
- * @param {string} [props.className] - Additional CSS classes to apply to the spinner
- * @param {'sm' | 'md' | 'lg'} [props.size='md'] - The size of the spinner
- * 
+ * Displays a loading spinner with customizable size and optional additional styling.
+ *
  * @example
- * // Default usage
+ * // Default spinner
  * <Spinner />
- * 
+ *
  * @example
- * // Custom size and styling
+ * // Large blue spinner
  * <Spinner size="lg" className="text-blue-500" />
+ *
+ * @param size - Spinner size; one of 'sm', 'md', or 'lg'. Defaults to 'md'.
+ * @param className - Additional CSS classes to apply to the spinner.
  */
 export function Spinner({ className, size = 'md' }: SpinnerProps) {
   const sizeClasses = {

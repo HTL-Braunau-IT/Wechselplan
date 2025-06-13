@@ -16,7 +16,7 @@ interface ErrorResponse {
 }
 
 /**
- * Displays a centered loading spinner and a localized loading message.
+ * Renders a centered loading spinner with a localized loading message.
  */
 function LoadingScreen() {
     const { t } = useTranslation()
