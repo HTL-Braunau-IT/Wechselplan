@@ -14,7 +14,7 @@ import { useScheduleOverview } from '@/hooks/use-schedule-overview'
 import { ScheduleOverview } from '@/components/schedule-overview'
 import { CheckCircle2, XCircle, AlertCircle, ChevronDown } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
-import { generateExcel, generatePdf, generateSchedulePDF } from '~/lib/export-utils'
+import { generateExcel, generatePdf, generateSchedulePDF } from '@/lib/export-utils'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Collapsible,
