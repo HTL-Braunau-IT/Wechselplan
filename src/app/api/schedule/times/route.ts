@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 
+/**
+ * Handles HTTP OPTIONS requests for the schedule times API route.
+ *
+ * Returns a 204 No Content response with an 'Allow' header specifying the permitted HTTP methods.
+ */
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
@@ -11,7 +16,14 @@ export async function OPTIONS() {
   })
 }
 
-export async function GET(request: Request) {
+/**
+   * Retrieves the latest schedule times and break times for a class by name.
+   *
+   * Expects a `className` query parameter in the request URL. Returns a 400 error if `className` is missing, or a 404 error if no schedule is found for the specified class.
+   *
+   * @returns A JSON response containing the latest schedule and break times for the class.
+   */
+  export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const className = searchParams.get('className')
 
@@ -51,6 +63,11 @@ export async function GET(request: Request) {
   }
 
 
+/**
+ * Updates the latest schedule for a class with new schedule and break times.
+ *
+ * Expects a JSON body containing `scheduleTimes`, `breakTimes`, and `className`. Validates the presence of `className`, retrieves the latest schedule for the specified class, and updates its associated times. Returns the updated schedule in JSON format, or an error response if validation fails, the class or schedule is not found, or an internal error occurs.
+ */
 export async function POST(request: Request) {
   try {
     const { scheduleTimes, breakTimes, className } = await request.json()

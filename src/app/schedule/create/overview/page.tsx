@@ -39,7 +39,7 @@ const DARK_GROUP_COLORS = [
 ];
 
 /**
- * Displays a centered loading spinner and a localized loading message.
+ * Renders a centered loading spinner with a localized loading message.
  */
 function LoadingScreen() {
     const { t } = useTranslation()
@@ -52,11 +52,11 @@ function LoadingScreen() {
 }
 
 /**
- * Renders the class schedule overview page, allowing users to view group assignments, teacher schedules, rotation planning, and export the schedule in multiple formats.
+ * Displays the class schedule overview page, enabling users to review group and teacher assignments, manage teacher rotation planning, and export the schedule in PDF or Excel formats.
  *
- * Fetches and displays group and teacher assignments, rotation turns, class leadership information, and additional schedule details for a selected class. Provides actions to save teacher rotations and export the schedule as PDF and Excel files, filtered by the selected weekday. Handles loading and error states, and manages navigation after user actions.
+ * Fetches and presents schedule data for a selected class, including group assignments, rotation turns, class leadership, and additional details. Provides actions to save teacher rotations and export the schedule, handling loading and error states throughout the workflow.
  *
- * @returns The React UI for managing, viewing, and exporting the class schedule overview.
+ * @returns The React component for managing, viewing, and exporting the class schedule overview.
  */
 export default function OverviewPage() {
   const searchParams = useSearchParams();
@@ -157,11 +157,9 @@ export default function OverviewPage() {
   }
 
   /**
-   * Generates and downloads an Excel file containing the class schedule and grades for the selected class and weekday.
+   * Exports the class schedule and grades as an Excel file for the selected class and weekday.
    *
-   * The exported file is named with the class name, localized weekday, and current date.
-   *
-   * @remark If the export fails, an error is logged to the console and no file is downloaded.
+   * @remark If the export fails, the error is logged to the console and no file is downloaded.
    */
   async function handleGenerateExcel() {
     if (!classId) return;
@@ -178,9 +176,9 @@ export default function OverviewPage() {
 
 
   /**
-   * Generates and downloads a schedule PDF for the selected class and weekday.
+   * Generates and downloads a schedule PDF for the current class and weekday.
    *
-   * Initiates a POST request to the schedule export API, then downloads the resulting PDF file with a localized filename. Displays an error message if the export fails.
+   * Displays an error message if PDF generation fails.
    */
 
   async function handleGenerateSchedulePDF() {
@@ -199,9 +197,9 @@ export default function OverviewPage() {
   /**
    * Generates and downloads a PDF export of the class schedule, then sequentially triggers downloads of the schedule PDF and Excel exports for the selected class and weekday.
    *
-   * @remark The PDF filename includes the class name, selected weekday, and current date in German locale. The export dialog remains open after download until explicitly closed.
+   * Closes the export dialog and navigates to the home page after successful exports.
    *
-   * @throws {Error} If the schedule export request fails.
+   * @remark Does nothing if {@link classId} is missing.
    */
   async function handleGeneratePdf() {
     if (!classId) return;
@@ -221,6 +219,9 @@ export default function OverviewPage() {
     }
   }
 
+  /**
+   * Closes the PDF export dialog and navigates to the home page without generating a PDF.
+   */
   function handleSkipPdf() {
     setShowPdfDialog(false);
     router.push('/');

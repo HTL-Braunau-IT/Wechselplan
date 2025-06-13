@@ -41,7 +41,11 @@ interface Class {
 }
 
 /**
- * Component to display schedule overview for a specific class
+ * Displays the schedule overview for a given class, handling loading and error states.
+ *
+ * Renders a loading spinner while fetching data, an error message if no schedule is found, or the schedule overview when data is available.
+ *
+ * @param className - The name of the class for which to display the schedule overview.
  */
 function ClassScheduleOverview({ className }: { className: string }) {
   const {
@@ -106,9 +110,9 @@ function ClassScheduleOverview({ className }: { className: string }) {
 }
 
 /**
- * Displays an overview of schedules and classes, allowing users to filter by class and view detailed group and teacher assignment tables.
+ * Displays an interactive overview of all class schedules, allowing users to filter by class, view detailed schedule information, and export data.
  *
- * Fetches schedule and class data, manages loading and error states, and renders group overviews and AM/PM teacher assignment tables for the selected class. Provides a dropdown to select a class and conditionally displays detailed tables when a specific class is chosen.
+ * Fetches schedule and class data, manages loading and error states, and renders schedule overviews for individual classes or all classes. Provides export options for PDF and Excel formats when a specific class with a schedule is selected. The UI includes a class selector, schedule availability indicators, and collapsible panels for each class when viewing all classes.
  */
 export default function SchedulesPage() {
   const [schedules, setSchedules] = useState<Schedule[]>([])

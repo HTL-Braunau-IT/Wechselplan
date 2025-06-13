@@ -21,6 +21,11 @@ interface Class {
   description: string | null
 }
 
+/**
+ * Displays an overview of students grouped by their classes and groups.
+ *
+ * Fetches student and class data from the backend, handles loading and error states, and renders students organized by class and group. Students are sorted alphabetically within each group, and classes are sorted alphabetically with unassigned students shown last.
+ */
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [classes, setClasses] = useState<Class[]>([])

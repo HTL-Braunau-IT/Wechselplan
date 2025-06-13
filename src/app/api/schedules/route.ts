@@ -75,11 +75,11 @@ export async function POST(req: Request) {
 }
 
 /**
- * Retrieves schedules filtered by optional class ID and weekday from the database.
+ * Retrieves schedules for a class, optionally filtered by weekday.
  *
- * Extracts `classId` and `weekday` from the request's query parameters, queries for matching schedules, and returns them as a JSON response ordered by creation date descending.
+ * Looks up the class by name from the `classId` query parameter, then returns schedules for that class, optionally filtered by the `weekday` query parameter. Results are ordered by creation date descending.
  *
- * @returns A JSON response containing the list of matching schedules.
+ * @returns A JSON response containing the list of matching schedules, or an error message with appropriate HTTP status if not found or on error.
  */
 export async function GET(req: Request) {
   try {

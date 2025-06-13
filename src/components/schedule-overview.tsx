@@ -29,7 +29,11 @@ const DARK_GROUP_COLORS = [
 ];
 
 /**
- * Returns a new array with its elements rotated to the left by the specified number of positions.
+ * Returns a new array with elements shifted left by a given number of positions, wrapping items from the front to the end.
+ *
+ * @param arr - The array to rotate.
+ * @param n - The number of positions to rotate the array to the left.
+ * @returns A new array with elements rotated left by {@link n} positions.
  */
 function rotateArray<T>(arr: T[], n: number): T[] {
   const rotated = [...arr];
@@ -43,7 +47,14 @@ function rotateArray<T>(arr: T[], n: number): T[] {
 }
 
 /**
- * Returns the group assigned to a teacher for a specific turn and period by rotating the group list.
+ * Determines the group assigned to a teacher for a given turn and period by rotating the group list.
+ *
+ * @param groups - List of groups to assign.
+ * @param teacherIdx - Index of the teacher in the unique teachers list.
+ * @param turnIdx - Index of the current turn.
+ * @param period - The period ('AM' or 'PM') for which the assignment is made.
+ * @param uniqueTeachers - List of unique teacher assignments.
+ * @returns The assigned group for the teacher and turn, or null if inputs are invalid.
  */
 function getGroupForTeacherAndTurn(
   groups: Group[],
@@ -59,7 +70,11 @@ function getGroupForTeacherAndTurn(
 }
 
 /**
- * Helper: get turnus info (start, end, days) from turns
+ * Retrieves the start date, end date, and number of days for a given turn from the turn schedule.
+ *
+ * @param turnKey - The key identifying the turn in the schedule.
+ * @param turns - The turn schedule object containing week data.
+ * @returns An object with the start date, end date, and total number of days for the specified turn. Returns empty strings and zero if no weeks are found.
  */
 function getTurnusInfo(turnKey: string, turns: TurnSchedule) {
   const entry = turns[turnKey] as { weeks?: { date: string }[] };
@@ -70,11 +85,35 @@ function getTurnusInfo(turnKey: string, turns: TurnSchedule) {
   return { start, end, days };
 }
 
+/**
+ * Returns the German name of the weekday for a given numeric value.
+ *
+ * @param weekday - Numeric representation of the weekday (0 for Sunday, 1 for Monday, etc.).
+ * @returns The German name of the weekday, or an empty string if {@link weekday} is undefined.
+ */
 function getWeekday(weekday: number) {
   const days = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
   return weekday === undefined ? '' : days[weekday];
 }
 
+/**
+ * Displays a comprehensive overview of a school schedule, including group assignments, class leadership, period times, teacher schedules, turnus data, and additional information.
+ *
+ * Renders tables for group membership, class head and lead, schedule times with breaks, AM and PM teacher assignments per turn, turnus date sources, and any provided extra notes. Group and schedule data are color-coded and organized for clarity.
+ *
+ * @param groups - List of groups with their students.
+ * @param amAssignments - Teacher assignments for the morning period.
+ * @param pmAssignments - Teacher assignments for the afternoon period.
+ * @param scheduleTimes - Start and end times for AM and PM periods.
+ * @param breakTimes - Break and lunch times for each period.
+ * @param turns - Turn schedule data with weeks and dates.
+ * @param classHead - Name of the class head.
+ * @param classLead - Name of the class lead.
+ * @param additionalInfo - Optional extra information to display.
+ * @param weekday - Numeric representation of the weekday (0=Sunday).
+ *
+ * @returns The rendered schedule overview interface.
+ */
 export function ScheduleOverview({
   groups,
   amAssignments,
