@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { z } from 'zod'
 import { captureError } from '~/lib/sentry'
+import { prisma } from '@/lib/prisma'
 
 const scheduleSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -74,27 +75,49 @@ export async function POST(req: Request) {
 }
 
 /**
- * Retrieves schedules filtered by optional class ID and weekday from the database.
+ * Retrieves schedules for a class, optionally filtered by weekday.
  *
- * Extracts `classId` and `weekday` from the request's query parameters, queries for matching schedules, and returns them as a JSON response ordered by creation date descending.
+ * Looks up the class by name from the `classId` query parameter, then returns schedules for that class, optionally filtered by the `weekday` query parameter. Results are ordered by creation date descending.
  *
- * @returns A JSON response containing the list of matching schedules.
+ * @returns A JSON response containing the list of matching schedules, or an error message with appropriate HTTP status if not found or on error.
  */
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
-    const classId = searchParams.get('classId')
+    const className = searchParams.get('classId')
     const weekday = searchParams.get('weekday')
+
+    if (!className) {
+      return NextResponse.json({ error: 'Class ID is required' }, { status: 400 })
+    }
+
+    const classRecord = await prisma.class.findFirst({
+      where: {
+        name: className
+      }
+    })
+
+    if (!classRecord) {
+      return NextResponse.json({ error: `Class '${className}' not found` }, { status: 404 })
+    }
 
     const schedules = await db.schedule.findMany({
       where: {
-        classId: classId ? parseInt(classId) : undefined,
-        selectedWeekday: weekday ? parseInt(weekday) : undefined
+        classId: classRecord.id,
+        ...(weekday ? { selectedWeekday: parseInt(weekday) } : {})
       },
       orderBy: {
         createdAt: 'desc'
       }
     })
+
+    if (schedules.length === 0) {
+      captureError(new Error('No schedules found for classId ' + classRecord.id), {
+        location: 'api/schedules',
+        type: 'fetch-schedules'
+      })
+      return NextResponse.json({ error: 'No schedules found' }, { status: 404 })
+    }
 
     return NextResponse.json(schedules)
   } catch (error) {

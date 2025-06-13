@@ -4,7 +4,7 @@ import { captureError } from '@/lib/sentry'
 
 
 /**
- * Retrieves all schedule time records from the database, ordered by ascending start time.
+ * Handles HTTP GET requests to retrieve all schedule time records, ordered by start time.
  *
  * @returns A JSON response containing the list of schedule times, or an error message with HTTP status 500 if retrieval fails.
  */
@@ -15,6 +15,13 @@ export async function GET() {
         startTime: 'asc'
       }
     })
+
+    if (scheduleTimes.length === 0) {
+      console.log('No schedule times found')
+    } else {
+      console.log('Schedule times fetched successfully')
+    }
+
     return NextResponse.json(scheduleTimes)
   } catch (error) {
     captureError(error, {

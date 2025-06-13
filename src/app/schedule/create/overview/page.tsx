@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useCachedData } from '@/hooks/use-cached-data';
@@ -18,8 +18,11 @@ import {
 import { Button } from "@/components/ui/button"
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { ScheduleOverview } from '@/components/schedule-overview'
+import { Spinner } from '@/components/ui/spinner'
+import { generatePdf, generateExcel, generateSchedulePDF } from '@/lib/export-utils';
 
-import type {  ScheduleResponse } from '@/types/types'
+import type { ScheduleResponse, ScheduleTime, BreakTime } from '@/types/types'
 
 const GROUP_COLORS = [
   'bg-yellow-200', // Gruppe 1
@@ -36,97 +39,52 @@ const DARK_GROUP_COLORS = [
 ];
 
 /**
- * Displays a centered loading spinner and a localized loading message.
+ * Renders a centered loading spinner with a localized loading message.
  */
 function LoadingScreen() {
     const { t } = useTranslation()
     return (
-        <div className="min-h-[50vh] flex flex-col items-center justify-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+            <Spinner size="lg" />
             <p className="text-lg text-muted-foreground">{t('schedule.loading')}</p>
         </div>
     )
 }
 
 /**
- * Renders the class schedule overview page, allowing users to view group assignments, teacher schedules, rotation planning, and export the schedule in multiple formats.
+ * Displays the class schedule overview page, enabling users to review group and teacher assignments, manage teacher rotation planning, and export the schedule in PDF or Excel formats.
  *
- * Fetches and displays group and teacher assignments, rotation turns, class leadership information, and additional schedule details for a selected class. Provides actions to save teacher rotations and export the schedule as PDF and Excel files, filtered by the selected weekday. Handles loading and error states, and manages navigation after user actions.
+ * Fetches and presents schedule data for a selected class, including group assignments, rotation turns, class leadership, and additional details. Provides actions to save teacher rotations and export the schedule, handling loading and error states throughout the workflow.
  *
- * @returns The React UI for managing, viewing, and exporting the class schedule overview.
+ * @returns The React component for managing, viewing, and exporting the class schedule overview.
  */
 export default function OverviewPage() {
-
   const searchParams = useSearchParams();
   const classId = searchParams.get('class');
-  const {  isLoading: isLoadingCachedData } = useCachedData();
+  const { isLoading: isLoadingCachedData } = useCachedData();
   const router = useRouter();
 
   const {
     groups,
     amAssignments,
     pmAssignments,
-
+    scheduleTimes,
+    breakTimes,
     turns,
+    classHead,
+    classLead,
+    additionalInfo,
+    weekday,
     loading: overviewLoading,
     error: overviewError
   } = useScheduleOverview(classId);
 
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showPdfDialog, setShowPdfDialog] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [, setGeneratingSchedulePDF] = useState(false);
   const [, setGeneratingExcel] = useState(false);
-  const [additionalInfo, setAdditionalInfo] = useState<string>('');
-  const [weekday, setWeekday] = useState<number>();
-  const [classHead, setClassHead] = useState<string>('');
-  const [classLead, setClassLead] = useState<string>('');
-
-  useEffect(() => {
-    if (!classId) {
-      setError('Class ID is required');
-      setLoading(false);
-      return;
-    }
-    void fetchAll();
-  }, [classId]);
-
-  const fetchAll = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      // Fetch rotation/turn schedule
-      const schedulesRes = await fetch(`/api/schedules?classId=${classId}`);
-      if (!schedulesRes.ok) throw new Error('Failed to fetch rotation schedule');
-      const schedules = await schedulesRes.json() as ScheduleResponse[];
-      const latestSchedule = schedules[0];
-      setAdditionalInfo(latestSchedule?.additionalInfo ?? '');
-      setWeekday(latestSchedule?.selectedWeekday ?? 6);
-      // Fetch class data
-      const classRes = await fetch(`/api/classes/get-by-name?name=${classId}`);
-      
-      if (!classRes.ok) throw new Error('Failed to fetch class data');
-      const classData = await classRes.json() as { classHead: { firstName: string, lastName: string } | null; classLead: { firstName: string, lastName: string } | null };
-      console.log(classData);
-      setClassHead(classData.classHead ? `${classData.classHead.firstName} ${classData.classHead.lastName}` : '—');
-      setClassLead(classData.classLead ? `${classData.classLead.firstName} ${classData.classLead.lastName}` : '—');
-    } catch (err) {
-      console.error('Error fetching overview data:', err);
-      captureFrontendError(err, {
-        location: 'schedule/create/overview',
-        type: 'fetch-data',
-        extra: {
-          classId
-        }
-      });
-      const errMsg = err instanceof Error ? err.message : 'Failed to load overview data';
-      setError(errMsg);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   /**
    * Saves the teacher rotation schedule for AM and PM periods to the backend and displays the PDF generation dialog upon success.
@@ -199,31 +157,15 @@ export default function OverviewPage() {
   }
 
   /**
-   * Generates and downloads an Excel file containing the class schedule and grades for the selected class and weekday.
+   * Exports the class schedule and grades as an Excel file for the selected class and weekday.
    *
-   * The exported file is named with the class name, localized weekday, and current date.
-   *
-   * @remark If the export fails, an error is logged to the console and no file is downloaded.
+   * @remark If the export fails, the error is logged to the console and no file is downloaded.
    */
   async function handleGenerateExcel() {
+    if (!classId) return;
     setGeneratingExcel(true);
     try {
-      const export_response = await fetch(`/api/export/excel?className=${classId}&selectedWeekday=${weekday}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      const today = new Date().toLocaleDateString('de-DE');
-      if (!export_response.ok) throw new Error('Failed to export Excel');
-      const blob = await export_response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${classId} - ${getWeekday()} Notenliste - ${today}.xlsm`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
+      await generateExcel(classId, weekday ?? 0);
     } catch (err) {
       console.error('Error generating Excel:', err);
     } finally {
@@ -232,31 +174,18 @@ export default function OverviewPage() {
   }
 
 
+
   /**
-   * Generates and downloads a schedule PDF for the selected class and weekday.
+   * Generates and downloads a schedule PDF for the current class and weekday.
    *
-   * Initiates a POST request to the schedule export API, then downloads the resulting PDF file with a localized filename. Displays an error message if the export fails.
+   * Displays an error message if PDF generation fails.
    */
+
   async function handleGenerateSchedulePDF() {
+    if (!classId) return;
     setGeneratingSchedulePDF(true);
     try {
-      const export_response = await fetch(`/api/export/schedule-dates?className=${classId}&selectedWeekday=${weekday}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      if (!export_response.ok) throw new Error('Failed to export PDF');
-
-      const today = new Date().toLocaleDateString('de-DE');
-      const blob = await export_response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${classId} - TURNUSTAGE ${getWeekday()} - ${today}-.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      await generateSchedulePDF(classId, weekday ?? 0);
     } catch (err) {
       console.error('Error generating PDF:', err);
       setError('Failed to generate PDF.');
@@ -268,66 +197,37 @@ export default function OverviewPage() {
   /**
    * Generates and downloads a PDF export of the class schedule, then sequentially triggers downloads of the schedule PDF and Excel exports for the selected class and weekday.
    *
-   * @remark The PDF filename includes the class name, selected weekday, and current date in German locale. The export dialog remains open after download until explicitly closed.
+   * Closes the export dialog and navigates to the home page after successful exports.
    *
-   * @throws {Error} If the schedule export request fails.
+   * @remark Does nothing if {@link classId} is missing.
    */
   async function handleGeneratePdf() {
+    if (!classId) return;
     setGeneratingPdf(true);
     try {
-      const export_response = await fetch(`/api/export?className=${classId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      if (!export_response.ok) {
-        const error = new Error('Failed to export schedule');
-        captureError(error, {
-          location: 'schedule/create/overview',
-          type: 'export-schedule'
-        })
-        throw new Error('Failed to export schedule');
-      }
-
-      // Handle PDF download
-      const today = new Date().toLocaleDateString('de-DE');
-      const blob = await export_response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${classId} - ${getWeekday()} Wechselplan - ${today}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
+      await generatePdf(classId, weekday ?? 0);     
       // Only close the dialog after successful download
-      setShowPdfDialog(true);
       await handleGenerateSchedulePDF();
       await handleGenerateExcel();
+      setShowPdfDialog(false);
+      router.push('/');
     } catch (err) {
       console.error('Error generating PDF:', err);
-      captureFrontendError(err, {
-        location: 'schedule/create/overview',
-        type: 'generate-pdf'
-      });
       setError('Failed to generate PDF.');
     } finally {
       setGeneratingPdf(false);
     }
   }
 
-  
-
   /**
-   * Closes the PDF generation dialog and redirects the user to the home page.
+   * Closes the PDF export dialog and navigates to the home page without generating a PDF.
    */
   function handleSkipPdf() {
     setShowPdfDialog(false);
     router.push('/');
   }
 
-  if (loading || isLoadingCachedData || overviewLoading) return <LoadingScreen />;
+  if (isLoadingCachedData || overviewLoading) return <LoadingScreen />;
   if (error ?? overviewError) return <div className="p-8 text-center text-red-500">{error ?? overviewError}</div>;
 
   /**
@@ -359,166 +259,21 @@ export default function OverviewPage() {
     .filter(a => a.teacherId !== 0)
     .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx);
 
-  /**
-   * Retrieves the start date, end date, and number of days for a given turn key.
-   *
-   * @param turnKey - The key identifying the turn to extract information from.
-   * @returns An object containing the start date, end date, and total number of days for the specified turn. If no weeks are found, returns empty strings and zero days.
-   */
-  function getTurnusInfo(turnKey: string) {
-    const entry = turns[turnKey] as { weeks?: { date: string }[] };
-    if (!entry?.weeks?.length) return { start: '', end: '', days: 0 };
-    const start = entry.weeks[0]?.date ?? '';
-    const end = entry.weeks[entry.weeks.length - 1]?.date ?? '';
-    const days = entry.weeks.length;
-    return { start, end, days };
-  }
-
-  /**
-   * Returns the localized name of the selected weekday.
-   *
-   * @returns The weekday name in German, or an empty string if no weekday is selected.
-   */
-  function getWeekday() {
-    const days = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
-    return weekday === undefined ? '' : days[weekday];
-  }
-
-  /**
-   * Returns the group assigned to a teacher for a specific turn and period by rotating the group list.
-   *
-   * @param teacherIdx - Index of the teacher in the period's teacher list.
-   * @param turnIdx - Index of the turn for which to determine the group.
-   * @param period - The period ('AM' or 'PM') to select the appropriate teacher list.
-   * @returns The assigned group for the teacher and turn, or null if unavailable.
-   */
-  function getGroupForTeacherAndTurn(teacherIdx: number, turnIdx: number, period: 'AM' | 'PM') {
-    const groupList = groups;
-    const teacherList = period === 'AM' ? uniqueAmTeachers : uniquePmTeachers;
-    if (!groupList[0] || !teacherList[teacherIdx]) return null;
-    const rotatedGroups = rotateArray(groupList, turnIdx);
-    const group = rotatedGroups[teacherIdx];
-    return group;
-  }
-
-  // Find the max number of students in any group for row rendering
-  const maxStudents = Math.max(...groups.map(g => g.students.length), 0);
 
   return (
-    <div className="container mx-auto p-4">
-      {/* Groups Table */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Gruppenübersicht</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="min-w-full border text-sm">
-              <thead>
-                <tr>
-                  {groups.map((group, idx) => (
-                    <th
-                      key={group.id}
-                      className={`border p-2 text-center font-bold text-black ${GROUP_COLORS[idx % GROUP_COLORS.length]} ${DARK_GROUP_COLORS[idx % DARK_GROUP_COLORS.length]}`}
-                    >
-                      Gruppe {group.id}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {[...Array(maxStudents)].map((_, rowIdx) => (
-                  <tr key={rowIdx}>
-                    {groups.map((group) => (
-                      <td key={group.id} className="border p-2 text-center">
-                        {group.students[rowIdx]
-                          ? `${group.students[rowIdx].lastName} ${group.students[rowIdx].firstName}`
-                          : ''}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Klassenleitung</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <p className="text-sm text-gray-500">Klassenvorstand</p>
-              <p className="font-semibold text-lg">{classHead}</p>
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm text-gray-500">Klassenleitung</p>
-              <p className="font-semibold text-lg">{classLead}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      {/* AM and PM Schedule Tables */}
-      {[{ period: 'AM', teachers: uniqueAmTeachers }, { period: 'PM', teachers: uniquePmTeachers }].map(({ period, teachers }) => (
-        <Card className="mb-8" key={period}>
-          <CardHeader>
-            <CardTitle>{getWeekday()} ({period})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="min-w-full border text-sm">
-                <thead>
-                  <tr>
-                    <th className="border p-2">Lehrer/in</th>
-                    <th className="border p-2">Werkstätte</th>
-                    <th className="border p-2">Lehrinhalt</th>
-                    <th className="border p-2">Raum</th>
-                    {Object.keys(turns).map((turn, turnIdx) => (
-                      <th key={turn} className="border p-2">
-                        <div>Turnus {turnIdx + 1}</div>
-                        <div className="text-xs text-gray-600">{getTurnusInfo(turn).start} - {getTurnusInfo(turn).end}</div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {teachers.map((assignment, teacherIdx) => (
-                    <tr key={assignment.teacherId}>
-                      <td className="border p-2 font-medium">{assignment.teacherLastName}, {assignment.teacherFirstName}</td>
-                      <td className="border p-2">{assignment.subject ?? ''}</td>
-                      <td className="border p-2">{assignment.learningContent ?? ''}</td>
-                      <td className="border p-2">{assignment.room ?? ''}</td>
-                      {Object.keys(turns).map((turn, turnIdx) => {
-                        const group = getGroupForTeacherAndTurn(teacherIdx, turnIdx, period as 'AM' | 'PM');
-                        return (
-                          <td
-                            key={turn}
-                            className={`border p-2 text-center font-bold text-black ${group ? GROUP_COLORS[groups.findIndex(g => g.id === group.id) % GROUP_COLORS.length] : ''} ${group ? DARK_GROUP_COLORS[groups.findIndex(g => g.id === group.id) % DARK_GROUP_COLORS.length] : ''}`}
-                          >
-                            {group ? group.id : ''}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Zusätzliche Informationen</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p>{additionalInfo}</p>
-        </CardContent>
-      </Card>
+    <>
+      <ScheduleOverview
+        groups={groups}
+        amAssignments={amAssignments}
+        pmAssignments={pmAssignments}
+        scheduleTimes={scheduleTimes}
+        breakTimes={breakTimes}
+        turns={turns}
+        classHead={classHead}
+        classLead={classLead}
+        additionalInfo={additionalInfo}
+        weekday={weekday}
+      />
 
       {/* Custom blurred overlay for modal */}
       {showPdfDialog && (
@@ -559,6 +314,6 @@ export default function OverviewPage() {
           {saving ? 'Saving...' : 'Save & Finish'}
         </button>
       </div>
-    </div>
+    </>
   );
 }

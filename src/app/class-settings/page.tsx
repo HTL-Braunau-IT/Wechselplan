@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import type {Teacher, Class} from '@/types/types.ts'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Spinner } from '@/components/ui/spinner'
 
 const NONE_VALUE = 'none'
 
@@ -15,13 +16,13 @@ interface ErrorResponse {
 }
 
 /**
- * Displays a centered loading spinner and a localized loading message.
+ * Renders a centered loading spinner with a localized loading message.
  */
 function LoadingScreen() {
     const { t } = useTranslation()
     return (
-        <div className="min-h-[50vh] flex flex-col items-center justify-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+            <Spinner size="lg" />
             <p className="text-lg text-muted-foreground">{t('classSettings.loading')}</p>
         </div>
     )

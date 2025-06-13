@@ -76,11 +76,13 @@ export interface ScheduleTime {
 }
 
 export interface BreakTime {
-    id: string
+    id: number
     name: string
     startTime: string
     endTime: string
-    period: 'AM' | 'PM'
+    period: 'AM' | 'PM' | 'LUNCH'
+    createdAt: string
+    updatedAt: string
 }
 
 export type TurnSchedule = Record<string, unknown>

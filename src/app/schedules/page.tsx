@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Select,
@@ -12,7 +11,16 @@ import {
 } from "@/components/ui/select"
 import { useCachedData } from '@/hooks/use-cached-data'
 import { useScheduleOverview } from '@/hooks/use-schedule-overview'
-
+import { ScheduleOverview } from '@/components/schedule-overview'
+import { CheckCircle2, XCircle, AlertCircle, ChevronDown } from 'lucide-react'
+import { Spinner } from '@/components/ui/spinner'
+import { generateExcel, generatePdf, generateSchedulePDF } from '@/lib/export-utils'
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 
 interface Schedule {
   id: number
@@ -24,35 +32,90 @@ interface Schedule {
   classId: number | null
   createdAt: string
   updatedAt: string
+  additionalInfo: string | null
 }
 
 interface Class {
   id: number
   name: string
-  description: string | null
 }
 
-const GROUP_COLORS = [
-  'bg-yellow-200', // Gruppe 1
-  'bg-green-200',  // Gruppe 2
-  'bg-blue-200',   // Gruppe 3
-  'bg-red-200',    // Gruppe 4
-];
+/**
+ * Displays the schedule overview for a given class, handling loading and error states.
+ *
+ * Renders a loading spinner while fetching data, an error message if no schedule is found, or the schedule overview when data is available.
+ *
+ * @param className - The name of the class for which to display the schedule overview.
+ */
+function ClassScheduleOverview({ className }: { className: string }) {
+  const {
+    groups,
+    amAssignments,
+    pmAssignments,
+    scheduleTimes,
+    breakTimes,
+    turns,
+    classHead,
+    classLead,
+    additionalInfo,
+    weekday,
+    loading: overviewLoading,
+    error: overviewError
+  } = useScheduleOverview(className)
 
-const DARK_GROUP_COLORS = [
-  'dark:bg-yellow-900/60',
-  'dark:bg-green-900/60',
-  'dark:bg-blue-900/60',
-  'dark:bg-red-900/60',
-];
+  if (overviewLoading) {
+    return (
+      <div className="p-4 flex items-center justify-center">
+        <Spinner size="lg" />
+      </div>
+    )
+  }
+
+  if (overviewError) {
+    return (
+      <Card className="m-4 border-destructive">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-destructive flex items-center gap-2">
+            <AlertCircle className="h-5 w-5" />
+            Kein Wechselplan für Klasse {className} gefunden!
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground">
+            {overviewError === 'Class ID is required' 
+              ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
+              : overviewError === 'Failed to fetch schedule times'
+              ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
+              : overviewError}
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <ScheduleOverview
+      groups={groups}
+      amAssignments={amAssignments}
+      pmAssignments={pmAssignments}
+      scheduleTimes={scheduleTimes}
+      breakTimes={breakTimes}
+      turns={turns}
+      classHead={classHead}
+      classLead={classLead}
+      additionalInfo={additionalInfo}
+      weekday={weekday}
+    />
+  )
+}
 
 /**
- * Displays an overview of schedules and classes, allowing users to filter by class and view detailed group and teacher assignment tables.
+ * Displays an interactive overview of all class schedules, allowing users to filter by class, view detailed schedule information, and export data.
  *
- * Fetches schedule and class data, manages loading and error states, and renders group overviews and AM/PM teacher assignment tables for the selected class. Provides a dropdown to select a class and conditionally displays detailed tables when a specific class is chosen.
+ * Fetches schedule and class data, manages loading and error states, and renders schedule overviews for individual classes or all classes. Provides export options for PDF and Excel formats when a specific class with a schedule is selected. The UI includes a class selector, schedule availability indicators, and collapsible panels for each class when viewing all classes.
  */
 export default function SchedulesPage() {
-  const [, setSchedules] = useState<Schedule[]>([])
+  const [schedules, setSchedules] = useState<Schedule[]>([])
   const [classes, setClasses] = useState<Class[]>([])
   const [selectedClass, setSelectedClass] = useState<string>('all')
   const [loading, setLoading] = useState(true)
@@ -60,13 +123,22 @@ export default function SchedulesPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { isLoading: isLoadingCachedData } = useCachedData()
+  const [savingPdf, setSavingPdf] = useState(false)
+  const [savingPdfDatum, setSavingPdfDatum] = useState(false)
+  const [savingExcel, setSavingExcel] = useState(false)
+  const [expandedClass, setExpandedClass] = useState<string | null>(null)
 
   const {
     groups,
     amAssignments,
     pmAssignments,
     scheduleTimes,
+    breakTimes,
     turns,
+    classHead,
+    classLead,
+    additionalInfo,
+    weekday,
     loading: overviewLoading,
     error: overviewError
   } = useScheduleOverview(selectedClass !== 'all' ? selectedClass : null)
@@ -79,6 +151,8 @@ export default function SchedulesPage() {
     const classParam = searchParams.get('class')
     if (classParam) {
       setSelectedClass(classParam)
+    } else {
+      setSelectedClass('all')
     }
   }, [searchParams])
 
@@ -88,7 +162,7 @@ export default function SchedulesPage() {
       setError(null)
 
       // Fetch all schedules
-      const schedulesRes = await fetch('/api/schedules')
+      const schedulesRes = await fetch('/api/schedules/all')
       if (!schedulesRes.ok) throw new Error('Failed to fetch schedules')
       const schedulesData = await schedulesRes.json() as Schedule[]
       setSchedules(schedulesData)
@@ -111,56 +185,35 @@ export default function SchedulesPage() {
     router.push(`/schedules?class=${encodeURIComponent(value)}`)
   }
 
-  // Helpers from overview/page.tsx
-  function rotateArray<T>(arr: T[], n: number): T[] {
-    const rotated = [...arr];
-    for (let i = 0; i < n; i++) {
-      const temp = rotated.shift();
-      if (temp !== undefined) {
-        rotated.push(temp);
-      }
-    }
-    return rotated;
+  // Helper function to check if a class has a schedule
+  const hasSchedule = (className: string) => {
+    return schedules.some(schedule => schedule.classId !== null && classes.find(c => c.id === schedule.classId)?.name === className)
   }
 
-  const uniqueAmTeachers = amAssignments
-    .filter(a => a.teacherId !== 0)
-    .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx);
+  if (loading || isLoadingCachedData || overviewLoading) return (
+    <div className="p-8 flex items-center justify-center min-h-[200px]">
+      <Spinner size="lg" />
+    </div>
+  )
+  if (error) return <div className="p-8 text-center text-red-500">{error}</div>
 
-  const uniquePmTeachers = pmAssignments
-    .filter(a => a.teacherId !== 0)
-    .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx);
-
-  function getTurnusInfo(turnKey: string) {
-    const entry = turns[turnKey] as { weeks?: { date: string }[] };
-    if (!entry?.weeks?.length) return { start: '', end: '', days: 0 };
-    const start = entry.weeks[0]?.date ?? '';
-    const end = entry.weeks[entry.weeks.length - 1]?.date ?? '';
-    const days = entry.weeks.length;
-    return { start, end, days };
+  const handlePDFExport = async () => {
+    setSavingPdf(true)
+    await generatePdf(selectedClass, weekday ?? 0)
+    setSavingPdf(false)
   }
 
-  function getWeekday() {
-    if (scheduleTimes.length > 0) {
-      const first = scheduleTimes[0];
-      return first?.startTime ? new Date(`1970-01-01T${first.startTime}`).toLocaleDateString('de-DE', { weekday: 'long' }) : 'Montag';
-    }
-    return 'Montag';
+  const handlePDFDatumExport = async () => {
+    setSavingPdfDatum(true)
+    await generateSchedulePDF(selectedClass, weekday ?? 0)
+    setSavingPdfDatum(false)
   }
 
-  function getGroupForTeacherAndTurn(teacherIdx: number, turnIdx: number, period: 'AM' | 'PM') {
-    const groupList = groups;
-    const teacherList = period === 'AM' ? uniqueAmTeachers : uniquePmTeachers;
-    if (!groupList[0] || !teacherList[teacherIdx]) return null;
-    const rotatedGroups = rotateArray(groupList, turnIdx);
-    const group = rotatedGroups[teacherIdx];
-    return group;
+  const handleExcelExport = async () => {
+    setSavingExcel(true)
+    await generateExcel(selectedClass, weekday ?? 0)
+    setSavingExcel(false)
   }
-
-  const maxStudents = Math.max(...groups.map(g => g.students.length), 0);
-
-  if (loading || isLoadingCachedData || overviewLoading) return <div className="p-8 text-center">Loading...</div>
-  if (error ?? overviewError) return <div className="p-8 text-center text-red-500">{error ?? overviewError}</div>
 
   return (
     <div className="container mx-auto p-4">
@@ -174,107 +227,120 @@ export default function SchedulesPage() {
             <SelectContent>
               <SelectItem value="all">All Classes</SelectItem>
               {classes.map((cls) => (
-                <SelectItem key={cls.id} value={cls.name}>
-                  {cls.name}
+                <SelectItem key={cls.id} value={cls.name} className="flex items-center justify-between">
+                  <span>{cls.name}</span>
+                  {hasSchedule(cls.name) ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500 ml-2" />
+                  ) : (
+                    <XCircle className="h-4 w-4 text-red-500 ml-2" />
+                  )}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-        </div>
-        {/* Only show detailed overview if a class is selected */}
-        {selectedClass !== 'all' && (
-          <>
-            {/* Groups Table */}
-            <Card className="mb-8">
-              <CardHeader>
-                <CardTitle>Gruppenübersicht</CardTitle>
+          
+          {selectedClass !== 'all' && hasSchedule(selectedClass) && (
+            <div className="flex items-center gap-2 mt-4">
+              <button
+                className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
+                onClick={handlePDFExport}
+                disabled={savingPdf}
+              >
+                {savingPdf ? 'Exporting PDF...' : 'PDF Export'}
+              </button>
+              <button
+                className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
+                onClick={handlePDFDatumExport}
+                disabled={savingPdfDatum}
+              >
+                {savingPdfDatum ? 'Exporting PDF Datum ...' : 'PDF Datum Export'}
+              </button>
+
+              <button
+                className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
+                onClick={handleExcelExport}
+                disabled={savingExcel}
+              >
+                {savingExcel ? 'Exporting Excel ...' : 'Export für Notenliste'}
+              </button>
+            </div>
+          )}
+
+          {selectedClass !== 'all' && overviewError && (
+            <Card className="mt-4 border-destructive">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-destructive flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5" />
+                  Kein Wechselplan für Klasse {selectedClass} gefunden!
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full border text-sm">
-                    <thead>
-                      <tr>
-                        {groups.map((group, idx) => (
-                          <th
-                            key={group.id}
-                            className={`border p-2 text-center font-bold text-black ${GROUP_COLORS[idx % GROUP_COLORS.length]} ${DARK_GROUP_COLORS[idx % DARK_GROUP_COLORS.length]}`}
-                          >
-                            Gruppe {group.id}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[...Array(maxStudents)].map((_, rowIdx) => (
-                        <tr key={rowIdx}>
-                          {groups.map((group) => (
-                            <td key={group.id} className="border p-2 text-center">
-                              {group.students[rowIdx]
-                                ? `${group.students[rowIdx].lastName} ${group.students[rowIdx].firstName}`
-                                : ''}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <p className="text-muted-foreground">
+                  {overviewError === 'Class ID is required' 
+                    ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
+                    : overviewError === 'Failed to fetch schedule times'
+                    ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
+                    : overviewError}
+                </p>
               </CardContent>
             </Card>
+          )}
+        </div>
 
-            {/* AM and PM Schedule Tables */}
-            {[{ period: 'AM', teachers: uniqueAmTeachers }, { period: 'PM', teachers: uniquePmTeachers }].map(({ period, teachers }) => (
-              <Card className="mb-8" key={period}>
-                <CardHeader>
-                  <CardTitle>{getWeekday()} ({period})</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full border text-sm">
-                      <thead>
-                        <tr>
-                          <th className="border p-2">Lehrer/in</th>
-                          <th className="border p-2">Werkstätte</th>
-                          <th className="border p-2">Lehrinhalt</th>
-                          <th className="border p-2">Raum</th>
-                          {Object.keys(turns).map((turn, turnIdx) => (
-                            <th key={turn} className="border p-2">
-                              <div>Turnus {turnIdx + 1}</div>
-                              <div className="text-xs text-gray-600">{getTurnusInfo(turn).start} - {getTurnusInfo(turn).end}</div>
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {teachers.map((assignment, teacherIdx) => (
-                          <tr key={assignment.teacherId}>
-                            <td className="border p-2 font-medium">{assignment.teacherLastName}, {assignment.teacherFirstName}</td>
-                            <td className="border p-2">{assignment.subject ?? ''}</td>
-                            <td className="border p-2">{assignment.learningContent ?? ''}</td>
-                            <td className="border p-2">{assignment.room ?? ''}</td>
-                            {Object.keys(turns).map((turn, turnIdx) => {
-                              const group = getGroupForTeacherAndTurn(teacherIdx, turnIdx, period as 'AM' | 'PM');
-                              return (
-                                <td
-                                  key={turn}
-                                  className={`border p-2 text-center font-bold text-black ${group ? GROUP_COLORS[groups.findIndex(g => g.id === group.id) % GROUP_COLORS.length] : ''} ${group ? DARK_GROUP_COLORS[groups.findIndex(g => g.id === group.id) % DARK_GROUP_COLORS.length] : ''}`}
-                                >
-                                  {group ? group.id : ''}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-            <div className="flex justify-end mt-8">
-             
-            </div>
-          </>
+        {/* Show all schedules when "All Classes" is selected */}
+        {selectedClass === 'all' && (
+          <div className="space-y-6 mt-6">
+            {classes.map((cls) => {
+              const hasScheduleForClass = hasSchedule(cls.name);
+              const isExpanded = expandedClass === cls.name;
+              return (
+                <Collapsible 
+                  key={cls.id} 
+                  className="border rounded-lg"
+                  open={isExpanded}
+                  onOpenChange={(open) => setExpandedClass(open ? cls.name : null)}
+                >
+                  <CollapsibleTrigger className="w-full p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xl font-semibold">{cls.name}</h3>
+                      {hasScheduleForClass ? (
+                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                      ) : (
+                        <XCircle className="h-5 w-5 text-red-500" />
+                      )}
+                    </div>
+                    <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    {hasScheduleForClass ? (
+                      <div className="p-4 pt-0">
+                        <ClassScheduleOverview className={cls.name} />
+                      </div>
+                    ) : (
+                      <Card className="m-4 border-destructive">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-destructive flex items-center gap-2">
+                            <AlertCircle className="h-5 w-5" />
+                            Kein Wechselplan für Klasse {cls.name} gefunden!
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-muted-foreground">
+                            Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Show single schedule when a specific class is selected */}
+        {selectedClass !== 'all' && hasSchedule(selectedClass) && !overviewError && (
+          <ClassScheduleOverview className={selectedClass} />
         )}
       </div>
     </div>

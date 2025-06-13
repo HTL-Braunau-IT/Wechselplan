@@ -3,12 +3,12 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 /**
- * Initializes the database with default roles, school holidays, rooms, subjects, and learning content.
+ * Seeds the database with default roles, school holidays, rooms, subjects, learning content, break times, and schedule times.
  *
- * Performs idempotent upsert operations for each data category to ensure records are created or updated without duplication.
+ * Performs idempotent upsert operations for each data category to ensure that records are created if absent or updated as needed, preventing duplication.
  *
  * @remark
- * Existing school holidays are updated with new start and end dates if their names match; other entities are only created if absent.
+ * Existing school holidays are updated with new start and end dates if a holiday with the same name exists; all other entities are only created if they do not already exist.
  */
 async function main() {
   // Create default roles
@@ -222,6 +222,196 @@ async function main() {
   }
 
   console.log('Learning content created successfully')
+
+  // Create break times
+  const breakTimes = [
+    {
+      name: 'Vormittagspause 1',
+      startTime: '08:45',
+      endTime: '09:00',
+      period: 'AM'
+    },
+    {
+      name: 'Vormittagspause 2',
+      startTime: '09:45',
+      endTime: '09:55',
+      period: 'AM'
+    },
+    {
+      name: 'Vormittagspause 3',
+      startTime: '10:45',
+      endTime: '10:55',
+      period: 'AM'
+    },
+    {
+      name: 'Mittagspause 1',
+      startTime: '11:25',
+      endTime: '12:15',
+      period: 'LUNCH'
+    },
+    {
+      name: 'Mittagspause 2',
+      startTime: '12:15',
+      endTime: '13:05',
+      period: 'LUNCH'
+    },
+    {
+      name: 'Mittagspause 3',
+      startTime: '13:05',
+      endTime: '13:55',
+      period: 'LUNCH'
+    },
+    {
+      name: 'Nachmittagspause 1',
+      startTime: '14:00',
+      endTime: '14:10',
+      period: 'PM'
+    },
+    {
+      name: 'Nachmittagspause 2',
+      startTime: '14:50',
+      endTime: '15:00',
+      period: 'PM'
+    }
+  ]
+
+  for (const breakTime of breakTimes) {
+    await prisma.breakTime.upsert({
+      where: {
+        startTime_endTime_period: {
+          startTime: breakTime.startTime,
+          endTime: breakTime.endTime,
+          period: breakTime.period
+        }
+      },
+      update: {},
+      create: breakTime
+    })
+  }
+
+  console.log('Break times created successfully')
+
+  // Create schedule times
+  const scheduleTimes = [
+    {
+      startTime: '07:50',
+      endTime: '10:25',
+      hours: 3.5,
+      period: 'AM'
+    },
+    {
+      startTime: '07:50',
+      endTime: '11:25',
+      hours: 5,
+      period: 'AM'
+    },
+    {
+      startTime: '07:50',
+      endTime: '12:15',
+      hours: 6,
+      period: 'AM'
+    },
+    {
+      startTime: '08:40',
+      endTime: '11:25',
+      hours: 4,
+      period: 'AM'
+    },
+    {
+      startTime: '08:45',
+      endTime: '12:15',
+      hours: 5,
+      period: 'AM'
+    },
+    {
+      startTime: '09:40',
+      endTime: '12:15',
+      hours: 3,
+      period: 'AM'
+    },
+    {
+      startTime: '09:40',
+      endTime: '13:05',
+      hours: 4,
+      period: 'AM'
+    },
+    {
+      startTime: '10:45',
+      endTime: '12:30',
+      hours: 2,
+      period: 'AM'
+    },
+    {
+      startTime: '10:45',
+      endTime: '13:15',
+      hours: 3,
+      period: 'AM'
+    },
+    {
+      startTime: '11:25',
+      endTime: '15:35',
+      hours: 4,
+      period: 'PM'
+    },
+    {
+      startTime: '11:25',
+      endTime: '16:35',
+      hours: 5,
+      period: 'PM'
+    },
+    {
+      startTime: '12:15',
+      endTime: '15:35',
+      hours: 2,
+      period: 'PM'
+    },
+    {
+      startTime: '12:15',
+      endTime: '15:45',
+      hours: 3,
+      period: 'PM'
+    },
+    {
+      startTime: '12:15',
+      endTime: '16:35',
+      hours: 5,
+      period: 'PM'
+    },
+    {
+      startTime: '13:05',
+      endTime: '15:45',
+      hours: 3,
+      period: 'PM'
+    },
+    {
+      startTime: '13:05',
+      endTime: '16:35',
+      hours: 4,
+      period: 'PM'
+    },
+    {
+      startTime: '14:25',
+      endTime: '16:55',
+      hours: 2,
+      period: 'PM'
+    }
+  ]
+
+  for (const scheduleTime of scheduleTimes) {
+    await prisma.scheduleTime.upsert({
+      where: {
+        startTime_endTime_period: {
+          startTime: scheduleTime.startTime,
+          endTime: scheduleTime.endTime,
+          period: scheduleTime.period
+        }
+      },
+      update: {},
+      create: scheduleTime
+    })
+  }
+
+  console.log('Schedule times created successfully')
 }
 
 main()

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { captureFrontendError } from '@/lib/frontend-error'
+import { Spinner } from '@/components/ui/spinner'
 
 interface Student {
   id: number
@@ -20,6 +21,11 @@ interface Class {
   description: string | null
 }
 
+/**
+ * Displays an overview of students grouped by their classes and groups.
+ *
+ * Fetches student and class data from the backend, handles loading and error states, and renders students organized by class and group. Students are sorted alphabetically within each group, and classes are sorted alphabetically with unassigned students shown last.
+ */
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [classes, setClasses] = useState<Class[]>([])
@@ -65,7 +71,11 @@ export default function StudentsPage() {
     return classData?.name ?? 'Unknown Class'
   }
 
-  if (loading) return <div className="p-8 text-center">Loading...</div>
+  if (loading) return (
+    <div className="p-8 flex items-center justify-center min-h-[200px]">
+      <Spinner size="lg" />
+    </div>
+  )
   if (error) return <div className="p-8 text-center text-red-500">{error}</div>
 
   // Group students by class and then by group

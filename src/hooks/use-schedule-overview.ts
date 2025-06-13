@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { Student, Group, TeacherAssignmentResponse, TeacherAssignmentsResponse, ScheduleTime, BreakTime, TurnSchedule, ScheduleResponse } from '@/types/types'
+import { captureFrontendError } from '@/lib/frontend-error'
 
 interface UseScheduleOverviewResult {
   groups: Group[]
@@ -8,17 +9,21 @@ interface UseScheduleOverviewResult {
   scheduleTimes: ScheduleTime[]
   breakTimes: BreakTime[]
   turns: TurnSchedule
+  classHead: string
+  classLead: string
+  additionalInfo: string
+  weekday: number
   loading: boolean
   error: string | null
 }
 
 /**
- * React hook that retrieves and manages an overview of scheduling data for a given class.
+ * React hook that fetches and aggregates scheduling data for a specified class.
  *
- * Fetches and aggregates student groups, teacher assignments, schedule times, break times, and rotation schedules for the specified class ID. Returns the collected data along with loading and error states.
+ * Retrieves student groups, teacher assignments, schedule times, break times, rotation schedules, class head and lead names, additional schedule information, and the selected weekday for the given class ID. Returns the collected data along with loading and error states.
  *
- * @param classId - The identifier of the class to fetch scheduling data for. If null or falsy, an error is set and no data is fetched.
- * @returns An object containing groups, teacher assignments, schedule times, break times, rotation schedule, loading status, and error message.
+ * @param classId - The identifier of the class to retrieve scheduling data for. If null or falsy, sets an error and does not fetch data.
+ * @returns An object containing groups, teacher assignments, schedule times, break times, rotation schedule, class head and lead names, additional info, selected weekday, loading status, and error message.
  */
 export function useScheduleOverview(classId: string | null): UseScheduleOverviewResult {
   const [groups, setGroups] = useState<Group[]>([])
@@ -27,6 +32,10 @@ export function useScheduleOverview(classId: string | null): UseScheduleOverview
   const [scheduleTimes, setScheduleTimes] = useState<ScheduleTime[]>([])
   const [breakTimes, setBreakTimes] = useState<BreakTime[]>([])
   const [turns, setTurns] = useState<TurnSchedule>({})
+  const [classHead, setClassHead] = useState<string>('—')
+  const [classLead, setClassLead] = useState<string>('—')
+  const [additionalInfo, setAdditionalInfo] = useState<string>('')
+  const [weekday, setWeekday] = useState<number>(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -66,21 +75,38 @@ export function useScheduleOverview(classId: string | null): UseScheduleOverview
         setPmAssignments(teacherData.pmAssignments)
 
         // Fetch selected schedule times
-        const timesRes = await fetch(`/api/schedules/times?class=${classId}`)
+        const timesRes = await fetch(`/api/schedule/times?className=${classId}`)
         if (!timesRes.ok) throw new Error('Failed to fetch schedule times')
-        const timesData: { scheduleTimes?: ScheduleTime[]; breakTimes?: BreakTime[] } = await timesRes.json()
-        setScheduleTimes(timesData.scheduleTimes ?? [])
-        setBreakTimes(timesData.breakTimes ?? [])
+        const timesData: { times: { scheduleTimes: ScheduleTime[]; breakTimes: BreakTime[] } } = await timesRes.json()
+        setScheduleTimes(timesData.times.scheduleTimes)
+        setBreakTimes(timesData.times.breakTimes)
 
         // Fetch rotation/turn schedule
         const schedulesRes = await fetch(`/api/schedules?classId=${classId}`)
         if (!schedulesRes.ok) throw new Error('Failed to fetch rotation schedule')
         const schedules = await schedulesRes.json() as ScheduleResponse[]
         const latestSchedule = schedules[0]
+        setAdditionalInfo(latestSchedule?.additionalInfo ?? '')
+        setWeekday(latestSchedule?.selectedWeekday ?? 6)
         const scheduleData = latestSchedule?.scheduleData ?? {}
         setTurns(scheduleData as TurnSchedule)
+
+        // Fetch class data
+        const classRes = await fetch(`/api/classes/get-by-name?name=${classId}`)
+        if (!classRes.ok) throw new Error('Failed to fetch class data')
+        const classData = await classRes.json() as { classHead: { firstName: string, lastName: string } | null; classLead: { firstName: string, lastName: string } | null }
+        setClassHead(classData.classHead ? `${classData.classHead.firstName} ${classData.classHead.lastName}` : '—')
+        setClassLead(classData.classLead ? `${classData.classLead.firstName} ${classData.classLead.lastName}` : '—')
+
       } catch (err) {
         console.error('Error fetching overview data:', err)
+        captureFrontendError(err, {
+          location: 'schedule/create/overview',
+          type: 'fetch-data',
+          extra: {
+            classId
+          }
+        })
         const errMsg = err instanceof Error ? err.message : 'Failed to load overview data'
         setError(errMsg)
       } finally {
@@ -98,6 +124,10 @@ export function useScheduleOverview(classId: string | null): UseScheduleOverview
     scheduleTimes,
     breakTimes,
     turns,
+    classHead,
+    classLead,
+    additionalInfo,
+    weekday,
     loading,
     error
   }
