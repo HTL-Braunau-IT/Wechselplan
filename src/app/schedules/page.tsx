@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select"
 import { useCachedData } from '@/hooks/use-cached-data'
 import { useScheduleOverview } from '@/hooks/use-schedule-overview'
+import { CheckCircle2, XCircle } from 'lucide-react'
 
 
 interface Schedule {
@@ -24,6 +25,7 @@ interface Schedule {
   classId: number | null
   createdAt: string
   updatedAt: string
+  additionalInfo: string | null
 }
 
 interface Class {
@@ -52,11 +54,12 @@ const DARK_GROUP_COLORS = [
  * Fetches schedule and class data, manages loading and error states, and renders group overviews and AM/PM teacher assignment tables for the selected class. Provides a dropdown to select a class and conditionally displays detailed tables when a specific class is chosen.
  */
 export default function SchedulesPage() {
-  const [, setSchedules] = useState<Schedule[]>([])
+  const [schedules, setSchedules] = useState<Schedule[]>([])
   const [classes, setClasses] = useState<Class[]>([])
   const [selectedClass, setSelectedClass] = useState<string>('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [classDetails, setClassDetails] = useState<{ classHead: string | null; classLead: string | null } | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   const { isLoading: isLoadingCachedData } = useCachedData()
@@ -79,8 +82,18 @@ export default function SchedulesPage() {
     const classParam = searchParams.get('class')
     if (classParam) {
       setSelectedClass(classParam)
+    } else {
+      setSelectedClass('all')
     }
   }, [searchParams])
+
+  useEffect(() => {
+    if (selectedClass !== 'all') {
+      void fetchClassDetails(selectedClass)
+    } else {
+      setClassDetails(null)
+    }
+  }, [selectedClass])
 
   const fetchData = async () => {
     try {
@@ -103,6 +116,20 @@ export default function SchedulesPage() {
       setError(errMsg)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchClassDetails = async (className: string) => {
+    try {
+      const response = await fetch(`/api/classes/get-by-name?name=${className}`)
+      if (!response.ok) throw new Error('Failed to fetch class details')
+      const data = await response.json()
+      setClassDetails({
+        classHead: data.classHead ? `${data.classHead.firstName} ${data.classHead.lastName}` : null,
+        classLead: data.classLead ? `${data.classLead.firstName} ${data.classLead.lastName}` : null
+      })
+    } catch (err) {
+      console.error('Error fetching class details:', err)
     }
   }
 
@@ -159,8 +186,14 @@ export default function SchedulesPage() {
 
   const maxStudents = Math.max(...groups.map(g => g.students.length), 0);
 
+  // Helper function to check if a class has a schedule
+  const hasSchedule = (className: string) => {
+    return schedules.some(schedule => schedule.classId !== null && classes.find(c => c.id === schedule.classId)?.name === className)
+  }
+
   if (loading || isLoadingCachedData || overviewLoading) return <div className="p-8 text-center">Loading...</div>
-  if (error ?? overviewError) return <div className="p-8 text-center text-red-500">{error ?? overviewError}</div>
+  if (error) return <div className="p-8 text-center text-red-500">{error}</div>
+  if (selectedClass !== 'all' && overviewError) return <div className="p-8 text-center text-red-500">{overviewError}</div>
 
   return (
     <div className="container mx-auto p-4">
@@ -174,8 +207,13 @@ export default function SchedulesPage() {
             <SelectContent>
               <SelectItem value="all">All Classes</SelectItem>
               {classes.map((cls) => (
-                <SelectItem key={cls.id} value={cls.name}>
-                  {cls.name}
+                <SelectItem key={cls.id} value={cls.name} className="flex items-center justify-between">
+                  <span>{cls.name}</span>
+                  {hasSchedule(cls.name) ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500 ml-2" />
+                  ) : (
+                    <XCircle className="h-4 w-4 text-red-500 ml-2" />
+                  )}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -219,6 +257,35 @@ export default function SchedulesPage() {
                     </tbody>
                   </table>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle>Klassenvorstand und Klassenleitung</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-500">Klassenvorstand</p>
+                    <p className="font-semibold text-lg">{classDetails?.classHead ?? '—'}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-500">Klassenleitung</p>
+                    <p className="font-semibold text-lg">{classDetails?.classLead ?? '—'}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle>Zusätzliche Informationen</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p>
+                  {schedules.find(s => s.classId !== null && classes.find(c => c.id === s.classId)?.name === selectedClass)?.additionalInfo ?? 'Keine zusätzlichen Informationen verfügbar'}
+                </p>
               </CardContent>
             </Card>
 
