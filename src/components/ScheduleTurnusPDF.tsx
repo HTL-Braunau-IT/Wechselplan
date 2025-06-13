@@ -33,12 +33,29 @@ const styles = StyleSheet.create({
   small: { fontSize: 8 },
 });
 
+/**
+ * Returns the maximum number of weeks among all turnus entries in the schedule data.
+ *
+ * @param turnusData - The schedule data mapping turnus names to their respective data.
+ * @returns The highest count of weeks found in any turnus, or 0 if no data is present.
+ */
 function getMaxRows(turnusData: ScheduleData): number {
   const lengths = Object.values(turnusData).map(t => t.weeks.length);
   return lengths.length ? Math.max(...lengths) : 0;
 }
 
 
+/**
+ * Renders a PDF document displaying a schedule table for multiple turnus groups.
+ *
+ * The table lists each turnus as a column, showing week labels and dates for each row. Holidays are highlighted in red. The table always displays 10 columns, filling with empty columns if there are fewer turnus groups.
+ *
+ * @param scheduleData - The schedule data mapping turnus names to their respective weeks.
+ * @param className - The class name to display in the document title.
+ * @param weekdayString - The weekday to display in the document title.
+ *
+ * @returns A React PDF document containing the formatted schedule table.
+ */
 export default function ScheduleTurnusPDF({ scheduleData, className, weekdayString }: { scheduleData: ScheduleData, className: string, weekdayString: string }) {
   const turnusKeys = Object.keys(scheduleData);
   const maxRows = getMaxRows(scheduleData);

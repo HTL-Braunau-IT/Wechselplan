@@ -52,11 +52,11 @@ function LoadingScreen() {
 }
 
 /**
- * Displays the class schedule overview page, enabling users to view group assignments, teacher schedules, rotation planning, and export the schedule as a PDF.
+ * Renders the class schedule overview page, allowing users to view group assignments, teacher schedules, rotation planning, and export the schedule in multiple formats.
  *
- * Fetches and presents group and teacher assignments, rotation turns, class leadership information, and additional schedule details for a selected class. Provides actions to save teacher rotations and generate a downloadable PDF. Handles loading and error states, and manages navigation after user actions.
+ * Fetches and displays group and teacher assignments, rotation turns, class leadership information, and additional schedule details for a selected class. Provides actions to save teacher rotations and export the schedule as PDF and Excel files, filtered by the selected weekday. Handles loading and error states, and manages navigation after user actions.
  *
- * @returns The React UI for managing and exporting the class schedule overview.
+ * @returns The React UI for managing, viewing, and exporting the class schedule overview.
  */
 export default function OverviewPage() {
   const searchParams = useSearchParams();
@@ -86,7 +86,13 @@ export default function OverviewPage() {
   const [, setGeneratingSchedulePDF] = useState(false);
   const [, setGeneratingExcel] = useState(false);
 
-  // Save handler for teacher rotation (if needed)
+  /**
+   * Saves the teacher rotation schedule for AM and PM periods to the backend and displays the PDF generation dialog upon success.
+   *
+   * Constructs round-robin teacher assignments for each group and turn, then sends them along with the class ID to the backend API.
+   *
+   * @throws {Error} If the backend request to save the teacher rotation fails.
+   */
   async function handleSaveAndFinish() {
     setSaving(true);
     try {
@@ -150,6 +156,13 @@ export default function OverviewPage() {
     }
   }
 
+  /**
+   * Generates and downloads an Excel file containing the class schedule and grades for the selected class and weekday.
+   *
+   * The exported file is named with the class name, localized weekday, and current date.
+   *
+   * @remark If the export fails, an error is logged to the console and no file is downloaded.
+   */
   async function handleGenerateExcel() {
     if (!classId) return;
     setGeneratingExcel(true);
@@ -161,6 +174,14 @@ export default function OverviewPage() {
       setGeneratingExcel(false);
     }
   }
+
+
+
+  /**
+   * Generates and downloads a schedule PDF for the selected class and weekday.
+   *
+   * Initiates a POST request to the schedule export API, then downloads the resulting PDF file with a localized filename. Displays an error message if the export fails.
+   */
 
   async function handleGenerateSchedulePDF() {
     if (!classId) return;
@@ -175,6 +196,13 @@ export default function OverviewPage() {
     }
   }
 
+  /**
+   * Generates and downloads a PDF export of the class schedule, then sequentially triggers downloads of the schedule PDF and Excel exports for the selected class and weekday.
+   *
+   * @remark The PDF filename includes the class name, selected weekday, and current date in German locale. The export dialog remains open after download until explicitly closed.
+   *
+   * @throws {Error} If the schedule export request fails.
+   */
   async function handleGeneratePdf() {
     if (!classId) return;
     setGeneratingPdf(true);

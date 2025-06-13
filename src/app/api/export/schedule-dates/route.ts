@@ -6,6 +6,13 @@ import ScheduleTurnusPDF, { type ScheduleData } from '@/components/ScheduleTurnu
 
 import { prisma } from '@/lib/prisma'
 
+/**
+ * Handles POST requests to generate and return a PDF schedule for a specified class and weekday.
+ *
+ * Extracts `className` and `selectedWeekday` from the request URL, validates them, and queries the database for the relevant class and schedule. If found, generates a PDF document containing the schedule and returns it as a downloadable file. Returns appropriate HTTP error responses if validation fails or data is not found.
+ *
+ * @returns A PDF file response containing the schedule, or a JSON error response with an appropriate HTTP status code.
+ */
 export async function POST(request: Request) {
     try {
         const { searchParams } = new URL(request.url)

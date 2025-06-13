@@ -178,7 +178,11 @@ const PDFLayout = ({
         <View style={{ marginTop: 10, fontSize: 10, fontFamily: 'Helvetica'}}>
           <Text> Klassenvorstand: {classHead}    Klassenleitung: {classLead}</Text>
           <Text>  </Text>
-          <Text style={{ fontWeight: 'bold'}}>Zusätzliche Informationen:</Text><Text style={{ paddingTop: 5}}>{additionalInfo}</Text>
+          <Text>
+            <Text style={{ fontWeight: 'bold' }}>Zusätzliche Informationen:</Text>
+            {'\n'}
+            <Text style={{ marginTop: 4 }}>{additionalInfo}</Text>
+          </Text>
         </View>
       </View>
       {/* AM Schedule Table */}
