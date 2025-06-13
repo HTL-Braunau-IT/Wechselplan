@@ -230,7 +230,7 @@ export async function POST(request: Request) {
         // Return the Excel file
         return new NextResponse(excelBuffer as Buffer, {
             headers: {
-                'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Type': 'application/vnd.ms-excel.sheet.macroEnabled.12',
                 'Content-Disposition': `attachment; filename="${className}_gruppenliste.xlsm"`
             }
         })

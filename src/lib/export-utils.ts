@@ -69,6 +69,10 @@ export async function generateExcel(classId: string, weekday: number) {
     document.body.removeChild(a);
   } catch (err) {
     console.error('Error generating Excel:', err);
+    captureFrontendError(err, {
+      location: 'schedule/create/overview',
+      type: 'generate-excel'
+    });
     throw new Error('Failed to generate Excel.');
   }
 }

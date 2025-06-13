@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Select,
@@ -143,6 +143,23 @@ export default function SchedulesPage() {
     error: overviewError
   } = useScheduleOverview(selectedClass !== 'all' ? selectedClass : null)
 
+  // Create a Map of class names to their schedule status
+  const classScheduleMap = useMemo(() => {
+    const map = new Map<string, boolean>()
+    classes.forEach(cls => {
+      const hasScheduleForClass = schedules.some(schedule => 
+        schedule.classId !== null && schedule.classId === cls.id
+      )
+      map.set(cls.name, hasScheduleForClass)
+    })
+    return map
+  }, [classes, schedules])
+
+  // Helper function to check if a class has a schedule
+  const hasSchedule = (className: string) => {
+    return classScheduleMap.get(className) ?? false
+  }
+
   useEffect(() => {
     void fetchData()
   }, [])
@@ -185,11 +202,6 @@ export default function SchedulesPage() {
     router.push(`/schedules?class=${encodeURIComponent(value)}`)
   }
 
-  // Helper function to check if a class has a schedule
-  const hasSchedule = (className: string) => {
-    return schedules.some(schedule => schedule.classId !== null && classes.find(c => c.id === schedule.classId)?.name === className)
-  }
-
   if (loading || isLoadingCachedData || overviewLoading) return (
     <div className="p-8 flex items-center justify-center min-h-[200px]">
       <Spinner size="lg" />
@@ -199,20 +211,38 @@ export default function SchedulesPage() {
 
   const handlePDFExport = async () => {
     setSavingPdf(true)
-    await generatePdf(selectedClass, weekday ?? 0)
-    setSavingPdf(false)
+    try {
+      await generatePdf(selectedClass, weekday ?? 0)
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      // You might want to show a toast or error message to the user here
+    } finally {
+      setSavingPdf(false)
+    }
   }
 
   const handlePDFDatumExport = async () => {
     setSavingPdfDatum(true)
-    await generateSchedulePDF(selectedClass, weekday ?? 0)
-    setSavingPdfDatum(false)
+    try {
+      await generateSchedulePDF(selectedClass, weekday ?? 0)
+    } catch (error) {
+      console.error('Error generating PDF with date:', error)
+      // You might want to show a toast or error message to the user here
+    } finally {
+      setSavingPdfDatum(false)
+    }
   }
 
   const handleExcelExport = async () => {
     setSavingExcel(true)
-    await generateExcel(selectedClass, weekday ?? 0)
-    setSavingExcel(false)
+    try {
+      await generateExcel(selectedClass, weekday ?? 0)
+    } catch (error) {
+      console.error('Error generating Excel:', error)
+      // You might want to show a toast or error message to the user here
+    } finally {
+      setSavingExcel(false)
+    }
   }
 
   return (
@@ -227,13 +257,15 @@ export default function SchedulesPage() {
             <SelectContent>
               <SelectItem value="all">All Classes</SelectItem>
               {classes.map((cls) => (
-                <SelectItem key={cls.id} value={cls.name} className="flex items-center justify-between">
-                  <span>{cls.name}</span>
-                  {hasSchedule(cls.name) ? (
-                    <CheckCircle2 className="h-4 w-4 text-green-500 ml-2" />
-                  ) : (
-                    <XCircle className="h-4 w-4 text-red-500 ml-2" />
-                  )}
+                <SelectItem key={cls.id} value={cls.name} className="flex items-center">
+                  <span className="inline-block w-32 truncate">{cls.name}</span>
+                  <div className="w-8 flex justify-center">
+                    {hasSchedule(cls.name) ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-red-500" />
+                    )}
+                  </div>
                 </SelectItem>
               ))}
             </SelectContent>
