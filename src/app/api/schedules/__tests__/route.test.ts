@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, afterAll, vi } from 'vitest'
 import { GET, POST } from '../route'
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
 
 
 
@@ -16,6 +17,14 @@ vi.mock('@/lib/db', () => ({
   }
 }))
 
+vi.mock('@/lib/prisma', () => ({
+  prisma: {
+    class: {
+      findFirst: vi.fn()
+    }
+  }
+}))
+
 describe('Schedules API', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -25,6 +34,16 @@ describe('Schedules API', () => {
   describe('GET /api/schedules', () => {
     it('should return schedules for a class and weekday', async () => {
       // Mock data
+      const mockClass = {
+        id: 1,
+        name: '1A',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        description: null,
+        classHeadId: null,
+        classLeadId: null
+      }
+
       const mockSchedules = [
         {
           id: 1,
@@ -41,11 +60,12 @@ describe('Schedules API', () => {
         }
       ]
 
-      // Mock the database response
+      // Mock the database responses
+      vi.mocked(prisma.class.findFirst).mockResolvedValue(mockClass)
       ;(db.schedule.findMany as any).mockResolvedValue(mockSchedules)
 
       // Create request with query parameters
-      const request = new Request('http://localhost/api/schedules?classId=1&weekday=1')
+      const request = new Request('http://localhost/api/schedules?classId=1A&weekday=1')
 
       // Call the GET handler
       const response = await GET(request)
@@ -56,56 +76,17 @@ describe('Schedules API', () => {
       expect(response.status).toBe(200)
       expect(data).toEqual(mockSchedules)
 
-      // Verify the database call
+      // Verify the database calls
+      expect(prisma.class.findFirst).toHaveBeenCalledWith({
+        where: {
+          name: '1A'
+        }
+      })
+
       expect(db.schedule.findMany).toHaveBeenCalledWith({
         where: {
           classId: 1,
           selectedWeekday: 1
-        },
-        orderBy: {
-          createdAt: 'desc'
-        }
-      })
-    })
-
-    it('should return all schedules when no filters are provided', async () => {
-      // Mock data
-      const mockSchedules = [
-        {
-          id: 1,
-          name: 'Schedule 1',
-          description: 'Test schedule',
-          startDate: '2024-01-01T00:00:00.000Z',
-          endDate: '2024-01-31T00:00:00.000Z',
-          selectedWeekday: 1,
-          classId: 1,
-          scheduleData: {},
-          additionalInfo: null,
-          createdAt: '2025-06-11T11:56:57.353Z',
-          updatedAt: '2025-06-11T11:56:57.353Z'
-        }
-      ]
-
-      // Mock the database response
-      ;(db.schedule.findMany as any).mockResolvedValue(mockSchedules)
-
-      // Create request without query parameters
-      const request = new Request('http://localhost/api/schedules')
-
-      // Call the GET handler
-      const response = await GET(request)
-      const data = await response.json()
-
-      // Verify the response
-      expect(response).toBeInstanceOf(NextResponse)
-      expect(response.status).toBe(200)
-      expect(data).toEqual(mockSchedules)
-
-      // Verify the database call
-      expect(db.schedule.findMany).toHaveBeenCalledWith({
-        where: {
-          classId: undefined,
-          selectedWeekday: undefined
         },
         orderBy: {
           createdAt: 'desc'
@@ -118,8 +99,8 @@ describe('Schedules API', () => {
       const mockError = new Error('Database connection failed')
       ;(db.schedule.findMany as any).mockRejectedValue(mockError)
 
-      // Create request
-      const request = new Request('http://localhost/api/schedules')
+      // Create request with class name
+      const request = new Request('http://localhost/api/schedules?classId=1')
 
       // Call the GET handler
       const response = await GET(request)

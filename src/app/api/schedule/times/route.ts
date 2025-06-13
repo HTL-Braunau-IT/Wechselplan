@@ -110,7 +110,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(updatedSchedule)
   } catch (error) {
-    console.error('Error saving times:', error)
+    
     captureError(error, {
       location: 'api/schedule/times',
       type: 'save-times'
