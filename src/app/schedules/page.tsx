@@ -129,15 +129,6 @@ export default function SchedulesPage() {
   const [expandedClass, setExpandedClass] = useState<string | null>(null)
 
   const {
-    groups,
-    amAssignments,
-    pmAssignments,
-    scheduleTimes,
-    breakTimes,
-    turns,
-    classHead,
-    classLead,
-    additionalInfo,
     weekday,
     loading: overviewLoading,
     error: overviewError

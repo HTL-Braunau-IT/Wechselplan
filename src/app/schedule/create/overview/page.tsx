@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { useScheduleOverview } from '@/hooks/use-schedule-overview';
 import { captureFrontendError } from '@/lib/frontend-error'
@@ -16,27 +15,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { ScheduleOverview } from '@/components/schedule-overview'
 import { Spinner } from '@/components/ui/spinner'
 import { generatePdf, generateExcel, generateSchedulePDF } from '@/lib/export-utils';
 
-import type { ScheduleResponse, ScheduleTime, BreakTime } from '@/types/types'
-
-const GROUP_COLORS = [
-  'bg-yellow-200', // Gruppe 1
-  'bg-green-200',  // Gruppe 2
-  'bg-blue-200',   // Gruppe 3
-  'bg-red-200',    // Gruppe 4
-];
-
-const DARK_GROUP_COLORS = [
-  'dark:bg-yellow-900/60',
-  'dark:bg-green-900/60',
-  'dark:bg-blue-900/60',
-  'dark:bg-red-900/60',
-];
 
 /**
  * Renders a centered loading spinner with a localized loading message.
