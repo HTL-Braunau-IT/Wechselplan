@@ -77,7 +77,8 @@ export default function OverviewPage() {
   const [saving, setSaving] = useState(false);
   const [showPdfDialog, setShowPdfDialog] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
-  const [ setGenerateíngSchedulePDF] = useState(false);
+  const [, setGeneratingSchedulePDF] = useState(false);
+  const [, setGeneratingExcel] = useState(false);
   const [additionalInfo, setAdditionalInfo] = useState<string>('');
   const [weekday, setWeekday] = useState<number>();
   const [classHead, setClassHead] = useState<string>('');
@@ -190,8 +191,36 @@ export default function OverviewPage() {
       setSaving(false);
     }
   }
+
+  async function handleGenerateExcel() {
+    setGeneratingExcel(true);
+    try {
+      const export_response = await fetch(`/api/export/excel?className=${classId}&selectedWeekday=${weekday}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const today = new Date().toLocaleDateString('de-DE');
+      if (!export_response.ok) throw new Error('Failed to export Excel');
+      const blob = await export_response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${classId} - ${getWeekday()} Notenliste - ${today}.xlsm`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+    } catch (err) {
+      console.error('Error generating Excel:', err);
+    } finally {
+      setGeneratingExcel(false);
+    }
+  }
+
+
   async function handleGenerateSchedulePDF() {
-    setGenerateíngSchedulePDF(true);
+    setGeneratingSchedulePDF(true);
     try {
       const export_response = await fetch(`/api/export/schedule-dates?className=${classId}&selectedWeekday=${weekday}`, {
         method: 'POST',
@@ -214,7 +243,7 @@ export default function OverviewPage() {
       console.error('Error generating PDF:', err);
       setError('Failed to generate PDF.');
     } finally {
-      setGenerateíngSchedulePDF(false);
+      setGeneratingSchedulePDF(false);
     }
   }
 
@@ -250,6 +279,7 @@ export default function OverviewPage() {
       // Only close the dialog after successful download
       setShowPdfDialog(true);
       await handleGenerateSchedulePDF();
+      await handleGenerateExcel();
     } catch (err) {
       console.error('Error generating PDF:', err);
       captureFrontendError(err, {

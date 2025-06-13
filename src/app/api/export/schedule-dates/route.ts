@@ -69,7 +69,6 @@ export async function POST(request: Request) {
             location: 'api/export',
             type: 'export-schedule'
         })
-        console.error('Error generating PDF:', error)
         return NextResponse.json({ error: 'Failed to generate pdf file' }, { status: 500 })
     }
 }
