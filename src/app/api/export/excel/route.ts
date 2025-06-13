@@ -24,6 +24,15 @@ interface Turnus {
 
 type ScheduleData = Record<string, Turnus>
 
+/**
+ * Handles a POST request to generate and return an Excel file containing class schedule and group information.
+ *
+ * Validates the presence and correctness of `className` and `selectedWeekday` query parameters, retrieves class details, schedule data, and teacher assignments from the database, and constructs an Excel workbook with grouped student lists, class metadata, schedule dates, and teacher assignments. The resulting Excel file is returned as a downloadable response.
+ *
+ * @returns A response containing the generated Excel file as an attachment, or a JSON error response with an appropriate HTTP status code if validation or data retrieval fails.
+ *
+ * @throws {Error} If an unexpected error occurs during Excel file generation or data retrieval, a 500 error response is returned.
+ */
 export async function POST(request: Request) {
     try {
         const { searchParams } = new URL(request.url)
