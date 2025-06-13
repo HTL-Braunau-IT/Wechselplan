@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -31,10 +30,7 @@ interface TeacherAssignment {
   period: 'AM' | 'PM'
 }
 
-interface SavedTimesResponse {
-  scheduleTimes: { id: number }[]
-  breakTimes: { id: number }[]
-}
+
 
 /**
  * Displays and manages schedule and break times for a class, allowing selection, creation, and saving of period-specific times.
@@ -51,7 +47,7 @@ export default function TimesPage() {
   const [selectedAMBreakTime, setSelectedAMBreakTime] = useState<number | null>(null)
   const [selectedLunchBreakTime, setSelectedLunchBreakTime] = useState<number | null>(null)
   const [selectedPMBreakTime, setSelectedPMBreakTime] = useState<number | null>(null)
-  const [teacherAssignments, setTeacherAssignments] = useState<TeacherAssignment[]>([])
+  const [teacherAssignments, ] = useState<TeacherAssignment[]>([])
   const [periods, setPeriods] = useState<Set<string>>(new Set())
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

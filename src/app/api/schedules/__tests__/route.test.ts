@@ -6,16 +6,7 @@ import { prisma } from '@/lib/prisma'
 
 
 
-// Mock the dependencies
-vi.mock('@/lib/db', () => ({
-  db: {
-    schedule: {
-      findMany: vi.fn(),
-      deleteMany: vi.fn(),
-      create: vi.fn()
-    }
-  }
-}))
+
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {

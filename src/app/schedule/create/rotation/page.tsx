@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect,  useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { addWeeks, format, setDay, getDay, isWithinInterval } from 'date-fns'
+import { addWeeks, format, setDay,  isWithinInterval } from 'date-fns'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { captureFrontendError } from '@/lib/frontend-error'
@@ -69,10 +69,10 @@ export default function RotationPage() {
   const [holidays, setHolidays] = useState<Holiday[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const [isCustomLength, setIsCustomLength] = useState(false)
+  const [ ,setIsCustomLength] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [fetchError, setFetchError] = useState<string | null>(null)
-  const [weekError, setWeekError] = useState<string | null>(null)
+  const [weekError] = useState<string | null>(null)
   const [startDate, ] = useState<Date>(new Date())
   const [endDate, ] = useState<Date>(new Date())
   const [additionalInfo, setAdditionalInfo] = useState<string>('')
