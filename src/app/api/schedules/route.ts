@@ -96,6 +96,14 @@ export async function GET(req: Request) {
       }
     })
 
+    if (schedules.length === 0) {
+      captureError(new Error('No schedules found for classId ' + classId), {
+        location: 'api/schedules',
+        type: 'fetch-schedules'
+      })
+      return new NextResponse('No schedules found for classId ' + classId, { status: 500 })
+    }
+
     return NextResponse.json(schedules)
   } catch (error) {
     captureError(error, {

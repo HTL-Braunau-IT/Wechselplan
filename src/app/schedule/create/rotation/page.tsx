@@ -41,7 +41,8 @@ interface ScheduleResponse {
   selectedWeekday: number;
   scheduleData: unknown;
   additionalInfo?: string;
-  classId?: number;
+  className?: number;
+  createdAt: string;
 }
 
 const WEEKDAYS = [
@@ -64,7 +65,7 @@ export default function RotationPage() {
   const [schedule, setSchedule] = useState<Schedule>({})
   const [customLengths, setCustomLengths] = useState<Record<string, number>>({})
   const [numberOfTerms, setNumberOfTerms] = useState(4)
-  const [selectedWeekday, setSelectedWeekday] = useState(1)
+  const [selectedWeekday, setSelectedWeekday] = useState<number | null>(null)
   const [holidays, setHolidays] = useState<Holiday[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -72,45 +73,82 @@ export default function RotationPage() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [weekError, setWeekError] = useState<string | null>(null)
-  const [loadedFromDb, setLoadedFromDb] = useState(false)
   const [startDate, ] = useState<Date>(new Date())
   const [endDate, ] = useState<Date>(new Date())
   const [additionalInfo, setAdditionalInfo] = useState<string>('')
+  const [allSchedules, setAllSchedules] = useState<ScheduleResponse[]>([])
   const router = useRouter()
   const searchParams = useSearchParams()
-  const classId = searchParams.get('class')
+  const className = searchParams.get('class')
+  const isManualChangeRef = useRef(false)
+  const shouldUpdateScheduleRef = useRef(false)
 
   const schoolYearStart = new Date(2024, 8, 9) // September 1st
   const schoolYearEnd = new Date(2025, 5, 28) // June 30th
-  const prevWeekdayRef = useRef(selectedWeekday)
 
-  const calculateSchedule = useCallback(() => {
-    // Skip if we're loading from DB and not forcing a custom length change
-    if (loadedFromDb && !isCustomLength) {
-      return;
+  // Handle input changes
+  const handleNumberOfTermsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseInt(e.target.value);
+    if (value > 8) {
+      setNumberOfTerms(8);
+    } else {
+      isManualChangeRef.current = true;
+      shouldUpdateScheduleRef.current = true;
+      setNumberOfTerms(value);
+      setIsCustomLength(false);
     }
+  };
 
-    const newSchedule: Schedule = {}
-    // Generate all rotation dates for the year
+  // Handle custom lengths cleanup
+  useEffect(() => {
+    if (!isLoading) {
+      const newCustomLengths = { ...customLengths };
+      let hasChanges = false;
+      
+      Object.keys(newCustomLengths).forEach(key => {
+        const parts = key.split(' ');
+        const termNumberStr = parts[1];
+        if (parts.length === 2 && termNumberStr) {
+          const termNumber = parseInt(termNumberStr);
+          if (!isNaN(termNumber) && termNumber > numberOfTerms) {
+            delete newCustomLengths[key];
+            hasChanges = true;
+          }
+        }
+      });
+
+      if (hasChanges) {
+        setCustomLengths(newCustomLengths);
+        shouldUpdateScheduleRef.current = true;
+      }
+    }
+  }, [numberOfTerms, isLoading, customLengths]);
+
+  // Handle schedule updates
+  useEffect(() => {
+    if (isLoading || selectedWeekday === null || !shouldUpdateScheduleRef.current) return;
+
+    // Calculate new schedule
+    const newSchedule: Schedule = {};
     const allRotationDates = getAllRotationDates(schoolYearStart, schoolYearEnd, selectedWeekday);
     const totalWeeks = allRotationDates.length;
     let weeksLeft = totalWeeks;
     let turnsLeft = numberOfTerms;
-    // Calculate how many weeks each term should get
     const weeksPerTerm: number[] = [];
 
+    // Calculate weeks per term
     for (let i = 0; i < numberOfTerms; i++) {
       const turnusKey = `TURNUS ${i + 1}`;
       if (customLengths[turnusKey] && customLengths[turnusKey] > 0) {
         weeksPerTerm.push(customLengths[turnusKey]);
         weeksLeft -= customLengths[turnusKey];
         turnsLeft--;
-
       } else {
-        weeksPerTerm.push(0); // placeholder, will fill in next
+        weeksPerTerm.push(0);
       }
     }
-    // Distribute remaining weeks evenly
+
+    // Distribute remaining weeks
     for (let i = 0; i < numberOfTerms; i++) {
       if (weeksPerTerm[i] === 0 && turnsLeft > 0) {
         const base = Math.floor(weeksLeft / turnsLeft);
@@ -120,53 +158,45 @@ export default function RotationPage() {
         turnsLeft--;
       }
     }
-    let rotationIndex2 = 0;
+
+    // Generate schedule entries
+    let rotationIndex = 0;
     for (let i = 0; i < numberOfTerms; i++) {
       const turnusKey = `TURNUS ${i + 1}`;
       const weeksForThisTerm = weeksPerTerm[i] ?? 0;
-      const termDates = allRotationDates.slice(rotationIndex2, rotationIndex2 + weeksForThisTerm);
-      rotationIndex2 += weeksForThisTerm;
-      const weeksWithHolidays = termDates.map((date) => {
-        const isHolidayDate = isHoliday(date);
-        return {
-          week: `KW${getWeekNumber(date)}`,
-          date: format(date, 'dd.MM.yy'),
-          isHoliday: isHolidayDate,
-          originalDate: date
-        };
-      });
-      const firstWeek = weeksWithHolidays.length > 0 ? weeksWithHolidays[0] : undefined;
-      const lastWeek = weeksWithHolidays.length > 0 ? weeksWithHolidays[weeksWithHolidays.length - 1] : undefined;
+      const termDates = allRotationDates.slice(rotationIndex, rotationIndex + weeksForThisTerm);
+      rotationIndex += weeksForThisTerm;
+
+      const weeksWithHolidays = termDates.map((date) => ({
+        week: `KW${getWeekNumber(date)}`,
+        date: format(date, 'dd.MM.yy'),
+        isHoliday: isHoliday(date),
+        originalDate: date
+      }));
+
+      const firstWeek = weeksWithHolidays[0];
+      const lastWeek = weeksWithHolidays[weeksWithHolidays.length - 1];
       const turnDateRange = {
-        start: firstWeek && firstWeek.originalDate instanceof Date ? firstWeek.originalDate : new Date(),
-        end: lastWeek && lastWeek.originalDate instanceof Date ? lastWeek.originalDate : new Date()
+        start: firstWeek?.originalDate ?? new Date(),
+        end: lastWeek?.originalDate ?? new Date()
       };
+
       const turnHolidays = holidays.filter(holiday => {
         if (!turnDateRange.start || !turnDateRange.end) return false;
-        const holidayStart = holiday.startDate instanceof Date
-          ? new Date(holiday.startDate.getFullYear(), holiday.startDate.getMonth(), holiday.startDate.getDate())
-          : new Date();
-        const holidayEnd = holiday.endDate instanceof Date
-          ? new Date(holiday.endDate.getFullYear(), holiday.endDate.getMonth(), holiday.endDate.getDate())
-          : new Date();
-        const isInDateRange = isWithinInterval(holidayStart, {
+        const holidayStart = new Date(holiday.startDate);
+        const holidayEnd = new Date(holiday.endDate);
+        return isWithinInterval(holidayStart, {
           start: turnDateRange.start,
           end: turnDateRange.end
-        }) ?? isWithinInterval(holidayEnd, {
+        }) || isWithinInterval(holidayEnd, {
           start: turnDateRange.start,
           end: turnDateRange.end
-        }) ?? isWithinInterval(turnDateRange.start, {
+        }) || isWithinInterval(turnDateRange.start, {
           start: holidayStart,
           end: holidayEnd
         });
-        if (!isInDateRange) return false;
-        const holidayStartDay = getDay(holidayStart);
-        const holidayEndDay = getDay(holidayEnd);
-        if (holidayStartDay !== holidayEndDay) {
-          return true;
-        }
-        return holidayStartDay === selectedWeekday;
       });
+
       newSchedule[turnusKey] = {
         name: turnusKey,
         weeks: weeksWithHolidays
@@ -175,37 +205,98 @@ export default function RotationPage() {
         holidays: turnHolidays
       };
     }
-    // Boundary check: warn if too few or too many weeks assigned (count all assigned weeks)
-    const assignedTotal = weeksPerTerm.reduce((a, b) => a + b, 0);
-    if (assignedTotal < totalWeeks) {
-      setWeekError(`Total assigned weeks (${assignedTotal}) is less than available weeks (${totalWeeks}). Please assign all weeks.`);
-    } else if (assignedTotal > totalWeeks) {
-      setWeekError(`Total assigned weeks (${assignedTotal}) is greater than available weeks (${totalWeeks}). Please reduce the assigned weeks.`);
-    } else {
-      setWeekError(null);
-    }
+
     setSchedule(newSchedule);
-  }, [isCustomLength, loadedFromDb, selectedWeekday, numberOfTerms, customLengths, holidays, schoolYearStart, schoolYearEnd]);
+    isManualChangeRef.current = false;
+    shouldUpdateScheduleRef.current = false;
+  }, [numberOfTerms, selectedWeekday, isLoading, holidays, schoolYearStart, schoolYearEnd, customLengths]);
 
-  // Effect to handle weekday changes
+  // Handle weekday changes
   useEffect(() => {
-    if (!isLoading && prevWeekdayRef.current !== selectedWeekday) {
-      prevWeekdayRef.current = selectedWeekday;
-      setLoadedFromDb(false);
-      calculateSchedule();
+    if (!isLoading && allSchedules.length > 0 && selectedWeekday !== null && !isManualChangeRef.current) {
+      const scheduleForWeekday = allSchedules.find(s => s.selectedWeekday === selectedWeekday)
+      if (scheduleForWeekday) {
+        setSchedule((scheduleForWeekday.scheduleData as Schedule) ?? {})
+        setNumberOfTerms(Object.keys((scheduleForWeekday.scheduleData as Schedule) ?? {}).length)
+        setAdditionalInfo(scheduleForWeekday.additionalInfo ?? '')
+        setIsCustomLength(false)
+      }
     }
-  }, [selectedWeekday, calculateSchedule, isLoading]);
+  }, [selectedWeekday, allSchedules, isLoading])
 
+  // Load initial data and schedules
   useEffect(() => {
-    void fetchHolidays()
-  }, [])
-
-  // Only load from DB once if classId is present
-  useEffect(() => {
-    if (classId && !loadedFromDb) {
-      void fetchExistingSchedule(classId);
+    const loadInitialData = async () => {
+      await fetchHolidays()
+      if (className) {
+        await fetchExistingSchedule(className)
+      }
     }
-  }, [classId, loadedFromDb]);
+    void loadInitialData()
+  }, [className])
+
+  const fetchExistingSchedule = async (className: string) => {
+    try {
+      setIsLoading(true)
+      
+      // First, get the numeric class ID from the class name
+      const classResponse = await fetch(`/api/classes/get-by-name?name=${className}`)
+      if (!classResponse.ok) {
+        throw new Error('Failed to fetch class information')
+      }
+      const classData = await classResponse.json()
+      if (!classData?.id) {
+        throw new Error('Class not found')
+      }
+
+      console.log("Fetching existing schedule for class ID: ", classData.id)
+      const response = await fetch(`/api/schedules?classId=${classData.id}`)
+      if (!response.ok) throw new Error('Failed to fetch schedule')
+      const schedules = await response.json() as ScheduleResponse[]
+      
+      if (schedules && schedules.length > 0) {
+        setAllSchedules(schedules)
+        
+        // Get the latest schedule by creation date
+        const latestSchedule = schedules.reduce((latest, current) => {
+          if (!latest) return current
+          const latestDate = new Date(latest.createdAt).getTime()
+          const currentDate = new Date(current.createdAt).getTime()
+          return currentDate > latestDate ? current : latest
+        }, schedules[0])
+        
+        if (latestSchedule) {
+          // Set the weekday from the latest schedule
+          console.log("Latest schedule: ", latestSchedule)
+          setSelectedWeekday(latestSchedule.selectedWeekday)
+          
+          // Find the schedule for the selected weekday
+          const currentSchedule = schedules.find(s => s.selectedWeekday === latestSchedule.selectedWeekday)
+          if (currentSchedule) {
+            // Populate state from loaded schedule
+            setSchedule((currentSchedule.scheduleData as Schedule) ?? {})
+            setNumberOfTerms(Object.keys((currentSchedule.scheduleData as Schedule) ?? {}).length)
+            setAdditionalInfo(currentSchedule.additionalInfo ?? '')
+          }
+        }
+      } else {
+        setSelectedWeekday(1) // Default to Monday if no schedules exist
+      }
+    } catch (err) {
+      console.error('Error fetching existing schedule:', err)
+      captureFrontendError(err, {
+        location: 'schedule/create/rotation',
+        type: 'fetch-schedule',
+        extra: {
+          className,
+          selectedWeekday
+        }
+      })
+      setSelectedWeekday(1) // Default to Monday on error
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const fetchHolidays = async () => {
     try {
@@ -224,50 +315,6 @@ export default function RotationPage() {
         type: 'fetch-holidays'
       })
       setFetchError('Failed to load holidays.')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const fetchExistingSchedule = async (classId: string) => {
-    try {
-      setIsLoading(true)
-      const response = await fetch(`/api/schedules?classId=${classId}&weekday=${selectedWeekday}`)
-      if (!response.ok) throw new Error('Failed to fetch schedule')
-      const schedules = await response.json() as ScheduleResponse[]
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('Schedules:', schedules)
-      }
-      if (schedules && schedules.length > 0) {
-        const latest = schedules[0]
-        if (latest) {
-          // Populate state from loaded schedule
-          setSchedule((latest.scheduleData as Schedule) ?? {})
-          setNumberOfTerms(Object.keys((latest.scheduleData as Schedule) ?? {}).length)
-          setSelectedWeekday(latest.selectedWeekday ?? 1)
-          setAdditionalInfo(latest.additionalInfo ?? '')
-
-          setLoadedFromDb(true)
-        } else {
-          setLoadedFromDb(false)
-          calculateSchedule()
-        }
-      } else {
-        setLoadedFromDb(false)
-        calculateSchedule()
-      }
-    } catch (err) {
-      console.error('Error fetching existing schedule:', err)
-      captureFrontendError(err, {
-        location: 'schedule/create/rotation',
-        type: 'fetch-schedule',
-        extra: {
-          classId,
-          selectedWeekday
-        }
-      })
-      setLoadedFromDb(false)
-      calculateSchedule()
     } finally {
       setIsLoading(false)
     }
@@ -327,7 +374,7 @@ export default function RotationPage() {
       setSaveError(null)
 
       // First, get the numeric class ID from the class name
-      const classResponse = await fetch(`/api/classes/get-by-name?name=${classId}`)
+      const classResponse = await fetch(`/api/classes/get-by-name?name=${className}`)
       if (!classResponse.ok) {
         throw new Error('Failed to fetch class information')
       }
@@ -346,13 +393,13 @@ export default function RotationPage() {
         },
         body: JSON.stringify({
           name: 'Rotation Schedule',
-          description: `Rotation schedule for class ${classId}`,
+          description: `Rotation schedule for class ${className}`,
           startDate: startDate.toISOString(),
           endDate: endDate.toISOString(),
           selectedWeekday,
-          schedule,
+          scheduleData: schedule,
           additionalInfo,
-          classId: classData.id
+          classId: classData.id.toString()
         }),
       })
 
@@ -361,14 +408,14 @@ export default function RotationPage() {
       }
 
       // Navigate to the times page with the class parameter
-      router.push(`/schedule/create/times?class=${classId}`)
+      router.push(`/schedule/create/times?class=${className}`)
     } catch (err) {
       console.error('Error saving schedule:', err)
       captureFrontendError(err, {
         location: 'schedule/create/rotation',
         type: 'save-schedule',
         extra: {
-          classId,
+          className,
           schedule,
           numberOfTerms,
           selectedWeekday,
@@ -380,29 +427,6 @@ export default function RotationPage() {
       setIsSaving(false)
     }
   }
-
-  const handleCustomLengthChange = (turnusKey: string, length: number) => {
-    setIsCustomLength(true)
-    if (isNaN(length) || length <= 0) {
-      setCustomLengths(prev => {
-        const newLengths = { ...prev }
-        delete newLengths[turnusKey]
-        return newLengths
-      })
-    } else {
-      setCustomLengths(prev => ({
-        ...prev,
-        [turnusKey]: length
-      }))
-    }
-  }
-
-  // Recalculate when custom lengths change
-  useEffect(() => {
-    if (!isLoading) {
-      calculateSchedule()
-    }
-  }, [isLoading, numberOfTerms, selectedWeekday, holidays, customLengths])
 
   if (isLoading) return <div>Loading...</div>
 
@@ -423,9 +447,6 @@ export default function RotationPage() {
               {weekError}
             </div>
           )}
-          {loadedFromDb && (
-            <div className="mb-4 text-green-500">Loaded existing schedule from database.</div>
-          )}
           <div className="flex gap-8 mb-4">
             <div>
               <Label htmlFor="numberOfTerms">Number of Terms</Label>
@@ -433,16 +454,16 @@ export default function RotationPage() {
                 id="numberOfTerms"
                 type="number"
                 value={numberOfTerms}
-                onChange={(e) => setNumberOfTerms(parseInt(e.target.value))}
+                onChange={handleNumberOfTermsChange}
                 min={1}
-                max={10}
+                max={8}
                 className="w-32"
               />
             </div>
             <div>
               <Label htmlFor="weekday">Rotation Day</Label>
               <Select
-                value={selectedWeekday.toString()}
+                value={selectedWeekday?.toString() ?? ''}
                 onValueChange={(value) => setSelectedWeekday(parseInt(value))}
               >
                 <SelectTrigger className="w-[180px]">
@@ -482,7 +503,22 @@ export default function RotationPage() {
                     <Input
                       type="number"
                       value={customLengths[turnusKey] ?? ''}
-                      onChange={(e) => handleCustomLengthChange(turnusKey, parseInt(e.target.value))}
+                      onChange={(e) => {
+                        setIsCustomLength(true)
+                        shouldUpdateScheduleRef.current = true
+                        if (isNaN(parseInt(e.target.value)) || parseInt(e.target.value) <= 0) {
+                          setCustomLengths(prev => {
+                            const newLengths = { ...prev }
+                            delete newLengths[turnusKey]
+                            return newLengths
+                          })
+                        } else {
+                          setCustomLengths(prev => ({
+                            ...prev,
+                            [turnusKey]: parseInt(e.target.value)
+                          }))
+                        }
+                      }}
                       className="w-20 h-8"
                       min={1}
                       placeholder={`${currentWeeks} weeks`}
