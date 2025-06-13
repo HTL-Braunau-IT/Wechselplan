@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useCachedData } from '@/hooks/use-cached-data';
@@ -18,8 +18,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { ScheduleOverview } from '@/components/schedule-overview'
 
-import type {  ScheduleResponse } from '@/types/types'
+import type { ScheduleResponse, ScheduleTime, BreakTime } from '@/types/types'
 
 const GROUP_COLORS = [
   'bg-yellow-200', // Gruppe 1
@@ -56,77 +57,32 @@ function LoadingScreen() {
  * @returns The React UI for managing and exporting the class schedule overview.
  */
 export default function OverviewPage() {
-
   const searchParams = useSearchParams();
   const classId = searchParams.get('class');
-  const {  isLoading: isLoadingCachedData } = useCachedData();
+  const { isLoading: isLoadingCachedData } = useCachedData();
   const router = useRouter();
 
   const {
     groups,
     amAssignments,
     pmAssignments,
-
+    scheduleTimes,
+    breakTimes,
     turns,
+    classHead,
+    classLead,
+    additionalInfo,
+    weekday,
     loading: overviewLoading,
     error: overviewError
   } = useScheduleOverview(classId);
 
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showPdfDialog, setShowPdfDialog] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [, setGeneratingSchedulePDF] = useState(false);
   const [, setGeneratingExcel] = useState(false);
-  const [additionalInfo, setAdditionalInfo] = useState<string>('');
-  const [weekday, setWeekday] = useState<number>();
-  const [classHead, setClassHead] = useState<string>('');
-  const [classLead, setClassLead] = useState<string>('');
-
-  useEffect(() => {
-    if (!classId) {
-      setError('Class ID is required');
-      setLoading(false);
-      return;
-    }
-    void fetchAll();
-  }, [classId]);
-
-  const fetchAll = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      // Fetch rotation/turn schedule
-      const schedulesRes = await fetch(`/api/schedules?classId=${classId}`);
-      if (!schedulesRes.ok) throw new Error('Failed to fetch rotation schedule');
-      const schedules = await schedulesRes.json() as ScheduleResponse[];
-      const latestSchedule = schedules[0];
-      setAdditionalInfo(latestSchedule?.additionalInfo ?? '');
-      setWeekday(latestSchedule?.selectedWeekday ?? 6);
-      // Fetch class data
-      const classRes = await fetch(`/api/classes/get-by-name?name=${classId}`);
-      
-      if (!classRes.ok) throw new Error('Failed to fetch class data');
-      const classData = await classRes.json() as { classHead: { firstName: string, lastName: string } | null; classLead: { firstName: string, lastName: string } | null };
-      console.log(classData);
-      setClassHead(classData.classHead ? `${classData.classHead.firstName} ${classData.classHead.lastName}` : '—');
-      setClassLead(classData.classLead ? `${classData.classLead.firstName} ${classData.classLead.lastName}` : '—');
-    } catch (err) {
-      console.error('Error fetching overview data:', err);
-      captureFrontendError(err, {
-        location: 'schedule/create/overview',
-        type: 'fetch-data',
-        extra: {
-          classId
-        }
-      });
-      const errMsg = err instanceof Error ? err.message : 'Failed to load overview data';
-      setError(errMsg);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Save handler for teacher rotation (if needed)
   async function handleSaveAndFinish() {
@@ -218,7 +174,6 @@ export default function OverviewPage() {
     }
   }
 
-
   async function handleGenerateSchedulePDF() {
     setGeneratingSchedulePDF(true);
     try {
@@ -292,17 +247,12 @@ export default function OverviewPage() {
     }
   }
 
-  
-
-  /**
-   * Closes the PDF generation dialog and redirects the user to the home page.
-   */
   function handleSkipPdf() {
     setShowPdfDialog(false);
     router.push('/');
   }
 
-  if (loading || isLoadingCachedData || overviewLoading) return <LoadingScreen />;
+  if (isLoadingCachedData || overviewLoading) return <LoadingScreen />;
   if (error ?? overviewError) return <div className="p-8 text-center text-red-500">{error ?? overviewError}</div>;
 
   /**
@@ -334,156 +284,25 @@ export default function OverviewPage() {
     .filter(a => a.teacherId !== 0)
     .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx);
 
-  // Helper: get turnus info (start, end, days) from turns
-  function getTurnusInfo(turnKey: string) {
-    const entry = turns[turnKey] as { weeks?: { date: string }[] };
-    if (!entry?.weeks?.length) return { start: '', end: '', days: 0 };
-    const start = entry.weeks[0]?.date ?? '';
-    const end = entry.weeks[entry.weeks.length - 1]?.date ?? '';
-    const days = entry.weeks.length;
-    return { start, end, days };
-  }
-
   function getWeekday() {
     const days = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
     return weekday === undefined ? '' : days[weekday];
   }
 
-  /**
-   * Returns the group assigned to a teacher for a specific turn and period by rotating the group list.
-   *
-   * @param teacherIdx - Index of the teacher in the period's teacher list.
-   * @param turnIdx - Index of the turn for which to determine the group.
-   * @param period - The period ('AM' or 'PM') to select the appropriate teacher list.
-   * @returns The assigned group for the teacher and turn, or null if unavailable.
-   */
-  function getGroupForTeacherAndTurn(teacherIdx: number, turnIdx: number, period: 'AM' | 'PM') {
-    const groupList = groups;
-    const teacherList = period === 'AM' ? uniqueAmTeachers : uniquePmTeachers;
-    if (!groupList[0] || !teacherList[teacherIdx]) return null;
-    const rotatedGroups = rotateArray(groupList, turnIdx);
-    const group = rotatedGroups[teacherIdx];
-    return group;
-  }
-
-  // Find the max number of students in any group for row rendering
-  const maxStudents = Math.max(...groups.map(g => g.students.length), 0);
-
   return (
-    <div className="container mx-auto p-4">
-      {/* Groups Table */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Gruppenübersicht</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="min-w-full border text-sm">
-              <thead>
-                <tr>
-                  {groups.map((group, idx) => (
-                    <th
-                      key={group.id}
-                      className={`border p-2 text-center font-bold text-black ${GROUP_COLORS[idx % GROUP_COLORS.length]} ${DARK_GROUP_COLORS[idx % DARK_GROUP_COLORS.length]}`}
-                    >
-                      Gruppe {group.id}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {[...Array(maxStudents)].map((_, rowIdx) => (
-                  <tr key={rowIdx}>
-                    {groups.map((group) => (
-                      <td key={group.id} className="border p-2 text-center">
-                        {group.students[rowIdx]
-                          ? `${group.students[rowIdx].lastName} ${group.students[rowIdx].firstName}`
-                          : ''}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Klassenleitung</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <p className="text-sm text-gray-500">Klassenvorstand</p>
-              <p className="font-semibold text-lg">{classHead}</p>
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm text-gray-500">Klassenleitung</p>
-              <p className="font-semibold text-lg">{classLead}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      {/* AM and PM Schedule Tables */}
-      {[{ period: 'AM', teachers: uniqueAmTeachers }, { period: 'PM', teachers: uniquePmTeachers }].map(({ period, teachers }) => (
-        <Card className="mb-8" key={period}>
-          <CardHeader>
-            <CardTitle>{getWeekday()} ({period})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="min-w-full border text-sm">
-                <thead>
-                  <tr>
-                    <th className="border p-2">Lehrer/in</th>
-                    <th className="border p-2">Werkstätte</th>
-                    <th className="border p-2">Lehrinhalt</th>
-                    <th className="border p-2">Raum</th>
-                    {Object.keys(turns).map((turn, turnIdx) => (
-                      <th key={turn} className="border p-2">
-                        <div>Turnus {turnIdx + 1}</div>
-                        <div className="text-xs text-gray-600">{getTurnusInfo(turn).start} - {getTurnusInfo(turn).end}</div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {teachers.map((assignment, teacherIdx) => (
-                    <tr key={assignment.teacherId}>
-                      <td className="border p-2 font-medium">{assignment.teacherLastName}, {assignment.teacherFirstName}</td>
-                      <td className="border p-2">{assignment.subject ?? ''}</td>
-                      <td className="border p-2">{assignment.learningContent ?? ''}</td>
-                      <td className="border p-2">{assignment.room ?? ''}</td>
-                      {Object.keys(turns).map((turn, turnIdx) => {
-                        const group = getGroupForTeacherAndTurn(teacherIdx, turnIdx, period as 'AM' | 'PM');
-                        return (
-                          <td
-                            key={turn}
-                            className={`border p-2 text-center font-bold text-black ${group ? GROUP_COLORS[groups.findIndex(g => g.id === group.id) % GROUP_COLORS.length] : ''} ${group ? DARK_GROUP_COLORS[groups.findIndex(g => g.id === group.id) % DARK_GROUP_COLORS.length] : ''}`}
-                          >
-                            {group ? group.id : ''}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Zusätzliche Informationen</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p>{additionalInfo}</p>
-        </CardContent>
-      </Card>
+    <>
+      <ScheduleOverview
+        groups={groups}
+        amAssignments={amAssignments}
+        pmAssignments={pmAssignments}
+        scheduleTimes={scheduleTimes}
+        breakTimes={breakTimes}
+        turns={turns}
+        classHead={classHead}
+        classLead={classLead}
+        additionalInfo={additionalInfo}
+        weekday={weekday}
+      />
 
       {/* Custom blurred overlay for modal */}
       {showPdfDialog && (
@@ -524,6 +343,6 @@ export default function OverviewPage() {
           {saving ? 'Saving...' : 'Save & Finish'}
         </button>
       </div>
-    </div>
+    </>
   );
 }

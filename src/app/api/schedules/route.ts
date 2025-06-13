@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { z } from 'zod'
 import { captureError } from '~/lib/sentry'
+import { prisma } from '@/lib/prisma'
 
 const scheduleSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -83,13 +84,27 @@ export async function POST(req: Request) {
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
-    const classId = searchParams.get('classId')
+    const className = searchParams.get('classId')
     const weekday = searchParams.get('weekday')
+
+    if (!className) {
+      return NextResponse.json({ error: 'Class ID is required' }, { status: 400 })
+    }
+
+    const classId = await prisma.class.findFirst({
+      where: {
+        name: className
+      }
+    })
+
+    if (!classId) {
+      return new NextResponse('No class found for classId ' + className, { status: 500 })
+    }
 
     const schedules = await db.schedule.findMany({
       where: {
-        classId: classId ? parseInt(classId) : undefined,
-        selectedWeekday: weekday ? parseInt(weekday) : undefined
+        classId: classId.id,
+        ...(weekday ? { selectedWeekday: parseInt(weekday) } : {})
       },
       orderBy: {
         createdAt: 'desc'
@@ -97,11 +112,11 @@ export async function GET(req: Request) {
     })
 
     if (schedules.length === 0) {
-      captureError(new Error('No schedules found for classId ' + classId), {
+      captureError(new Error('No schedules found for classId ' + classId.id), {
         location: 'api/schedules',
         type: 'fetch-schedules'
       })
-      return new NextResponse('No schedules found for classId ' + classId, { status: 500 })
+      return new NextResponse('No schedules found for classId ' + classId.id, { status: 500 })
     }
 
     return NextResponse.json(schedules)
