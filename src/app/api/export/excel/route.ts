@@ -92,8 +92,9 @@ export async function POST(request: Request) {
         // Create empty worksheet with proper dimensions
         const worksheet = XLSX.utils.aoa_to_sheet([[]])
         
-        // Set worksheet dimensions
-        worksheet['!ref'] = 'A1:R20' // Updated range to include new columns
+        // Track maximum row and column indices
+        let maxRow = 0
+        let maxCol = 0
 
         // Get students grouped by their group ID
         const studentsByGroup = class_response.students.reduce<Record<number, { name: string }[]>>((acc, student) => {
@@ -110,6 +111,8 @@ export async function POST(request: Request) {
             students.forEach((student, studentIndex) => {
                 const cell = XLSX.utils.encode_cell({ r: studentIndex, c: index + 1 }) // Start from column B (index 1)
                 worksheet[cell] = { v: student.name, t: 's' } // Explicitly set type as string
+                maxRow = Math.max(maxRow, studentIndex)
+                maxCol = Math.max(maxCol, index + 1)
             })
         })
 
@@ -123,6 +126,7 @@ export async function POST(request: Request) {
             : ''
         worksheet.G1 = { v: teacherName, t: 's' } // Class teacher
         worksheet.H1 = { v: leadName, t: 's' } // Class lead
+        maxCol = Math.max(maxCol, 7) // Column H is index 7
 
         // Add Turnustage headers (columns I-R)
         const turnustageHeaders = [
@@ -141,6 +145,7 @@ export async function POST(request: Request) {
         turnustageHeaders.forEach((header, index) => {
             const cell = XLSX.utils.encode_cell({ r: 0, c: index + 8 }) // Start from column I (index 8)
             worksheet[cell] = { v: header, t: 's' }
+            maxCol = Math.max(maxCol, index + 8)
         })
 
         // Process schedule data for turns
@@ -168,6 +173,7 @@ export async function POST(request: Request) {
                         worksheet[cell] = { 
                             v: formattedDate
                         }
+                        maxRow = Math.max(maxRow, dateIndex + 2)
                     })
                 }
             })
@@ -184,6 +190,7 @@ export async function POST(request: Request) {
                 v: `${assignment.teacher.lastName.toUpperCase()} ${assignment.teacher.firstName}`,
                 t: 's'
             }
+            maxRow = Math.max(maxRow, index + 2)
         })
 
         // Write PM teachers (column R)
@@ -193,7 +200,11 @@ export async function POST(request: Request) {
                 v: `${assignment.teacher.lastName.toUpperCase()} ${assignment.teacher.firstName}`,
                 t: 's'
             }
+            maxRow = Math.max(maxRow, index + 2)
         })
+
+        // Set worksheet dimensions based on actual data
+        worksheet['!ref'] = `A1:${XLSX.utils.encode_col(maxCol)}${maxRow + 1}`
 
         // Add the worksheet to the workbook
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Gruppenliste')

@@ -26,7 +26,7 @@ const styles = StyleSheet.create({
   },
   table: { width: 'auto', borderStyle: 'solid', borderWidth: 1, borderRightWidth: 0, borderBottomWidth: 0 },
   tableRow: { flexDirection: 'row' },
-  tableCol: { width: '12.5%', borderStyle: 'solid', borderWidth: 1, borderLeftWidth: 0, borderTopWidth: 0, minHeight: 24, justifyContent: 'center', alignItems: 'center' },
+  tableCol: { width: '10%', borderStyle: 'solid', borderWidth: 1, borderLeftWidth: 0, borderTopWidth: 0, minHeight: 24, justifyContent: 'center', alignItems: 'center' },
   header: { backgroundColor: '#00C000', color: '#000', fontWeight: 'bold', textAlign: 'center', padding: 2 },
   cell: { textAlign: 'center', padding: 2 },
   weekRed: { color: 'red' },
@@ -34,7 +34,8 @@ const styles = StyleSheet.create({
 });
 
 function getMaxRows(turnusData: ScheduleData): number {
-  return Math.max(...Object.values(turnusData).map((t) => t.weeks.length));
+  const lengths = Object.values(turnusData).map(t => t.weeks.length);
+  return lengths.length ? Math.max(...lengths) : 0;
 }
 
 
