@@ -49,14 +49,14 @@ function LoadingScreen() {
 }
 
 /**
- * Displays the class schedule overview page, enabling users to view group assignments, teacher schedules, rotation planning, and export the schedule as a PDF.
+ * Renders the class schedule overview page, allowing users to view group assignments, teacher schedules, rotation planning, and export the schedule in multiple formats.
  *
- * Fetches and presents group and teacher assignments, rotation turns, class leadership information, and additional schedule details for a selected class. Provides actions to save teacher rotations and generate a downloadable PDF. Handles loading and error states, and manages navigation after user actions.
+ * Fetches and displays group and teacher assignments, rotation turns, class leadership information, and additional schedule details for a selected class. Provides actions to save teacher rotations and export the schedule as PDF and Excel files, filtered by the selected weekday. Handles loading and error states, and manages navigation after user actions.
  *
- * @returns The React UI for managing and exporting the class schedule overview.
+ * @returns The React UI for managing, viewing, and exporting the class schedule overview.
  */
 export default function OverviewPage() {
-  
+
   const searchParams = useSearchParams();
   const classId = searchParams.get('class');
   const {  isLoading: isLoadingCachedData } = useCachedData();
@@ -66,7 +66,7 @@ export default function OverviewPage() {
     groups,
     amAssignments,
     pmAssignments,
-    scheduleTimes,
+
     turns,
     loading: overviewLoading,
     error: overviewError
@@ -77,7 +77,10 @@ export default function OverviewPage() {
   const [saving, setSaving] = useState(false);
   const [showPdfDialog, setShowPdfDialog] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [, setGeneratingSchedulePDF] = useState(false);
+  const [, setGeneratingExcel] = useState(false);
   const [additionalInfo, setAdditionalInfo] = useState<string>('');
+  const [weekday, setWeekday] = useState<number>();
   const [classHead, setClassHead] = useState<string>('');
   const [classLead, setClassLead] = useState<string>('');
 
@@ -100,7 +103,7 @@ export default function OverviewPage() {
       const schedules = await schedulesRes.json() as ScheduleResponse[];
       const latestSchedule = schedules[0];
       setAdditionalInfo(latestSchedule?.additionalInfo ?? '');
-
+      setWeekday(latestSchedule?.selectedWeekday ?? 6);
       // Fetch class data
       const classRes = await fetch(`/api/classes/get-by-name?name=${classId}`);
       
@@ -125,7 +128,13 @@ export default function OverviewPage() {
     }
   };
 
-  // Save handler for teacher rotation (if needed)
+  /**
+   * Saves the teacher rotation schedule for AM and PM periods to the backend and displays the PDF generation dialog upon success.
+   *
+   * Constructs round-robin teacher assignments for each group and turn, then sends them along with the class ID to the backend API.
+   *
+   * @throws {Error} If the backend request to save the teacher rotation fails.
+   */
   async function handleSaveAndFinish() {
     setSaving(true);
     try {
@@ -189,6 +198,80 @@ export default function OverviewPage() {
     }
   }
 
+  /**
+   * Generates and downloads an Excel file containing the class schedule and grades for the selected class and weekday.
+   *
+   * The exported file is named with the class name, localized weekday, and current date.
+   *
+   * @remark If the export fails, an error is logged to the console and no file is downloaded.
+   */
+  async function handleGenerateExcel() {
+    setGeneratingExcel(true);
+    try {
+      const export_response = await fetch(`/api/export/excel?className=${classId}&selectedWeekday=${weekday}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const today = new Date().toLocaleDateString('de-DE');
+      if (!export_response.ok) throw new Error('Failed to export Excel');
+      const blob = await export_response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${classId} - ${getWeekday()} Notenliste - ${today}.xlsm`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+    } catch (err) {
+      console.error('Error generating Excel:', err);
+    } finally {
+      setGeneratingExcel(false);
+    }
+  }
+
+
+  /**
+   * Generates and downloads a schedule PDF for the selected class and weekday.
+   *
+   * Initiates a POST request to the schedule export API, then downloads the resulting PDF file with a localized filename. Displays an error message if the export fails.
+   */
+  async function handleGenerateSchedulePDF() {
+    setGeneratingSchedulePDF(true);
+    try {
+      const export_response = await fetch(`/api/export/schedule-dates?className=${classId}&selectedWeekday=${weekday}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (!export_response.ok) throw new Error('Failed to export PDF');
+
+      const today = new Date().toLocaleDateString('de-DE');
+      const blob = await export_response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${classId} - TURNUSTAGE ${getWeekday()} - ${today}-.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      setError('Failed to generate PDF.');
+    } finally {
+      setGeneratingSchedulePDF(false);
+    }
+  }
+
+  /**
+   * Generates and downloads a PDF export of the class schedule, then sequentially triggers downloads of the schedule PDF and Excel exports for the selected class and weekday.
+   *
+   * @remark The PDF filename includes the class name, selected weekday, and current date in German locale. The export dialog remains open after download until explicitly closed.
+   *
+   * @throws {Error} If the schedule export request fails.
+   */
   async function handleGeneratePdf() {
     setGeneratingPdf(true);
     try {
@@ -207,17 +290,21 @@ export default function OverviewPage() {
       }
 
       // Handle PDF download
+      const today = new Date().toLocaleDateString('de-DE');
       const blob = await export_response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `schedule-${classId}.pdf`;
+      a.download = `${classId} - ${getWeekday()} Wechselplan - ${today}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      router.push('/');
+      // Only close the dialog after successful download
+      setShowPdfDialog(true);
+      await handleGenerateSchedulePDF();
+      await handleGenerateExcel();
     } catch (err) {
       console.error('Error generating PDF:', err);
       captureFrontendError(err, {
@@ -227,9 +314,10 @@ export default function OverviewPage() {
       setError('Failed to generate PDF.');
     } finally {
       setGeneratingPdf(false);
-      setShowPdfDialog(false);
     }
   }
+
+  
 
   /**
    * Closes the PDF generation dialog and redirects the user to the home page.
@@ -271,7 +359,12 @@ export default function OverviewPage() {
     .filter(a => a.teacherId !== 0)
     .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx);
 
-  // Helper: get turnus info (start, end, days) from turns
+  /**
+   * Retrieves the start date, end date, and number of days for a given turn key.
+   *
+   * @param turnKey - The key identifying the turn to extract information from.
+   * @returns An object containing the start date, end date, and total number of days for the specified turn. If no weeks are found, returns empty strings and zero days.
+   */
   function getTurnusInfo(turnKey: string) {
     const entry = turns[turnKey] as { weeks?: { date: string }[] };
     if (!entry?.weeks?.length) return { start: '', end: '', days: 0 };
@@ -282,16 +375,13 @@ export default function OverviewPage() {
   }
 
   /**
-   * Returns the weekday name of the first schedule time, or "Montag" if unavailable.
+   * Returns the localized name of the selected weekday.
    *
-   * @returns The weekday name in German corresponding to the first schedule time's start time, or "Montag" if no schedule times exist.
+   * @returns The weekday name in German, or an empty string if no weekday is selected.
    */
   function getWeekday() {
-    if (scheduleTimes.length > 0) {
-      const first = scheduleTimes[0];
-      return first?.startTime ? new Date(`1970-01-01T${first.startTime}`).toLocaleDateString('de-DE', { weekday: 'long' }) : 'Montag';
-    }
-    return 'Montag';
+    const days = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+    return weekday === undefined ? '' : days[weekday];
   }
 
   /**
@@ -437,9 +527,9 @@ export default function OverviewPage() {
       <Dialog open={showPdfDialog} onOpenChange={setShowPdfDialog}>
         <DialogContent className="z-50">
           <DialogHeader>
-            <DialogTitle>Generate PDF Schedule?</DialogTitle>
+            <DialogTitle>PDF erstellen?</DialogTitle>
             <DialogDescription>
-              Would you like to generate and download a PDF version of the schedule?
+              Möchten Sie eine PDF-Version des Stundenplans erstellen und herunterladen?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2 justify-end">
@@ -448,7 +538,7 @@ export default function OverviewPage() {
               onClick={handleSkipPdf}
               disabled={generatingPdf}
             >
-              Skip
+              Überspringen
             </Button>
             <Button
               onClick={handleGeneratePdf}

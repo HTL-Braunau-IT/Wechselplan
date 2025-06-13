@@ -18,6 +18,7 @@ export async function POST(request: Request) {
     try {
         const { searchParams } = new URL(request.url)
         const className = searchParams.get('className')
+       
         if (!className) {
             const error = new Error('Class Name is required')
             captureError(error, {
