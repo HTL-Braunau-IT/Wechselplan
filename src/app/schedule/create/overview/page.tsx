@@ -20,6 +20,7 @@ import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { ScheduleOverview } from '@/components/schedule-overview'
 import { Spinner } from '@/components/ui/spinner'
+import { generatePdf, generateExcel, generateSchedulePDF } from '@/lib/export-utils';
 
 import type { ScheduleResponse, ScheduleTime, BreakTime } from '@/types/types'
 
@@ -150,24 +151,10 @@ export default function OverviewPage() {
   }
 
   async function handleGenerateExcel() {
+    if (!classId) return;
     setGeneratingExcel(true);
     try {
-      const export_response = await fetch(`/api/export/excel?className=${classId}&selectedWeekday=${weekday}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      const today = new Date().toLocaleDateString('de-DE');
-      if (!export_response.ok) throw new Error('Failed to export Excel');
-      const blob = await export_response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${classId} - ${getWeekday()} Notenliste - ${today}.xlsm`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
+      await generateExcel(classId, weekday ?? 0);
     } catch (err) {
       console.error('Error generating Excel:', err);
     } finally {
@@ -176,25 +163,10 @@ export default function OverviewPage() {
   }
 
   async function handleGenerateSchedulePDF() {
+    if (!classId) return;
     setGeneratingSchedulePDF(true);
     try {
-      const export_response = await fetch(`/api/export/schedule-dates?className=${classId}&selectedWeekday=${weekday}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      if (!export_response.ok) throw new Error('Failed to export PDF');
-
-      const today = new Date().toLocaleDateString('de-DE');
-      const blob = await export_response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${classId} - TURNUSTAGE ${getWeekday()} - ${today}-.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      await generateSchedulePDF(classId, weekday ?? 0);
     } catch (err) {
       console.error('Error generating PDF:', err);
       setError('Failed to generate PDF.');
@@ -204,44 +176,17 @@ export default function OverviewPage() {
   }
 
   async function handleGeneratePdf() {
+    if (!classId) return;
     setGeneratingPdf(true);
     try {
-      const export_response = await fetch(`/api/export?className=${classId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      if (!export_response.ok) {
-        const error = new Error('Failed to export schedule');
-        captureError(error, {
-          location: 'schedule/create/overview',
-          type: 'export-schedule'
-        })
-        throw new Error('Failed to export schedule');
-      }
-
-      // Handle PDF download
-      const today = new Date().toLocaleDateString('de-DE');
-      const blob = await export_response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${classId} - ${getWeekday()} Wechselplan - ${today}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
+      await generatePdf(classId, weekday ?? 0);     
       // Only close the dialog after successful download
-      setShowPdfDialog(true);
       await handleGenerateSchedulePDF();
       await handleGenerateExcel();
+      setShowPdfDialog(false);
+      router.push('/');
     } catch (err) {
       console.error('Error generating PDF:', err);
-      captureFrontendError(err, {
-        location: 'schedule/create/overview',
-        type: 'generate-pdf'
-      });
       setError('Failed to generate PDF.');
     } finally {
       setGeneratingPdf(false);
@@ -285,10 +230,6 @@ export default function OverviewPage() {
     .filter(a => a.teacherId !== 0)
     .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx);
 
-  function getWeekday() {
-    const days = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
-    return weekday === undefined ? '' : days[weekday];
-  }
 
   return (
     <>

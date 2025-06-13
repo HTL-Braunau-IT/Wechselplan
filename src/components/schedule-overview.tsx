@@ -216,10 +216,12 @@ export function ScheduleOverview({
       </Card>
 
       {/* AM and PM Schedule Tables */}
-      {[{ period: 'AM', teachers: uniqueAmTeachers }, { period: 'PM', teachers: uniquePmTeachers }].map(({ period, teachers }) => (
+      {[{ period: 'AM', teachers: uniqueAmTeachers }, { period: 'PM', teachers: uniquePmTeachers }]
+        .filter(({ teachers }) => teachers.length > 0)
+        .map(({ period, teachers }) => (
         <Card className="mb-8" key={period}>
           <CardHeader>
-            <CardTitle>{getWeekday(weekday)} ({period})</CardTitle>
+            <CardTitle>{getWeekday(weekday)} ({period === 'AM' ? 'Vormittag' : 'Nachmittag'})</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -265,14 +267,50 @@ export function ScheduleOverview({
         </Card>
       ))}
 
-      <Card>
+      <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Zusätzliche Informationen</CardTitle>
+          <CardTitle>Datenquellen</CardTitle>
         </CardHeader>
         <CardContent>
-          <p>{additionalInfo}</p>
+          <div className="overflow-x-auto">
+            <table className="min-w-full border text-sm">
+              <thead>
+                <tr>
+                  <th className="border p-2">Turnus</th>
+                  <th className="border p-2">Datum</th>
+                  <th className="border p-2">Woche</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(turns).map(([turnusKey, turnus], index) => (
+                  (turnus as { weeks: { date: string; week: string; isHoliday: boolean }[] }).weeks.map((week, weekIndex) => (
+                    <tr key={`${turnusKey}-${weekIndex}`}>
+                      {weekIndex === 0 && (
+                        <td className="border p-2" rowSpan={(turnus as { weeks: { date: string }[] }).weeks.length}>
+                          Turnus {index + 1}
+                        </td>
+                      )}
+                      <td className="border p-2">{week.date}</td>
+                      <td className="border p-2">{week.week}</td>
+                    </tr>
+                  ))
+                ))}
+              </tbody>
+            </table>
+          </div>
         </CardContent>
       </Card>
+
+      {additionalInfo && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Zusätzliche Informationen</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p>{additionalInfo}</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 } 

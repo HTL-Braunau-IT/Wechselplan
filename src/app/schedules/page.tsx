@@ -12,8 +12,15 @@ import {
 import { useCachedData } from '@/hooks/use-cached-data'
 import { useScheduleOverview } from '@/hooks/use-schedule-overview'
 import { ScheduleOverview } from '@/components/schedule-overview'
-import { CheckCircle2, XCircle } from 'lucide-react'
+import { CheckCircle2, XCircle, AlertCircle, ChevronDown } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
+import { generateExcel, generatePdf, generateSchedulePDF } from '~/lib/export-utils'
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 
 interface Schedule {
   id: number
@@ -33,6 +40,70 @@ interface Class {
   name: string
 }
 
+/**
+ * Component to display schedule overview for a specific class
+ */
+function ClassScheduleOverview({ className }: { className: string }) {
+  const {
+    groups,
+    amAssignments,
+    pmAssignments,
+    scheduleTimes,
+    breakTimes,
+    turns,
+    classHead,
+    classLead,
+    additionalInfo,
+    weekday,
+    loading: overviewLoading,
+    error: overviewError
+  } = useScheduleOverview(className)
+
+  if (overviewLoading) {
+    return (
+      <div className="p-4 flex items-center justify-center">
+        <Spinner size="lg" />
+      </div>
+    )
+  }
+
+  if (overviewError) {
+    return (
+      <Card className="m-4 border-destructive">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-destructive flex items-center gap-2">
+            <AlertCircle className="h-5 w-5" />
+            Kein Wechselplan für Klasse {className} gefunden!
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground">
+            {overviewError === 'Class ID is required' 
+              ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
+              : overviewError === 'Failed to fetch schedule times'
+              ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
+              : overviewError}
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <ScheduleOverview
+      groups={groups}
+      amAssignments={amAssignments}
+      pmAssignments={pmAssignments}
+      scheduleTimes={scheduleTimes}
+      breakTimes={breakTimes}
+      turns={turns}
+      classHead={classHead}
+      classLead={classLead}
+      additionalInfo={additionalInfo}
+      weekday={weekday}
+    />
+  )
+}
 
 /**
  * Displays an overview of schedules and classes, allowing users to filter by class and view detailed group and teacher assignment tables.
@@ -48,6 +119,10 @@ export default function SchedulesPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { isLoading: isLoadingCachedData } = useCachedData()
+  const [savingPdf, setSavingPdf] = useState(false)
+  const [savingPdfDatum, setSavingPdfDatum] = useState(false)
+  const [savingExcel, setSavingExcel] = useState(false)
+  const [expandedClass, setExpandedClass] = useState<string | null>(null)
 
   const {
     groups,
@@ -117,7 +192,24 @@ export default function SchedulesPage() {
     </div>
   )
   if (error) return <div className="p-8 text-center text-red-500">{error}</div>
-  if (selectedClass !== 'all' && overviewError) return <div className="p-8 text-center text-red-500">{overviewError}</div>
+
+  const handlePDFExport = async () => {
+    setSavingPdf(true)
+    await generatePdf(selectedClass, weekday ?? 0)
+    setSavingPdf(false)
+  }
+
+  const handlePDFDatumExport = async () => {
+    setSavingPdfDatum(true)
+    await generateSchedulePDF(selectedClass, weekday ?? 0)
+    setSavingPdfDatum(false)
+  }
+
+  const handleExcelExport = async () => {
+    setSavingExcel(true)
+    await generateExcel(selectedClass, weekday ?? 0)
+    setSavingExcel(false)
+  }
 
   return (
     <div className="container mx-auto p-4">
@@ -142,22 +234,109 @@ export default function SchedulesPage() {
               ))}
             </SelectContent>
           </Select>
+          
+          {selectedClass !== 'all' && hasSchedule(selectedClass) && (
+            <div className="flex items-center gap-2 mt-4">
+              <button
+                className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
+                onClick={handlePDFExport}
+                disabled={savingPdf}
+              >
+                {savingPdf ? 'Exporting PDF...' : 'PDF Export'}
+              </button>
+              <button
+                className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
+                onClick={handlePDFDatumExport}
+                disabled={savingPdfDatum}
+              >
+                {savingPdfDatum ? 'Exporting PDF Datum ...' : 'PDF Datum Export'}
+              </button>
+
+              <button
+                className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
+                onClick={handleExcelExport}
+                disabled={savingExcel}
+              >
+                {savingExcel ? 'Exporting Excel ...' : 'Export für Notenliste'}
+              </button>
+            </div>
+          )}
+
+          {selectedClass !== 'all' && overviewError && (
+            <Card className="mt-4 border-destructive">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-destructive flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5" />
+                  Kein Wechselplan für Klasse {selectedClass} gefunden!
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  {overviewError === 'Class ID is required' 
+                    ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
+                    : overviewError === 'Failed to fetch schedule times'
+                    ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
+                    : overviewError}
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
-        {/* Only show detailed overview if a class is selected */}
-        {selectedClass !== 'all' && (
-          <ScheduleOverview
-            groups={groups}
-            amAssignments={amAssignments}
-            pmAssignments={pmAssignments}
-            scheduleTimes={scheduleTimes}
-            breakTimes={breakTimes}
-            turns={turns}
-            classHead={classHead}
-            classLead={classLead}
-            additionalInfo={additionalInfo}
-            weekday={weekday}
-          />
+        {/* Show all schedules when "All Classes" is selected */}
+        {selectedClass === 'all' && (
+          <div className="space-y-6 mt-6">
+            {classes.map((cls) => {
+              const hasScheduleForClass = hasSchedule(cls.name);
+              const isExpanded = expandedClass === cls.name;
+              return (
+                <Collapsible 
+                  key={cls.id} 
+                  className="border rounded-lg"
+                  open={isExpanded}
+                  onOpenChange={(open) => setExpandedClass(open ? cls.name : null)}
+                >
+                  <CollapsibleTrigger className="w-full p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xl font-semibold">{cls.name}</h3>
+                      {hasScheduleForClass ? (
+                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                      ) : (
+                        <XCircle className="h-5 w-5 text-red-500" />
+                      )}
+                    </div>
+                    <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    {hasScheduleForClass ? (
+                      <div className="p-4 pt-0">
+                        <ClassScheduleOverview className={cls.name} />
+                      </div>
+                    ) : (
+                      <Card className="m-4 border-destructive">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-destructive flex items-center gap-2">
+                            <AlertCircle className="h-5 w-5" />
+                            Kein Wechselplan für Klasse {cls.name} gefunden!
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-muted-foreground">
+                            Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Show single schedule when a specific class is selected */}
+        {selectedClass !== 'all' && hasSchedule(selectedClass) && !overviewError && (
+          <ClassScheduleOverview className={selectedClass} />
         )}
       </div>
     </div>

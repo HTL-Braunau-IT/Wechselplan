@@ -249,8 +249,16 @@ export default function RotationPage() {
         throw new Error('Class not found')
       }
 
-      const response = await fetch(`/api/schedules?classId=${classData.id}`)
-      if (!response.ok) throw new Error('Failed to fetch schedule')
+      const response = await fetch(`/api/schedules?classId=${className}`)
+      if (!response.ok) {
+        // Handle missing schedule gracefully
+        setSelectedWeekday(1)
+        setNumberOfTerms(4)
+        setAdditionalInfo('')
+        shouldUpdateScheduleRef.current = true
+        return
+      }
+      
       const schedules = await response.json() as ScheduleResponse[]
       
       if (schedules && schedules.length > 0) {
@@ -279,19 +287,30 @@ export default function RotationPage() {
           }
         }
       } else {
-        setSelectedWeekday(1) // Default to Monday if no schedules exist
+        // Set default values when no schedules exist
+        setSelectedWeekday(1)
+        setNumberOfTerms(4)
+        setAdditionalInfo('')
+        shouldUpdateScheduleRef.current = true
       }
     } catch (err) {
-      console.error('Error fetching existing schedule:', err)
-      captureFrontendError(err, {
-        location: 'schedule/create/rotation',
-        type: 'fetch-schedule',
-        extra: {
-          className,
-          selectedWeekday
-        }
-      })
-      setSelectedWeekday(1) // Default to Monday on error
+      // Only log errors for class information fetch failures
+      if (err instanceof Error && err.message === 'Failed to fetch class information') {
+        console.error('Error fetching class information:', err)
+        captureFrontendError(err, {
+          location: 'schedule/create/rotation',
+          type: 'fetch-schedule',
+          extra: {
+            className,
+            selectedWeekday
+          }
+        })
+      }
+      // Set default values on error
+      setSelectedWeekday(1)
+      setNumberOfTerms(4)
+      setAdditionalInfo('')
+      shouldUpdateScheduleRef.current = true
     } finally {
       setIsLoading(false)
     }
