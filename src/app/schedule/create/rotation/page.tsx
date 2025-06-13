@@ -482,7 +482,10 @@ export default function RotationPage() {
               <Label htmlFor="weekday">Rotation Day</Label>
               <Select
                 value={selectedWeekday?.toString() ?? ''}
-                onValueChange={(value) => setSelectedWeekday(parseInt(value))}
+                onValueChange={(value) => {
+                  setSelectedWeekday(parseInt(value));
+                  shouldUpdateScheduleRef.current = true;
+                }}
               >
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Select weekday" />
