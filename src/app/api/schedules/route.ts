@@ -91,19 +91,19 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Class ID is required' }, { status: 400 })
     }
 
-    const classId = await prisma.class.findFirst({
+    const classRecord = await prisma.class.findFirst({
       where: {
         name: className
       }
     })
 
-    if (!classId) {
-      return new NextResponse('No class found for classId ' + className, { status: 500 })
+    if (!classRecord) {
+      return NextResponse.json({ error: `Class '${className}' not found` }, { status: 404 })
     }
 
     const schedules = await db.schedule.findMany({
       where: {
-        classId: classId.id,
+        classId: classRecord.id,
         ...(weekday ? { selectedWeekday: parseInt(weekday) } : {})
       },
       orderBy: {
@@ -112,11 +112,11 @@ export async function GET(req: Request) {
     })
 
     if (schedules.length === 0) {
-      captureError(new Error('No schedules found for classId ' + classId.id), {
+      captureError(new Error('No schedules found for classId ' + classRecord.id), {
         location: 'api/schedules',
         type: 'fetch-schedules'
       })
-      return new NextResponse('No schedules found for classId ' + classId.id, { status: 500 })
+      return NextResponse.json({ error: 'No schedules found' }, { status: 404 })
     }
 
     return NextResponse.json(schedules)

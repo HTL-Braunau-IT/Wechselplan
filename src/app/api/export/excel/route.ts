@@ -222,7 +222,7 @@ export async function POST(request: Request) {
         return new NextResponse(excelBuffer as Buffer, {
             headers: {
                 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                'Content-Disposition': `attachment; filename="${className}_gruppenliste.xlsx"`
+                'Content-Disposition': `attachment; filename="${className}_gruppenliste.xlsm"`
             }
         })
     } catch (error) {

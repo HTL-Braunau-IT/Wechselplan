@@ -249,7 +249,6 @@ export default function RotationPage() {
         throw new Error('Class not found')
       }
 
-      console.log("Fetching existing schedule for class ID: ", classData.id)
       const response = await fetch(`/api/schedules?classId=${classData.id}`)
       if (!response.ok) throw new Error('Failed to fetch schedule')
       const schedules = await response.json() as ScheduleResponse[]

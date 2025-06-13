@@ -459,6 +459,7 @@ export default function TimesPage() {
                       className="w-full p-2 border rounded"
                     >
                       <option value="AM">AM</option>
+                      <option value="LUNCH">LUNCH</option>
                       <option value="PM">PM</option>
                     </select>
                   </div>

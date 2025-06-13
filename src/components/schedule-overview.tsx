@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { Student, Group, TeacherAssignmentResponse, ScheduleTime, BreakTime, TurnSchedule } from '@/types/types'
+import type { Group, TeacherAssignmentResponse, ScheduleTime, BreakTime, TurnSchedule } from '@/types/types'
 
 interface ScheduleOverviewProps {
   groups: Group[]
