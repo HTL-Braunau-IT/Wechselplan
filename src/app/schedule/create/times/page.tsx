@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useTranslation } from 'react-i18next'
+import { Spinner } from '@/components/ui/spinner'
 
 interface ScheduleTime {
   id: number
@@ -272,7 +273,11 @@ export default function TimesPage() {
     }
   }
 
-  if (isLoading) return <div>Loading...</div>
+  if (isLoading) return (
+    <div className="p-8 flex items-center justify-center min-h-[200px]">
+      <Spinner size="lg" />
+    </div>
+  )
 
   console.log('Current schedule times state:', scheduleTimes)
   console.log('Current break times state:', breakTimes)

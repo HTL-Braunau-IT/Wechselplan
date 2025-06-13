@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { ScheduleOverview } from '@/components/schedule-overview'
+import { Spinner } from '@/components/ui/spinner'
 
 import type { ScheduleResponse, ScheduleTime, BreakTime } from '@/types/types'
 
@@ -42,8 +43,8 @@ const DARK_GROUP_COLORS = [
 function LoadingScreen() {
     const { t } = useTranslation()
     return (
-        <div className="min-h-[50vh] flex flex-col items-center justify-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+            <Spinner size="lg" />
             <p className="text-lg text-muted-foreground">{t('schedule.loading')}</p>
         </div>
     )

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { captureFrontendError } from '@/lib/frontend-error'
+import { Spinner } from '@/components/ui/spinner'
 
 interface Student {
   id: number
@@ -65,7 +66,11 @@ export default function StudentsPage() {
     return classData?.name ?? 'Unknown Class'
   }
 
-  if (loading) return <div className="p-8 text-center">Loading...</div>
+  if (loading) return (
+    <div className="p-8 flex items-center justify-center min-h-[200px]">
+      <Spinner size="lg" />
+    </div>
+  )
   if (error) return <div className="p-8 text-center text-red-500">{error}</div>
 
   // Group students by class and then by group

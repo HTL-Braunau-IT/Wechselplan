@@ -13,6 +13,7 @@ import { useCachedData } from '@/hooks/use-cached-data'
 import { useScheduleOverview } from '@/hooks/use-schedule-overview'
 import { ScheduleOverview } from '@/components/schedule-overview'
 import { CheckCircle2, XCircle } from 'lucide-react'
+import { Spinner } from '@/components/ui/spinner'
 
 interface Schedule {
   id: number
@@ -110,7 +111,11 @@ export default function SchedulesPage() {
     return schedules.some(schedule => schedule.classId !== null && classes.find(c => c.id === schedule.classId)?.name === className)
   }
 
-  if (loading || isLoadingCachedData || overviewLoading) return <div className="p-8 text-center">Loading...</div>
+  if (loading || isLoadingCachedData || overviewLoading) return (
+    <div className="p-8 flex items-center justify-center min-h-[200px]">
+      <Spinner size="lg" />
+    </div>
+  )
   if (error) return <div className="p-8 text-center text-red-500">{error}</div>
   if (selectedClass !== 'all' && overviewError) return <div className="p-8 text-center text-red-500">{overviewError}</div>
 
