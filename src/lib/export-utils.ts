@@ -25,7 +25,7 @@ export async function generateSchedulePDF(classId: string, weekday: number) {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${classId} - TURNUSTAGE ${getWeekday(weekday)} - ${today}-.pdf`;
+    a.download = `${classId} - TURNUSTAGE ${getWeekday(weekday)} - ${today}.pdf`;
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
