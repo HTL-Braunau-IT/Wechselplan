@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
 import { z } from 'zod'
 import { captureError } from '~/lib/sentry'
 import { prisma } from '@/lib/prisma'
@@ -42,7 +41,7 @@ export async function POST(req: Request) {
     const { name, description, startDate, endDate, selectedWeekday, scheduleData, classId, additionalInfo } = validationResult.data
 
     // Delete existing schedules with the same weekday for this class
-    await db.schedule.deleteMany({
+    await prisma.schedule.deleteMany({
       where: {
         classId: classId ? parseInt(classId) : null,
         selectedWeekday
@@ -50,7 +49,7 @@ export async function POST(req: Request) {
     })
 
     // Create the new schedule
-    const newSchedule = await db.schedule.create({
+    const newSchedule = await prisma.schedule.create({
       data: {
         name,
         description,
@@ -101,7 +100,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: `Class '${className}' not found` }, { status: 404 })
     }
 
-    const schedules = await db.schedule.findMany({
+    const schedules = await prisma.schedule.findMany({
       where: {
         classId: classRecord.id,
         ...(weekday ? { selectedWeekday: parseInt(weekday) } : {})
