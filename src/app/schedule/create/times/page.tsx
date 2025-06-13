@@ -21,7 +21,7 @@ interface BreakTime {
   name: string
   startTime: string
   endTime: string
-  period: 'AM' | 'PM'
+  period: 'AM' | 'PM' | 'LUNCH'
 }
 
 interface TeacherAssignment {
@@ -44,8 +44,11 @@ interface SavedTimesResponse {
 export default function TimesPage() {
   const [scheduleTimes, setScheduleTimes] = useState<ScheduleTime[]>([])
   const [breakTimes, setBreakTimes] = useState<BreakTime[]>([])
-  const [selectedScheduleTimes, setSelectedScheduleTimes] = useState<number[]>([])
-  const [selectedBreakTimes, setSelectedBreakTimes] = useState<number[]>([])
+  const [selectedAMScheduleTime, setSelectedAMScheduleTime] = useState<number | null>(null)
+  const [selectedPMScheduleTime, setSelectedPMScheduleTime] = useState<number | null>(null)
+  const [selectedAMBreakTime, setSelectedAMBreakTime] = useState<number | null>(null)
+  const [selectedLunchBreakTime, setSelectedLunchBreakTime] = useState<number | null>(null)
+  const [selectedPMBreakTime, setSelectedPMBreakTime] = useState<number | null>(null)
   const [teacherAssignments, setTeacherAssignments] = useState<TeacherAssignment[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -70,16 +73,16 @@ export default function TimesPage() {
     period: 'AM'
   })
 
-  const classId = searchParams.get('class')
+  const className = searchParams.get('class')
 
   useEffect(() => {
-    if (!classId) {
+    if (!className) {
       setError('Class ID is required')
       setIsLoading(false)
       return
     }
     void fetchData()
-  }, [classId])
+  }, [className])
 
   const fetchData = async () => {
     try {
@@ -87,35 +90,67 @@ export default function TimesPage() {
       setError(null)
 
       // Fetch teacher assignments first to determine which periods are needed
-      const assignmentsResponse = await fetch(`/api/schedules/assignments?class=${classId}`)
+      const assignmentsResponse = await fetch(`/api/schedule/teacher-assignments?class=${className}`)
       if (!assignmentsResponse.ok) throw new Error('Failed to fetch teacher assignments')
-      const assignments = await assignmentsResponse.json() as TeacherAssignment[]
-      setTeacherAssignments(assignments)
+      const assignmentsData = await assignmentsResponse.json()
 
       // Get unique periods from assignments
-      const periods = [...new Set(assignments.map(a => a.period))]
+      const periods = new Set<string>()
+      if (assignmentsData.amAssignments?.length > 0) periods.add('AM')
+      if (assignmentsData.pmAssignments?.length > 0) periods.add('PM')
 
       // Fetch schedule times
-      const scheduleResponse = await fetch('/api/settings/schedule-times')
+      const scheduleResponse = await fetch('/api/admin/settings/schedule-times')
       if (!scheduleResponse.ok) throw new Error('Failed to fetch schedule times')
       const scheduleData = await scheduleResponse.json() as ScheduleTime[]
+
       // Filter schedule times based on periods in assignments
-      setScheduleTimes(scheduleData.filter(time => periods.includes(time.period)))
+      const filteredScheduleTimes = scheduleData.filter(time => periods.has(time.period))
+      setScheduleTimes(filteredScheduleTimes)
 
       // Fetch break times
-      const breakResponse = await fetch('/api/settings/break-times')
+      const breakResponse = await fetch('/api/admin/settings/break-times')
       if (!breakResponse.ok) throw new Error('Failed to fetch break times')
       const breakData = await breakResponse.json() as BreakTime[]
-      // Filter break times based on periods in assignments
-      setBreakTimes(breakData.filter(time => periods.includes(time.period)))
+      
+      // Filter break times based on periods and lunch breaks
+      const filteredBreakTimes = breakData.filter(time => {
+        // Always show lunch breaks if there are any assignments
+        if (time.period === "LUNCH") {
+          return periods.size > 0 // Show lunch breaks if there are any AM or PM assignments
+        }
+        // For other breaks, filter by period
+        return periods.has(time.period)
+      })
+      
+      setBreakTimes(filteredBreakTimes)
 
       // Fetch saved times for this class
-      const savedTimesResponse = await fetch(`/api/schedules/times?class=${classId}`)
+      const savedTimesResponse = await fetch(`/api/schedule/times?className=${className}`)
       if (savedTimesResponse.ok) {
-        const savedTimes = await savedTimesResponse.json() as SavedTimesResponse
-        setSelectedScheduleTimes(savedTimes.scheduleTimes.map(time => time.id))
-        setSelectedBreakTimes(savedTimes.breakTimes.map(time => time.id))
+        const savedTimes = await savedTimesResponse.json()
+        console.log('Times:', savedTimes.times.scheduleTimes)
+        console.log('Brakes:', savedTimes.times.breakTimes)
+        
+        // Set selected schedule times
+        if (savedTimes.times.scheduleTimes && Array.isArray(savedTimes.times.scheduleTimes)) {
+          const amTime = savedTimes.times.scheduleTimes.find((time: { id: number; period: string }) => time.period === 'AM')
+          const pmTime = savedTimes.times.scheduleTimes.find((time: { id: number; period: string }) => time.period === 'PM')
+          if (amTime?.id) setSelectedAMScheduleTime(Number(amTime.id))
+          if (pmTime?.id) setSelectedPMScheduleTime(Number(pmTime.id))
+        }
+
+        // Set selected break times
+        if (savedTimes.times.breakTimes && Array.isArray(savedTimes.times.breakTimes)) {
+          const amBreak = savedTimes.times.breakTimes.find((time: { id: number; period: string }) => time.period === 'AM')
+          const lunchBreak = savedTimes.times.breakTimes.find((time: { id: number; period: string }) => time.period === 'LUNCH')
+          const pmBreak = savedTimes.times.breakTimes.find((time: { id: number; period: string }) => time.period === 'PM')
+          if (amBreak?.id) setSelectedAMBreakTime(Number(amBreak.id))
+          if (lunchBreak?.id) setSelectedLunchBreakTime(Number(lunchBreak.id))
+          if (pmBreak?.id) setSelectedPMBreakTime(Number(pmBreak.id))
+        }
       }
+
     } catch (error) {
       console.error('Error fetching data:', error)
       setError('Failed to load times')
@@ -124,33 +159,36 @@ export default function TimesPage() {
     }
   }
 
-  const toggleScheduleTime = (id: number) => {
-    setSelectedScheduleTimes(prev =>
-      prev.includes(id)
-        ? prev.filter(timeId => timeId !== id)
-        : [...prev, id]
-    )
-  }
-
-  const toggleBreakTime = (id: number) => {
-    setSelectedBreakTimes(prev =>
-      prev.includes(id)
-        ? prev.filter(timeId => timeId !== id)
-        : [...prev, id]
-    )
-  }
-
   const handleSave = async () => {
     try {
-      const response = await fetch('/api/schedules/times', {
+      const scheduleTimes = []
+      if (selectedAMScheduleTime) {
+        scheduleTimes.push({ id: selectedAMScheduleTime })
+      }
+      if (selectedPMScheduleTime) {
+        scheduleTimes.push({ id: selectedPMScheduleTime })
+      }
+
+      const breakTimes = []
+      if (selectedAMBreakTime) {
+        breakTimes.push({ id: selectedAMBreakTime })
+      }
+      if (selectedLunchBreakTime) {
+        breakTimes.push({ id: selectedLunchBreakTime })
+      }
+      if (selectedPMBreakTime) {
+        breakTimes.push({ id: selectedPMBreakTime })
+      }
+
+      const response = await fetch('/api/schedule/times', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          scheduleTimes: selectedScheduleTimes,
-          breakTimes: selectedBreakTimes,
-          classId
+          className: className,
+          scheduleTimes,
+          breakTimes,
         }),
       })
 
@@ -158,7 +196,7 @@ export default function TimesPage() {
         throw new Error('Failed to save times')
       }
 
-      router.push(`/schedule/create/overview?class=${classId}`) // Navigate to the overview step with class parameter
+      router.push(`/schedule/create/overview?class=${className}`) // Navigate to the overview step with class parameter
     } catch (error) {
       console.error('Error saving times:', error)
       setError('Failed to save times')
@@ -186,10 +224,10 @@ export default function TimesPage() {
       if (!data || typeof data.id !== 'number' || !['AM', 'PM'].includes(data.period as string)) {
         throw new Error('Invalid response format')
       }
-       const periods = [...new Set(teacherAssignments.map((a: TeacherAssignment) => a.period))]
+      const periods = [...new Set(teacherAssignments.map((a: TeacherAssignment) => a.period))]
       if (periods.includes(data.period as 'AM' | 'PM')) {
-         setScheduleTimes([...scheduleTimes, data as ScheduleTime])
-       }
+        setScheduleTimes([...scheduleTimes, data as ScheduleTime])
+      }
       setNewScheduleTime({
         startTime: '',
         endTime: '',
@@ -235,6 +273,9 @@ export default function TimesPage() {
   }
 
   if (isLoading) return <div>Loading...</div>
+
+  console.log('Current schedule times state:', scheduleTimes)
+  console.log('Current break times state:', breakTimes)
 
   return (
     <div className="container mx-auto p-4">
@@ -324,20 +365,42 @@ export default function TimesPage() {
               </div>
 
               {/* Existing schedule times */}
-              <div className="space-y-4">
-                {scheduleTimes.map(time => (
-                  <div key={time.id} className="flex items-center space-x-4 p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                    <Checkbox
-                      id={`schedule-${time.id}`}
-                      checked={selectedScheduleTimes.includes(time.id)}
-                      onCheckedChange={() => toggleScheduleTime(time.id)}
-                      className="h-5 w-5 border-2 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                    />
-                    <Label htmlFor={`schedule-${time.id}`} className="flex-1 cursor-pointer">
-                      {time.startTime} - {time.endTime} | {time.hours} {t('settings.times.hours')} ({time.period})
-                    </Label>
-                  </div>
-                ))}
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-medium mb-3">AM Schedule Time</h3>
+                  <select
+                    value={selectedAMScheduleTime ?? ''}
+                    onChange={(e) => setSelectedAMScheduleTime(e.target.value ? parseInt(e.target.value) : null)}
+                    className="w-full p-2 border rounded"
+                  >
+                    <option value="">Select AM schedule time</option>
+                    {scheduleTimes
+                      .filter(time => time.period === 'AM')
+                      .map(time => (
+                        <option key={time.id} value={time.id}>
+                          {time.startTime} - {time.endTime} | {time.hours} {t('settings.times.hours')}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-medium mb-3">PM Schedule Time</h3>
+                  <select
+                    value={selectedPMScheduleTime ?? ''}
+                    onChange={(e) => setSelectedPMScheduleTime(e.target.value ? parseInt(e.target.value) : null)}
+                    className="w-full p-2 border rounded"
+                  >
+                    <option value="">Select PM schedule time</option>
+                    {scheduleTimes
+                      .filter(time => time.period === 'PM')
+                      .map(time => (
+                        <option key={time.id} value={time.id}>
+                          {time.startTime} - {time.endTime} | {time.hours} {t('settings.times.hours')}
+                        </option>
+                      ))}
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -401,20 +464,60 @@ export default function TimesPage() {
               </div>
 
               {/* Existing break times */}
-              <div className="space-y-4">
-                {breakTimes.map(time => (
-                  <div key={time.id} className="flex items-center space-x-4 p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                    <Checkbox
-                      id={`break-${time.id}`}
-                      checked={selectedBreakTimes.includes(time.id)}
-                      onCheckedChange={() => toggleBreakTime(time.id)}
-                      className="h-5 w-5 border-2 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                    />
-                    <Label htmlFor={`break-${time.id}`} className="flex-1 cursor-pointer">
-                      {time.name}: {time.startTime} - {time.endTime} ({time.period})
-                    </Label>
-                  </div>
-                ))}
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-medium mb-3">AM Break</h3>
+                  <select
+                    value={selectedAMBreakTime ?? ''}
+                    onChange={(e) => setSelectedAMBreakTime(e.target.value ? parseInt(e.target.value) : null)}
+                    className="w-full p-2 border rounded"
+                  >
+                    <option value="">Select AM break</option>
+                    {breakTimes
+                      .filter(time => time.period === 'AM')
+                      .map(time => (
+                        <option key={time.id} value={time.id}>
+                          {time.name}: {time.startTime} - {time.endTime}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-medium mb-3">Lunch Break</h3>
+                  <select
+                    value={selectedLunchBreakTime ?? ''}
+                    onChange={(e) => setSelectedLunchBreakTime(e.target.value ? parseInt(e.target.value) : null)}
+                    className="w-full p-2 border rounded"
+                  >
+                    <option value="">Select lunch break</option>
+                    {breakTimes
+                      .filter(time => time.period === 'LUNCH')
+                      .map(time => (
+                        <option key={time.id} value={time.id}>
+                          {time.name}: {time.startTime} - {time.endTime}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-medium mb-3">PM Break</h3>
+                  <select
+                    value={selectedPMBreakTime ?? ''}
+                    onChange={(e) => setSelectedPMBreakTime(e.target.value ? parseInt(e.target.value) : null)}
+                    className="w-full p-2 border rounded"
+                  >
+                    <option value="">Select PM break</option>
+                    {breakTimes
+                      .filter(time => time.period === 'PM')
+                      .map(time => (
+                        <option key={time.id} value={time.id}>
+                          {time.name}: {time.startTime} - {time.endTime}
+                        </option>
+                      ))}
+                  </select>
+                </div>
               </div>
             </div>
           </div>

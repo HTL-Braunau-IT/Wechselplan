@@ -15,6 +15,13 @@ export async function GET() {
         startTime: 'asc'
       }
     })
+
+    if (scheduleTimes.length === 0) {
+      console.log('No schedule times found')
+    } else {
+      console.log('Schedule times fetched successfully')
+    }
+
     return NextResponse.json(scheduleTimes)
   } catch (error) {
     captureError(error, {
