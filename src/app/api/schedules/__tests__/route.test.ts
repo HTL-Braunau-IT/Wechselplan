@@ -21,6 +21,11 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     class: {
       findFirst: vi.fn()
+    },
+    schedule: {
+      findMany: vi.fn(),
+      deleteMany: vi.fn(),
+      create: vi.fn()
     }
   }
 }))
@@ -62,14 +67,15 @@ describe('Schedules API', () => {
 
       // Mock the database responses
       vi.mocked(prisma.class.findFirst).mockResolvedValue(mockClass)
-      ;(db.schedule.findMany as any).mockResolvedValue(mockSchedules)
+      vi.mocked(prisma.schedule.findMany).mockResolvedValue(mockSchedules)
 
       // Create request with query parameters
       const request = new Request('http://localhost/api/schedules?classId=1A&weekday=1')
 
       // Call the GET handler
       const response = await GET(request)
-      const data = await response.json()
+      const text = await response.text()
+      const data = text === 'Internal Error' ? null : JSON.parse(text)
 
       // Verify the response
       expect(response).toBeInstanceOf(NextResponse)
@@ -83,7 +89,7 @@ describe('Schedules API', () => {
         }
       })
 
-      expect(db.schedule.findMany).toHaveBeenCalledWith({
+      expect(prisma.schedule.findMany).toHaveBeenCalledWith({
         where: {
           classId: 1,
           selectedWeekday: 1
@@ -97,7 +103,7 @@ describe('Schedules API', () => {
     it('should handle database errors', async () => {
       // Mock database error
       const mockError = new Error('Database connection failed')
-      ;(db.schedule.findMany as any).mockRejectedValue(mockError)
+      vi.mocked(prisma.schedule.findMany).mockRejectedValue(mockError)
 
       // Create request with class name
       const request = new Request('http://localhost/api/schedules?classId=1')
@@ -130,8 +136,8 @@ describe('Schedules API', () => {
       }
 
       // Mock the database responses
-      ;(db.schedule.deleteMany as any).mockResolvedValue({ count: 1 })
-      ;(db.schedule.create as any).mockResolvedValue(mockSchedule)
+      vi.mocked(prisma.schedule.deleteMany).mockResolvedValue({ count: 1 })
+      vi.mocked(prisma.schedule.create).mockResolvedValue(mockSchedule)
 
       // Create request with valid data
       const request = new Request('http://localhost/api/schedules', {
@@ -153,7 +159,8 @@ describe('Schedules API', () => {
 
       // Call the POST handler
       const response = await POST(request)
-      const data = await response.json()
+      const text = await response.text()
+      const data = text === 'Internal Error' ? null : JSON.parse(text)
 
       // Verify the response
       expect(response).toBeInstanceOf(NextResponse)
@@ -161,14 +168,14 @@ describe('Schedules API', () => {
       expect(data).toEqual(mockSchedule)
 
       // Verify the database calls
-      expect(db.schedule.deleteMany).toHaveBeenCalledWith({
+      expect(prisma.schedule.deleteMany).toHaveBeenCalledWith({
         where: {
           classId: 1,
           selectedWeekday: 1
         }
       })
 
-      expect(db.schedule.create).toHaveBeenCalledWith({
+      expect(prisma.schedule.create).toHaveBeenCalledWith({
         data: {
           name: 'New Schedule',
           description: 'Test schedule',
@@ -211,7 +218,7 @@ describe('Schedules API', () => {
     it('should handle database errors', async () => {
       // Mock database error
       const mockError = new Error('Database connection failed')
-      ;(db.schedule.deleteMany as any).mockRejectedValue(mockError)
+      vi.mocked(prisma.schedule.deleteMany).mockRejectedValue(mockError)
 
       // Create request with valid data
       const request = new Request('http://localhost/api/schedules', {
