@@ -7,11 +7,11 @@ import { useTranslation } from "react-i18next"
 import { AlertTriangle } from "lucide-react"
 
 /**
- * Displays a weekly schedule overview for the logged-in teacher with weekday navigation tabs.
+ * Renders a weekly schedule overview for the logged-in teacher with weekday navigation tabs.
  *
- * Fetches and presents the teacher's assignments, class and term details, group information, remaining weeks, additional info, and lists of students for each group. The schedule updates dynamically based on the selected weekday and the current user's session.
+ * Fetches and displays the teacher's assignments, class and term details, group information, remaining weeks, additional info, and lists of students for each group. The schedule updates dynamically based on the selected weekday and the current user's session, with error handling and dark mode support.
  *
- * @returns A React component showing the teacher's schedule overview with internationalized weekday navigation.
+ * @returns A React component showing the teacher's schedule overview with internationalized weekday navigation and error alerts.
  */
 export function TeacherOverview() {
     const { data: session } = useSession()

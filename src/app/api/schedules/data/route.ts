@@ -3,11 +3,13 @@ import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 
 /**
- * Handles HTTP GET requests to retrieve schedule, student, rotation, assignment, and class data for a specified teacher and weekday.
+ * Handles HTTP GET requests to retrieve schedule, student, rotation, assignment, and class information for a specified teacher and weekday.
  *
- * Extracts the `teacher` (required) and `weekday` (optional, defaults to '0') query parameters from the request URL. Validates the teacher's existence, gathers their assignments, rotation data, class information (including class head and lead names), schedules for the given weekday, and students in each class. Returns a JSON response with the aggregated data or an appropriate HTTP error if any required information is missing.
+ * Extracts the `teacher` (required) and `weekday` (optional, defaults to '0') query parameters from the request URL. Validates the teacher's existence, gathers their assignments, rotation data, class details (including class head and lead names), schedules for the given weekday, and students in each class. Returns a JSON response with the aggregated data or an error message in the response body.
  *
- * @returns A {@link NextResponse} containing a JSON object with schedules, students, teacher rotation, filtered assignments, and class information, or an error message with the corresponding HTTP status code.
+ * @returns A {@link NextResponse} containing a JSON object with arrays for schedules, students, teacher rotation, filtered assignments, and class information, or an error message.
+ *
+ * @remark All error conditions except internal server errors return HTTP 200 with an error message in the JSON payload. Only unexpected exceptions result in a 500 status code.
  */
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
