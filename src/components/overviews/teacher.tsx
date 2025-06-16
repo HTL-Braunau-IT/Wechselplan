@@ -3,17 +3,18 @@ import { useSession } from "next-auth/react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import type { ScheduleData, ScheduleTerm} from "@/types/types"
 import { parse, isValid, isWithinInterval, addWeeks } from "date-fns"
-
+import { useTranslation } from "react-i18next"
 
 /**
- * Renders a weekly schedule overview for the logged-in teacher, allowing navigation between weekdays.
+ * Displays a weekly schedule overview for the logged-in teacher with weekday navigation tabs.
  *
- * Displays assignments, class and term details, group information, remaining weeks, additional info, and lists of students for each group. Schedule data is fetched and updated based on the selected weekday and the current user's session.
+ * Fetches and presents the teacher's assignments, class and term details, group information, remaining weeks, additional info, and lists of students for each group. The schedule updates dynamically based on the selected weekday and the current user's session.
  *
- * @returns A React component presenting the teacher's schedule overview with weekday navigation tabs.
+ * @returns A React component showing the teacher's schedule overview with internationalized weekday navigation.
  */
 export function TeacherOverview() {
     const { data: session } = useSession()
+    const { t } = useTranslation()
     const [scheduleData, setScheduleData] = useState<ScheduleData | null>(null)
     const [error, setError] = useState<string | null>(null)
     const today = new Date().getDay()
@@ -27,7 +28,7 @@ export function TeacherOverview() {
         const data = await response.json()
         
         if (response.status === 230) {
-            setError((data.error as string) ?? 'No schedule found for this day')
+            setError(t('overview.teacher.noSchedule'))
             return
         }
         
@@ -77,7 +78,6 @@ export function TeacherOverview() {
         })
 
         const getScheduleInfo = (classId: number) => {
-
             const classSchedule = scheduleData.schedules.find(schedules => 
                 schedules.some(s => Number(s.classId) === classId)
             )
@@ -135,40 +135,39 @@ export function TeacherOverview() {
                 {assignments.map(assignment => {
                     const scheduleInfo = getScheduleInfo(assignment.classId)
                     const currentWeek = getCurrentWeek(scheduleInfo)
-                    const currentTerm = currentWeek ? (currentWeek[1] as ScheduleTerm).name : 'No schedule'
+                    const currentTerm = currentWeek ? (currentWeek[1] as ScheduleTerm).name : t('overview.teacher.noSchedule')
                     const remainingWeeks = getRemainingWeeks(scheduleInfo)
 
                     return (
                         <div key={assignment.id} className="p-4 bg-white rounded-lg shadow">
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <p className="text-sm text-gray-500">Current Class</p>
+                                    <p className="text-sm text-gray-500">{t('overview.teacher.currentClass')}</p>
                                     <p className="font-semibold text-lg">{assignment.className}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <p className="text-sm text-gray-500">Current Term</p>
+                                    <p className="text-sm text-gray-500">{t('overview.teacher.currentTerm')}</p>
                                     <p className="font-semibold text-lg">{currentTerm}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <p className="text-sm text-gray-500">{assignment.period} Group</p>
+                                    <p className="text-sm text-gray-500">{t(`overview.teacher.${assignment.period.toLowerCase()}Group`)}</p>
                                     <p className="font-semibold text-lg">{assignment.groupId}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <p className="text-sm text-gray-500">Weeks Remaining</p>
+                                    <p className="text-sm text-gray-500">{t('overview.teacher.weeksRemaining')}</p>
                                     <p className="font-semibold text-lg">{remainingWeeks}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <p className="text-sm text-gray-500">Class Head</p>
+                                    <p className="text-sm text-gray-500">{t('overview.teacher.classHead')}</p>
                                     <p className="font-semibold text-lg">{assignment.classHead}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <p className="text-sm text-gray-500">Class Lead</p>
+                                    <p className="text-sm text-gray-500">{t('overview.teacher.classLead')}</p>
                                     <p className="font-semibold text-lg">{assignment.classLead}</p>
                                 </div>
                             </div>
                             <div className="border-t pt-4 mt-4">
-                                <p className="text-sm text-gray-500 mb-2">Additional Info</p>
-                                {/* Find the schedule matching the current assignment's class */}
+                                <p className="text-sm text-gray-500 mb-2">{t('overview.teacher.additionalInfo')}</p>
                                 <p className="font-semibold text-lg">
                                     {
                                         scheduleData.schedules
@@ -180,7 +179,7 @@ export function TeacherOverview() {
                             </div>
                             
                             <div className="border-t pt-4 mt-4">
-                                <p className="text-sm text-gray-500 mb-2">Students in {assignment.period} Group</p>
+                                <p className="text-sm text-gray-500 mb-2">{t('overview.teacher.studentsInGroup', { period: assignment.period })}</p>
                                 <div className="grid grid-cols-2 gap-2">
                                     {getStudentsForGroup(assignment.groupId, assignment.classId).map(student => (
                                         <div key={student.id} className="p-2 bg-gray-50 rounded">
@@ -197,14 +196,13 @@ export function TeacherOverview() {
     }
 
     return (
-        
         <Tabs defaultValue={`${today === 0 || today === 6 ? 1 : today}`} className="w-full" onValueChange={handleTabChange}>
             <TabsList className="grid w-full grid-cols-5">
-                <TabsTrigger value="1">Monday</TabsTrigger>
-                <TabsTrigger value="2">Tuesday</TabsTrigger>
-                <TabsTrigger value="3">Wednesday</TabsTrigger>
-                <TabsTrigger value="4">Thursday</TabsTrigger>
-                <TabsTrigger value="5">Friday</TabsTrigger>
+                <TabsTrigger value="1">{t('overview.weekdays.monday')}</TabsTrigger>
+                <TabsTrigger value="2">{t('overview.weekdays.tuesday')}</TabsTrigger>
+                <TabsTrigger value="3">{t('overview.weekdays.wednesday')}</TabsTrigger>
+                <TabsTrigger value="4">{t('overview.weekdays.thursday')}</TabsTrigger>
+                <TabsTrigger value="5">{t('overview.weekdays.friday')}</TabsTrigger>
             </TabsList>
             <TabsContent value="1">
                 {error ? <p className="text-red-500">{error}</p> : renderScheduleInfo()}

@@ -183,6 +183,7 @@ describe('Teacher Assignments API', () => {
             room: 'Room 102',
           },
         ],
+        selectedWeekday: 1
       });
     });
 
@@ -359,7 +360,7 @@ describe('Teacher Assignments API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(data).toEqual({ message: 'Teacher assignments saved successfully' });
+      expect(data).toEqual({ success: true });
       expect(createMock).toHaveBeenCalledWith({
         data: {
           classId: 1,
@@ -369,6 +370,7 @@ describe('Teacher Assignments API', () => {
           subjectId: 1,
           learningContentId: 1,
           roomId: 1,
+          selectedWeekday: 1
         },
       });
     });
@@ -389,12 +391,12 @@ describe('Teacher Assignments API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(500);
-      expect(data).toEqual({ error: 'Failed to update teacher assignments' });
+      expect(data).toEqual({ error: 'Failed to save teacher assignments' });
       expect(captureError).toHaveBeenCalledWith(
         expect.any(Error),
         expect.objectContaining({
           location: 'api/schedule/teacher-assignments',
-          type: 'update-assignments',
+          type: 'save-assignments',
         })
       );
     });

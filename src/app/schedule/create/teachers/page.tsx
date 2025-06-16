@@ -65,6 +65,7 @@ interface TeacherAssignmentResponse {
 interface TeacherAssignmentsResponse {
 	amAssignments: TeacherAssignmentResponse[]
 	pmAssignments: TeacherAssignmentResponse[]
+	selectedWeekday?: number
 }
 
 interface ApiError {
@@ -72,6 +73,21 @@ interface ApiError {
 	message: string
 }
 
+const WEEKDAYS = [
+	{ value: 1, label: 'Monday' },
+	{ value: 2, label: 'Tuesday' },
+	{ value: 3, label: 'Wednesday' },
+	{ value: 4, label: 'Thursday' },
+	{ value: 5, label: 'Friday' }
+]
+
+/**
+ * Renders a dropdown for selecting a teacher from a provided list.
+ *
+ * @param value - The currently selected teacher's ID, or undefined if none is selected.
+ * @param onChange - Callback invoked with the selected teacher's ID when the selection changes.
+ * @param teachers - Array of teacher objects to display as options.
+ */
 function TeacherSelect({ 
 	value, 
 	onChange, 
@@ -88,7 +104,7 @@ function TeacherSelect({
 			value={value?.toString() ?? ''}
 			onValueChange={(value) => onChange(Number(value))}
 		>
-			<SelectTrigger className="w-[280px]">
+			<SelectTrigger className="w-full">
 				<SelectValue placeholder={t('selectTeacher')} />
 			</SelectTrigger>
 			<SelectContent>
@@ -102,6 +118,13 @@ function TeacherSelect({
 	)
 }
 
+/**
+ * Renders a dropdown select component for choosing a room from a provided list.
+ *
+ * @param value - The currently selected room ID, or undefined if no selection.
+ * @param onChange - Callback invoked with the selected room ID when the selection changes.
+ * @param rooms - Array of available room options to display in the dropdown.
+ */
 function RoomSelect({ 
 	value, 
 	onChange, 
@@ -118,7 +141,7 @@ function RoomSelect({
 			value={value?.toString() ?? ''}
 			onValueChange={(value) => onChange(Number(value))}
 		>
-			<SelectTrigger className="w-[280px]">
+			<SelectTrigger className="w-full">
 				<SelectValue placeholder={t('selectRoom')} />
 			</SelectTrigger>
 			<SelectContent>
@@ -132,6 +155,13 @@ function RoomSelect({
 	)
 }
 
+/**
+ * Renders a dropdown select for choosing a subject from a provided list.
+ *
+ * @param value - The currently selected subject ID, or undefined if none is selected.
+ * @param onChange - Callback invoked with the selected subject ID when the selection changes.
+ * @param subjects - Array of available subjects to display as options.
+ */
 function SubjectSelect({ 
 	value, 
 	onChange, 
@@ -148,7 +178,7 @@ function SubjectSelect({
 			value={value?.toString() ?? ''}
 			onValueChange={(value) => onChange(Number(value))}
 		>
-			<SelectTrigger className="w-[280px]">
+			<SelectTrigger className="w-full">
 				<SelectValue placeholder={t('selectSubject')} />
 			</SelectTrigger>
 			<SelectContent>
@@ -162,6 +192,13 @@ function SubjectSelect({
 	)
 }
 
+/**
+ * Renders a dropdown for selecting a learning content item from a provided list.
+ *
+ * @param value - The currently selected learning content ID, or undefined if none is selected.
+ * @param onChange - Callback invoked with the selected learning content ID.
+ * @param learningContents - Array of available learning content options.
+ */
 function LearningContentSelect({ 
 	value, 
 	onChange, 
@@ -178,7 +215,7 @@ function LearningContentSelect({
 			value={value?.toString() ?? ''}
 			onValueChange={(value) => onChange(Number(value))}
 		>
-			<SelectTrigger className="w-[280px]">
+			<SelectTrigger className="w-full">
 				<SelectValue placeholder={t('selectLearningContent')} />
 			</SelectTrigger>
 			<SelectContent>
@@ -192,11 +229,19 @@ function LearningContentSelect({
 	)
 }
 
+/**
+ * React component for assigning teachers, subjects, learning contents, and rooms to student groups for a selected class and weekday.
+ *
+ * Displays and manages AM and PM teacher assignments for each group, supports weekday selection, validates input, handles conflicts with existing assignments, and persists changes. Provides UI feedback for loading, errors, and confirmation dialogs.
+ *
+ * @remark Navigates to the rotation creation page upon successful assignment save or update, including the selected class and weekday in the query parameters.
+ */
 export default function TeacherAssignmentPage() {
 	const router = useRouter()
 	const searchParams = useSearchParams()
 	const { t } = useTranslation('schedule')
 	const selectedClass = searchParams.get('class')
+	const [selectedWeekday, setSelectedWeekday] = useState<number | null>(null)
 
 	const { rooms, subjects, learningContents, teachers, isLoading: isLoadingCachedData } = useCachedData()
 	const [groups, setGroups] = useState<Group[]>([])
@@ -258,6 +303,9 @@ export default function TeacherAssignmentPage() {
 					const teacherAssignmentsData = await teacherAssignmentsRes.json() as TeacherAssignmentsResponse
 					const hasExistingAmAssignments = teacherAssignmentsData.amAssignments.some(a => a.teacherId !== 0)
 					const hasExistingPmAssignments = teacherAssignmentsData.pmAssignments.some(a => a.teacherId !== 0)
+					
+					// Set the weekday from the response
+					setSelectedWeekday(teacherAssignmentsData.selectedWeekday ?? 1)
 					
 					// Initialize base assignments for all groups
 					const initialAssignments: TeacherAssignment[] = groupsData.assignments.map(assignment => ({
@@ -478,7 +526,8 @@ export default function TeacherAssignmentPage() {
 				body: JSON.stringify({
 					class: selectedClass,
 					amAssignments: mapAssignments(validAmAssignments),
-					pmAssignments: mapAssignments(validPmAssignments)
+					pmAssignments: mapAssignments(validPmAssignments),
+					selectedWeekday: selectedWeekday ?? 1
 				}),
 			})
 
@@ -495,7 +544,8 @@ export default function TeacherAssignmentPage() {
 				throw new Error(errorData.message ?? 'Failed to save teacher assignments')
 			}
 
-			router.push(`/schedule/create/rotation?class=${selectedClass}`)
+			// Navigate to the rotation page with both class and weekday parameters
+			router.push(`/schedule/create/rotation?class=${selectedClass}&weekday=${selectedWeekday ?? 1}`)
 		} catch (err) {
 			console.error('Error saving assignments:', err)
 			captureFrontendError(err, {
@@ -541,7 +591,8 @@ export default function TeacherAssignmentPage() {
 					class: selectedClass,
 					amAssignments: mapAssignments(pendingAssignments.amAssignments),
 					pmAssignments: mapAssignments(pendingAssignments.pmAssignments),
-					updateExisting: true
+					updateExisting: true,
+					selectedWeekday: selectedWeekday ?? 1
 				}),
 			})
 
@@ -551,7 +602,7 @@ export default function TeacherAssignmentPage() {
 
 			setShowConfirmDialog(false)
 			setPendingAssignments(null)
-			router.push(`/schedule/create/rotation?class=${selectedClass}`)
+			router.push(`/schedule/create/rotation?class=${selectedClass}&weekday=${selectedWeekday ?? 1}`)
 		} catch (err) {
 			console.error('Error updating assignments:', err)
 			captureFrontendError(err, {
@@ -601,6 +652,25 @@ export default function TeacherAssignmentPage() {
 						</div>
 					)}
 
+					<div className="mb-4">
+						<Label htmlFor="weekday">{t('rotationDay')}</Label>
+						<Select
+							value={selectedWeekday?.toString() ?? ''}
+							onValueChange={(value) => setSelectedWeekday(parseInt(value))}
+						>
+							<SelectTrigger className="w-[180px]">
+								<SelectValue placeholder={t('selectWeekday')} />
+							</SelectTrigger>
+							<SelectContent>
+								{WEEKDAYS.map((day) => (
+									<SelectItem key={day.value} value={day.value.toString()}>
+										{day.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+
 					{/* AM Assignments */}
 					<Card className="mb-8">
 						<CardHeader>
@@ -621,7 +691,7 @@ export default function TeacherAssignmentPage() {
 												{t('clearRow')}
 											</Button>
 										</div>
-										<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+										<div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]">
 											<div>
 												<Label className="block text-sm font-medium mb-1">{t('teacher')}</Label>
 												<TeacherSelect
@@ -691,7 +761,7 @@ export default function TeacherAssignmentPage() {
 												{t('clearRow')}
 											</Button>
 										</div>
-										<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+										<div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]">
 											<div>
 												<Label className="block text-sm font-medium mb-1">{t('teacher')}</Label>
 												<TeacherSelect
@@ -747,7 +817,7 @@ export default function TeacherAssignmentPage() {
 				<div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center">
 					<div className="bg-card p-6 rounded-lg max-w-md shadow-xl">
 						<h2 className="text-xl font-bold mb-4">{t('updateAssignmentsTitle')}</h2>
-						<p className="mb-6">{t('updateAssignmentsMessage')}</p>
+						<p className="mb-6">{t('existingAssignmentsWarning')}</p>
 						<div className="flex justify-end space-x-4">
 							<button
 								onClick={handleCancelUpdate}

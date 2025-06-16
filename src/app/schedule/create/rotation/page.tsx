@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { addWeeks, format, setDay,  isWithinInterval } from 'date-fns'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useTranslation } from 'next-i18next'
 import { captureFrontendError } from '@/lib/frontend-error'
 
 interface WeekInfo {
@@ -62,26 +63,29 @@ const WEEKDAYS = [
  */
 
 export default function RotationPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { t } = useTranslation('schedule')
+  const className = searchParams.get('class')
+  const weekdayParam = searchParams.get('weekday')
+  const isManualChangeRef = useRef(false)
+  const shouldUpdateScheduleRef = useRef(false)
+
   const [schedule, setSchedule] = useState<Schedule>({})
   const [customLengths, setCustomLengths] = useState<Record<string, number>>({})
   const [numberOfTerms, setNumberOfTerms] = useState(4)
-  const [selectedWeekday, setSelectedWeekday] = useState<number | null>(null)
+  const [selectedWeekday, setSelectedWeekday] = useState<number | null>(weekdayParam ? parseInt(weekdayParam) : 1)
   const [holidays, setHolidays] = useState<Holiday[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const [ ,setIsCustomLength] = useState(false)
+  const [, setIsCustomLength] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [weekError] = useState<string | null>(null)
-  const [startDate, ] = useState<Date>(new Date())
-  const [endDate, ] = useState<Date>(new Date())
+  const [startDate] = useState<Date>(new Date())
+  const [endDate] = useState<Date>(new Date())
   const [additionalInfo, setAdditionalInfo] = useState<string>('')
   const [allSchedules, setAllSchedules] = useState<ScheduleResponse[]>([])
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const className = searchParams.get('class')
-  const isManualChangeRef = useRef(false)
-  const shouldUpdateScheduleRef = useRef(false)
 
   const schoolYearStart = new Date(2024, 8, 9) // September 1st
   const schoolYearEnd = new Date(2025, 5, 28) // June 30th
@@ -235,6 +239,24 @@ export default function RotationPage() {
     void loadInitialData()
   }, [className])
 
+  // Update effect to handle weekday changes
+  useEffect(() => {
+    if (!isLoading && selectedWeekday !== null) {
+      shouldUpdateScheduleRef.current = true;
+    }
+  }, [selectedWeekday, isLoading]);
+
+  // Update effect to handle initial load with weekday parameter
+  useEffect(() => {
+    if (weekdayParam && !isLoading && !selectedWeekday) {
+      const weekday = parseInt(weekdayParam);
+      if (!isNaN(weekday) && weekday >= 1 && weekday <= 5) {
+        setSelectedWeekday(weekday);
+        shouldUpdateScheduleRef.current = true;
+      }
+    }
+  }, [weekdayParam, isLoading, selectedWeekday]);
+
   const fetchExistingSchedule = async (className: string) => {
     try {
       setIsLoading(true)
@@ -252,7 +274,7 @@ export default function RotationPage() {
       const response = await fetch(`/api/schedules?classId=${className}`)
       if (!response.ok) {
         // Handle missing schedule gracefully
-        setSelectedWeekday(1)
+        setSelectedWeekday(weekdayParam ? parseInt(weekdayParam) : 1)
         setNumberOfTerms(4)
         setAdditionalInfo('')
         shouldUpdateScheduleRef.current = true
@@ -273,22 +295,25 @@ export default function RotationPage() {
         }, schedules[0])
         
         if (latestSchedule) {
-          // Set the weekday from the latest schedule
-          console.log("Latest schedule: ", latestSchedule)
-          setSelectedWeekday(latestSchedule.selectedWeekday)
+          // If we have a weekday parameter, use it instead of the stored weekday
+          const weekdayToUse = weekdayParam ? parseInt(weekdayParam) : latestSchedule.selectedWeekday
+          setSelectedWeekday(weekdayToUse)
           
           // Find the schedule for the selected weekday
-          const currentSchedule = schedules.find(s => s.selectedWeekday === latestSchedule.selectedWeekday)
+          const currentSchedule = schedules.find(s => s.selectedWeekday === weekdayToUse)
           if (currentSchedule) {
             // Populate state from loaded schedule
             setSchedule((currentSchedule.scheduleData as Schedule) ?? {})
             setNumberOfTerms(Object.keys((currentSchedule.scheduleData as Schedule) ?? {}).length)
             setAdditionalInfo(currentSchedule.additionalInfo ?? '')
+          } else {
+            // If no schedule exists for this weekday, trigger a new schedule creation
+            shouldUpdateScheduleRef.current = true
           }
         }
       } else {
         // Set default values when no schedules exist
-        setSelectedWeekday(1)
+        setSelectedWeekday(weekdayParam ? parseInt(weekdayParam) : 1)
         setNumberOfTerms(4)
         setAdditionalInfo('')
         shouldUpdateScheduleRef.current = true
@@ -307,7 +332,7 @@ export default function RotationPage() {
         })
       }
       // Set default values on error
-      setSelectedWeekday(1)
+      setSelectedWeekday(weekdayParam ? parseInt(weekdayParam) : 1)
       setNumberOfTerms(4)
       setAdditionalInfo('')
       shouldUpdateScheduleRef.current = true
@@ -414,7 +439,7 @@ export default function RotationPage() {
           description: `Rotation schedule for class ${className}`,
           startDate: startDate.toISOString(),
           endDate: endDate.toISOString(),
-          selectedWeekday,
+          selectedWeekday: selectedWeekday ?? 1,
           scheduleData: schedule,
           additionalInfo,
           classId: classData.id.toString()
@@ -425,8 +450,8 @@ export default function RotationPage() {
         throw new Error('Failed to save schedule')
       }
 
-      // Navigate to the times page with the class parameter
-      router.push(`/schedule/create/times?class=${className}`)
+      // Navigate to the times page with both class and weekday parameters
+      router.push(`/schedule/create/times?class=${className}&weekday=${selectedWeekday ?? 1}`)
     } catch (err) {
       console.error('Error saving schedule:', err)
       captureFrontendError(err, {
@@ -446,18 +471,18 @@ export default function RotationPage() {
     }
   }
 
-  if (isLoading) return <div>Loading...</div>
+  if (isLoading) return <div>{t('loading')}</div>
 
   return (
     <div className="container mx-auto p-4">
       <Card>
         <CardHeader>
-          <CardTitle>Rotation Periods</CardTitle>
+          <CardTitle>{t('rotationPeriods')}</CardTitle>
         </CardHeader>
         <CardContent>
           {fetchError && (
             <div className="mb-4 p-4 text-red-500 bg-red-50 rounded-md">
-              {fetchError}
+              {t('failedToLoadHolidays')}
             </div>
           )}
           {weekError && (
@@ -467,7 +492,7 @@ export default function RotationPage() {
           )}
           <div className="flex gap-8 mb-4">
             <div>
-              <Label htmlFor="numberOfTerms">Number of Terms</Label>
+              <Label htmlFor="numberOfTerms">{t('numberOfTerms')}</Label>
               <Input
                 id="numberOfTerms"
                 type="number"
@@ -479,7 +504,7 @@ export default function RotationPage() {
               />
             </div>
             <div>
-              <Label htmlFor="weekday">Rotation Day</Label>
+              <Label htmlFor="weekday">{t('rotationDay')}</Label>
               <Select
                 value={selectedWeekday?.toString() ?? ''}
                 onValueChange={(value) => {
@@ -488,7 +513,7 @@ export default function RotationPage() {
                 }}
               >
                 <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Select weekday" />
+                  <SelectValue placeholder={t('selectWeekday')} />
                 </SelectTrigger>
                 <SelectContent>
                   {WEEKDAYS.map((day) => (
@@ -502,18 +527,18 @@ export default function RotationPage() {
           </div>
 
           <div className="mb-4">
-            <Label htmlFor="additionalInfo">Additional Information</Label>
+            <Label htmlFor="additionalInfo">{t('additionalInformation')}</Label>
             <Input
               id="additionalInfo"
               value={additionalInfo}
               onChange={(e) => setAdditionalInfo(e.target.value)}
-              placeholder="Enter any additional information about this schedule"
+              placeholder={t('additionalInfoPlaceholder')}
               className="w-full"
             />
           </div>
 
           <div className="mb-4">
-            <Label>Custom Lengths</Label>
+            <Label>{t('customLengths')}</Label>
             <div className="flex gap-4 mt-2">
               {Array.from({ length: numberOfTerms }).map((_, index) => {
                 const turnusKey = `TURNUS ${index + 1}`
@@ -542,7 +567,7 @@ export default function RotationPage() {
                       }}
                       className="w-20 h-8"
                       min={1}
-                      placeholder={`${currentWeeks} weeks`}
+                      placeholder={`${currentWeeks} ${t('weeks')}`}
                     />
                   </div>
                 )
@@ -559,7 +584,7 @@ export default function RotationPage() {
                       <th key={turnus} className="border p-2">
                         <div>{turnus}</div>
                         <div className="text-sm font-normal text-muted-foreground">
-                          {entry.weeks.length} weeks
+                          {entry.weeks.length} {t('weeks')}
                         </div>
                       </th>
                     ))}
@@ -591,7 +616,7 @@ export default function RotationPage() {
                         <td key={turnusIndex} className="border p-2 bg-muted">
                           {entry?.holidays?.length > 0 ? (
                             <div className="text-sm">
-                              <div className="font-medium mb-1">Missed Holidays:</div>
+                              <div className="font-medium mb-1">{t('missedHolidays')}</div>
                               {entry.holidays.map((holiday, index) => (
                                 <div key={index} className="text-muted-foreground">
                                   {holiday.name} ({format(holiday.startDate, 'dd.MM.yy')})
@@ -599,7 +624,7 @@ export default function RotationPage() {
                               ))}
                             </div>
                           ) : (
-                            <div className="text-sm text-muted-foreground">No missed holidays</div>
+                            <div className="text-sm text-muted-foreground">{t('noMissedHolidays')}</div>
                           )}
                         </td>
                       )
@@ -612,16 +637,16 @@ export default function RotationPage() {
 
           <div className="mt-4 flex justify-end gap-4">
             <Button variant="outline" onClick={() => window.history.back()}>
-              Back
+              {t('back')}
             </Button>
             <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving ? 'Saving...' : 'Save Schedule'}
+              {isSaving ? t('saving') : t('saveSchedule')}
             </Button>
           </div>
 
           {saveError && (
             <div className="mt-4 text-red-500">
-              {saveError}
+              {t('failedToSaveSchedule')}
             </div>
           )}
         </CardContent>

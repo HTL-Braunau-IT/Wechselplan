@@ -13,8 +13,18 @@ interface LDAPUser {
 	dn: string
 	displayName: string
 	mail: string
+	givenName: string
+	sn: string
 }
 
+/**
+ * Escapes special characters in a string for safe use in LDAP filter values.
+ *
+ * Special characters such as `\`, `*`, `(`, `)`, and null bytes are prefixed with a backslash to prevent LDAP injection or filter parsing errors.
+ *
+ * @param value - The string to escape for use in an LDAP filter.
+ * @returns The escaped string suitable for LDAP filter usage.
+ */
 function escapeLDAPFilterValue(value: string): string {
 	return value.replace(/[\\*()\0]/g, char => `\\${char}`)
 }
@@ -111,7 +121,7 @@ export class LDAPClient {
 				const searchOptions: ldap.SearchOptions = {
 					filter: `(sAMAccountName=${escapeLDAPFilterValue(username)})`,
 					scope: 'sub' as const,
-					attributes: ['dn', 'displayName', 'mail'],
+					attributes: ['dn', 'displayName', 'mail', 'givenName', 'sn'],
 					timeLimit: 5 // 5 seconds timeout for search
 				}
 
@@ -142,16 +152,20 @@ export class LDAPClient {
 						console.log('Found user DN (decoded):', dn)
 						const displayName = attributes.find(attr => attr.type === 'displayName')?.values[0]
 						const mail = attributes.find(attr => attr.type === 'mail')?.values[0]
-						console.log('Found attributes:', { displayName, mail })
-						if (!displayName || !mail) {
-							console.log('Missing required attributes (displayName or mail)')
+						const givenName = attributes.find(attr => attr.type === 'givenName')?.values[0]
+						const sn = attributes.find(attr => attr.type === 'sn')?.values[0]
+						console.log('Found attributes:', { displayName, mail, givenName, sn })
+						if (!displayName || !mail || !givenName || !sn) {
+							console.log('Missing required attributes (displayName, mail, givenName, or sn)')
 							captureError(new Error('Missing required LDAP attributes'), {
 								location: 'LDAPClient',
 								type: 'missing_attributes',
 								extra: {
 									username,
 									hasDisplayName: !!displayName,
-									hasMail: !!mail
+									hasMail: !!mail,
+									hasGivenName: !!givenName,
+									hasSn: !!sn
 								}
 							})
 							return
@@ -160,6 +174,8 @@ export class LDAPClient {
 							dn,
 							displayName,
 							mail,
+							givenName,
+							sn
 						}
 					})
 

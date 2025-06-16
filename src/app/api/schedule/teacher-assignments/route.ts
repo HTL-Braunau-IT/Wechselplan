@@ -4,11 +4,11 @@ import { prisma } from '@/lib/prisma'
 
 
 /**
- * Retrieves teacher assignments for a specified class, grouped by AM and PM periods.
+ * Handles GET requests to retrieve teacher assignments for a specified class, grouped by AM and PM periods.
  *
- * Parses the `class` query parameter from the request URL, fetches the corresponding class and its teacher assignments from the database, and returns the assignments separated into `amAssignments` and `pmAssignments` arrays. Returns an error response if the class parameter is missing, the class is not found, or an unexpected error occurs.
+ * Extracts the `class` query parameter from the request URL, fetches the corresponding class and its teacher assignments from the database, and returns the assignments separated into `amAssignments` and `pmAssignments` arrays, along with the `selectedWeekday` value.
  *
- * @returns A JSON response containing `amAssignments` and `pmAssignments` arrays, or an error message with the appropriate HTTP status code.
+ * @returns A JSON response containing `amAssignments`, `pmAssignments`, and `selectedWeekday`, or an error message with the appropriate HTTP status code if the class is not specified, not found, or an unexpected error occurs.
  */
 export async function GET(request: Request) {
 	try {
@@ -56,6 +56,9 @@ export async function GET(request: Request) {
 			}
 		})
 
+		// Get the selected weekday from the first assignment (they should all have the same weekday)
+		const selectedWeekday = assignments[0]?.selectedWeekday ?? 1
+
 		// Group assignments by period
 		const amAssignments = assignments
 			.filter(a => a.period === 'AM')
@@ -83,10 +86,10 @@ export async function GET(request: Request) {
 
 		return NextResponse.json({
 			amAssignments,
-			pmAssignments
+			pmAssignments,
+			selectedWeekday
 		})
 	} catch (error) {
-
 		captureError(error, {
 			location: 'api/schedule/teacher-assignments',
 			type: 'fetch-assignments',
@@ -102,17 +105,17 @@ export async function GET(request: Request) {
 }
 
 /**
- * Creates or updates teacher assignments for a specified class based on the provided JSON payload.
+ * Creates or updates teacher assignments for a specified class using data from the request body.
  *
- * Validates the existence of the class and related entities (subject, learning content, room), and either creates new assignments or replaces existing ones depending on the `updateExisting` flag. Returns appropriate error responses for missing parameters, nonexistent entities, or assignment conflicts.
+ * Validates the existence of the class and related entities (subject, learning content, room), and either creates new assignments or replaces existing ones based on the `updateExisting` flag. Stores the `selectedWeekday` value with each assignment, defaulting to 1 if not provided.
  *
- * @returns A JSON response indicating success, or an error message with the corresponding HTTP status code.
+ * @returns A JSON response with `{ success: true }` on success, or an error message with the appropriate HTTP status code if validation fails or an error occurs.
  */
 export async function POST(request: Request) {
 	let requestData;
 	try {
 		requestData = await request.json()
-		const { class: className, amAssignments, pmAssignments, updateExisting } = requestData
+		const { class: className, amAssignments, pmAssignments, updateExisting, selectedWeekday } = requestData
 
 		if (!className) {
 			captureError(new Error('Class not found'), {
@@ -189,11 +192,12 @@ export async function POST(request: Request) {
 				data: {
 					classId: classRecord.id,
 					period: 'AM',
-          groupId: assignment.groupId === 0 ? null : assignment.groupId,
+					groupId: assignment.groupId === 0 ? null : assignment.groupId,
 					teacherId: assignment.teacherId,
 					subjectId: subject.id,
 					learningContentId: learningContent.id,
-					roomId: room.id
+					roomId: room.id,
+					selectedWeekday: selectedWeekday ?? 1
 				}
 			})
 		}
@@ -217,31 +221,31 @@ export async function POST(request: Request) {
 				)
 			}
 
-await prisma.teacherAssignment.create({
- 				data: {
- 					classId: classRecord.id,
- 					period: 'PM',
+			await prisma.teacherAssignment.create({
+				data: {
+					classId: classRecord.id,
+					period: 'PM',
 					groupId: assignment.groupId === 0 ? null : assignment.groupId,
- 					teacherId: assignment.teacherId,
- 					subjectId: subject.id,
- 					learningContentId: learningContent.id,
- 					roomId: room.id
- 				}
- 			})
+					teacherId: assignment.teacherId,
+					subjectId: subject.id,
+					learningContentId: learningContent.id,
+					roomId: room.id,
+					selectedWeekday: selectedWeekday ?? 1
+				}
+			})
 		}
 
-		return NextResponse.json({ message: 'Teacher assignments saved successfully' })
+		return NextResponse.json({ success: true })
 	} catch (error) {
-		
 		captureError(error, {
 			location: 'api/schedule/teacher-assignments',
-			type: 'update-assignments',
+			type: 'save-assignments',
 			extra: {
-				requestBody: JSON.stringify(requestData)
+				requestData
 			}
 		})
 		return NextResponse.json(
-			{ error: 'Failed to update teacher assignments' },
+			{ error: 'Failed to save teacher assignments' },
 			{ status: 500 }
 		)
 	}

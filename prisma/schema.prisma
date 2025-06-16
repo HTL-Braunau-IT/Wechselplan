@@ -94,6 +94,7 @@ model TeacherAssignment {
   subjectId         Int
   learningContentId Int
   roomId            Int
+  selectedWeekday   Int             @default(1)
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   class             Class           @relation(fields: [classId], references: [id])
