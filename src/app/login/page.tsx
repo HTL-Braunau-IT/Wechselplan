@@ -38,7 +38,7 @@ export default function LoginPage() {
 			})
 
 			if (result?.error) {
-				setError(t('login.error.invalidCredentials'))
+				setError(t('auth.error.invalidCredentials'))
 				return
 			}
 
@@ -49,7 +49,7 @@ export default function LoginPage() {
 				location: 'login',
 				type: 'ldap-login',
 			})
-			setError(t('login.error.generic'))
+			setError(t('auth.error.generic'))
 		} finally {
 			setIsLoading(false)
 		}
@@ -67,7 +67,7 @@ export default function LoginPage() {
 				location: 'login',
 				type: 'microsoft-login'
 			})
-			setError(t('login.error.generic'))
+			setError(t('auth.error.generic'))
 			setIsLoading(false)
 		}
 	}
@@ -76,9 +76,9 @@ export default function LoginPage() {
 		<div className="container flex h-screen w-screen flex-col items-center justify-center">
 			<Card className="w-full max-w-md">
 				<CardHeader>
-					<CardTitle>{t('login.title')}</CardTitle>
+					<CardTitle>{t('auth.title')}</CardTitle>
 					<CardDescription>
-						{t('login.description')}
+						{t('auth.description')}
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
@@ -91,24 +91,24 @@ export default function LoginPage() {
 
 					<form onSubmit={handleLDAPLogin} className="space-y-4">
 						<div className="space-y-2">
-							<Label htmlFor="username">{t('login.username.label')}</Label>
+							<Label htmlFor="username">{t('auth.username.label')}</Label>
 							<Input
 								id="username"
 								value={username}
 								onChange={(e) => setUsername(e.target.value)}
-								placeholder={t('login.username.placeholder')}
+								placeholder={t('auth.username.placeholder')}
 								required
 							/>
 						</div>
 
 						<div className="space-y-2">
-							<Label htmlFor="password">{t('login.password.label')}</Label>
+							<Label htmlFor="password">{t('auth.password.label')}</Label>
 							<Input
 								id="password"
 								type="password"
 								value={password}
 								onChange={(e) => setPassword(e.target.value)}
-								placeholder={t('login.password.placeholder')}
+								placeholder={t('auth.password.placeholder')}
 								required
 							/>
 						</div>
@@ -118,44 +118,9 @@ export default function LoginPage() {
 							className="w-full"
 							disabled={isLoading}
 						>
-							{isLoading ? t('login.button.signingIn') : t('login.button.signInLDAP')}
+							{isLoading ? t('auth.button.signingIn') : t('auth.button.signInLDAP')}
 						</Button>
 					</form>
-
-					<div className="relative my-4">
-						<div className="absolute inset-0 flex items-center">
-							<span className="w-full border-t" />
-						</div>
-						<div className="relative flex justify-center text-xs uppercase">
-							<span className="bg-background px-2 text-muted-foreground">
-								{t('login.orContinueWith')}
-							</span>
-						</div>
-					</div>
-
-					<Button
-						variant="outline"
-						className="w-full"
-						onClick={handleMicrosoftLogin}
-						disabled={isLoading}
-					>
-						<svg
-							className="mr-2 h-4 w-4"
-							aria-hidden="true"
-							focusable="false"
-							data-prefix="fab"
-							data-icon="microsoft"
-							role="img"
-							xmlns="http://www.w3.org/2000/svg"
-							viewBox="0 0 448 512"
-						>
-							<path
-								fill="currentColor"
-								d="M0 32h214.6v214.6H0V32zm233.4 0H448v214.6H233.4V32zM0 265.4h214.6V480H0V265.4zm233.4 0H448V480H233.4V265.4z"
-							></path>
-						</svg>
-						{t('login.button.signInMicrosoft')}
-					</Button>
 				</CardContent>
 			</Card>
 		</div>

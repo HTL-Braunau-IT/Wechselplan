@@ -1,16 +1,56 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { getToken } from 'next-auth/jwt'
 
 const locales = ['en', 'de']
 const defaultLocale = 'en'
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   // Skip locale redirection for translation files
   if (pathname.startsWith('/locales/')) {
     return NextResponse.next()
   }
+
+  // Check if the path is under /schedule
+  if (pathname.startsWith('/schedule')) {
+    const token = await getToken({ req: request })
+    
+    // If no token or not a teacher, redirect to home
+    if (!token || token.role !== 'teacher') {
+      return NextResponse.redirect(new URL('/', request.url))
+    }
+  }
+
+  if (pathname.startsWith('/admin')) {
+    const token = await getToken({ req: request })
+    
+    // If no token or not a teacher, redirect to home
+    if (!token || token.role !== 'teacher') {
+      return NextResponse.redirect(new URL('/', request.url))
+    }
+  }
+
+  if (pathname.startsWith('/schedueles')) {
+    const token = await getToken({ req: request })
+    
+    // If no token or not a teacher, redirect to home
+    if (!token || token.role !== 'teacher') {
+      return NextResponse.redirect(new URL('/', request.url))
+    }
+  }
+
+  if (pathname.startsWith('/students')) {
+    const token = await getToken({ req: request })
+    
+    // If no token or not a teacher, redirect to home
+    if (!token || token.role !== 'teacher') {
+      return NextResponse.redirect(new URL('/', request.url))
+    }
+  }
+
+
 
   // Get the stored language preference from the cookie
   const storedLanguage = request.cookies.get('language')?.value

@@ -40,7 +40,27 @@
      "support": "Hilfe & Support"
   },
   "overview": {
-    "studentTitle": "Schülerübersicht"
+    "studentTitle": "Schülerübersicht",
+    "teacherTitle": "Lehrerübersicht",
+    "weekdays": {
+      "monday": "Montag",
+      "tuesday": "Dienstag",
+      "wednesday": "Mittwoch",
+      "thursday": "Donnerstag",
+      "friday": "Freitag"
+    },
+    "teacher": {
+      "currentClass": "Aktuelle Klasse",
+      "currentTerm": "Aktuelles Semester",
+      "amGroup": "Vormittagsgruppe",
+      "pmGroup": "Nachmittagsgruppe",
+      "weeksRemaining": "Verbleibende Wochen",
+      "classHead": "Klassenvorstand",
+      "classLead": "Klassenleiter",
+      "additionalInfo": "Zusätzliche Informationen",
+      "studentsInGroup": "Schüler in {{period}}-Gruppe",
+      "noSchedule": "Kein Stundenplan für diesen Tag gefunden"
+    }
   },
   "auth": {
     "login": "Anmelden",
@@ -50,6 +70,7 @@
     "rememberMe": "Angemeldet bleiben",
     "title": "Anmelden",
     "description": "Melden Sie sich mit Ihren Zugangsdaten an",
+    "pleaseLogin": "Bitte melden Sie sich an, um fortzufahren",
     "username": {
       "label": "Benutzername",
       "placeholder": "Geben Sie Ihren Benutzernamen ein"
@@ -60,7 +81,7 @@
     },
     "button": {
       "signingIn": "Anmeldung läuft...",
-      "signInLDAP": "Mit LDAP anmelden",
+      "signInLDAP": "Anmelden",
       "signInMicrosoft": "Mit Microsoft anmelden"
     },
     "orContinueWith": "Oder fortfahren mit",

@@ -40,7 +40,27 @@
     "support": "Help & Support"
   },
   "overview": {
-    "studentTitle": "Student Overview"
+    "studentTitle": "Student Overview",
+    "teacherTitle": "Teacher Overview",
+    "weekdays": {
+      "monday": "Monday",
+      "tuesday": "Tuesday",
+      "wednesday": "Wednesday",
+      "thursday": "Thursday",
+      "friday": "Friday"
+    },
+    "teacher": {
+      "currentClass": "Current Class",
+      "currentTerm": "Current Term",
+      "amGroup": "AM Group",
+      "pmGroup": "PM Group",
+      "weeksRemaining": "Weeks Remaining",
+      "classHead": "Class Head",
+      "classLead": "Class Lead",
+      "additionalInfo": "Additional Info",
+      "studentsInGroup": "Students in {{period}} Group",
+      "noSchedule": "No schedule found for this day"
+    }
   },
   "auth": {
     "login": "Login",
@@ -51,6 +71,7 @@
     "rememberMe": "Remember Me",
     "title": "Login",
     "description": "Sign in to your account using your credentials",
+    "pleaseLogin": "Please log in to continue",
     "username": {
       "label": "Username",
       "placeholder": "Enter your username"

@@ -80,6 +80,8 @@ async function saveUserRole(username: string, role: 'admin' | 'teacher' | 'stude
 
 interface LDAPUser extends User {
   role: 'admin' | 'teacher' | 'student' | 'user'
+  firstName?: string | null
+  lastName?: string | null
 }
 
 export const authOptions: NextAuthOptions = {
@@ -156,6 +158,8 @@ export const authOptions: NextAuthOptions = {
           return {
             id: credentials.username,
             name: credentials.username,
+            firstName: user.givenName,
+            lastName: user.sn,
             email: user.mail,
             role,
           } as LDAPUser
@@ -194,26 +198,28 @@ export const authOptions: NextAuthOptions = {
             }
           )
 
-if (response.ok) {
-             const data = await response.json()
-             const groups = data.value.map((group: { id: string }) => group.id)
+          if (response.ok) {
+            const data = await response.json()
+            const groups = data.value.map((group: { id: string }) => group.id)
 
-             const studentGroups = process.env.MS_STUDENT_GROUPS?.split(',') ?? []
-             const teacherGroups = process.env.MS_TEACHER_GROUPS?.split(',') ?? []
+            const studentGroups = process.env.MS_STUDENT_GROUPS?.split(',') ?? []
+            const teacherGroups = process.env.MS_TEACHER_GROUPS?.split(',') ?? []
 
-             let role: 'admin' | 'teacher' | 'student' | 'user' = 'user'
-             if (groups.some((id: string) => teacherGroups.includes(id))) {
-               role = 'teacher'
-             } else if (groups.some((id: string) => studentGroups.includes(id))) {
-               role = 'student'
-             }
+            let role: 'admin' | 'teacher' | 'student' | 'user' = 'user'
+            if (groups.some((id: string) => teacherGroups.includes(id))) {
+              role = 'teacher'
+            } else if (groups.some((id: string) => studentGroups.includes(id))) {
+              role = 'student'
+            }
 
-             // Save the role to the database
-             if (token.sub) {
-               await saveUserRole(token.sub, role)
-             }
+            // Save the role to the database
+            if (token.sub) {
+              await saveUserRole(token.sub, role)
+            }
 
-             token.role = role
+            token.role = role
+            token.firstName = (user as LDAPUser)?.firstName
+            token.lastName = (user as LDAPUser)?.lastName
           } else {
             console.error(`Microsoft Graph API error: ${response.status} ${response.statusText}`)
             captureError(new Error(`Microsoft Graph API returned ${response.status}`), {
@@ -225,7 +231,7 @@ if (response.ok) {
                 userId: token.sub 
               }
             })
-           }
+          }
         } catch (error) {
           console.error('Error fetching Microsoft groups:', error)
           captureError(error, {
@@ -238,6 +244,8 @@ if (response.ok) {
 
       if (user) {
         token.role = (user as LDAPUser).role
+        token.firstName = (user as LDAPUser)?.firstName
+        token.lastName = (user as LDAPUser)?.lastName
       }
 
       return token
@@ -245,6 +253,8 @@ if (response.ok) {
     async session({ session, token }) {
       if (session.user) {
         session.user.role = token.role as 'admin' | 'teacher' | 'student'
+        session.user.firstName = token.firstName as string | null
+        session.user.lastName = token.lastName as string | null
       }
       return session
     },
