@@ -26,13 +26,7 @@ export async function GET(req: Request) {
         })
         
         if (!teacher) {
-            return NextResponse.json({
-                schedules: [],
-                students: [],
-                teacherRotation: [],
-                assignments: [],
-                classdata: []
-            }, { status: 200 })
+            return NextResponse.json({ error: 'Teacher not found' }, { status: 200 })
         }
 
         const assignments = await prisma.teacherAssignment.findMany({
@@ -42,13 +36,7 @@ export async function GET(req: Request) {
         })
 
         if (!assignments || assignments.length === 0) {
-            return NextResponse.json({
-                schedules: [],
-                students: [],
-                teacherRotation: [],
-                assignments: [],
-                classdata: []
-            }, { status: 200 })
+            return NextResponse.json({ error: 'No classes assigned to teacher' }, { status: 200 })
         }
 
         const teacherRotation = await prisma.teacherRotation.findMany({
@@ -58,13 +46,7 @@ export async function GET(req: Request) {
         })
 
         if (!teacherRotation || teacherRotation.length === 0) {
-            return NextResponse.json({
-                schedules: [],
-                students: [],
-                teacherRotation: [],
-                assignments: [],
-                classdata: []
-            }, { status: 200 })
+            return NextResponse.json({ error: 'No teacher rotation found' }, { status: 200 })
         }
 
         const classIds = [...new Set(assignments.map(assignment => assignment.classId))]
@@ -154,13 +136,7 @@ export async function GET(req: Request) {
 
         // Only return error if we have no students
         if (students.flat().length === 0) {
-            return NextResponse.json({
-                schedules: [],
-                students: [],
-                teacherRotation: [],
-                assignments: [],
-                classdata: []
-            }, { status: 200 })
+            return NextResponse.json({ error: 'No students found' }, { status: 200 })
         }
         
         return NextResponse.json({
