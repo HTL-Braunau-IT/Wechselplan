@@ -4,11 +4,11 @@ import { prisma } from '@/lib/prisma'
 
 
 /**
- * Retrieves teacher assignments for a specified class, grouped by AM and PM periods.
+ * Handles GET requests to retrieve teacher assignments for a specified class, grouped by AM and PM periods.
  *
- * Parses the `class` query parameter from the request URL, fetches the corresponding class and its teacher assignments from the database, and returns the assignments separated into `amAssignments` and `pmAssignments` arrays. Returns an error response if the class parameter is missing, the class is not found, or an unexpected error occurs.
+ * Extracts the `class` query parameter from the request URL, fetches the corresponding class and its teacher assignments from the database, and returns the assignments separated into `amAssignments` and `pmAssignments` arrays, along with the `selectedWeekday` value.
  *
- * @returns A JSON response containing `amAssignments` and `pmAssignments` arrays, or an error message with the appropriate HTTP status code.
+ * @returns A JSON response containing `amAssignments`, `pmAssignments`, and `selectedWeekday`, or an error message with the appropriate HTTP status code if the class is not specified, not found, or an unexpected error occurs.
  */
 export async function GET(request: Request) {
 	try {
@@ -105,11 +105,11 @@ export async function GET(request: Request) {
 }
 
 /**
- * Creates or updates teacher assignments for a specified class based on the provided JSON payload.
+ * Creates or updates teacher assignments for a specified class using data from the request body.
  *
- * Validates the existence of the class and related entities (subject, learning content, room), and either creates new assignments or replaces existing ones depending on the `updateExisting` flag. Returns appropriate error responses for missing parameters, nonexistent entities, or assignment conflicts.
+ * Validates the existence of the class and related entities (subject, learning content, room), and either creates new assignments or replaces existing ones based on the `updateExisting` flag. Stores the `selectedWeekday` value with each assignment, defaulting to 1 if not provided.
  *
- * @returns A JSON response indicating success, or an error message with the corresponding HTTP status code.
+ * @returns A JSON response with `{ success: true }` on success, or an error message with the appropriate HTTP status code if validation fails or an error occurs.
  */
 export async function POST(request: Request) {
 	let requestData;

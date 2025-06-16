@@ -49,6 +49,13 @@ const UNASSIGNED_GROUP_ID = 0
 const MAX_GROUP_SIZE = 12
 const MAX_STUDENTS_FOR_TWO_GROUPS = 24
 
+/**
+ * Renders a draggable student item with the student's name and index, and provides a button to remove the student from the group.
+ *
+ * @param student - The student to display.
+ * @param index - The position of the student in the list.
+ * @param onRemove - Callback invoked with the student's ID when the remove button is clicked.
+ */
 function StudentItem({ student, index, onRemove }: { student: Student, index: number, onRemove: (studentId: number) => void }) {
 	const { attributes, listeners, setNodeRef, transform } = useDraggable({
 		id: `student-${student.id}`
@@ -116,13 +123,13 @@ function GroupContainer({ group, children }: { group: Group, children: React.Rea
 }
 
 /**
- * Renders an interactive scheduling interface for assigning students to groups within a selected class using drag-and-drop.
+ * Provides an interactive interface for assigning students to groups within a selected class using drag-and-drop.
  *
- * Allows teachers to select a class, view and manage its students, create and adjust groups, assign students via drag-and-drop, add or remove students, and save group assignments. Integrates with backend APIs for data retrieval and persistence, and prompts for confirmation when updating existing assignments.
+ * Enables teachers to select a class, view and manage its students, create groups, assign students to groups, add or remove students, and save group assignments. Integrates with backend APIs for data retrieval and persistence, enforces maximum group size constraints, and prompts for confirmation when updating existing assignments.
  *
- * @returns The React component for the class scheduling interface.
+ * @returns The React component for the class scheduling and group assignment interface.
  *
- * @remark The unassigned group is always present with an ID of 0 and is preserved across group changes. When existing assignments are detected and changes are made, a confirmation dialog is shown before updating assignments.
+ * @remark The unassigned group (ID 0) is always present and preserved across group changes. Students cannot be moved into the unassigned group via drag-and-drop, but can be moved there using the remove action. If a group assignment would exceed the maximum group size, a warning dialog is shown and the action is blocked. When existing assignments are detected and changes are made, a confirmation dialog is displayed before updating assignments.
  */
 export default function ScheduleClassSelectPage() {
 	const router = useRouter()
@@ -156,14 +163,23 @@ export default function ScheduleClassSelectPage() {
 		username: ''
 	})
 
-	// Add function to check group sizes
+	/**
+	 * Determines whether all groups, except the unassigned group, do not exceed the maximum allowed size.
+	 *
+	 * @param groups - Array of groups to validate.
+	 * @returns True if every group (excluding the unassigned group) has a size less than or equal to {@link MAX_GROUP_SIZE}; otherwise, false.
+	 */
 	function checkGroupSizes(groups: Group[]): boolean {
 		return groups.every(group => 
 			group.id === UNASSIGNED_GROUP_ID || group.students.length <= MAX_GROUP_SIZE
 		)
 	}
 
-	// Add reset function
+	/**
+	 * Resets the group assignments to two groups, evenly distributing students by last name.
+	 *
+	 * If redistributing students would cause any group to exceed the maximum allowed size, displays a warning dialog instead of resetting.
+	 */
 	function handleReset() {
 		setNumberOfGroups(2)
 		const sortedStudents = [...students].sort((a, b) => 
@@ -238,6 +254,13 @@ export default function ScheduleClassSelectPage() {
 	}, [])
 
 	useEffect(() => {
+		/**
+		 * Fetches students and their group assignments for the selected class, initializing groups accordingly.
+		 *
+		 * If existing assignments are found, reconstructs groups based on those assignments; otherwise, creates default groups by evenly distributing students sorted by last name. Sets the number of groups based on student count, defaulting to 2 or 3. Handles loading and error states.
+		 *
+		 * @remark Throws an error if a student ID in assignments does not match any fetched student.
+		 */
 		async function fetchStudents() {
 			if (!selectedClass) return
 			
@@ -416,6 +439,11 @@ export default function ScheduleClassSelectPage() {
 		}
 	}, [groups, t])
 
+	/**
+	 * Updates the number of groups based on the selected value from the group size dropdown.
+	 *
+	 * @param e - The change event from the group size selector.
+	 */
 	function handleGroupSizeChange(e: React.ChangeEvent<HTMLSelectElement>) {
 		setNumberOfGroups(Number(e.target.value))
 	}
@@ -543,7 +571,7 @@ export default function ScheduleClassSelectPage() {
 	}
 
 	/**
-	 * Cancels the assignment update confirmation dialog and clears any pending assignments.
+	 * Closes the assignment update confirmation dialog and discards any pending assignment changes.
 	 */
 	function handleCancelUpdate() {
 		setShowConfirmDialog(false)
@@ -551,11 +579,11 @@ export default function ScheduleClassSelectPage() {
 	}
 
 	/**
-	 * Moves a student to the unassigned group.
+	 * Moves a student from their current group to the unassigned group.
 	 *
-	 * Updates the groups state to move the specified student to the unassigned group.
+	 * Updates the groups state by removing the specified student from their group and adding them to the unassigned group, maintaining alphabetical order by last name in the unassigned group.
 	 *
-	 * @param studentId - The ID of the student to move to unassigned.
+	 * @param studentId - The ID of the student to move to the unassigned group.
 	 */
 	function handleStudentRemoval(studentId: number) {
 		setGroups(currentGroups => {
@@ -610,6 +638,13 @@ export default function ScheduleClassSelectPage() {
 		}
 	}
 
+	/**
+	 * Handles the completion of a drag-and-drop action for a student, moving the student to a new group if allowed.
+	 *
+	 * Prevents moving students to the unassigned group via drag-and-drop and enforces the maximum group size constraint. If the target group is full, displays a dialog warning the user.
+	 *
+	 * @param event - The drag end event containing information about the dragged student and target group.
+	 */
 	function handleDragEnd(event: DragEndEvent) {
 		const { active, over } = event
 		

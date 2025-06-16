@@ -81,6 +81,13 @@ const WEEKDAYS = [
 	{ value: 5, label: 'Friday' }
 ]
 
+/**
+ * Renders a dropdown for selecting a teacher from a provided list.
+ *
+ * @param value - The currently selected teacher's ID, or undefined if none is selected.
+ * @param onChange - Callback invoked with the selected teacher's ID when the selection changes.
+ * @param teachers - Array of teacher objects to display as options.
+ */
 function TeacherSelect({ 
 	value, 
 	onChange, 
@@ -111,6 +118,13 @@ function TeacherSelect({
 	)
 }
 
+/**
+ * Renders a dropdown select component for choosing a room from a provided list.
+ *
+ * @param value - The currently selected room ID, or undefined if no selection.
+ * @param onChange - Callback invoked with the selected room ID when the selection changes.
+ * @param rooms - Array of available room options to display in the dropdown.
+ */
 function RoomSelect({ 
 	value, 
 	onChange, 
@@ -141,6 +155,13 @@ function RoomSelect({
 	)
 }
 
+/**
+ * Renders a dropdown select for choosing a subject from a provided list.
+ *
+ * @param value - The currently selected subject ID, or undefined if none is selected.
+ * @param onChange - Callback invoked with the selected subject ID when the selection changes.
+ * @param subjects - Array of available subjects to display as options.
+ */
 function SubjectSelect({ 
 	value, 
 	onChange, 
@@ -171,6 +192,13 @@ function SubjectSelect({
 	)
 }
 
+/**
+ * Renders a dropdown for selecting a learning content item from a provided list.
+ *
+ * @param value - The currently selected learning content ID, or undefined if none is selected.
+ * @param onChange - Callback invoked with the selected learning content ID.
+ * @param learningContents - Array of available learning content options.
+ */
 function LearningContentSelect({ 
 	value, 
 	onChange, 
@@ -201,6 +229,13 @@ function LearningContentSelect({
 	)
 }
 
+/**
+ * React component for assigning teachers, subjects, learning contents, and rooms to student groups for a selected class and weekday.
+ *
+ * Displays and manages AM and PM teacher assignments for each group, supports weekday selection, validates input, handles conflicts with existing assignments, and persists changes. Provides UI feedback for loading, errors, and confirmation dialogs.
+ *
+ * @remark Navigates to the rotation creation page upon successful assignment save or update, including the selected class and weekday in the query parameters.
+ */
 export default function TeacherAssignmentPage() {
 	const router = useRouter()
 	const searchParams = useSearchParams()

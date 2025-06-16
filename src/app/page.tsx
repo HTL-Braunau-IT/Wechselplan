@@ -10,9 +10,9 @@ import { StudentOverview } from '@/components/overviews/students'
 
 
 /**
- * Renders the main home page with authentication and role-based content.
+ * Displays the home page with authentication and role-based content.
  *
- * Displays a login prompt if the user is not authenticated. If authenticated, shows a welcome message, application version and build date, and renders either the student or teacher overview based on the user's role.
+ * Shows a login prompt if the user is not authenticated. When authenticated, presents a personalized welcome message, application version and build date, the current date in German locale, and renders either the student or teacher overview based on the user's role.
  */
 export default function Home() {
   const { t } = useTranslation()

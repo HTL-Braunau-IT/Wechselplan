@@ -97,11 +97,11 @@ function getWeekday(weekday: number) {
 }
 
 /**
- * Displays a comprehensive overview of a school schedule, including group assignments, class leadership, period times, teacher schedules, turnus data, and additional information.
+ * Renders a detailed overview of a school schedule, including group membership, class leadership, period times with breaks, teacher assignments per turn, turnus data, and optional additional notes.
  *
- * Renders tables for group membership, class head and lead, schedule times with breaks, AM and PM teacher assignments per turn, turnus date sources, and any provided extra notes. Group and schedule data are color-coded and organized for clarity.
+ * Displays color-coded tables for groups and teacher assignments, a summary of class head and lead, period and break times, a turnus schedule, and any extra information provided. Designed for clarity and comprehensive schedule visualization.
  *
- * @param groups - List of groups with their students.
+ * @param groups - The list of groups with their students.
  * @param amAssignments - Teacher assignments for the morning period.
  * @param pmAssignments - Teacher assignments for the afternoon period.
  * @param scheduleTimes - Start and end times for AM and PM periods.
@@ -112,7 +112,7 @@ function getWeekday(weekday: number) {
  * @param additionalInfo - Optional extra information to display.
  * @param weekday - Numeric representation of the weekday (0=Sunday).
  *
- * @returns The rendered schedule overview interface.
+ * @returns The rendered schedule overview interface as a React element.
  */
 export function ScheduleOverview({
   groups,

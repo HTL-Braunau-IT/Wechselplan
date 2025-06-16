@@ -17,6 +17,14 @@ interface LDAPUser {
 	sn: string
 }
 
+/**
+ * Escapes special characters in a string for safe use in LDAP filter values.
+ *
+ * Special characters such as `\`, `*`, `(`, `)`, and null bytes are prefixed with a backslash to prevent LDAP injection or filter parsing errors.
+ *
+ * @param value - The string to escape for use in an LDAP filter.
+ * @returns The escaped string suitable for LDAP filter usage.
+ */
 function escapeLDAPFilterValue(value: string): string {
 	return value.replace(/[\\*()\0]/g, char => `\\${char}`)
 }
