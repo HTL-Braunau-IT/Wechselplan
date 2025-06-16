@@ -3,10 +3,6 @@
     "welcome": "Willkommen",
     "settings": "Einstellungen",
     "language": "Sprache",
-    "theme": "Design",
-    "dark": "Dunkel",
-    "light": "Hell",
-    "system": "System",
     "schoolYear": "Schuljahr",
     "appName": "Wechselplan",
     "selectSchoolYear": "Schuljahr auswählen",
@@ -24,6 +20,11 @@
     "back": "Zurück",
     "submitting": "Wird gesendet...",
     "reloadPage": "Seite neu laden"
+  },
+  "theme": {
+    "light": "Hell",
+    "dark": "Dunkel",
+    "system": "System"
   },
   "navigation": {
     "home": "Startseite",
@@ -278,5 +279,14 @@
       "load": "Daten konnten nicht geladen werden",
       "update": "Klasse konnte nicht aktualisiert werden"
     }
+  },
+  "profile": {
+    "menu": "Benutzermenü",
+    "role": {
+      "teacher": "Lehrer",
+      "student": "Schüler",
+      "admin": "Administrator"
+    },
+    "logout": "Abmelden"
   }
 } 
