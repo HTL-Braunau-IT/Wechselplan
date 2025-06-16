@@ -55,22 +55,7 @@ export default function LoginPage() {
 		}
 	}
 
-	const handleMicrosoftLogin = async () => {
-		setIsLoading(true)
-		setError(null)
-
-		try {
-			await signIn('azure-ad', { callbackUrl: '/' })
-		} catch (err) {
-			console.error('Error during Microsoft login:', err)
-			captureFrontendError(err, {
-				location: 'login',
-				type: 'microsoft-login'
-			})
-			setError(t('auth.error.generic'))
-			setIsLoading(false)
-		}
-	}
+	
 
 	return (
 		<div className="container flex h-screen w-screen flex-col items-center justify-center">
