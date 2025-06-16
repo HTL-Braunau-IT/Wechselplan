@@ -103,7 +103,34 @@
       "scheduleTimeAdded": "Unterrichtszeit erfolgreich hinzugefügt",
       "breakTimeAdded": "Pausenzeit erfolgreich hinzugefügt",
       "scheduleTimeError": "Fehler beim Hinzufügen der Unterrichtszeit",
-      "breakTimeError": "Fehler beim Hinzufügen der Pausenzeit"
+      "breakTimeError": "Fehler beim Hinzufügen der Pausenzeit",
+      "select": {
+        "amScheduleTime": "Vormittags-Unterrichtszeit auswählen",
+        "pmScheduleTime": "Nachmittags-Unterrichtszeit auswählen",
+        "amBreak": "Vormittagspause auswählen",
+        "lunchBreak": "Mittagspause auswählen",
+        "pmBreak": "Nachmittagspause auswählen"
+      },
+      "labels": {
+        "amScheduleTime": "Vormittags-Unterrichtszeit",
+        "pmScheduleTime": "Nachmittags-Unterrichtszeit",
+        "amBreak": "Vormittagspause",
+        "lunchBreak": "Mittagspause",
+        "pmBreak": "Nachmittagspause"
+      },
+      "periods": {
+        "AM": "Vormittag",
+        "PM": "Nachmittag",
+        "LUNCH": "Mittag"
+      },
+      "errors": {
+        "selectAMScheduleTime": "Bitte wählen Sie eine Vormittags-Unterrichtszeit aus",
+        "selectPMScheduleTime": "Bitte wählen Sie eine Nachmittags-Unterrichtszeit aus",
+        "selectAMBreakTime": "Bitte wählen Sie eine Vormittagspause aus",
+        "selectLunchBreakTime": "Bitte wählen Sie eine Mittagspause aus",
+        "selectPMBreakTime": "Bitte wählen Sie eine Nachmittagspause aus",
+        "saveFailed": "Fehler beim Speichern der Zeiten"
+      }
     }
   }
 } 

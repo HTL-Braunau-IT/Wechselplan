@@ -150,6 +150,7 @@ export function ScheduleOverview({
             <table className="min-w-full border text-sm">
               <thead>
                 <tr>
+                  <th className="border p-1 text-center font-bold w-8">Nr.</th>
                   {groups.map((group, idx) => (
                     <th
                       key={group.id}
@@ -163,6 +164,7 @@ export function ScheduleOverview({
               <tbody>
                 {[...Array(maxStudents)].map((_, rowIdx) => (
                   <tr key={rowIdx}>
+                    <td className="border p-1 text-center font-bold w-8">{rowIdx + 1}</td>
                     {groups.map((group) => (
                       <td key={group.id} className="border p-2 text-center">
                         {group.students[rowIdx]
@@ -308,7 +310,7 @@ export function ScheduleOverview({
 
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Datenquellen</CardTitle>
+          <CardTitle>Turnuse</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">

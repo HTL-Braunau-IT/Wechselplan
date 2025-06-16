@@ -8,7 +8,7 @@ import { useTranslation } from 'next-i18next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { captureFrontendError } from '@/lib/frontend-error'
@@ -44,6 +44,10 @@ interface AssignmentsResponse {
 
 // Add constant for unassigned group ID
 const UNASSIGNED_GROUP_ID = 0
+
+// Add constant for maximum group size
+const MAX_GROUP_SIZE = 12
+const MAX_STUDENTS_FOR_TWO_GROUPS = 24
 
 function StudentItem({ student, index, onRemove }: { student: Student, index: number, onRemove: (studentId: number) => void }) {
 	const { attributes, listeners, setNodeRef, transform } = useDraggable({
@@ -139,6 +143,7 @@ export default function ScheduleClassSelectPage() {
 	])
 	const [activeStudent, setActiveStudent] = useState<Student | null>(null)
 	const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+	const [showMaxSizeDialog, setShowMaxSizeDialog] = useState(false)
 	const [pendingAssignments, setPendingAssignments] = useState<{
 		assignments: Assignment[]
 		removedStudentIds: number[]
@@ -150,6 +155,42 @@ export default function ScheduleClassSelectPage() {
 		lastName: '',
 		username: ''
 	})
+
+	// Add function to check group sizes
+	function checkGroupSizes(groups: Group[]): boolean {
+		return groups.every(group => 
+			group.id === UNASSIGNED_GROUP_ID || group.students.length <= MAX_GROUP_SIZE
+		)
+	}
+
+	// Add reset function
+	function handleReset() {
+		setNumberOfGroups(2)
+		const sortedStudents = [...students].sort((a, b) => 
+			a.lastName.localeCompare(b.lastName)
+		)
+		const studentsPerGroup = Math.ceil(sortedStudents.length / 2)
+		
+		// Check if any group would exceed the maximum size
+		if (studentsPerGroup > MAX_GROUP_SIZE) {
+			setShowMaxSizeDialog(true)
+			return
+		}
+
+		const newGroups: Group[] = [
+			// Add unassigned group first
+			{
+				id: UNASSIGNED_GROUP_ID,
+				students: []
+			},
+			// Add two regular groups
+			...Array.from({ length: 2 }, (_, i) => ({
+				id: i + 1,
+				students: sortedStudents.slice(i * studentsPerGroup, (i + 1) * studentsPerGroup)
+			}))
+		]
+		setGroups(newGroups)
+	}
 
 	// Add effect to automatically generate username
 	useEffect(() => {
@@ -208,6 +249,10 @@ export default function ScheduleClassSelectPage() {
 				const studentsData = await studentsRes.json() as Student[]
 				setStudents(studentsData)
 
+				// Calculate initial number of groups based on student count
+				const initialGroups = studentsData.length > MAX_STUDENTS_FOR_TWO_GROUPS ? 3 : 2
+				setNumberOfGroups(initialGroups)
+
 				// Then fetch existing assignments
 				const assignmentsRes = await fetch(`/api/schedule/assignments?class=${selectedClass}`)
 				if (!assignmentsRes.ok) throw new Error('Failed to fetch assignments')
@@ -239,7 +284,7 @@ export default function ScheduleClassSelectPage() {
 					const sortedStudents = [...studentsData].sort((a, b) => 
 						a.lastName.localeCompare(b.lastName)
 					)
-					const studentsPerGroup = Math.ceil(sortedStudents.length / numberOfGroups)
+					const studentsPerGroup = Math.ceil(sortedStudents.length / initialGroups)
 					const newGroups: Group[] = [
 						// Always include unassigned group first
 						{
@@ -247,7 +292,7 @@ export default function ScheduleClassSelectPage() {
 							students: []
 						},
 						// Then add regular groups
-						...Array.from({ length: numberOfGroups }, (_, i) => ({
+						...Array.from({ length: initialGroups }, (_, i) => ({
 							id: i + 1,
 							students: sortedStudents.slice(i * studentsPerGroup, (i + 1) * studentsPerGroup)
 						}))
@@ -361,6 +406,15 @@ export default function ScheduleClassSelectPage() {
 			return currentGroups
 		})
 	}, [])
+
+	// Add effect to check group sizes when groups change
+	useEffect(() => {
+		if (!checkGroupSizes(groups)) {
+			setError(t('maxGroupSizeError'))
+		} else {
+			setError(null)
+		}
+	}, [groups, t])
 
 	function handleGroupSizeChange(e: React.ChangeEvent<HTMLSelectElement>) {
 		setNumberOfGroups(Number(e.target.value))
@@ -497,54 +551,44 @@ export default function ScheduleClassSelectPage() {
 	}
 
 	/**
-	 * Removes a student from the backend and updates local state to reflect the deletion.
+	 * Moves a student to the unassigned group.
 	 *
-	 * Deletes the student by ID, updates the students and groups state to remove the student, and reloads the page with the current class parameter. If an error occurs, logs the error, reports it with contextual metadata, and sets an error message.
+	 * Updates the groups state to move the specified student to the unassigned group.
 	 *
-	 * @param studentId - The ID of the student to remove.
+	 * @param studentId - The ID of the student to move to unassigned.
 	 */
-	async function handleStudentRemoval(studentId: number) {
-		try {
-			// Delete the student from the database
-			const response = await fetch(`/api/students/${studentId}`, {
-				method: 'DELETE'
-			})
+	function handleStudentRemoval(studentId: number) {
+		setGroups(currentGroups => {
+			const newGroups = [...currentGroups]
+			
+			// Find the source group
+			const sourceGroupIndex = newGroups.findIndex(group => 
+				group.students.some(student => student.id === studentId)
+			)
+			
+			if (sourceGroupIndex === -1) return currentGroups
 
-			if (!response.ok) {
-				throw new Error('Failed to delete student')
-			}
+			// Find the student
+			const student = newGroups[sourceGroupIndex]!.students.find(s => s.id === studentId)
+			if (!student) return currentGroups
 
-			// Update the students state
-			setStudents(currentStudents => 
-				currentStudents.filter(s => s.id !== studentId)
+			// Remove student from source group
+			newGroups[sourceGroupIndex]!.students = newGroups[sourceGroupIndex]!.students.filter(
+				s => s.id !== studentId
 			)
 
-			// Update the groups state
-			setGroups(currentGroups => {
-				const newGroups = currentGroups.map(group => ({
-					...group,
-					students: group.students.filter(s => s.id !== studentId)
-				}))
-				return newGroups
-			})
+			// Add student to unassigned group
+			const unassignedGroupIndex = newGroups.findIndex(group => group.id === UNASSIGNED_GROUP_ID)
+			if (unassignedGroupIndex !== -1) {
+				newGroups[unassignedGroupIndex]!.students.push(student)
+				// Sort students in the unassigned group by last name
+				newGroups[unassignedGroupIndex]!.students.sort((a, b) => 
+					a.lastName.localeCompare(b.lastName)
+				)
+			}
 
-			// Wait for state updates to be reflected
-			await new Promise(resolve => setTimeout(resolve, 1000))
-
-			// Reload the page with the class parameter
-			router.push(`/schedule/create?class=${selectedClass}`)
-		} catch (error) {
-			console.error('Error deleting student:', error)
-			captureFrontendError(error, {
-				location: 'schedule/create',
-				type: 'delete-student',
-				extra: {
-					studentId,
-					selectedClass
-				}
-			})
-			setError(error instanceof Error ? error.message : 'Failed to delete student')
-		}
+			return newGroups
+		})
 	}
 
 	/**
@@ -575,6 +619,12 @@ export default function ScheduleClassSelectPage() {
 		const studentId = Number(active.id.toString().replace('student-', ''))
 		const targetGroupId = Number(over.id.toString().replace('group-', ''))
 
+		// Don't allow moving to unassigned group if it's not the source
+		if (targetGroupId === UNASSIGNED_GROUP_ID) {
+			setActiveStudent(null)
+			return
+		}
+
 		setGroups(currentGroups => {
 			const newGroups = [...currentGroups]
 			
@@ -589,20 +639,27 @@ export default function ScheduleClassSelectPage() {
 			const student = newGroups[sourceGroupIndex]!.students.find(s => s.id === studentId)
 			if (!student) return currentGroups
 
+			// Find the target group
+			const targetGroupIndex = newGroups.findIndex(group => group.id === targetGroupId)
+			if (targetGroupIndex === -1) return currentGroups
+
+			// Check if adding the student would exceed the maximum group size
+			if (newGroups[targetGroupIndex]!.students.length >= MAX_GROUP_SIZE) {
+				setShowMaxSizeDialog(true)
+				return currentGroups
+			}
+
 			// Remove student from source group
 			newGroups[sourceGroupIndex]!.students = newGroups[sourceGroupIndex]!.students.filter(
 				s => s.id !== studentId
 			)
 
 			// Add student to target group
-			const targetGroupIndex = newGroups.findIndex(group => group.id === targetGroupId)
-			if (targetGroupIndex !== -1) {
-				newGroups[targetGroupIndex]!.students.push(student)
-				// Sort students in the target group by last name
-				newGroups[targetGroupIndex]!.students.sort((a, b) => 
-					a.lastName.localeCompare(b.lastName)
-				)
-			}
+			newGroups[targetGroupIndex]!.students.push(student)
+			// Sort students in the target group by last name
+			newGroups[targetGroupIndex]!.students.sort((a, b) => 
+				a.lastName.localeCompare(b.lastName)
+			)
 
 			return newGroups
 		})
@@ -717,22 +774,41 @@ export default function ScheduleClassSelectPage() {
 								<div>
 									<div className="flex justify-between items-center mb-4">
 										<h2 className="text-xl font-semibold">{t('studentsOfClass', { class: selectedClass })}</h2>
-										<div className="flex items-center gap-2">
-											<label htmlFor="group-size" className="text-sm font-medium">
-												{t('numberOfGroups')}:
-											</label>
-											<select
-												id="group-size"
-												value={numberOfGroups}
-												onChange={handleGroupSizeChange}
-												className="border rounded px-2 py-1"
+										<div className="flex items-center gap-4">
+											<div className="flex items-center gap-2">
+												<label htmlFor="group-size" className="text-sm font-medium">
+													{t('numberOfGroups')}:
+												</label>
+												<select
+													id="group-size"
+													value={numberOfGroups}
+													onChange={handleGroupSizeChange}
+													className="border rounded px-2 py-1"
+												>
+													{students.length <= MAX_STUDENTS_FOR_TWO_GROUPS ? (
+														<option value="2">2</option>
+													) : (
+														<>
+															<option value="3">3</option>
+															<option value="4">4</option>
+														</>
+													)}
+												</select>
+											</div>
+											<Button
+												onClick={handleReset}
+												variant="outline"
+												className="text-sm"
 											>
-												<option value="2">2</option>
-												<option value="3">3</option>
-												<option value="4">4</option>
-											</select>
+												{t('resetGroups')}
+											</Button>
 										</div>
 									</div>
+									{error && (
+										<div className="mb-4 p-2 bg-destructive/10 text-destructive rounded">
+											{error}
+										</div>
+									)}
 									{loading ? (
 										<p>{t('loadingStudents')}</p>
 									) : (
@@ -763,27 +839,29 @@ export default function ScheduleClassSelectPage() {
 														</div>
 													</GroupContainer>
 												))}
-												{/* Unassigned group last */}
-												<div className="flex flex-col items-center gap-4">
-													<GroupContainer 
-														key={UNASSIGNED_GROUP_ID} 
-														group={{
-															id: UNASSIGNED_GROUP_ID,
-															students: groups.find(g => g.id === UNASSIGNED_GROUP_ID)?.students ?? []
-														}}
-													>
-														<div className="space-y-2">
-															{(groups.find(g => g.id === UNASSIGNED_GROUP_ID)?.students ?? []).map((student, index) => (
-																<StudentItem 
-																	key={student.id} 
-																	student={student} 
-																	index={index}
-																	onRemove={handleStudentRemoval}
-																/>
-															))}
-														</div>
-													</GroupContainer>
-												</div>
+												{/* Unassigned group last, only if it has students */}
+												{groups.find(g => g.id === UNASSIGNED_GROUP_ID)?.students.length ? (
+													<div className="flex flex-col items-center gap-4">
+														<GroupContainer 
+															key={UNASSIGNED_GROUP_ID} 
+															group={{
+																id: UNASSIGNED_GROUP_ID,
+																students: groups.find(g => g.id === UNASSIGNED_GROUP_ID)?.students ?? []
+															}}
+														>
+															<div className="space-y-2">
+																{(groups.find(g => g.id === UNASSIGNED_GROUP_ID)?.students ?? []).map((student, index) => (
+																	<StudentItem 
+																		key={student.id} 
+																		student={student} 
+																		index={index}
+																		onRemove={handleStudentRemoval}
+																	/>
+																))}
+															</div>
+														</GroupContainer>
+													</div>
+												) : null}
 											</div>
 											<DragOverlay>
 												{activeStudent ? (
@@ -800,6 +878,23 @@ export default function ScheduleClassSelectPage() {
 					)}
 				</CardContent>
 			</Card>
+
+			{/* Max Size Dialog */}
+			<Dialog open={showMaxSizeDialog} onOpenChange={setShowMaxSizeDialog}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>{t('maxGroupSizeError')}</DialogTitle>
+						<DialogDescription>
+							{t('maxGroupSizeDescription')}
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button onClick={() => setShowMaxSizeDialog(false)}>
+							{t('ok')}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
 			{/* Confirmation Dialog */}
 			{showConfirmDialog && (

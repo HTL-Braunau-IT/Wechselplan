@@ -30,12 +30,12 @@
     "dashboard": "Dashboard",
     "profile": "Profil",
     "logout": "Abmelden",
-    "schedules": "Stundenpläne",
+    "schedules": "Wechselpläne",
     "students": "Schüler",
     "menu": "Menü",
     "closeMenu": "Menü schließen",
     "admin": "Administration",
-"createSchedule": "Stundenplan erstellen",
+    "createSchedule": "Wechselplan erstellen",
     "classSettings": "Klasseneinstellungen",
      "support": "Hilfe & Support"
   },
@@ -59,7 +59,7 @@
       "classLead": "Klassenleiter",
       "additionalInfo": "Zusätzliche Informationen",
       "studentsInGroup": "Schüler in {{period}}-Gruppe",
-      "noSchedule": "Kein Stundenplan für diesen Tag gefunden"
+      "noSchedule": "Kein Wechselplan für diesen Tag gefunden"
     }
   },
   "auth": {
@@ -111,7 +111,7 @@
   "admin": {
     "title": "Administration",
     "studentAdministration": "Schülerverwaltung",
-    "importFromAD": "Aus AD importieren",
+    "importFromAD": "Aus Active Directory importieren",
     "students": {
       "title": "Schülerverwaltung",
       "description": "Hier können Sie alle schülerbezogenen Daten verwalten. Nutzen Sie das Menü auf der linken Seite zur Navigation.",

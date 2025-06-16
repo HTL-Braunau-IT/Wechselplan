@@ -103,7 +103,34 @@
       "scheduleTimeAdded": "Schedule time added successfully",
       "breakTimeAdded": "Break time added successfully",
       "scheduleTimeError": "Failed to add schedule time",
-      "breakTimeError": "Failed to add break time"
+      "breakTimeError": "Failed to add break time",
+      "select": {
+        "amScheduleTime": "Select AM schedule time",
+        "pmScheduleTime": "Select PM schedule time",
+        "amBreak": "Select AM break",
+        "lunchBreak": "Select lunch break",
+        "pmBreak": "Select PM break"
+      },
+      "labels": {
+        "amScheduleTime": "AM Schedule Time",
+        "pmScheduleTime": "PM Schedule Time",
+        "amBreak": "AM Break",
+        "lunchBreak": "Lunch Break",
+        "pmBreak": "PM Break"
+      },
+      "periods": {
+        "AM": "AM",
+        "PM": "PM",
+        "LUNCH": "Lunch"
+      },
+      "errors": {
+        "selectAMScheduleTime": "Please select an AM schedule time",
+        "selectPMScheduleTime": "Please select a PM schedule time",
+        "selectAMBreakTime": "Please select an AM break time",
+        "selectLunchBreakTime": "Please select a lunch break time",
+        "selectPMBreakTime": "Please select a PM break time",
+        "saveFailed": "Failed to save times"
+      }
     }
   }
 } 

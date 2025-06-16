@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useTranslation } from 'react-i18next'
 import { Spinner } from '@/components/ui/spinner'
+import { AlertCircle } from 'lucide-react'
 
 interface ScheduleTime {
   id: number
@@ -56,7 +57,7 @@ export default function TimesPage() {
   const [isSubmittingScheduleTime, setIsSubmittingScheduleTime] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { t } = useTranslation(['admin', 'common'])
+  const { t } = useTranslation(['admin', 'common', 'schedule'])
 
   // New form states
   const [newScheduleTime, setNewScheduleTime] = useState<Partial<ScheduleTime>>({
@@ -329,13 +330,13 @@ export default function TimesPage() {
               <div className="space-y-6">
                 {periods.has('AM') && (
                   <div>
-                    <h3 className="text-lg font-medium mb-3">AM Schedule Time</h3>
+                    <h3 className="text-lg font-medium mb-3">{t('settings.times.labels.amScheduleTime')}</h3>
                     <select
                       value={selectedAMScheduleTime ?? ''}
                       onChange={(e) => setSelectedAMScheduleTime(e.target.value ? parseInt(e.target.value) : null)}
                       className="w-full p-2 border rounded"
                     >
-                      <option value="">Select AM schedule time</option>
+                      <option value="">{t('settings.times.select.amScheduleTime')}</option>
                       {scheduleTimes
                         .filter(time => time.period === 'AM')
                         .map(time => (
@@ -349,13 +350,13 @@ export default function TimesPage() {
 
                 {periods.has('PM') && (
                   <div>
-                    <h3 className="text-lg font-medium mb-3">PM Schedule Time</h3>
+                    <h3 className="text-lg font-medium mb-3">{t('settings.times.labels.pmScheduleTime')}</h3>
                     <select
                       value={selectedPMScheduleTime ?? ''}
                       onChange={(e) => setSelectedPMScheduleTime(e.target.value ? parseInt(e.target.value) : null)}
                       className="w-full p-2 border rounded"
                     >
-                      <option value="">Select PM schedule time</option>
+                      <option value="">{t('settings.times.select.pmScheduleTime')}</option>
                       {scheduleTimes
                         .filter(time => time.period === 'PM')
                         .map(time => (
@@ -377,13 +378,13 @@ export default function TimesPage() {
               <div className="space-y-6">
                 {periods.has('AM') && (
                   <div>
-                    <h3 className="text-lg font-medium mb-3">AM Break</h3>
+                    <h3 className="text-lg font-medium mb-3">{t('settings.times.labels.amBreak')}</h3>
                     <select
                       value={selectedAMBreakTime ?? ''}
                       onChange={(e) => setSelectedAMBreakTime(e.target.value ? parseInt(e.target.value) : null)}
                       className="w-full p-2 border rounded"
                     >
-                      <option value="">Select AM break</option>
+                      <option value="">{t('settings.times.select.amBreak')}</option>
                       {breakTimes
                         .filter(time => time.period === 'AM')
                         .map(time => (
@@ -397,13 +398,13 @@ export default function TimesPage() {
 
                 {periods.size > 0 && (
                   <div>
-                    <h3 className="text-lg font-medium mb-3">Lunch Break</h3>
+                    <h3 className="text-lg font-medium mb-3">{t('settings.times.labels.lunchBreak')}</h3>
                     <select
                       value={selectedLunchBreakTime ?? ''}
                       onChange={(e) => setSelectedLunchBreakTime(e.target.value ? parseInt(e.target.value) : null)}
                       className="w-full p-2 border rounded"
                     >
-                      <option value="">Select lunch break</option>
+                      <option value="">{t('settings.times.select.lunchBreak')}</option>
                       {breakTimes
                         .filter(time => time.period === 'LUNCH')
                         .map(time => (
@@ -417,13 +418,13 @@ export default function TimesPage() {
 
                 {periods.has('PM') && (
                   <div>
-                    <h3 className="text-lg font-medium mb-3">PM Break</h3>
+                    <h3 className="text-lg font-medium mb-3">{t('settings.times.labels.pmBreak')}</h3>
                     <select
                       value={selectedPMBreakTime ?? ''}
                       onChange={(e) => setSelectedPMBreakTime(e.target.value ? parseInt(e.target.value) : null)}
                       className="w-full p-2 border rounded"
                     >
-                      <option value="">Select PM break</option>
+                      <option value="">{t('settings.times.select.pmBreak')}</option>
                       {breakTimes
                         .filter(time => time.period === 'PM')
                         .map(time => (
@@ -439,10 +440,10 @@ export default function TimesPage() {
           </div>
 
           {/* Creation Forms */}
-          <div className="mt-8 space-y-4">
-            <Card>
-              <CardHeader className="cursor-pointer" onClick={() => setIsScheduleTimeFormOpen(!isScheduleTimeFormOpen)}>
-                <CardTitle className="flex items-center justify-between">
+          <div className="mt-8 grid grid-cols-2 gap-4">
+            <Card className="border-dashed">
+              <CardHeader className="cursor-pointer py-2" onClick={() => setIsScheduleTimeFormOpen(!isScheduleTimeFormOpen)}>
+                <CardTitle className="flex items-center justify-between text-sm">
                   {t('settings.times.addNewScheduleTime')}
                   <span className="text-sm text-gray-500">
                     {isScheduleTimeFormOpen ? '▼' : '▶'}
@@ -450,59 +451,59 @@ export default function TimesPage() {
                 </CardTitle>
               </CardHeader>
               {isScheduleTimeFormOpen && (
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
+                <CardContent className="pt-0">
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <Label htmlFor="startTime">{t('settings.times.startTime')}</Label>
+                        <Label htmlFor="startTime" className="text-sm">{t('settings.times.startTime')}</Label>
                         <input
                           type="time"
                           id="startTime"
                           value={newScheduleTime.startTime}
                           onChange={(e) => setNewScheduleTime({ ...newScheduleTime, startTime: e.target.value })}
-                          className="w-full p-2 border rounded"
+                          className="w-full p-1.5 border rounded text-sm"
                         />
                       </div>
                       <div>
-                        <Label htmlFor="endTime">{t('settings.times.endTime')}</Label>
+                        <Label htmlFor="endTime" className="text-sm">{t('settings.times.endTime')}</Label>
                         <input
                           type="time"
                           id="endTime"
                           value={newScheduleTime.endTime}
                           onChange={(e) => setNewScheduleTime({ ...newScheduleTime, endTime: e.target.value })}
-                          className="w-full p-2 border rounded"
+                          className="w-full p-1.5 border rounded text-sm"
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <Label htmlFor="hours">{t('settings.times.hours')}</Label>
+                        <Label htmlFor="hours" className="text-sm">{t('settings.times.hours')}</Label>
                         <input
                           type="number"
                           id="hours"
                           value={newScheduleTime.hours}
                           onChange={(e) => setNewScheduleTime({ ...newScheduleTime, hours: e.target.valueAsNumber || 0 })}
-                          className="w-full p-2 border rounded"
+                          className="w-full p-1.5 border rounded text-sm"
                           min="0"
                           step="0.5"
                         />
                       </div>
                       <div>
-                        <Label htmlFor="period">{t('settings.times.period')}</Label>
+                        <Label htmlFor="period" className="text-sm">{t('settings.times.period')}</Label>
                         <select
                           id="period"
                           value={newScheduleTime.period}
                           onChange={(e) => setNewScheduleTime({ ...newScheduleTime, period: e.target.value as 'AM' | 'PM' })}
-                          className="w-full p-2 border rounded"
+                          className="w-full p-1.5 border rounded text-sm"
                         >
-                          {periods.has('AM') && <option value="AM">AM</option>}
-                          {periods.has('PM') && <option value="PM">PM</option>}
+                          {periods.has('AM') && <option value="AM">{t('settings.times.periods.AM')}</option>}
+                          {periods.has('PM') && <option value="PM">{t('settings.times.periods.PM')}</option>}
                         </select>
                       </div>
                     </div>
                     <Button 
                       onClick={handleAddScheduleTime} 
-                      className="w-full"
+                      className="w-full text-sm py-1"
                       disabled={isSubmittingScheduleTime}
                     >
                       {isSubmittingScheduleTime 
@@ -514,9 +515,9 @@ export default function TimesPage() {
               )}
             </Card>
 
-            <Card>
-              <CardHeader className="cursor-pointer" onClick={() => setIsBreakTimeFormOpen(!isBreakTimeFormOpen)}>
-                <CardTitle className="flex items-center justify-between">
+            <Card className="border-dashed">
+              <CardHeader className="cursor-pointer py-2" onClick={() => setIsBreakTimeFormOpen(!isBreakTimeFormOpen)}>
+                <CardTitle className="flex items-center justify-between text-sm">
                   {t('settings.times.addNewBreakTime')}
                   <span className="text-sm text-gray-500">
                     {isBreakTimeFormOpen ? '▼' : '▶'}
@@ -524,55 +525,55 @@ export default function TimesPage() {
                 </CardTitle>
               </CardHeader>
               {isBreakTimeFormOpen && (
-                <CardContent>
-                  <div className="space-y-3">
+                <CardContent className="pt-0">
+                  <div className="space-y-2">
                     <div>
-                      <Label htmlFor="breakName">{t('settings.times.breakName')}</Label>
+                      <Label htmlFor="breakName" className="text-sm">{t('settings.times.breakName')}</Label>
                       <input
                         type="text"
                         id="breakName"
                         value={newBreakTime.name}
                         onChange={(e) => setNewBreakTime({ ...newBreakTime, name: e.target.value })}
-                        className="w-full p-2 border rounded"
+                        className="w-full p-1.5 border rounded text-sm"
                         placeholder={t('settings.times.breakNamePlaceholder')}
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <Label htmlFor="breakStartTime">{t('settings.times.startTime')}</Label>
+                        <Label htmlFor="breakStartTime" className="text-sm">{t('settings.times.startTime')}</Label>
                         <input
                           type="time"
                           id="breakStartTime"
                           value={newBreakTime.startTime}
                           onChange={(e) => setNewBreakTime({ ...newBreakTime, startTime: e.target.value })}
-                          className="w-full p-2 border rounded"
+                          className="w-full p-1.5 border rounded text-sm"
                         />
                       </div>
                       <div>
-                        <Label htmlFor="breakEndTime">{t('settings.times.endTime')}</Label>
+                        <Label htmlFor="breakEndTime" className="text-sm">{t('settings.times.endTime')}</Label>
                         <input
                           type="time"
                           id="breakEndTime"
                           value={newBreakTime.endTime}
                           onChange={(e) => setNewBreakTime({ ...newBreakTime, endTime: e.target.value })}
-                          className="w-full p-2 border rounded"
+                          className="w-full p-1.5 border rounded text-sm"
                         />
                       </div>
                     </div>
                     <div>
-                      <Label htmlFor="breakPeriod">{t('settings.times.period')}</Label>
+                      <Label htmlFor="breakPeriod" className="text-sm">{t('settings.times.period')}</Label>
                       <select
                         id="breakPeriod"
                         value={newBreakTime.period}
                         onChange={(e) => setNewBreakTime({ ...newBreakTime, period: e.target.value as 'AM' | 'PM' | 'LUNCH' })}
-                        className="w-full p-2 border rounded"
+                        className="w-full p-1.5 border rounded text-sm"
                       >
-                        {periods.has('AM') && <option value="AM">AM</option>}
-                        <option value="LUNCH">LUNCH</option>
-                        {periods.has('PM') && <option value="PM">PM</option>}
+                        {periods.has('AM') && <option value="AM">{t('settings.times.periods.AM')}</option>}
+                        <option value="LUNCH">{t('settings.times.periods.LUNCH')}</option>
+                        {periods.has('PM') && <option value="PM">{t('settings.times.periods.PM')}</option>}
                       </select>
                     </div>
-                    <Button onClick={handleAddBreakTime} className="w-full">
+                    <Button onClick={handleAddBreakTime} className="w-full text-sm py-1">
                       {t('settings.times.addBreakTime')}
                     </Button>
                   </div>
@@ -586,7 +587,7 @@ export default function TimesPage() {
               {t('common:common.cancel')}
             </Button>
             <Button onClick={handleSave}>
-              {t('common:common.next')}
+              {t('schedule:next')}
             </Button>
           </div>
         </CardContent>
@@ -595,14 +596,17 @@ export default function TimesPage() {
       <Dialog open={isErrorDialogOpen} onOpenChange={setIsErrorDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t('common:common.error')}</DialogTitle>
-            <DialogDescription className="whitespace-pre-line">
+            <DialogTitle className="text-destructive flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" />
+              {t('common:common.error')}
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground whitespace-pre-line">
               {error}
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end">
             <Button onClick={() => setIsErrorDialogOpen(false)}>
-              {t('common:common.ok')}
+              {t('schedule:ok')}
             </Button>
           </div>
         </DialogContent>

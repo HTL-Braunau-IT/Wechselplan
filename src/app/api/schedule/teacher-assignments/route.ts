@@ -56,6 +56,9 @@ export async function GET(request: Request) {
 			}
 		})
 
+		// Get the selected weekday from the first assignment (they should all have the same weekday)
+		const selectedWeekday = assignments[0]?.selectedWeekday ?? 1
+
 		// Group assignments by period
 		const amAssignments = assignments
 			.filter(a => a.period === 'AM')
@@ -83,10 +86,10 @@ export async function GET(request: Request) {
 
 		return NextResponse.json({
 			amAssignments,
-			pmAssignments
+			pmAssignments,
+			selectedWeekday
 		})
 	} catch (error) {
-
 		captureError(error, {
 			location: 'api/schedule/teacher-assignments',
 			type: 'fetch-assignments',
@@ -112,7 +115,7 @@ export async function POST(request: Request) {
 	let requestData;
 	try {
 		requestData = await request.json()
-		const { class: className, amAssignments, pmAssignments, updateExisting } = requestData
+		const { class: className, amAssignments, pmAssignments, updateExisting, selectedWeekday } = requestData
 
 		if (!className) {
 			captureError(new Error('Class not found'), {
@@ -189,11 +192,12 @@ export async function POST(request: Request) {
 				data: {
 					classId: classRecord.id,
 					period: 'AM',
-          groupId: assignment.groupId === 0 ? null : assignment.groupId,
+					groupId: assignment.groupId === 0 ? null : assignment.groupId,
 					teacherId: assignment.teacherId,
 					subjectId: subject.id,
 					learningContentId: learningContent.id,
-					roomId: room.id
+					roomId: room.id,
+					selectedWeekday: selectedWeekday ?? 1
 				}
 			})
 		}
@@ -217,31 +221,31 @@ export async function POST(request: Request) {
 				)
 			}
 
-await prisma.teacherAssignment.create({
- 				data: {
- 					classId: classRecord.id,
- 					period: 'PM',
+			await prisma.teacherAssignment.create({
+				data: {
+					classId: classRecord.id,
+					period: 'PM',
 					groupId: assignment.groupId === 0 ? null : assignment.groupId,
- 					teacherId: assignment.teacherId,
- 					subjectId: subject.id,
- 					learningContentId: learningContent.id,
- 					roomId: room.id
- 				}
- 			})
+					teacherId: assignment.teacherId,
+					subjectId: subject.id,
+					learningContentId: learningContent.id,
+					roomId: room.id,
+					selectedWeekday: selectedWeekday ?? 1
+				}
+			})
 		}
 
-		return NextResponse.json({ message: 'Teacher assignments saved successfully' })
+		return NextResponse.json({ success: true })
 	} catch (error) {
-		
 		captureError(error, {
 			location: 'api/schedule/teacher-assignments',
-			type: 'update-assignments',
+			type: 'save-assignments',
 			extra: {
-				requestBody: JSON.stringify(requestData)
+				requestData
 			}
 		})
 		return NextResponse.json(
-			{ error: 'Failed to update teacher assignments' },
+			{ error: 'Failed to save teacher assignments' },
 			{ status: 500 }
 		)
 	}
