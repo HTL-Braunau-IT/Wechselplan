@@ -3,10 +3,6 @@
     "welcome": "Welcome",
     "settings": "Settings",
     "language": "Language",
-    "theme": "Theme",
-    "dark": "Dark",
-    "light": "Light",
-    "system": "System",
     "schoolYear": "School Year",
     "appName": "Wechselplan",
     "selectSchoolYear": "Select school year",
@@ -25,6 +21,11 @@
     "back": "Back",
     "submitting": "Submitting...",
     "reloadPage": "Reload page"
+  },
+  "theme": {
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
   },
   "navigation": {
     "home": "Home",
@@ -279,5 +280,14 @@
       "load": "Failed to load data",
       "update": "Failed to update class"
     }
+  },
+  "profile": {
+    "menu": "User menu",
+    "role": {
+      "teacher": "Teacher",
+      "student": "Student",
+      "admin": "Administrator"
+    },
+    "logout": "Logout"
   }
 } 

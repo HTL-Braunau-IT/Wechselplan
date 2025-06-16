@@ -30,16 +30,16 @@ describe('Schedule Data API', () => {
     expect(data).toEqual({ error: 'Teacher username is required' });
   });
 
-  test('should return 404 if teacher not found', async () => {
+  test('should return 200 if teacher not found', async () => {
     vi.mocked(prisma.teacher.findUnique).mockResolvedValue(null);
     const req = new Request('http://localhost/api/schedules/data?teacher=foo');
     const res = await GET(req);
     const data = await res.json();
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
     expect(data).toEqual({ error: 'Teacher not found' });
   });
 
-  test('should return 404 if no assignments for teacher', async () => {
+  test('should return 200 if no assignments for teacher', async () => {
     vi.mocked(prisma.teacher.findUnique).mockResolvedValue({
       id: 1,
       firstName: 'T',
@@ -53,11 +53,11 @@ describe('Schedule Data API', () => {
     const req = new Request('http://localhost/api/schedules/data?teacher=foo');
     const res = await GET(req);
     const data = await res.json();
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
     expect(data).toEqual({ error: 'No classes assigned to teacher' });
   });
 
-  test('should return 404 if no teacher rotation found', async () => {
+  test('should return 200 if no teacher rotation found', async () => {
     vi.mocked(prisma.teacher.findUnique).mockResolvedValue({
       id: 1,
       firstName: 'T',
@@ -85,11 +85,11 @@ describe('Schedule Data API', () => {
     const req = new Request('http://localhost/api/schedules/data?teacher=foo');
     const res = await GET(req);
     const data = await res.json();
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
     expect(data).toEqual({ error: 'No teacher rotation found' });
   });
 
-  test('should return 404 if no students found', async () => {
+  test('should return 200 if no students found', async () => {
     vi.mocked(prisma.teacher.findUnique).mockResolvedValue({
       id: 1,
       firstName: 'T',
@@ -149,7 +149,7 @@ describe('Schedule Data API', () => {
     const req = new Request('http://localhost/api/schedules/data?teacher=foo');
     const res = await GET(req);
     const data = await res.json();
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
     expect(data).toEqual({ error: 'No students found' });
   });
 

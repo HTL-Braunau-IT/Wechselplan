@@ -26,7 +26,7 @@ export async function GET(req: Request) {
         })
         
         if (!teacher) {
-            return NextResponse.json({ error: 'Teacher not found' }, { status: 404 })
+            return NextResponse.json({ error: 'Teacher not found' }, { status: 200 })
         }
 
         const assignments = await prisma.teacherAssignment.findMany({
@@ -36,7 +36,7 @@ export async function GET(req: Request) {
         })
 
         if (!assignments || assignments.length === 0) {
-            return NextResponse.json({ error: 'No classes assigned to teacher' }, { status: 404 })
+            return NextResponse.json({ error: 'No classes assigned to teacher' }, { status: 200 })
         }
 
         const teacherRotation = await prisma.teacherRotation.findMany({
@@ -46,7 +46,7 @@ export async function GET(req: Request) {
         })
 
         if (!teacherRotation || teacherRotation.length === 0) {
-            return NextResponse.json({ error: 'No teacher rotation found' }, { status: 404 })
+            return NextResponse.json({ error: 'No teacher rotation found' }, { status: 200 })
         }
 
         const classIds = [...new Set(assignments.map(assignment => assignment.classId))]
@@ -88,7 +88,6 @@ export async function GET(req: Request) {
 
         // Then fetch schedules and students for each class
         for (const classId of classIds) {
-
             const schedule = await prisma.schedule.findFirst({
                 where: {
                     classId: classId,
@@ -99,7 +98,6 @@ export async function GET(req: Request) {
                 }
             })
         
-            
             // Add schedule if it exists for this weekday
             if (schedule) {
                 schedules.push([schedule])
@@ -125,11 +123,20 @@ export async function GET(req: Request) {
             validClassIds.has(assignment.classId)
         )
 
-
+        // If no valid schedules found for this weekday, return empty data structure
+        if (validClassIds.size === 0) {
+            return NextResponse.json({
+                schedules: [],
+                students: [],
+                teacherRotation: [],
+                assignments: [],
+                classdata: []
+            }, { status: 200 })
+        }
 
         // Only return error if we have no students
         if (students.flat().length === 0) {
-            return NextResponse.json({ error: 'No students found' }, { status: 404 })
+            return NextResponse.json({ error: 'No students found' }, { status: 200 })
         }
         
         return NextResponse.json({
@@ -140,7 +147,6 @@ export async function GET(req: Request) {
             classdata: classdata
         }, { status: 200 })
     } catch (error) {
-
         captureError(error, {
             location: 'api/schedules/data',
             type: 'schedule_data_error',
