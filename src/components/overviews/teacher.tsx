@@ -6,11 +6,11 @@ import { parse, isValid, isWithinInterval, addWeeks } from "date-fns"
 import { useTranslation } from "react-i18next"
 
 /**
- * Renders a weekly schedule overview for the logged-in teacher, allowing navigation between weekdays.
+ * Displays a weekly schedule overview for the logged-in teacher with weekday navigation tabs.
  *
- * Displays assignments, class and term details, group information, remaining weeks, additional info, and lists of students for each group. Schedule data is fetched and updated based on the selected weekday and the current user's session.
+ * Fetches and presents the teacher's assignments, class and term details, group information, remaining weeks, additional info, and lists of students for each group. The schedule updates dynamically based on the selected weekday and the current user's session.
  *
- * @returns A React component presenting the teacher's schedule overview with weekday navigation tabs.
+ * @returns A React component showing the teacher's schedule overview with internationalized weekday navigation.
  */
 export function TeacherOverview() {
     const { data: session } = useSession()

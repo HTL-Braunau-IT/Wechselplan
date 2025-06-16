@@ -13,9 +13,9 @@ import { captureFrontendError } from '@/lib/frontend-error'
 import { useTranslation } from 'react-i18next'
 
 /**
- * Renders a localized login page supporting LDAP and Microsoft (Azure AD) authentication.
+ * Renders a localized login page with LDAP authentication.
  *
- * Provides form fields for LDAP login and a button for Microsoft login, displaying error messages and loading states as appropriate. All user-facing text is internationalized.
+ * Displays a form for users to enter their username and password, handles authentication via LDAP, and shows relevant error or loading states. All user-facing text is internationalized.
  */
 export default function LoginPage() {
 	const [username, setUsername] = useState('')

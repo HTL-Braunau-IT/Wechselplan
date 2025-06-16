@@ -34,11 +34,11 @@ interface TeacherAssignment {
 
 
 /**
- * Displays and manages schedule and break times for a class, allowing selection, creation, and saving of period-specific times.
+ * Renders a page for managing schedule and break times for a selected class, including selection, creation, and saving of period-specific times.
  *
- * Fetches teacher assignments to determine relevant periods, loads available schedule and break times, and enables users to select or add new times for AM, PM, and lunch periods. Handles validation, error, and success states, and provides forms for adding new times. Navigates to the schedule overview upon successful save.
+ * Fetches teacher assignments to determine active periods, loads available schedule and break times, and allows users to select or add new times for AM, PM, and lunch periods. Handles validation, error, and success states, and provides forms for adding new times. Navigates to the schedule overview upon successful save.
  *
- * @returns The schedule and break times management page for the selected class.
+ * @returns The schedule and break times management interface for the selected class.
  */
 export default function TimesPage() {
   const [scheduleTimes, setScheduleTimes] = useState<ScheduleTime[]>([])
