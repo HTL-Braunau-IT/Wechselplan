@@ -48,21 +48,21 @@ export async function generateSchedulePDF(classId: string, weekday: number) {
  *
  * @throws {Error} If the export request fails or the file cannot be generated.
  */
-export async function generateExcel(classId: string, weekday: number) {
+export async function generateExcel(classId: string, weekday: number, teacher: string) {
   try {
-    const export_response = await fetch(`/api/export/excel?className=${classId}&selectedWeekday=${weekday}`, {
+    const export_response = await fetch(`/api/export/notenliste?className=${classId}&selectedWeekday=${weekday}&teacher=${teacher}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });
     
     if (!export_response.ok) throw new Error('Failed to export Excel');
     
-    const today = new Date().toLocaleDateString('de-DE');
+
     const blob = await export_response.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${classId} - ${getWeekday(weekday)} Notenliste - ${today}.xlsm`;
+    a.download = `${classId} - Notenliste - ${teacher}.xlsm`;
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);

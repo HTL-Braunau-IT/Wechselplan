@@ -10,6 +10,12 @@ vi.mock('@/lib/db', () => ({
       deleteMany: vi.fn(),
       create: vi.fn(),
     },
+    class: {
+      findUnique: vi.fn().mockResolvedValue({
+        id: 1,
+        name: '1',
+      }),
+    },
   },
 }));
 
@@ -30,7 +36,7 @@ describe('Teacher Rotation API', () => {
       const request = new Request('http://localhost/api/schedule/teacher-rotation', {
         method: 'POST',
         body: JSON.stringify({
-          classId: '1',
+          className: '1',
           // Missing turns, amRotation, pmRotation
         }),
       });
@@ -62,7 +68,7 @@ describe('Teacher Rotation API', () => {
       const request = new Request('http://localhost/api/schedule/teacher-rotation', {
         method: 'POST',
         body: JSON.stringify({
-          classId: '1',
+          className: '1',
           turns: ['turn1', 'turn2'],
           amRotation: [
             {
@@ -122,7 +128,7 @@ describe('Teacher Rotation API', () => {
       const request = new Request('http://localhost/api/schedule/teacher-rotation', {
         method: 'POST',
         body: JSON.stringify({
-          classId: '1',
+          className: '1',
           turns: ['turn1'],
           amRotation: [
             {
@@ -174,7 +180,7 @@ describe('Teacher Rotation API', () => {
       const request = new Request('http://localhost/api/schedule/teacher-rotation', {
         method: 'POST',
         body: JSON.stringify({
-          classId: '1',
+          className: '1',
           turns: ['turn1', 'turn2', 'turn3'],
           amRotation: [
             {

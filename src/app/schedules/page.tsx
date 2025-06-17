@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import {
   Select,
   SelectContent,
@@ -38,6 +39,21 @@ interface Schedule {
 interface Class {
   id: number
   name: string
+}
+
+interface TeacherAssignmentResponse {
+  groupId: number
+  teacherId: number
+  subject: string
+  learningContent: string
+  room: string
+  teacherFirstName: string
+  teacherLastName: string
+}
+
+interface TeacherAssignmentsResponse {
+  amAssignments: TeacherAssignmentResponse[]
+  pmAssignments: TeacherAssignmentResponse[]
 }
 
 /**
@@ -120,8 +136,10 @@ export default function SchedulesPage() {
   const [selectedClass, setSelectedClass] = useState<string>('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isTeacherForClass, setIsTeacherForClass] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { data: session } = useSession()
   const { isLoading: isLoadingCachedData } = useCachedData()
   const [savingPdf, setSavingPdf] = useState(false)
   const [savingPdfDatum, setSavingPdfDatum] = useState(false)
@@ -150,6 +168,69 @@ export default function SchedulesPage() {
   const hasSchedule = (className: string) => {
     return classScheduleMap.get(className) ?? false
   }
+
+  // Add effect to check if user is a teacher for the selected class
+  useEffect(() => {
+    async function checkTeacherAssignment() {
+      if (!session?.user?.name || selectedClass === 'all') {
+        
+        setIsTeacherForClass(false)
+        return
+      }
+
+      try {
+        
+        
+        // First, get the teacher record for the current user
+        const teacherResponse = await fetch(`/api/teachers/by-username?username=${session.user.name}`)
+        if (!teacherResponse.ok) {
+          console.log('Failed to fetch teacher record:', teacherResponse.status)
+          setIsTeacherForClass(false)
+          return
+        }
+
+        const teacher = await teacherResponse.json()
+        if (!teacher) {
+
+          setIsTeacherForClass(false)
+          return
+        }
+
+        // Then get the teacher assignments for the class
+        const response = await fetch(`/api/schedule/teacher-assignments?class=${selectedClass}`)
+        if (!response.ok) {
+         
+          setIsTeacherForClass(false)
+          return
+        }
+
+        const data = await response.json() as TeacherAssignmentsResponse
+        
+        console.log('Teacher assignments data:', {
+          teacherId: teacher.id,
+          amAssignments: data.amAssignments.map(a => ({ teacherId: a.teacherId, name: `${a.teacherFirstName} ${a.teacherLastName}` })),
+          pmAssignments: data.pmAssignments.map(a => ({ teacherId: a.teacherId, name: `${a.teacherFirstName} ${a.teacherLastName}` }))
+        })
+
+        // Check if user is assigned as a teacher in either AM or PM assignments
+        const isAssigned = data.amAssignments.some(a => a.teacherId === teacher.id) ||
+                          data.pmAssignments.some(a => a.teacherId === teacher.id)
+        
+        console.log('Is user assigned as teacher:', isAssigned, {
+          teacherId: teacher.id,
+          amMatch: data.amAssignments.some(a => a.teacherId === teacher.id),
+          pmMatch: data.pmAssignments.some(a => a.teacherId === teacher.id)
+        })
+        
+        setIsTeacherForClass(isAssigned)
+      } catch  {
+
+        setIsTeacherForClass(false)
+      }
+    }
+
+    void checkTeacherAssignment()
+  }, [selectedClass, session?.user?.name])
 
   useEffect(() => {
     void fetchData()
@@ -227,7 +308,7 @@ export default function SchedulesPage() {
   const handleExcelExport = async () => {
     setSavingExcel(true)
     try {
-      await generateExcel(selectedClass, weekday ?? 0)
+      await generateExcel(selectedClass, weekday ?? 0, session?.user?.name ?? '')
     } catch (error) {
       console.error('Error generating Excel:', error)
       // You might want to show a toast or error message to the user here
@@ -279,13 +360,22 @@ export default function SchedulesPage() {
                 {savingPdfDatum ? 'Exporting PDF Datum ...' : 'PDF Datum Export'}
               </button>
 
-              <button
-                className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
-                onClick={handleExcelExport}
-                disabled={savingExcel}
-              >
-                {savingExcel ? 'Exporting Excel ...' : 'Export für Notenliste'}
-              </button>
+              {isTeacherForClass && (
+                <button
+                  className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
+                  onClick={handleExcelExport}
+                  disabled={savingExcel}
+                >
+                  {savingExcel ? (
+                    <>
+                      <Spinner size="sm" />
+                      Exporting Excel ...
+                    </>
+                  ) : (
+                    'Export für Notenliste'
+                  )}
+                </button>
+              )}
             </div>
           )}
 
