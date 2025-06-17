@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button"
 import { useTranslation } from 'react-i18next'
 import { ScheduleOverview } from '@/components/schedule-overview'
 import { Spinner } from '@/components/ui/spinner'
-import { generatePdf, generateExcel, generateSchedulePDF } from '@/lib/export-utils';
+import { generatePdf, generateSchedulePDF } from '@/lib/export-utils';
 
 
 /**
@@ -67,7 +67,7 @@ export default function OverviewPage() {
   const [showPdfDialog, setShowPdfDialog] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [, setGeneratingSchedulePDF] = useState(false);
-  const [, setGeneratingExcel] = useState(false);
+
 
   /**
    * Saves the teacher rotation schedule for AM and PM periods to the backend and displays the PDF generation dialog upon success.
@@ -81,31 +81,33 @@ export default function OverviewPage() {
     try {
       // Build round-robin teacher rotation for AM and PM
       const turnKeys = Object.keys(turns);
-      const amRotation = groups.map((group, groupIdx) => ({
-        groupId: group.id,
-        turns: turnKeys.map((_, turnIdx) => {
-          const teacherList = uniqueAmTeachers;
-          const rotated = rotateArray(teacherList, turnIdx);
-          const teacher = rotated[groupIdx];
-          return teacher ? teacher.teacherId : null;
-        })
-      }));
-      const pmRotation = groups.map((group, groupIdx) => ({
-        groupId: group.id,
-        turns: turnKeys.map((_, turnIdx) => {
-          const teacherList = uniquePmTeachers;
-          const rotated = rotateArray(teacherList, turnIdx);
-          const teacher = rotated[groupIdx];
-          return teacher ? teacher.teacherId : null;
-        })
-      }));
+      
+      // Helper function to create rotation for a period
+      const createRotation = (teachers: typeof uniqueAmTeachers) => {
+        return groups.map((group, groupIdx) => ({
+          groupId: group.id,
+          turns: turnKeys.map((_, turnIdx) => {
+            // Calculate which teacher should be assigned to this group for this turn
+            // For turns 1-4, 5-8, etc., we want the same pattern
+            const normalizedTurn = turnIdx % teachers.length;
+            // The teacher index is based on the group and turn offset
+            const teacherIndex = (groupIdx - normalizedTurn + teachers.length) % teachers.length;
+            const teacher = teachers[teacherIndex];
+            return teacher ? teacher.teacherId : null;
+          })
+        }));
+      };
 
+      const amRotation = createRotation(uniqueAmTeachers);
+      const pmRotation = createRotation(uniquePmTeachers);
+
+      console.log("classId", classId)  
       // Save to backend
-      const response = await fetch('/api/schedule/teacher-rotation', {
+      const response = await fetch('/api/schedule/teacher-rotation', {        
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          classId,
+          className: classId,
           turns: turnKeys,
           amRotation,
           pmRotation
@@ -144,17 +146,7 @@ export default function OverviewPage() {
    *
    * @remark If the export fails, the error is logged to the console and no file is downloaded.
    */
-  async function handleGenerateExcel() {
-    if (!classId) return;
-    setGeneratingExcel(true);
-    try {
-      await generateExcel(classId, weekday ?? 0);
-    } catch (err) {
-      console.error('Error generating Excel:', err);
-    } finally {
-      setGeneratingExcel(false);
-    }
-  }
+
 
 
 
@@ -191,7 +183,7 @@ export default function OverviewPage() {
       await generatePdf(classId, weekday ?? 0);     
       // Only close the dialog after successful download
       await handleGenerateSchedulePDF();
-      await handleGenerateExcel();
+
       setShowPdfDialog(false);
       router.push('/');
     } catch (err) {
@@ -213,27 +205,7 @@ export default function OverviewPage() {
   if (isLoadingCachedData || overviewLoading) return <LoadingScreen />;
   if (error ?? overviewError) return <div className="p-8 text-center text-red-500">{error ?? overviewError}</div>;
 
-  /**
-   * Returns a new array with its elements rotated to the left by the specified number of positions.
-   *
-   * The rotation is performed in a round-robin fashion, moving the first {@link n} elements to the end of the array.
-   *
-   * @param arr - The array to rotate.
-   * @param n - The number of positions to rotate the array.
-   * @returns A new array with elements rotated by {@link n} positions.
-   */
-  function rotateArray<T>(arr: T[], n: number): T[] {
-    const rotated = [...arr];
-    for (let i = 0; i < n; i++) {
-      const temp = rotated.shift();
-      if (temp !== undefined) {
-        rotated.push(temp);
-      }
-    }
-    return rotated;
-  }
 
-  // Get unique teachers for AM and PM directly from assignments
   const uniqueAmTeachers = amAssignments
     .filter(a => a.teacherId !== 0)
     .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx);

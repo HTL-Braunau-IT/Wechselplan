@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { captureError } from '@/lib/sentry'
 
 interface TeacherRotationRequest {
-  classId: string
+  className: string
   turns: string[]
   amRotation: {
     groupId: number
@@ -25,19 +25,31 @@ interface TeacherRotationRequest {
 export async function POST(request: Request) {
   try {
     const data = await request.json() as TeacherRotationRequest
-    const { classId, turns, amRotation, pmRotation } = data
+    const { className, turns, amRotation, pmRotation } = data
 
-    if (!classId || !turns || !amRotation || !pmRotation) {
+    if (!className || !turns || !amRotation || !pmRotation) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
+      )
+    }
+    const classData = await db.class.findUnique({
+      where: {
+        name: className
+      }
+    })
+
+    if (!classData) {
+      return NextResponse.json(
+        { error: 'Class not found' },
+        { status: 404 }
       )
     }
 
     // Delete existing rotations for this class
     await db.teacherRotation.deleteMany({
       where: {
-        classId: parseInt(classId)
+        classId: classData.id
       }
     })
 
@@ -48,7 +60,7 @@ export async function POST(request: Request) {
         if (teacherId !== null) {
           await db.teacherRotation.create({
             data: {
-              classId: parseInt(classId),
+              classId: classData.id,
               groupId: groupRotation.groupId,
               teacherId: teacherId!,
               turnId: turns[i]!,
@@ -66,7 +78,7 @@ export async function POST(request: Request) {
         if (teacherId !== null) {
           await db.teacherRotation.create({
             data: {
-              classId: parseInt(classId),
+              classId: classData.id,
               groupId: groupRotation.groupId,
               teacherId: teacherId!,
               turnId: turns[i]!,
