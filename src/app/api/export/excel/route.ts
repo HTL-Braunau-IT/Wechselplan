@@ -151,15 +151,36 @@ export async function POST(request: Request) {
             'Lehrer Nachmittag'
         ]
 
+        // Add turn combination headers starting from column S
+        const turnCombinationHeaders = [
+            'Turnus 1+2', 'Turnus 1+3', 'Turnus 1+4', 'Turnus 1+5', 'Turnus 1+7', 'Turnus 1+8',
+            'Turnus 2+4', 'Turnus 2+6', 'Turnus 2+7', 'Turnus 2+8',
+            'Turnus 3+4', 'Turnus 3+5', 'Turnus 3+6', 'Turnus 3+7', 'Turnus 3+8',
+            'Turnus 4+5', 'Turnus 4+6', 'Turnus 4+7', 'Turnus 4+8',
+            'Turnus 5+6', 'Turnus 5+7', 'Turnus 5+8',
+            'Turnus 6+7', 'Turnus 6+8',
+            'Turnus 7+8'
+        ]
+
         turnustageHeaders.forEach((header, index) => {
             const cell = XLSX.utils.encode_cell({ r: 0, c: index + 8 }) // Start from column I (index 8)
             worksheet[cell] = { v: header, t: 's' }
             maxCol = Math.max(maxCol, index + 8)
         })
 
+        // Add turn combination headers
+        turnCombinationHeaders.forEach((header, index) => {
+            const cell = XLSX.utils.encode_cell({ r: 0, c: index + 18 }) // Start from column S (index 18)
+            worksheet[cell] = { v: header, t: 's' }
+            maxCol = Math.max(maxCol, index + 18)
+        })
+
         // Process schedule data for turns
         if (schedule.scheduleData) {
             const scheduleData = schedule.scheduleData as unknown as ScheduleData
+            
+            // Debug log to see the structure of scheduleData
+            console.log('Schedule Data Structure:', JSON.stringify(scheduleData, null, 2))
             
             // Process each turnus
             Object.entries(scheduleData).forEach(([, turnus], turnusIndex) => {
@@ -181,6 +202,86 @@ export async function POST(request: Request) {
                         const formattedDate = `${day}.${month}.20${year}`
                         worksheet[cell] = { 
                             v: formattedDate
+                        }
+                        maxRow = Math.max(maxRow, dateIndex + 2)
+                    })
+                }
+            })
+
+            // Process turnus combinations
+            const turnusCombinations = [
+                [1, 2], [1, 3], [1, 4], [1, 5], [1, 7], [1, 8],
+                [2, 4], [2, 6], [2, 7], [2, 8],
+                [3, 4], [3, 5], [3, 6], [3, 7], [3, 8],
+                [4, 5], [4, 6], [4, 7], [4, 8],
+                [5, 6], [5, 7], [5, 8],
+                [6, 7], [6, 8],
+                [7, 8]
+            ]
+
+            // For each combination, combine dates from both turnus groups
+            turnusCombinations.forEach(([turnus1, turnus2], combinationIndex) => {
+                // Get the turnus data using the correct key format
+                const turnus1Key = `TURNUS ${turnus1}`
+                const turnus2Key = `TURNUS ${turnus2}`
+                
+                const turnus1Data = scheduleData[turnus1Key]
+                const turnus2Data = scheduleData[turnus2Key]
+
+                console.log(`Processing combination ${turnus1}+${turnus2}:`, {
+                    turnus1Exists: !!turnus1Data,
+                    turnus2Exists: !!turnus2Data,
+                    turnus1Dates: turnus1Data?.weeks?.length,
+                    turnus2Dates: turnus2Data?.weeks?.length
+                })
+
+                if (turnus1Data?.weeks && turnus2Data?.weeks) {
+                    // Get valid dates for both turnus groups
+                    const turnus1Dates = turnus1Data.weeks
+                        .filter(week => !week.isHoliday)
+                        .map(week => ({
+                            ...week,
+                            date: week.date
+                        }))
+                        .sort((a, b) => {
+                            const [dayA, monthA, yearA] = a.date.split('.').map(Number)
+                            const [dayB, monthB, yearB] = b.date.split('.').map(Number)
+                            if (!dayA || !monthA || !yearA || !dayB || !monthB || !yearB) return 0
+                            return new Date(yearA, monthA - 1, dayA).getTime() - new Date(yearB, monthB - 1, dayB).getTime()
+                        })
+
+                    const turnus2Dates = turnus2Data.weeks
+                        .filter(week => !week.isHoliday)
+                        .map(week => ({
+                            ...week,
+                            date: week.date
+                        }))
+                        .sort((a, b) => {
+                            const [dayA, monthA, yearA] = a.date.split('.').map(Number)
+                            const [dayB, monthB, yearB] = b.date.split('.').map(Number)
+                            if (!dayA || !monthA || !yearA || !dayB || !monthB || !yearB) return 0
+                            return new Date(yearA, monthA - 1, dayA).getTime() - new Date(yearB, monthB - 1, dayB).getTime()
+                        })
+
+                    // Combine dates from both turnus groups
+                    const allDates = [...turnus1Dates, ...turnus2Dates]
+                        .sort((a, b) => {
+                            const [dayA, monthA, yearA] = a.date.split('.').map(Number)
+                            const [dayB, monthB, yearB] = b.date.split('.').map(Number)
+                            if (!dayA || !monthA || !yearA || !dayB || !monthB || !yearB) return 0
+                            return new Date(yearA, monthA - 1, dayA).getTime() - new Date(yearB, monthB - 1, dayB).getTime()
+                        })
+
+                    console.log(`Writing ${allDates.length} dates for combination ${turnus1}+${turnus2}`)
+
+                    // Write combined dates to the worksheet
+                    allDates.forEach((week, dateIndex) => {
+                        const cell = XLSX.utils.encode_cell({ r: dateIndex + 2, c: combinationIndex + 18 }) // Start from column S (index 18)
+                        const [day, month, year] = week.date.split('.')
+                        const formattedDate = `${day}.${month}.20${year}`
+                        worksheet[cell] = { 
+                            v: formattedDate,
+                            t: 's'  // Explicitly set type as string
                         }
                         maxRow = Math.max(maxRow, dateIndex + 2)
                     })
