@@ -54,9 +54,9 @@ interface Class {
 
 
 /**
- * Handles a POST request to generate and return an Excel file with class schedule and group details.
+ * Handles a POST request to generate and return a macro-enabled Excel file containing class schedule, group, and teacher assignment details.
  *
- * Validates required query parameters, retrieves class, schedule, and teacher assignment data, and constructs an Excel workbook containing grouped student lists, class metadata, schedule dates, and teacher assignments. Returns the generated Excel file as a downloadable macro-enabled attachment, or a JSON error response with an appropriate status code if validation or data retrieval fails.
+ * Validates required query parameters, retrieves class and schedule data, and populates an Excel template with grouped student lists, class metadata, schedule dates, and teacher assignments. If a teacher identifier is provided, includes teacher-specific rotation data. Returns the generated Excel file as a downloadable attachment, or a JSON error response with an appropriate HTTP status code if validation or data retrieval fails.
  *
  * @returns A response containing the generated Excel file as an attachment, or a JSON error response with an appropriate HTTP status code if validation or data retrieval fails.
  *

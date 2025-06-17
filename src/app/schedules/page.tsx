@@ -126,9 +126,9 @@ function ClassScheduleOverview({ className }: { className: string }) {
 }
 
 /**
- * Displays an interactive overview of all class schedules, allowing users to filter by class, view detailed schedule information, and export data.
+ * Renders an interactive page for viewing, filtering, and exporting class schedules.
  *
- * Fetches schedule and class data, manages loading and error states, and renders schedule overviews for individual classes or all classes. Provides export options for PDF and Excel formats when a specific class with a schedule is selected. The UI includes a class selector, schedule availability indicators, and collapsible panels for each class when viewing all classes.
+ * Allows users to select a class or view all classes, displays schedule availability, and provides detailed schedule overviews. Export options for PDF and Excel are available when a specific class with a schedule is selected; Excel export is restricted to teachers assigned to the class. Handles loading and error states, and supports collapsible panels for browsing all class schedules.
  */
 export default function SchedulesPage() {
   const [schedules, setSchedules] = useState<Schedule[]>([])
@@ -171,6 +171,12 @@ export default function SchedulesPage() {
 
   // Add effect to check if user is a teacher for the selected class
   useEffect(() => {
+    /**
+     * Determines whether the currently logged-in user is assigned as a teacher for the selected class and updates the state accordingly.
+     *
+     * If the user is not logged in or "all" classes are selected, the teacher assignment state is set to false.
+     * Fetches the teacher record for the current user and the teacher assignments for the selected class, then checks for a matching assignment.
+     */
     async function checkTeacherAssignment() {
       if (!session?.user?.name || selectedClass === 'all') {
         

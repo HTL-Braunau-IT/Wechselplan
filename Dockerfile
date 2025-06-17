@@ -51,6 +51,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/.env.example ./.env
+COPY --from=builder /app/src/app/templates/excel ./src/app/templates/excel
 
 # Create start script
 RUN echo '#!/bin/sh' > /app/start.sh && \

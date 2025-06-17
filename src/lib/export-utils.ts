@@ -37,14 +37,15 @@ export async function generateSchedulePDF(classId: string, weekday: number) {
 }
 
 /**
- * Generates and downloads an Excel file containing the schedule for a specified class and weekday.
+ * Generates and downloads an Excel file containing the grade list for a specific class, weekday, and teacher.
  *
- * Initiates a POST request to the backend to retrieve the schedule as an Excel file, then triggers a download in the browser with a filename that includes the class ID, German weekday name, and current date.
+ * Sends a POST request to the backend to retrieve the grade list as an Excel file, then triggers a browser download with a filename including the class ID and teacher.
  *
  * @param classId - Identifier of the class for which to generate the Excel file.
  * @param weekday - Numeric representation of the weekday (0 for Sunday through 6 for Saturday).
+ * @param teacher - Name or identifier of the teacher whose grade list is being exported.
  *
- * @returns A promise that resolves when the Excel file has been generated and the download has started.
+ * @returns A promise that resolves when the Excel file download is initiated.
  *
  * @throws {Error} If the export request fails or the file cannot be generated.
  */
