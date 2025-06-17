@@ -16,11 +16,11 @@ interface TeacherRotationRequest {
 }
 
 /**
- * Processes a POST request to update the teacher rotation schedule for a class.
+ * Handles a POST request to update the teacher rotation schedule for a class.
  *
- * Replaces all existing teacher rotation records for the specified class with new AM and PM rotation data provided in the request body. Returns a JSON response indicating success, or an error message with an appropriate HTTP status code if validation fails or an internal error occurs.
+ * Replaces all existing teacher rotation records for the specified class with new AM and PM rotation data provided in the request body. Responds with a JSON object indicating success, or an error message with an appropriate HTTP status code if validation fails, the class is not found, or an internal error occurs.
  *
- * @returns A JSON response indicating the result of the update operation.
+ * @returns A JSON response indicating success or providing an error message.
  */
 export async function POST(request: Request) {
   try {

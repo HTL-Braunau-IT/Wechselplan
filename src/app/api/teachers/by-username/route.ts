@@ -3,11 +3,11 @@ import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 
 /**
- * Handles GET requests to retrieve a teacher by their username.
+ * Handles GET requests to retrieve a teacher's information by username.
  *
- * Extracts the `username` query parameter from the request URL and returns the teacher's information if found.
+ * Extracts the `username` query parameter from the request URL and returns the corresponding teacher's data as JSON. Responds with an error message and appropriate HTTP status code if the parameter is missing, the teacher is not found, or an unexpected error occurs.
  *
- * @returns A JSON response containing the teacher's information, or an error message with an appropriate HTTP status code.
+ * @returns A JSON response containing the teacher's information, or an error message with HTTP status 400, 404, or 500.
  */
 export async function GET(request: Request) {
   try {

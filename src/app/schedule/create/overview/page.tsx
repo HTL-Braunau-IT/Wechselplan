@@ -35,9 +35,9 @@ function LoadingScreen() {
 }
 
 /**
- * Displays the class schedule overview page, enabling users to review group and teacher assignments, manage teacher rotation planning, and export the schedule in PDF or Excel formats.
+ * Renders the class schedule overview page, allowing users to review group and teacher assignments, manage teacher rotation planning, and export the schedule as a PDF.
  *
- * Fetches and presents schedule data for a selected class, including group assignments, rotation turns, class leadership, and additional details. Provides actions to save teacher rotations and export the schedule, handling loading and error states throughout the workflow.
+ * Fetches and displays schedule data for a selected class, including group assignments, rotation turns, class leadership, and additional details. Handles saving teacher rotations, exporting the schedule, and managing loading and error states throughout the workflow.
  *
  * @returns The React component for managing, viewing, and exporting the class schedule overview.
  */
@@ -70,11 +70,11 @@ export default function OverviewPage() {
 
 
   /**
-   * Saves the teacher rotation schedule for AM and PM periods to the backend and displays the PDF generation dialog upon success.
+   * Saves the round-robin teacher rotation schedule for AM and PM periods to the backend and, on success, displays the PDF generation dialog.
    *
-   * Constructs round-robin teacher assignments for each group and turn, then sends them along with the class ID to the backend API.
+   * Constructs teacher assignments for each group and turn, then sends them with the class name to the backend API.
    *
-   * @throws {Error} If the backend request to save the teacher rotation fails.
+   * @throws {Error} If saving the teacher rotation to the backend fails.
    */
   async function handleSaveAndFinish() {
     setSaving(true);
@@ -170,11 +170,11 @@ export default function OverviewPage() {
   }
 
   /**
-   * Generates and downloads a PDF export of the class schedule, then sequentially triggers downloads of the schedule PDF and Excel exports for the selected class and weekday.
+   * Generates and downloads a PDF export of the class schedule, then triggers schedule PDF generation for the selected class and weekday.
    *
-   * Closes the export dialog and navigates to the home page after successful exports.
+   * Closes the PDF export dialog and navigates to the home page upon successful completion.
    *
-   * @remark Does nothing if {@link classId} is missing.
+   * @remark Does nothing if the class ID is missing.
    */
   async function handleGeneratePdf() {
     if (!classId) return;
