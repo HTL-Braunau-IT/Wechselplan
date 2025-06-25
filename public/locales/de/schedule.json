@@ -18,6 +18,7 @@
   "resetGroups": "Gruppen zurücksetzen",
   "maxGroupSizeError": "Eine Gruppe darf nicht mehr als 12 Schüler haben",
   "maxGroupSizeDescription": "Bitte wählen Sie eine andere Gruppe oder erstellen Sie eine neue Gruppe, um weitere Schüler aufzunehmen.",
+  "tooManyStudentsError": "Diese Klasse hat {{count}} Schüler, aber maximal {{max}} Schüler werden unterstützt. Bitte reduzieren Sie die Anzahl der Schüler oder kontaktieren Sie den Administrator.",
   "ok": "OK",
   "teacherAssignment": "Lehrerzuweisung",
   "morningAssignments": "Vormittagszuweisungen",

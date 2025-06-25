@@ -1,12 +1,12 @@
 ---
 description: 
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
 Documentation
     - Use JSDoc for documentation
     - Document all public functions, classes, methods, and interfaces
-    - Add examples when appropriate
+    - Add examples when appropriate, especially for api calls. 
     - Use complete sentences with proper punctuation
     - Keep descriptions clear and concise
     - Use proper markdown formatting
@@ -14,3 +14,5 @@ Documentation
     - Use proper links
     - Use proper headings
     - Use proper lists
+    - Use poper folder structure for the docs (api stuff gose in a Folder API and so on).
+    - put all under /doc/{FOLDER} 

@@ -48,6 +48,8 @@ const UNASSIGNED_GROUP_ID = 0
 // Add constant for maximum group size
 const MAX_GROUP_SIZE = 12
 const MAX_STUDENTS_FOR_TWO_GROUPS = 24
+// Add constant for maximum supported students (4 groups × 12 students)
+const MAX_SUPPORTED_STUDENTS = 48
 
 /**
  * Renders a draggable student item with the student's name and index, and provides a button to remove the student from the group.
@@ -123,6 +125,45 @@ function GroupContainer({ group, children }: { group: Group, children: React.Rea
 }
 
 /**
+ * Distributes students evenly across groups, ensuring the difference between the largest and smallest group is at most 1.
+ *
+ * @param students - Array of students to distribute
+ * @param numGroups - Number of groups to distribute students into
+ * @returns Array of groups with evenly distributed students
+ */
+function distributeStudentsEvenly(students: Student[], numGroups: number): Group[] {
+	const sortedStudents = [...students].sort((a, b) => 
+		a.lastName.localeCompare(b.lastName)
+	)
+	
+	// Calculate base students per group and remainder
+	const baseStudentsPerGroup = Math.floor(sortedStudents.length / numGroups)
+	const remainder = sortedStudents.length % numGroups
+	
+	const groups: Group[] = [
+		// Always include unassigned group first
+		{
+			id: UNASSIGNED_GROUP_ID,
+			students: []
+		},
+		// Add regular groups
+		...Array.from({ length: numGroups }, (_, i) => {
+			// First 'remainder' groups get one extra student
+			const studentsInThisGroup = baseStudentsPerGroup + (i < remainder ? 1 : 0)
+			const startIndex = i * baseStudentsPerGroup + Math.min(i, remainder)
+			const endIndex = startIndex + studentsInThisGroup
+			
+			return {
+				id: i + 1,
+				students: sortedStudents.slice(startIndex, endIndex)
+			}
+		})
+	]
+	
+	return groups
+}
+
+/**
  * Provides an interactive interface for assigning students to groups within a selected class using drag-and-drop.
  *
  * Enables teachers to select a class, view and manage its students, create groups, assign students to groups, add or remove students, and save group assignments. Integrates with backend APIs for data retrieval and persistence, enforces maximum group size constraints, and prompts for confirmation when updating existing assignments.
@@ -140,6 +181,7 @@ export default function ScheduleClassSelectPage() {
 	const [selectedClass, setSelectedClass] = useState<string>(searchParams.get('class') ?? '')
 	const [students, setStudents] = useState<Student[]>([])
 	const [loading, setLoading] = useState<boolean>(false)
+	const [loadingClasses, setLoadingClasses] = useState<boolean>(true)
 	const [error, setError] = useState<string | null>(null)
 	const [numberOfGroups, setNumberOfGroups] = useState<number>(2)
 	const [groups, setGroups] = useState<Group[]>([
@@ -181,30 +223,20 @@ export default function ScheduleClassSelectPage() {
 	 * If redistributing students would cause any group to exceed the maximum allowed size, displays a warning dialog instead of resetting.
 	 */
 	function handleReset() {
-		setNumberOfGroups(2)
-		const sortedStudents = [...students].sort((a, b) => 
-			a.lastName.localeCompare(b.lastName)
-		)
-		const studentsPerGroup = Math.ceil(sortedStudents.length / 2)
+		// Calculate appropriate number of groups based on student count
+		const resetGroups = students.length > MAX_STUDENTS_FOR_TWO_GROUPS ? 
+			(students.length > 36 ? 4 : 3) : 2
+		
+		setNumberOfGroups(resetGroups)
 		
 		// Check if any group would exceed the maximum size
-		if (studentsPerGroup > MAX_GROUP_SIZE) {
+		const maxStudentsPerGroup = Math.ceil(students.length / resetGroups)
+		if (maxStudentsPerGroup > MAX_GROUP_SIZE) {
 			setShowMaxSizeDialog(true)
 			return
 		}
 
-		const newGroups: Group[] = [
-			// Add unassigned group first
-			{
-				id: UNASSIGNED_GROUP_ID,
-				students: []
-			},
-			// Add two regular groups
-			...Array.from({ length: 2 }, (_, i) => ({
-				id: i + 1,
-				students: sortedStudents.slice(i * studentsPerGroup, (i + 1) * studentsPerGroup)
-			}))
-		]
+		const newGroups = distributeStudentsEvenly(students, resetGroups)
 		setGroups(newGroups)
 	}
 
@@ -247,7 +279,7 @@ export default function ScheduleClassSelectPage() {
 				})
 				setError('Fehler beim Laden der Klassen.')
 			} finally {
-				setLoading(false)
+				setLoadingClasses(false)
 			}
 		}
 		void fetchClasses()
@@ -273,8 +305,15 @@ export default function ScheduleClassSelectPage() {
 				setStudents(studentsData)
 
 				// Calculate initial number of groups based on student count
-				const initialGroups = studentsData.length > MAX_STUDENTS_FOR_TWO_GROUPS ? 3 : 2
+				const initialGroups = studentsData.length > MAX_STUDENTS_FOR_TWO_GROUPS ? 
+					(studentsData.length > 36 ? 4 : 3) : 2
 				setNumberOfGroups(initialGroups)
+
+				// Check if class has too many students
+				if (studentsData.length > MAX_SUPPORTED_STUDENTS) {
+					setError(t('tooManyStudentsError', { max: MAX_SUPPORTED_STUDENTS, count: studentsData.length }))
+					return
+				}
 
 				// Then fetch existing assignments
 				const assignmentsRes = await fetch(`/api/schedule/assignments?class=${selectedClass}`)
@@ -303,23 +342,8 @@ export default function ScheduleClassSelectPage() {
 					setNumberOfGroups(existingGroups.length - 1) // Subtract 1 for unassigned group
 					hasExistingAssignmentsRef.current = true
 				} else {
-					// Otherwise, create default groups
-					const sortedStudents = [...studentsData].sort((a, b) => 
-						a.lastName.localeCompare(b.lastName)
-					)
-					const studentsPerGroup = Math.ceil(sortedStudents.length / initialGroups)
-					const newGroups: Group[] = [
-						// Always include unassigned group first
-						{
-							id: UNASSIGNED_GROUP_ID,
-							students: []
-						},
-						// Then add regular groups
-						...Array.from({ length: initialGroups }, (_, i) => ({
-							id: i + 1,
-							students: sortedStudents.slice(i * studentsPerGroup, (i + 1) * studentsPerGroup)
-						}))
-					]
+					// Otherwise, create default groups with even distribution
+					const newGroups = distributeStudentsEvenly(studentsData, initialGroups)
 					setGroups(newGroups)
 					hasExistingAssignmentsRef.current = false
 				}
@@ -342,10 +366,6 @@ export default function ScheduleClassSelectPage() {
 
 	useEffect(() => {
 		if (students.length === 0) return
-
-		const sortedStudents = [...students].sort((a, b) => 
-			a.lastName.localeCompare(b.lastName)
-		)
 
 		// If we have existing assignments, redistribute students
 		if (hasExistingAssignmentsRef.current) {
@@ -374,20 +394,8 @@ export default function ScheduleClassSelectPage() {
 
 			setGroups(newGroups)
 		} else {
-			// For new groups, distribute all students evenly
-			const studentsPerGroup = Math.ceil(sortedStudents.length / numberOfGroups)
-			const newGroups: Group[] = [
-				// Add unassigned group first
-				{
-					id: UNASSIGNED_GROUP_ID,
-					students: []
-				},
-				// Add regular groups
-				...Array.from({ length: numberOfGroups }, (_, i) => ({
-					id: i + 1,
-					students: sortedStudents.slice(i * studentsPerGroup, (i + 1) * studentsPerGroup)
-				}))
-			]
+			// For new groups, distribute all students evenly using the new function
+			const newGroups = distributeStudentsEvenly(students, numberOfGroups)
 			setGroups(newGroups)
 		}
 	}, [numberOfGroups, students])
@@ -755,7 +763,7 @@ export default function ScheduleClassSelectPage() {
 					<CardTitle>{t('selectClass')}</CardTitle>
 				</CardHeader>
 				<CardContent>
-					{loading && !selectedClass ? (
+					{loadingClasses && !selectedClass ? (
 						<p>{t('loadingClasses')}</p>
 					) : error ? (
 						<p className="text-destructive">{error}</p>

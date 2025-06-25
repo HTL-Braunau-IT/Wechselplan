@@ -18,6 +18,7 @@
   "resetGroups": "Reset Groups",
   "maxGroupSizeError": "A group cannot have more than 12 students",
   "maxGroupSizeDescription": "Please choose a different group or create a new group to accommodate more students.",
+  "tooManyStudentsError": "This class has {{count}} students, but only {{max}} students are supported. Please reduce the number of students or contact the administrator.",
   "ok": "OK",
   "teacherAssignment": "Teacher Assignment",
   "morningAssignments": "Morning Assignments",
