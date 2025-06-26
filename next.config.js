@@ -70,6 +70,7 @@ const sentryWebpackPluginOptions = {
   widenClientFileUpload: true,
   tunnelRoute: "/monitoring",
   disableLogger: true,
+  hideSourceMaps: true,
 };
 
 export default withSentryConfig(nextConfig, sentryWebpackPluginOptions);
