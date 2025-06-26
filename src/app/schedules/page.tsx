@@ -136,7 +136,7 @@ export default function SchedulesPage() {
   const [selectedClass, setSelectedClass] = useState<string>('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isTeacherForClass, setIsTeacherForClass] = useState(false)
+  const [, setIsTeacherForClass] = useState(false)
   const [isTeacherForAM, setIsTeacherForAM] = useState(false)
   const [isTeacherForPM, setIsTeacherForPM] = useState(false)
   const router = useRouter()
