@@ -137,13 +137,16 @@ export default function SchedulesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isTeacherForClass, setIsTeacherForClass] = useState(false)
+  const [isTeacherForAM, setIsTeacherForAM] = useState(false)
+  const [isTeacherForPM, setIsTeacherForPM] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const { data: session } = useSession()
   const { isLoading: isLoadingCachedData } = useCachedData()
   const [savingPdf, setSavingPdf] = useState(false)
   const [savingPdfDatum, setSavingPdfDatum] = useState(false)
-  const [savingExcel, setSavingExcel] = useState(false)
+  const [savingExcelAM, setSavingExcelAM] = useState(false)
+  const [savingExcelPM, setSavingExcelPM] = useState(false)
   const [expandedClass, setExpandedClass] = useState<string | null>(null)
 
   const {
@@ -179,34 +182,37 @@ export default function SchedulesPage() {
      */
     async function checkTeacherAssignment() {
       if (!session?.user?.name || selectedClass === 'all') {
-        
         setIsTeacherForClass(false)
+        setIsTeacherForAM(false)
+        setIsTeacherForPM(false)
         return
       }
 
       try {
-        
-        
         // First, get the teacher record for the current user
         const teacherResponse = await fetch(`/api/teachers/by-username?username=${session.user.name}`)
         if (!teacherResponse.ok) {
           console.log('Failed to fetch teacher record:', teacherResponse.status)
           setIsTeacherForClass(false)
+          setIsTeacherForAM(false)
+          setIsTeacherForPM(false)
           return
         }
 
         const teacher = await teacherResponse.json()
         if (!teacher) {
-
           setIsTeacherForClass(false)
+          setIsTeacherForAM(false)
+          setIsTeacherForPM(false)
           return
         }
 
         // Then get the teacher assignments for the class
         const response = await fetch(`/api/schedule/teacher-assignments?class=${selectedClass}`)
         if (!response.ok) {
-         
           setIsTeacherForClass(false)
+          setIsTeacherForAM(false)
+          setIsTeacherForPM(false)
           return
         }
 
@@ -218,20 +224,26 @@ export default function SchedulesPage() {
           pmAssignments: data.pmAssignments.map(a => ({ teacherId: a.teacherId, name: `${a.teacherFirstName} ${a.teacherLastName}` }))
         })
 
-        // Check if user is assigned as a teacher in either AM or PM assignments
-        const isAssigned = data.amAssignments.some(a => a.teacherId === teacher.id) ||
-                          data.pmAssignments.some(a => a.teacherId === teacher.id)
+        // Check if user is assigned as a teacher in AM assignments
+        const isAssignedAM = data.amAssignments.some(a => a.teacherId === teacher.id)
+        // Check if user is assigned as a teacher in PM assignments
+        const isAssignedPM = data.pmAssignments.some(a => a.teacherId === teacher.id)
+        // Check if user is assigned to either period
+        const isAssigned = isAssignedAM || isAssignedPM
         
         console.log('Is user assigned as teacher:', isAssigned, {
           teacherId: teacher.id,
-          amMatch: data.amAssignments.some(a => a.teacherId === teacher.id),
-          pmMatch: data.pmAssignments.some(a => a.teacherId === teacher.id)
+          amMatch: isAssignedAM,
+          pmMatch: isAssignedPM
         })
         
         setIsTeacherForClass(isAssigned)
-      } catch  {
-
+        setIsTeacherForAM(isAssignedAM)
+        setIsTeacherForPM(isAssignedPM)
+      } catch {
         setIsTeacherForClass(false)
+        setIsTeacherForAM(false)
+        setIsTeacherForPM(false)
       }
     }
 
@@ -311,15 +323,27 @@ export default function SchedulesPage() {
     }
   }
 
-  const handleExcelExport = async () => {
-    setSavingExcel(true)
+  const handleExcelAMExport = async () => {
+    setSavingExcelAM(true)
     try {
-      await generateExcel(selectedClass, weekday ?? 0, session?.user?.name ?? '')
+      await generateExcel(selectedClass, weekday ?? 0, session?.user?.name ?? '', 'AM')
     } catch (error) {
-      console.error('Error generating Excel:', error)
+      console.error('Error generating AM Excel:', error)
       // You might want to show a toast or error message to the user here
     } finally {
-      setSavingExcel(false)
+      setSavingExcelAM(false)
+    }
+  }
+
+  const handleExcelPMExport = async () => {
+    setSavingExcelPM(true)
+    try {
+      await generateExcel(selectedClass, weekday ?? 0, session?.user?.name ?? '', 'PM')
+    } catch (error) {
+      console.error('Error generating PM Excel:', error)
+      // You might want to show a toast or error message to the user here
+    } finally {
+      setSavingExcelPM(false)
     }
   }
 
@@ -366,19 +390,38 @@ export default function SchedulesPage() {
                 {savingPdfDatum ? 'Exporting PDF Datum ...' : 'PDF Datum Export'}
               </button>
 
-              {isTeacherForClass && (
+              {/* AM Excel Export Button - only show if teacher is assigned to AM */}
+              {isTeacherForAM && (
                 <button
-                  className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
-                  onClick={handleExcelExport}
-                  disabled={savingExcel}
+                  className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                  onClick={handleExcelAMExport}
+                  disabled={savingExcelAM}
                 >
-                  {savingExcel ? (
+                  {savingExcelAM ? (
                     <>
                       <Spinner size="sm" />
-                      Exporting Excel ...
+                      Exporting AM Excel ...
                     </>
                   ) : (
-                    'Export für Notenliste'
+                    'Export Notenliste Vormittag'
+                  )}
+                </button>
+              )}
+
+              {/* PM Excel Export Button - only show if teacher is assigned to PM */}
+              {isTeacherForPM && (
+                <button
+                   className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                  onClick={handleExcelPMExport}
+                  disabled={savingExcelPM}
+                >
+                  {savingExcelPM ? (
+                    <>
+                      <Spinner size="sm" />
+                      Exporting PM Excel ...
+                    </>
+                  ) : (
+                    'Export Notenliste Nachmittag'
                   )}
                 </button>
               )}

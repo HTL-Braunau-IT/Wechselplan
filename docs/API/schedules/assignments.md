@@ -88,7 +88,7 @@ The API performs the following operations:
 ### Assignment Response
 
 ```typescript
-interface Assignment[] {
+interface Assignment {
   id: string
   period: 'AM' | 'PM'
 }

@@ -44,14 +44,26 @@ export async function generateSchedulePDF(classId: string, weekday: number) {
  * @param classId - Identifier of the class for which to generate the Excel file.
  * @param weekday - Numeric representation of the weekday (0 for Sunday through 6 for Saturday).
  * @param teacher - Name or identifier of the teacher whose grade list is being exported.
+ * @param period - Optional period filter ('AM' or 'PM') to export only specific period assignments.
  *
  * @returns A promise that resolves when the Excel file download is initiated.
  *
  * @throws {Error} If the export request fails or the file cannot be generated.
  */
-export async function generateExcel(classId: string, weekday: number, teacher: string) {
+export async function generateExcel(classId: string, weekday: number, teacher: string, period?: 'AM' | 'PM') {
   try {
-    const export_response = await fetch(`/api/export/notenliste?className=${classId}&selectedWeekday=${weekday}&teacher=${teacher}`, {
+    const params = new URLSearchParams({
+      className: classId,
+      selectedWeekday: weekday.toString(),
+      teacher: teacher
+    })
+    
+    // Add period parameter if specified
+    if (period) {
+      params.append('period', period)
+    }
+    
+    const export_response = await fetch(`/api/export/notenliste?${params}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });
@@ -63,7 +75,9 @@ export async function generateExcel(classId: string, weekday: number, teacher: s
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${classId} - Notenliste - ${teacher}.xlsm`;
+    // Update filename to include period if specified
+    const periodSuffix = period ? ` - ${period}` : '';
+    a.download = `${classId} - Notenliste - ${teacher}${periodSuffix}.xlsm`;
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
