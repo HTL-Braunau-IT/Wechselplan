@@ -101,7 +101,7 @@
     "jsdom": "^24.0.0",
     "postcss": "^8.5.3",
     "prettier": "^3.5.3",
-    "prettier-plugin-tailwindcss": "^0.6.11",
+    "prettier-plugin-tailwindcss": "^0.6.13",
     "prisma": "^6.8.2",
     "tailwindcss": "^4.1.7",
     "ts-node": "^10.9.2",
