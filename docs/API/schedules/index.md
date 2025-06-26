@@ -128,7 +128,7 @@ Content-Type: application/json
 | `endDate` | string | Yes | End date in ISO format |
 | `selectedWeekday` | number | Yes | Weekday number (0-6, where 0=Sunday) |
 | `scheduleData` | any | Yes | Flexible schedule data structure |
-| `classId` | string | No | Class ID (converted to integer) |
+| `classId` | string | Yes | Class ID (converted to integer) |
 | `additionalInfo` | any | No | Additional flexible data |
 
 #### Response

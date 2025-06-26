@@ -68,6 +68,7 @@ export async function POST(request: Request) {
         const className = searchParams.get('className')
         const selectedWeekday = searchParams.get('selectedWeekday')
         const teacher = searchParams.get('teacher')
+        const period = searchParams.get('period')
 
         if (!selectedWeekday) {
             return NextResponse.json({ error: 'Selected Weekday is required' }, { status: 400 })
@@ -80,6 +81,10 @@ export async function POST(request: Request) {
 
         if (!className) {
             return NextResponse.json({ error: 'Class Name is required' }, { status: 400 })
+        }
+
+        if (period && period !== 'AM' && period !== 'PM') {
+            return NextResponse.json({ error: 'Period must be either AM or PM' }, { status: 400 })
         }
 
         const class_response = await prisma.class.findFirst({
@@ -117,9 +122,12 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Schedule not found' }, { status: 404 })
         }
 
-        // Fetch teacher assignments
+        // Fetch teacher assignments with optional period filtering
         const teacherAssignments = await prisma.teacherAssignment.findMany({
-            where: { classId: class_response.id },
+            where: { 
+                classId: class_response.id,
+                ...(period && { period: period as 'AM' | 'PM' })
+            },
             include: {
                 teacher: true
             }
@@ -301,12 +309,12 @@ export async function POST(request: Request) {
             console.log("teacherData.id", teacherData.id)
             console.log("class_response.id", class_response.id)
 
-
-            // Get teacher rotations
+            // Get teacher rotations with optional period filtering
             const teacherRotations = await prisma.teacherRotation.findMany({
                 where: {
                     teacherId: teacherData.id,
-                    classId: class_response.id
+                    classId: class_response.id,
+                    ...(period && { period: period as 'AM' | 'PM' }) // Filter by period if specified
                 }
             })
 
@@ -397,10 +405,14 @@ export async function POST(request: Request) {
         // Export the modified workbook
         const modifiedBuffer = await workbook.outputAsync()
 
+        // Generate filename with optional period suffix
+        const periodSuffix = period ? `_${period}` : '';
+        const filename = `${className}_notenliste${periodSuffix}.xlsm`;
+
         return new NextResponse(modifiedBuffer as Buffer, {
             headers: {
                 'Content-Type': 'application/vnd.ms-excel.sheet.macroEnabled.12',
-                'Content-Disposition': `attachment; filename="${className}_notenliste.xlsm"`
+                'Content-Disposition': `attachment; filename="${filename}"`
             }
         })
     } catch (error) {
