@@ -1,58 +1,46 @@
-# Install dependencies only when needed
-FROM node:22-alpine AS deps
+# Multi-stage build to handle lightningcss Alpine compatibility issues
+# Stage 1: Build dependencies in Debian environment
+FROM node:22-slim AS deps-debian
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN apk add --no-cache libc6-compat && npm install --legacy-peer-deps
+RUN npm install --legacy-peer-deps
 
-# Rebuild the source code only when needed
-FROM node:22-alpine AS builder
-# Add build arguments for version and build date
+# Stage 2: Build the application in Debian environment
+FROM node:22-slim AS builder-debian
 ARG VERSION
 ARG BUILD_DATE
-# Set environment variables
 ENV NEXT_PUBLIC_APP_VERSION=$VERSION
 ENV NEXT_PUBLIC_BUILD_DATE=$BUILD_DATE
-
-# Debug: Print environment variables
-RUN echo "NEXT_PUBLIC_APP_VERSION: $NEXT_PUBLIC_APP_VERSION"
-RUN echo "NEXT_PUBLIC_BUILD_DATE: $NEXT_PUBLIC_BUILD_DATE"
 
 WORKDIR /app
 COPY . .
-COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps-debian /app/node_modules ./node_modules
 
 RUN cp .env.example .env
-
-# Install build dependencies for lightningcss
-RUN apk add --no-cache python3 make g++ libc6-compat
-
-# Generate Prisma client
 RUN npx prisma generate
-
-# Build the application
 RUN npm run build
 
-# Production image
+# Stage 3: Alpine production image
 FROM node:22-alpine AS runner
-# Add build arguments for version and build date
 ARG VERSION
 ARG BUILD_DATE
-# Set environment variables
 ENV NEXT_PUBLIC_APP_VERSION=$VERSION
 ENV NEXT_PUBLIC_BUILD_DATE=$BUILD_DATE
+ENV NODE_ENV=production
 
 WORKDIR /app
 
-ENV NODE_ENV=production
+# Install runtime dependencies only
+RUN apk add --no-cache libc6-compat
 
-# Copy only what's needed
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/.env.example ./.env
-COPY --from=builder /app/src/app/templates/excel ./src/app/templates/excel
+# Copy built application from Debian builder
+COPY --from=builder-debian /app/public ./public
+COPY --from=builder-debian /app/.next ./.next
+COPY --from=builder-debian /app/node_modules ./node_modules
+COPY --from=builder-debian /app/package.json ./package.json
+COPY --from=builder-debian /app/prisma ./prisma
+COPY --from=builder-debian /app/.env.example ./.env
+COPY --from=builder-debian /app/src/app/templates/excel ./src/app/templates/excel
 
 # Create start script
 RUN echo '#!/bin/sh' > /app/start.sh && \
@@ -66,4 +54,4 @@ RUN echo '#!/bin/sh' > /app/start.sh && \
     echo 'npm start' >> /app/start.sh && \
     chmod +x /app/start.sh
 
-CMD ["/app/start.sh"]
+CMD ["/app/start.sh"] 
