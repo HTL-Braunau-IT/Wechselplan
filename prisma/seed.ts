@@ -3,15 +3,14 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 /**
- * Seeds the database with default roles, school holidays, rooms, subjects, learning content, break times, and schedule times.
- *
- * Performs idempotent upsert operations for each data category to ensure that records are created if absent or updated as needed, preventing duplication.
- *
- * @remark
- * Existing school holidays are updated with new start and end dates if a holiday with the same name exists; all other entities are only created if they do not already exist.
+ * Seeds the database with initial data
  */
 async function main() {
-  // Create default roles
+  console.log('🌱 Starting database seed...')
+
+  // Seed School Holidays
+  console.log('📅 Seeding school holidays...')
+
   const roles = [
     {
       name: 'admin',
@@ -34,10 +33,7 @@ async function main() {
       create: role
     })
   }
-
-  console.log('Default roles created successfully')
-
-  // Create school holidays
+  
   const holidays = [
     {
       name: 'Erste Schulwoche',
@@ -92,309 +88,34 @@ async function main() {
   ]
 
   for (const holiday of holidays) {
-    // Find existing holiday by name
-    const existingHoliday = await prisma.schoolHoliday.findFirst({
-      where: { name: holiday.name }
-    })
-
-    if (existingHoliday) {
-      // Update existing holiday
-      await prisma.schoolHoliday.update({
-        where: { id: existingHoliday.id },
-        data: {
-          startDate: holiday.startDate,
-          endDate: holiday.endDate,
-        }
-      })
-    } else {
-      // Create new holiday
-      await prisma.schoolHoliday.create({
-        data: holiday
-      })
-    }
-  }
-
-  console.log('School holidays created successfully')
-
-  // Create rooms
-  const rooms = [
-    {
-      name: 'Room 101',
-      capacity: 30,
-      description: 'Main classroom for general subjects'
-    },
-    {
-      name: 'Room 102',
-      capacity: 25,
-      description: 'Computer lab'
-    },
-    {
-      name: 'Room 103',
-      capacity: 20,
-      description: 'Science laboratory'
-    },
-    {
-      name: 'Room 104',
-      capacity: 35,
-      description: 'Large lecture hall'
-    },
-    {
-      name: 'Room 105',
-      capacity: 15,
-      description: 'Small group room'
-    }
-  ]
-
-  for (const room of rooms) {
-    await prisma.room.upsert({
-      where: { name: room.name },
-      update: {},
-      create: room
+    await prisma.schoolHoliday.create({
+      data: holiday
     })
   }
 
-  console.log('Rooms created successfully')
+  console.log(`✅ Seeded ${holidays.length} school holidays`)
 
-  // Create subjects
-  const subjects = [
-    {
-      name: 'Mathematics',
-      description: 'Core mathematics curriculum including algebra, geometry, and calculus'
-    },
-    {
-      name: 'Physics',
-      description: 'Study of matter, energy, and their interactions'
-    },
-    {
-      name: 'Computer Science',
-      description: 'Programming, algorithms, and computer systems'
-    },
-    {
-      name: 'English',
-      description: 'English language and literature'
-    },
-    {
-      name: 'German',
-      description: 'German language and literature'
-    }
-  ]
-
-  for (const subject of subjects) {
-    await prisma.subject.upsert({
-      where: { name: subject.name },
-      update: {},
-      create: subject
-    })
-  }
-
-  console.log('Subjects created successfully')
-
-  // Create learning content
-  const learningContents = [
-    {
-      name: 'Basic Algebra',
-      description: 'Introduction to algebraic concepts and equations'
-    },
-    {
-      name: 'Mechanics',
-      description: 'Study of motion, forces, and energy'
-    },
-    {
-      name: 'Web Development',
-      description: 'HTML, CSS, and JavaScript fundamentals'
-    },
-    {
-      name: 'Grammar and Composition',
-      description: 'English grammar rules and writing techniques'
-    },
-    {
-      name: 'German Literature',
-      description: 'Study of German literary works and analysis'
-    }
-  ]
-
-  for (const content of learningContents) {
-    await prisma.learningContent.upsert({
-      where: { name: content.name },
-      update: {},
-      create: content
-    })
-  }
-
-  console.log('Learning content created successfully')
-
-  // Create break times
-  const breakTimes = [
-    {
-      name: 'Vormittagspause 1',
-      startTime: '08:45',
-      endTime: '09:00',
-      period: 'AM'
-    },
-    {
-      name: 'Vormittagspause 2',
-      startTime: '09:45',
-      endTime: '09:55',
-      period: 'AM'
-    },
-    {
-      name: 'Vormittagspause 3',
-      startTime: '10:45',
-      endTime: '10:55',
-      period: 'AM'
-    },
-    {
-      name: 'Mittagspause 1',
-      startTime: '11:25',
-      endTime: '12:15',
-      period: 'LUNCH'
-    },
-    {
-      name: 'Mittagspause 2',
-      startTime: '12:15',
-      endTime: '13:05',
-      period: 'LUNCH'
-    },
-    {
-      name: 'Mittagspause 3',
-      startTime: '13:05',
-      endTime: '13:55',
-      period: 'LUNCH'
-    },
-    {
-      name: 'Nachmittagspause 1',
-      startTime: '14:00',
-      endTime: '14:10',
-      period: 'PM'
-    },
-    {
-      name: 'Nachmittagspause 2',
-      startTime: '14:50',
-      endTime: '15:00',
-      period: 'PM'
-    }
-  ]
-
-  for (const breakTime of breakTimes) {
-    await prisma.breakTime.upsert({
-      where: {
-        startTime_endTime_period: {
-          startTime: breakTime.startTime,
-          endTime: breakTime.endTime,
-          period: breakTime.period
-        }
-      },
-      update: {},
-      create: breakTime
-    })
-  }
-
-  console.log('Break times created successfully')
-
-  // Create schedule times
+  // Seed Schedule Times
+  console.log('⏰ Seeding schedule times...')
+  
   const scheduleTimes = [
-    {
-      startTime: '07:50',
-      endTime: '10:25',
-      hours: 3.5,
-      period: 'AM'
-    },
-    {
-      startTime: '07:50',
-      endTime: '11:25',
-      hours: 5,
-      period: 'AM'
-    },
-    {
-      startTime: '07:50',
-      endTime: '12:15',
-      hours: 6,
-      period: 'AM'
-    },
-    {
-      startTime: '08:40',
-      endTime: '11:25',
-      hours: 4,
-      period: 'AM'
-    },
-    {
-      startTime: '08:45',
-      endTime: '12:15',
-      hours: 5,
-      period: 'AM'
-    },
-    {
-      startTime: '09:40',
-      endTime: '12:15',
-      hours: 3,
-      period: 'AM'
-    },
-    {
-      startTime: '09:40',
-      endTime: '13:05',
-      hours: 4,
-      period: 'AM'
-    },
-    {
-      startTime: '10:45',
-      endTime: '12:30',
-      hours: 2,
-      period: 'AM'
-    },
-    {
-      startTime: '10:45',
-      endTime: '13:15',
-      hours: 3,
-      period: 'AM'
-    },
-    {
-      startTime: '11:25',
-      endTime: '15:35',
-      hours: 4,
-      period: 'PM'
-    },
-    {
-      startTime: '11:25',
-      endTime: '16:35',
-      hours: 5,
-      period: 'PM'
-    },
-    {
-      startTime: '12:15',
-      endTime: '15:35',
-      hours: 2,
-      period: 'PM'
-    },
-    {
-      startTime: '12:15',
-      endTime: '15:45',
-      hours: 3,
-      period: 'PM'
-    },
-    {
-      startTime: '12:15',
-      endTime: '16:35',
-      hours: 5,
-      period: 'PM'
-    },
-    {
-      startTime: '13:05',
-      endTime: '15:45',
-      hours: 3,
-      period: 'PM'
-    },
-    {
-      startTime: '13:05',
-      endTime: '16:35',
-      hours: 4,
-      period: 'PM'
-    },
-    {
-      startTime: '14:25',
-      endTime: '16:55',
-      hours: 2,
-      period: 'PM'
-    }
+    { startTime: '07:50', endTime: '10:25', hours: 3.5, period: 'AM' },
+    { startTime: '07:50', endTime: '11:25', hours: 5, period: 'AM' },
+    { startTime: '07:50', endTime: '12:15', hours: 6, period: 'AM' },
+    { startTime: '08:40', endTime: '11:25', hours: 4, period: 'AM' },
+    { startTime: '08:45', endTime: '12:15', hours: 5, period: 'AM' },
+    { startTime: '09:40', endTime: '12:15', hours: 3, period: 'AM' },
+    { startTime: '09:40', endTime: '13:05', hours: 4, period: 'AM' },
+    { startTime: '10:45', endTime: '12:30', hours: 2, period: 'AM' },
+    { startTime: '10:45', endTime: '13:15', hours: 3, period: 'AM' },
+    { startTime: '11:25', endTime: '15:35', hours: 4, period: 'PM' },
+    { startTime: '11:25', endTime: '16:35', hours: 5, period: 'PM' },
+    { startTime: '12:15', endTime: '15:35', hours: 2, period: 'PM' },
+    { startTime: '12:15', endTime: '15:45', hours: 3, period: 'PM' },
+    { startTime: '12:15', endTime: '16:35', hours: 5, period: 'PM' },
+    { startTime: '13:05', endTime: '15:45', hours: 3, period: 'PM' },
+    { startTime: '13:05', endTime: '16:35', hours: 4, period: 'PM' },
+    { startTime: '14:25', endTime: '16:55', hours: 2, period: 'PM' }
   ]
 
   for (const scheduleTime of scheduleTimes) {
@@ -406,19 +127,353 @@ async function main() {
           period: scheduleTime.period
         }
       },
-      update: {},
+      update: scheduleTime,
       create: scheduleTime
     })
   }
 
-  console.log('Schedule times created successfully')
+  console.log(`✅ Seeded ${scheduleTimes.length} schedule times`)
+
+  // Seed Break Times
+  console.log('☕ Seeding break times...')
+  
+  const breakTimes = [
+    { name: 'Vormittagspause 1', startTime: '08:45', endTime: '09:00', period: 'AM' },
+    { name: 'Vormittagspause 2', startTime: '09:45', endTime: '09:55', period: 'AM' },
+    { name: 'Vormittagspause 3', startTime: '10:45', endTime: '10:55', period: 'AM' },
+    { name: 'Mittagspause 1', startTime: '11:25', endTime: '12:15', period: 'LUNCH' },
+    { name: 'Mittagspause 2', startTime: '12:15', endTime: '13:05', period: 'LUNCH' },
+    { name: 'Mittagspause 3', startTime: '13:05', endTime: '13:55', period: 'LUNCH' },
+    { name: 'Nachmittagspause 1', startTime: '14:00', endTime: '14:10', period: 'PM' },
+    { name: 'Nachmittagspause 2', startTime: '14:50', endTime: '15:00', period: 'PM' }
+  ]
+
+  for (const breakTime of breakTimes) {
+    await prisma.breakTime.upsert({
+      where: {
+        startTime_endTime_period: {
+          startTime: breakTime.startTime,
+          endTime: breakTime.endTime,
+          period: breakTime.period
+        }
+      },
+      update: breakTime,
+      create: breakTime
+    })
+  }
+
+  console.log(`✅ Seeded ${breakTimes.length} break times`)
+
+  // Seed Learning Content
+  console.log('📚 Seeding learning content...')
+  
+  const learningContents = [
+    'Analogschaltungen',
+    'Antriebstechnik',
+    'Arbeitsplanung',
+    'Arbeitsvorbereitung',
+    'Assemblierung',
+    'Bauelemente',
+    'Baugruppen',
+    'Baugruppenfertigung',
+    'Bauteilkunde',
+    'Beleuchtungstechnik',
+    'Beschaffungswesen',
+    'Betriebssysteme',
+    'Bussysteme',
+    'CAD',
+    'CAM',
+    'Computer assemblieren',
+    'Computersysteme',
+    'Datenleitungen',
+    'Datenübertragungseinrichtungen',
+    'Digitalschaltungen',
+    'Drehen',
+    'Drehen/Fräsen',
+    'Eagle-CAD',
+    'Elektroakustik',
+    'Elektromechanik',
+    'Elektronik',
+    'Elektronische Grundschaltungen',
+    'Elektronische Schaltungen',
+    'Elektropneumatik',
+    'Elektrotechnik',
+    'Elektrotechnik fest',
+    'Elektrotechnik flexibel',
+    'Energieversorgungssysteme',
+    'Fehlersuche',
+    'Festnetzkommunikation',
+    'Fräsen',
+    'Gebäudeinstallation',
+    'Gehäusefertigung',
+    'Gehäusetechnik',
+    'Gerätebau',
+    'Hardwarekonfiguration',
+    'Hartlöten',
+    'HF-Technik',
+    'Industrieroboter',
+    'Kalkulation',
+    'Klebetechnik',
+    'Kommunikationstechnik',
+    'Leistungselektronik',
+    'Leiterplattenfertigung',
+    'Logikschaltungen',
+    'Löttechnik',
+    'Mechan. Grundausbildung',
+    'Mechatronische Systeme',
+    'Mediendesign',
+    'Messtechnik',
+    'Messübungen',
+    'Messübungen/Fehlersuche',
+    'Messysteme',
+    'Mobile Kommunikationstechnik',
+    'Montagearbeiten IT-Systeme',
+    'Montagesysteme',
+    'Netzwerktechnik',
+    'Netzwerkverkabelungen',
+    'NF-Technik',
+    'Oberflächenschutz',
+    'Oberflächentechnik',
+    'Printplattenbestückung',
+    'Programmierung',
+    'Prozessautomation',
+    'Qualitätsprüfung',
+    'Regelungstechnik',
+    'Reparatur und Wartung',
+    'Rundfunk-, Fernsehtechnik',
+    'Schutzmaßnahmen',
+    'Schweißen',
+    'Sende- und Empfangsanlagen',
+    'Sensorik',
+    'SMD-Technik',
+    'SMT-Anwendungen',
+    'SPS-Steuerungstechnik',
+    'Steuerungstechnik',
+    'Systemsoftware',
+    'Technische Präsentation',
+    'USV-Anlagen',
+    'Verbindungstechnik',
+    'Verdrahtungsarbeiten',
+    'Verkabelungssysteme',
+    'Vermittlungstechnik',
+    'Verteilerbau',
+    'Visualisierung',
+    'Voice over IP',
+    'VPS-Steuerungstechnik',
+    'Wärmebehandlung',
+    'Werkstoffbearbeitung'
+  ]
+
+  for (const contentName of learningContents) {
+    await prisma.learningContent.upsert({
+      where: {
+        name: contentName
+      },
+      update: { name: contentName },
+      create: { name: contentName }
+    })
+  }
+
+  console.log(`✅ Seeded ${learningContents.length} learning content items`)
+
+  // Seed Rooms
+  console.log('🏢 Seeding rooms...')
+  
+  const rooms = [
+    'E02',
+    'E03',
+    'E17',
+    'E31',
+    'E33',
+    'E37',
+    'E45',
+    'E46',
+    'E47',
+    'E48',
+    'E56',
+    'E57',
+    'E61',
+    'E62',
+    'E63',
+    'E64',
+    'E65',
+    'E66',
+    'E68',
+    'E68a',
+    'E68b',
+    'E69',
+    'E72',
+    'E73',
+    'E74',
+    'E76',
+    'E77',
+    'E78',
+    'E78a',
+    'E79',
+    'E80',
+    'E81',
+    'E82',
+    'E83',
+    'E84',
+    'E85',
+    'E86',
+    'E89',
+    '142',
+    '143',
+    '144',
+    '145',
+    '146',
+    '147',
+    '148',
+    '149',
+    '146/E68',
+    'EDV 1',
+    'EDV 2',
+    'EDV 3',
+    'B&R'
+  ]
+
+  for (const roomName of rooms) {
+    await prisma.room.upsert({
+      where: {
+        name: roomName
+      },
+      update: { name: roomName },
+      create: { name: roomName }
+    })
+  }
+
+  console.log(`✅ Seeded ${rooms.length} rooms`)
+
+  // Seed Subjects
+  console.log('📖 Seeding subjects...')
+  
+  const subjects = [
+    'WEPT-Grundausb. Mechanik',
+    'PBE4-Baugruppenfertigung 1',
+    'WPT-4 Mechan. Grundausbildung für Elektrotechnik',
+    'COPR-Computerinfrastruktur',
+    'WPT4-Blechbearbeitung',
+    'WEPT-Elektronik',
+    'PBE4-Baugruppenfertigung 2',
+    'WPT4-Steuerungstechnik 1',
+    'COPR- Computerpraktikum',
+    'WPT4-Mechanische Werkstätte',
+    'WEPT-Nieder-/Hochfrequenztechnik',
+    'PBE3-Computertechnik',
+    'WPT4-Mechatronik',
+    'WPT3-Arbeitsvorbereitung',
+    'WEPT/WLA-Arbeitsvorbereitung',
+    'PBE3-Consumer-Electronics',
+    'WPT3-Automatisierungstechnik und Robotik 1',
+    'WEPT-Grundausb. Elektrotechnik',
+    'PBE4-Kunststofftechnik',
+    'WPT4-Elektroinstallation 1',
+    'WPT4-Elektrotechnische Grundausbildung',
+    'WEPT-Computer-/Netzwerktechnik',
+    'PBE4-Computertechnik 1',
+    'COPR- Netzwerktechnik',
+    'WPT4-Geräte und Gehäusebau',
+    'WEPT-Elektronik',
+    'PBE3-Digitaltechnik 1',
+    'WPT4-Steuerungstechnik 2',
+    'WPT3-Leierplattentechnik',
+    'WEPT/WLA-Nieder-/Hochfrequenztechnik',
+    'PBE3-Digitaltechnik 2',
+    'WPT3-Messechnik und Qualitätsmanagement',
+    'WEPT-Grundausb. Elektronik',
+    'PBE4-Leiterplattenfertigung 1',
+    'WPT4-Elektronik 1',
+    'COPR-Elektromechanik',
+    'WPT4-Kunststofftechnik',
+    'WEPT-Kommunikationstechnik',
+    'PBE4-Digitaltechnik 1',
+    'WPT4-Oberflächentechnik',
+    'WEPT-Computer-/Netzwerktechnik',
+    'PBE3-Gerätebau',
+    'WEPT/WLA-Kommunikationstechnik',
+    'PBE3-Kommunikationssysteme 2',
+    'WPT3-Automatisierung',
+    'WEPT-Kunststofftechnik',
+    'PBE4-Mech. Grundausbildung',
+    'COPR-Elektronische Grundschaltungen',
+    'WEPT-Gerätebau',
+    'PBE4-Leiterplattenfertigung 2',
+    'COPR-Digitalschaltungen',
+    'WPT4-Niederspannungsinstallation',
+    'WEPT-Kommunikationstechnik',
+    'PBE3-Kommunikationssyst. 1',
+    'WPT4-Werkstätte für Elektronik',
+    'WEPT/WLA-Industrielle Elektronik',
+    'PBE3-Messtechnik 2',
+    'WPT3-CAD Fertigungs- und Montagetechnik',
+    'PBE4-Verbindungstechnik 1',
+    'COPR-Elektrotechnik',
+    'WPT4-Mechanische Werkstätte',
+    'WEPT-Installationstechnik',
+    'PBE4-SMD-Technik',
+    'COPR-Elektronische Schaltungen',
+    'WPT4-Bereich Montage und Wartung',
+    'WEPT-Industrielle Elektronik',
+    'PBE3-Messtechnik 1',
+    'WPT4-Werkstätte für Steuerungstechnik',
+    'PBE3-Netzwerkinstallation 2',
+    'ELWP-Elektronik',
+    'PBE4-Verbindungstechnik 2',
+    'WPT4-Schweißen',
+    'PBE3-Netzwerkinstallation 1',
+    'PBE3-Steuer-/Regelungstechnik',
+    'ELWP-Elektrotechnik',
+    'COPR-Systemtechnik',
+    'COPR-Energieversorgungssysteme',
+    'WPT4-Computertechnik',
+    'PBE4-Computertechnik 2',
+    'ELWP-Fertigungssteuerung/Überwachung',
+    'ELWP-Mechan. Grundausbildung',
+    'COPR-IT Infrastruktursysteme',
+    'ELWP-Gerätebau',
+    'COPR-Netzwerkinfrastruktur',
+    'PBE4-Consumer-Electronics',
+    'ELWP-Industrieelle Elektronik',
+    'NWWP-Computertechnik',
+    'ELWP-Kunststofftechnik',
+    'COPR-Netzwerktechnik',
+    'NWWP-Kommunikationselektronik',
+    'PBE4-Digitaltechnik 2',
+    'NWWP-Netzwerktechnik',
+    'COPR-Systemtechnik',
+    'PBE4-Gerätebau',
+    'NWWP-Nieder-/Hochfrequenztechnik',
+    'COPR-Verkabelungssysteme',
+    'PBE4-Kommunikationssyst.',
+    'COPR-Gebäudeinstallation',
+    'PBE4-Netzwerkinstallation'
+  ]
+
+  for (const subjectName of subjects) {
+    await prisma.subject.upsert({
+      where: {
+        name: subjectName
+      },
+      update: { name: subjectName },
+      create: { name: subjectName }
+    })
+  }
+
+  console.log(`✅ Seeded ${subjects.length} subjects`)
+
+
+  console.log('🎉 Database seeding completed!')
 }
 
+/**
+ * Handles errors during seeding and ensures proper cleanup
+ */
 main()
   .catch((e) => {
-    console.error(e)
+    console.error('❌ Error during seeding:', e)
     process.exit(1)
   })
-  .finally(() => {
-    void prisma.$disconnect()
+  .finally(async () => {
+    await prisma.$disconnect()
   }) 

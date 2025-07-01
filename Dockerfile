@@ -58,6 +58,7 @@ RUN echo '#!/bin/sh' > /app/start.sh && \
     echo 'sleep 5' >> /app/start.sh && \
     echo 'echo "Applying migrations..."' >> /app/start.sh && \
     echo 'npx prisma migrate deploy' >> /app/start.sh && \
+    echo 'echo "Seeding database..."' >> /app/start.sh && \
     echo 'npx prisma db seed' >> /app/start.sh && \
     echo 'echo "Starting application..."' >> /app/start.sh && \
     echo 'npm start' >> /app/start.sh && \
