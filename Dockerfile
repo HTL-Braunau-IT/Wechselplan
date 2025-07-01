@@ -2,8 +2,28 @@
 # Stage 1: Build dependencies in Debian environment
 FROM node:22-slim AS deps-debian
 WORKDIR /app
+
+# Install build dependencies for native modules
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    openssl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set environment variables to force native compilation
+ENV npm_config_build_from_source=true
+ENV npm_config_target_platform=linux
+ENV npm_config_target_arch=x64
+
 COPY package.json package-lock.json* ./
 RUN npm install --legacy-peer-deps
+
+# Explicitly install the correct lightningcss binary for Linux x64
+RUN npm install lightningcss-linux-x64-gnu@1.30.1
+
+# Force rebuild of native modules
+RUN npm rebuild
 
 # Stage 2: Build the application in Debian environment
 FROM node:22-slim AS builder-debian
@@ -15,7 +35,7 @@ ENV NEXT_PUBLIC_BUILD_DATE=$BUILD_DATE
 WORKDIR /app
 COPY . .
 COPY --from=deps-debian /app/node_modules ./node_modules
-
+RUN apt-get update -y && apt-get install -y openssl
 RUN cp .env.example .env
 RUN npx prisma generate
 RUN npm run build
