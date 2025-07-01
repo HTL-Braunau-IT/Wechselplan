@@ -2,7 +2,7 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm install --legacy-peer-deps
+RUN apk add --no-cache libc6-compat && npm install --legacy-peer-deps
 
 # Rebuild the source code only when needed
 FROM node:22-alpine AS builder
@@ -23,6 +23,8 @@ COPY --from=deps /app/node_modules ./node_modules
 
 RUN cp .env.example .env
 
+# Install build dependencies for lightningcss
+RUN apk add --no-cache python3 make g++ libc6-compat
 
 # Generate Prisma client
 RUN npx prisma generate
