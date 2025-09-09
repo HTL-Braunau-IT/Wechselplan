@@ -38,7 +38,7 @@ async function main() {
     {
       name: 'Erste Schulwoche',
       startDate: new Date('2025-09-08'),
-      endDate: new Date('2025-09-19')
+      endDate: new Date('2025-09-13')
     },
     {
       name: 'Herbstferien',
