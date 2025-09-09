@@ -69,5 +69,21 @@
   "noMissedHolidays": "Keine verpassten Feiertage",
   "saveSchedule": "Einteilung speichern",
   "failedToLoadHolidays": "Feiertage konnten nicht geladen werden.",
-  "failedToSaveSchedule": "Einteilung konnte nicht gespeichert werden."
+  "failedToSaveSchedule": "Einteilung konnte nicht gespeichert werden.",
+  "combineClasses": "Klassen zusammenführen",
+  "combineClassesDescription": "Erstellen Sie eine neue Klasse durch das Zusammenführen zweier bestehender Klassen",
+  "selectFirstClass": "Erste Klasse auswählen",
+  "selectSecondClass": "Zweite Klasse auswählen",
+  "combinedClassName": "Name der zusammengeführten Klasse",
+  "combinedClassNamePlaceholder": "z.B. 10A+10B",
+  "createCombinedClass": "Zusammengeführte Klasse erstellen",
+  "combiningClasses": "Klassen werden zusammengeführt...",
+  "classesCombinedSuccess": "Klassen erfolgreich zusammengeführt!",
+  "classesCombinedError": "Klassen konnten nicht zusammengeführt werden.",
+  "selectDifferentClasses": "Bitte wählen Sie zwei verschiedene Klassen aus",
+  "bothClassesRequired": "Beide Klassen sind erforderlich",
+  "combinedClassNameRequired": "Name der zusammengeführten Klasse ist erforderlich",
+  "originallyFrom": "Ursprünglich aus",
+  "tooManyStudentsToCombine": "Klassen können nicht zusammengeführt werden: Die zusammengeführte Klasse hätte {{total}} Schüler, aber maximal {{max}} Schüler sind erlaubt. Bitte reduzieren Sie die Anzahl der Schüler in einer oder beiden Klassen vor der Zusammenführung.",
+  "studentCountDetails": "Klasse 1: {{class1}} Schüler, Klasse 2: {{class2}} Schüler, Gesamt: {{total}} Schüler"
 } 

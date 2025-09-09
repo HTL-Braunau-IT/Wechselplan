@@ -19,6 +19,7 @@ interface Student {
 	firstName: string
 	lastName: string
 	class: string
+	originalClass?: string // For combined classes, shows which class the student originally came from
 }
 
 interface Group {
@@ -58,7 +59,7 @@ const MAX_SUPPORTED_STUDENTS = 48
  * @param index - The position of the student in the list.
  * @param onRemove - Callback invoked with the student's ID when the remove button is clicked.
  */
-function StudentItem({ student, index, onRemove }: { student: Student, index: number, onRemove: (studentId: number) => void }) {
+function StudentItem({ student, index, onRemove, t }: { student: Student, index: number, onRemove: (studentId: number) => void, t: (key: string) => string }) {
 	const { attributes, listeners, setNodeRef, transform } = useDraggable({
 		id: `student-${student.id}`
 	})
@@ -73,11 +74,18 @@ function StudentItem({ student, index, onRemove }: { student: Student, index: nu
 			style={style}
 			{...listeners}
 			{...attributes}
-			className="text-sm p-2 bg-card border border-border rounded cursor-move hover:bg-accent transition flex items-center justify-between group"
+			className="text-sm p-3 bg-card border border-border rounded-lg cursor-move hover:bg-accent transition-all duration-200 flex items-start justify-between group min-h-[60px]"
 		>
-			<div>
-				<span className="text-muted-foreground mr-2">{index + 1}.</span>
-				{`${student.lastName}, ${student.firstName}`}
+			<div className="flex-1 min-w-0 pr-2">
+				<div className="flex items-center mb-1">
+					<span className="text-muted-foreground mr-2 text-xs font-medium">{index + 1}.</span>
+					<span className="font-medium truncate">{`${student.lastName}, ${student.firstName}`}</span>
+				</div>
+				{student.originalClass && (
+					<div className="text-xs text-muted-foreground ml-4 bg-muted/50 px-2 py-1 rounded-md inline-block">
+						{t('originallyFrom')}: {student.originalClass}
+					</div>
+				)}
 			</div>
 			<button
 				onClick={(e) => {
@@ -112,14 +120,16 @@ function GroupContainer({ group, children }: { group: Group, children: React.Rea
 	return (
 		<div 
 			ref={setNodeRef}
-			className={`border border-border rounded-lg p-4 w-[300px] transition-colors bg-card ${
+			className={`border border-border rounded-lg p-4 w-[320px] transition-colors bg-card min-h-[200px] ${
 				isOver ? 'bg-accent/50 border-accent' : ''
 			}`}
 		>
-			<h3 className="font-semibold mb-2 text-foreground">
+			<h3 className="font-semibold mb-3 text-foreground text-center pb-2 border-b border-border/50">
 				{group.id === UNASSIGNED_GROUP_ID ? t('unassigned') : `${t('group')} ${group.id}`}
 			</h3>
-			{children}
+			<div className="space-y-2">
+				{children}
+			</div>
 		</div>
 	)
 }
@@ -204,6 +214,13 @@ export default function ScheduleClassSelectPage() {
 		lastName: '',
 		username: ''
 	})
+	const [showCombineClassesDialog, setShowCombineClassesDialog] = useState(false)
+	const [combineClasses, setCombineClasses] = useState({
+		class1Id: '',
+		class2Id: '',
+		combinedClassName: ''
+	})
+	const [combiningClasses, setCombiningClasses] = useState(false)
 
 	/**
 	 * Determines whether all groups, except the unassigned group, do not exceed the maximum allowed size.
@@ -756,6 +773,87 @@ export default function ScheduleClassSelectPage() {
 		}
 	}
 
+	async function handleCombineClasses(e: React.FormEvent) {
+		e.preventDefault()
+		
+		// Validate form
+		if (!combineClasses.class1Id || !combineClasses.class2Id) {
+			setError(t('bothClassesRequired'))
+			return
+		}
+
+		if (combineClasses.class1Id === combineClasses.class2Id) {
+			setError(t('selectDifferentClasses'))
+			return
+		}
+
+		if (!combineClasses.combinedClassName.trim()) {
+			setError(t('combinedClassNameRequired'))
+			return
+		}
+
+		setCombiningClasses(true)
+		setError(null)
+
+		try {
+			const response = await fetch('/api/classes/combine', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					class1Id: parseInt(combineClasses.class1Id),
+					class2Id: parseInt(combineClasses.class2Id),
+					combinedClassName: combineClasses.combinedClassName.trim()
+				}),
+			})
+
+			if (!response.ok) {
+				const error = await response.json() as { error?: string, details?: any }
+				throw new Error(error.error ?? 'Failed to combine classes')
+			}
+
+			const result = await response.json()
+			
+			// Reset form and close dialog
+			setCombineClasses({
+				class1Id: '',
+				class2Id: '',
+				combinedClassName: ''
+			})
+			setShowCombineClassesDialog(false)
+
+			// Refresh classes list
+			const classesRes = await fetch('/api/classes')
+			if (classesRes.ok) {
+				const classesData = await classesRes.json() as Class[]
+				setClasses(classesData)
+			}
+
+
+
+		} catch (err) {
+			console.error('Error combining classes:', err)
+			captureFrontendError(err, {
+				location: 'schedule/create',
+				type: 'combine-classes',
+				extra: {
+					combineClasses
+				}
+			})
+			
+			// Check if it's a "too many students" error
+			const errorMessage = err instanceof Error ? err.message : String(err)
+			if (errorMessage.includes('Cannot combine classes') && errorMessage.includes('students')) {
+				setError(errorMessage)
+			} else {
+				setError(t('classesCombinedError'))
+			}
+		} finally {
+			setCombiningClasses(false)
+		}
+	}
+
 	return (
 		<div className="container mx-auto p-4">
 			<Card>
@@ -811,6 +909,13 @@ export default function ScheduleClassSelectPage() {
 								>
 									{t('addStudent')}
 								</Button>
+								<Button
+									onClick={() => setShowCombineClassesDialog(true)}
+									variant="outline"
+									className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+								>
+									{t('combineClasses')}
+								</Button>
 							</div>
 
 							{selectedClass && (
@@ -847,8 +952,15 @@ export default function ScheduleClassSelectPage() {
 										</div>
 									</div>
 									{error && (
-										<div className="mb-4 p-2 bg-destructive/10 text-destructive rounded">
-											{error}
+										<div className="mb-4 p-4 bg-destructive/10 text-destructive rounded-lg border border-destructive/20">
+											<div className="flex items-start space-x-2">
+												<svg className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+													<path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+												</svg>
+												<div className="text-sm leading-relaxed break-words">
+													{error}
+												</div>
+											</div>
 										</div>
 									)}
 									{loading ? (
@@ -859,12 +971,12 @@ export default function ScheduleClassSelectPage() {
 											onDragStart={handleDragStart}
 											onDragEnd={handleDragEnd}
 										>
-											<div className={`grid gap-4 ${
+											<div className={`grid gap-6 ${
 												numberOfGroups === 2 
-													? 'grid-cols-2 justify-items-center' 
+													? 'grid-cols-1 md:grid-cols-2 justify-items-center' 
 													: numberOfGroups === 3 
-														? 'grid-cols-2 justify-items-center [&>*:nth-child(3)]:col-span-2 [&>*:nth-child(3)]:max-w-md [&>*:nth-child(3)]:mx-auto' 
-														: 'grid-cols-2 justify-items-center'
+														? 'grid-cols-1 md:grid-cols-2 justify-items-center [&>*:nth-child(3)]:md:col-span-2 [&>*:nth-child(3)]:max-w-md [&>*:nth-child(3)]:mx-auto' 
+														: 'grid-cols-1 md:grid-cols-2 justify-items-center'
 											}`}>
 												{/* Regular groups first */}
 												{groups.filter(g => g.id !== UNASSIGNED_GROUP_ID).sort((a, b) => a.id - b.id).map((group) => (
@@ -876,6 +988,7 @@ export default function ScheduleClassSelectPage() {
 																	student={student} 
 																	index={index}
 																	onRemove={handleStudentRemoval}
+																	t={t}
 																/>
 															))}
 														</div>
@@ -898,6 +1011,7 @@ export default function ScheduleClassSelectPage() {
 																		student={student} 
 																		index={index}
 																		onRemove={handleStudentRemoval}
+																		t={t}
 																	/>
 																))}
 															</div>
@@ -1011,6 +1125,92 @@ export default function ScheduleClassSelectPage() {
 							{t('add')}
 						</Button>
 					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* Combine Classes Dialog */}
+			<Dialog open={showCombineClassesDialog} onOpenChange={setShowCombineClassesDialog}>
+				<DialogContent className="max-w-md mx-auto w-[95vw] sm:w-full">
+					<DialogHeader className="space-y-3">
+						<DialogTitle className="text-xl font-semibold">{t('combineClasses')}</DialogTitle>
+						<DialogDescription className="text-sm text-muted-foreground leading-relaxed">
+							{t('combineClassesDescription')}
+						</DialogDescription>
+					</DialogHeader>
+					<form onSubmit={handleCombineClasses} className="space-y-6">
+						<div className="space-y-5">
+							<div className="space-y-2">
+								<Label htmlFor="class1" className="text-sm font-medium text-foreground">
+									{t('selectFirstClass')}
+								</Label>
+								<Select
+									value={combineClasses.class1Id}
+									onValueChange={(value) => setCombineClasses(prev => ({ ...prev, class1Id: value }))}
+								>
+									<SelectTrigger className="w-full">
+										<SelectValue placeholder={t('pleaseSelect')} />
+									</SelectTrigger>
+									<SelectContent>
+										{classes.map((cls) => (
+											<SelectItem key={cls.id} value={cls.id.toString()}>
+												{cls.name}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="class2" className="text-sm font-medium text-foreground">
+									{t('selectSecondClass')}
+								</Label>
+								<Select
+									value={combineClasses.class2Id}
+									onValueChange={(value) => setCombineClasses(prev => ({ ...prev, class2Id: value }))}
+								>
+									<SelectTrigger className="w-full">
+										<SelectValue placeholder={t('pleaseSelect')} />
+									</SelectTrigger>
+									<SelectContent>
+										{classes.map((cls) => (
+											<SelectItem key={cls.id} value={cls.id.toString()}>
+												{cls.name}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="combinedClassName" className="text-sm font-medium text-foreground">
+									{t('combinedClassName')}
+								</Label>
+								<Input
+									id="combinedClassName"
+									value={combineClasses.combinedClassName}
+									onChange={(e) => setCombineClasses(prev => ({ ...prev, combinedClassName: e.target.value }))}
+									placeholder={t('combinedClassNamePlaceholder')}
+									className="w-full"
+								/>
+							</div>
+						</div>
+						<DialogFooter className="flex flex-col sm:flex-row gap-3 sm:justify-end">
+							<Button 
+								type="button" 
+								variant="outline" 
+								onClick={() => setShowCombineClassesDialog(false)}
+								disabled={combiningClasses}
+								className="w-full sm:w-auto"
+							>
+								{t('cancel')}
+							</Button>
+							<Button 
+								type="submit" 
+								disabled={combiningClasses}
+								className="w-full sm:w-auto"
+							>
+								{combiningClasses ? t('combiningClasses') : t('createCombinedClass')}
+							</Button>
+						</DialogFooter>
+					</form>
 				</DialogContent>
 			</Dialog>
 		</div>

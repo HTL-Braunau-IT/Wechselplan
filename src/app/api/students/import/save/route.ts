@@ -265,6 +265,7 @@ export async function POST(request: Request) {
       classes: updatedCount
     })  
   } catch (error) {
+    console.error('Error in import save:', error)
     captureError(error, {
       location: 'api/students/import/save',
       type: 'import-students'

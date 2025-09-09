@@ -34,15 +34,56 @@ export async function GET(request: Request) {
 					name: className
 				}
 			},
+			include: {
+				class: {
+					select: {
+						name: true,
+						description: true
+					}
+				}
+			},
 			orderBy: [
 				{ lastName: 'asc' },
 				{ firstName: 'asc' }
 			]
 		})
 
-		return NextResponse.json(students)
+		// Process students to include original class information for combined classes
+		const processedStudents = students.map(student => {
+			// Ensure we have valid student data
+			if (!student || !student.id) {
+				console.warn('Invalid student data:', student)
+				return null
+			}
+
+			const studentData = {
+				id: student.id,
+				firstName: student.firstName || '',
+				lastName: student.lastName || '',
+				class: student.class?.name || 'Unknown',
+				username: (student as any).username || ''
+			} as any
+
+			// Check if this is a combined class by looking at the description
+			if (student.class?.description && student.class.description.includes('Combined class from')) {
+				// Extract original class information from username
+				// Format: "10A_john.doe" or "10B_john.doe1"
+				const usernameMatch = (student as any).username?.match(/^([^_]+)_(.+)$/)
+				if (usernameMatch) {
+					const originalClass = usernameMatch[1]
+					const actualUsername = usernameMatch[2]
+					
+					studentData.originalClass = originalClass
+					studentData.username = actualUsername // Show the clean username
+				}
+			}
+
+			return studentData
+		}).filter(Boolean) // Remove any null entries
+
+		return NextResponse.json(processedStudents)
 	} catch (error) {
-		
+		console.error('Error in students API:', error)
 		captureError(error, {
 			location: 'api/students',
 			type: 'fetch-students',
@@ -82,7 +123,7 @@ export async function POST(request: Request) {
 
 		// Check if username already exists
 		const existingStudent = await prisma.student.findUnique({
-			where: { username }
+			where: { username } as any
 		})
 
 		if (existingStudent) {
@@ -111,7 +152,7 @@ export async function POST(request: Request) {
 				lastName,
 				username,
 				classId: classRecord.id
-			}
+			} as any
 		})
 
 		return NextResponse.json(student)

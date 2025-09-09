@@ -69,5 +69,21 @@
   "noMissedHolidays": "No missed holidays",
   "saveSchedule": "Save Schedule",
   "failedToLoadHolidays": "Failed to load holidays.",
-  "failedToSaveSchedule": "Failed to save schedule."
+  "failedToSaveSchedule": "Failed to save schedule.",
+  "combineClasses": "Combine Classes",
+  "combineClassesDescription": "Create a new class by combining two existing classes",
+  "selectFirstClass": "Select First Class",
+  "selectSecondClass": "Select Second Class",
+  "combinedClassName": "Combined Class Name",
+  "combinedClassNamePlaceholder": "e.g., 10A+10B",
+  "createCombinedClass": "Create Combined Class",
+  "combiningClasses": "Combining classes...",
+  "classesCombinedSuccess": "Classes combined successfully!",
+  "classesCombinedError": "Failed to combine classes.",
+  "selectDifferentClasses": "Please select two different classes",
+  "bothClassesRequired": "Both classes are required",
+  "combinedClassNameRequired": "Combined class name is required",
+  "originallyFrom": "Originally from",
+  "tooManyStudentsToCombine": "Cannot combine classes: The combined class would have {{total}} students, but the maximum allowed is {{max}} students. Please reduce the number of students in one or both classes before combining.",
+  "studentCountDetails": "Class 1: {{class1}} students, Class 2: {{class2}} students, Total: {{total}} students"
 } 
