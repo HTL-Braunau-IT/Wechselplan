@@ -222,13 +222,8 @@ export async function POST(request: Request) {
     let importedCount = 0
     let updatedCount = 0
 
-    // Get import data directly from the import function
-    const importResponse = await importStudents(new Request('http://localhost/api/students/import', { method: 'POST' }))
-    if (!importResponse.ok) {
-      throw new Error('Failed to fetch import data')
-    }
-
-    const importData = await importResponse.json() as ImportData
+    // Get import data directly from LDAP
+    const importData = await fetchLDAPData()
 
     // Import each selected class
     for (const className of data.classes) {
@@ -257,7 +252,7 @@ export async function POST(request: Request) {
             lastName: student.lastName,
             username: student.username,
             classId: classRecord.id
-          }
+          } as any
         })
         importedCount++
       }
