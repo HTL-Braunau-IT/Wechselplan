@@ -40,6 +40,25 @@ function decodeLDAPDN(dn: string): string {
 		.replace(/\\c3\\9f/g, 'ß')
 }
 
+function tryDifferentDNFormats(username: string, baseDN: string): string[] {
+	// Extract just the username part (before @)
+	const userPart = username.split('@')[0]
+	
+	const formats = [
+		// Use the actual DN we discovered from PowerShell
+		`CN=WECHSELPLAN,OU=AD-SYNC,OU=SERVICE-ACCOUNTS,OU=HTL-BRAUNAU,DC=ad,DC=htl-braunau,DC=at`,
+		username, // Original format
+		`CN=${userPart},CN=Users,${baseDN}`, // Standard AD Users container
+		`CN=${userPart},${baseDN}`, // Direct CN format
+		`${userPart}@ad.htl-braunau.at`, // UPN format
+		`${userPart}@htl-braunau.at`, // Alternative UPN format
+		`CN=${userPart},OU=Service Accounts,${baseDN}`, // Service account format
+		`CN=${userPart},OU=Administrators,${baseDN}`, // Admin account format
+		`${userPart}`, // Just username
+	]
+	return formats
+}
+
 export class LDAPClient {
 	private client: ldap.Client
 	private config: LDAPConfig
@@ -52,7 +71,16 @@ export class LDAPClient {
 			url: config.url,
 			timeout: config.timeout ?? this.DEFAULT_TIMEOUT,
 			connectTimeout: config.timeout ?? this.DEFAULT_TIMEOUT,
-			reconnect: true
+			reconnect: true,
+			// Add additional options for Active Directory
+			strictDN: false,
+			attributes: {
+				'*': true
+			},
+			// Try different authentication methods
+			tlsOptions: {
+				rejectUnauthorized: false
+			}
 		})
 
 		// Add error event listener
@@ -88,6 +116,33 @@ export class LDAPClient {
 		})
 	}
 
+	private tryBindWithFormats(formats: string[], password: string, callback: (err: Error | null) => void): void {
+		let currentIndex = 0
+		
+		const tryNextFormat = () => {
+			if (currentIndex >= formats.length) {
+				callback(new Error('All bind formats failed'))
+				return
+			}
+			
+			const currentFormat = formats[currentIndex]
+			console.log(`Trying bind format ${currentIndex + 1}/${formats.length}: ${currentFormat}`)
+			
+			this.client.bind(currentFormat, password, (err: Error | null) => {
+				if (err) {
+					console.log(`Bind format ${currentIndex + 1} failed:`, err.message)
+					currentIndex++
+					tryNextFormat()
+				} else {
+					console.log(`Bind format ${currentIndex + 1} succeeded: ${currentFormat}`)
+					callback(null)
+				}
+			})
+		}
+		
+		tryNextFormat()
+	}
+
 	async authenticate(username: string, password: string): Promise<LDAPUser | null> {
 		return new Promise((resolve, reject) => {
 			const timeout = setTimeout(() => {
@@ -100,10 +155,31 @@ export class LDAPClient {
 				reject(new Error('Authentication timeout'))
 			}, this.config.timeout ?? this.DEFAULT_TIMEOUT)
 
-			console.log('Starting LDAP authentication for user:', username)
-			// First bind with the service account
-			console.log('Attempting to bind with service account:', this.config.bindDN)
-			this.client.bind(this.config.bindDN, this.config.bindPassword, (err: Error | null) => {
+		console.log('Starting LDAP authentication for user:', username)
+		// First bind with the service account
+		console.log('Attempting to bind with service account:', this.config.bindDN)
+		console.log('LDAP URL:', this.config.url)
+		console.log('Base DN:', this.config.baseDN)
+		console.log('Bind DN:', this.config.bindDN)
+		console.log('Password length:', this.config.bindPassword?.length || 0)
+		console.log('Password value (first 3 chars):', this.config.bindPassword?.substring(0, 3) || 'undefined')
+		console.log('Password value (last 3 chars):', this.config.bindPassword?.substring(this.config.bindPassword.length - 3) || 'undefined')
+		
+		// Test basic connectivity first
+		console.log('Testing LDAP server connectivity...')
+		this.client.search(this.config.baseDN, { scope: 'base', filter: '(objectClass=*)' }, (err, res) => {
+			if (err) {
+				console.error('LDAP server connectivity test failed:', err)
+			} else {
+				console.log('LDAP server connectivity test passed')
+			}
+		})
+		
+		// Try different DN formats for the service account
+		const bindFormats = tryDifferentDNFormats(this.config.bindDN, this.config.baseDN)
+		console.log('Trying bind formats:', bindFormats)
+		
+		this.tryBindWithFormats(bindFormats, this.config.bindPassword, (err: Error | null) => {
 				if (err) {
 					clearTimeout(timeout)
 					console.error('LDAP bind error with service account:', err)
@@ -117,9 +193,10 @@ export class LDAPClient {
 				}
 				console.log('Successfully bound with service account')
 
-				// Search for the user
+				// Search for the user - extract username part from UPN
+				const userPart = username.split('@')[0]
 				const searchOptions: ldap.SearchOptions = {
-					filter: `(sAMAccountName=${escapeLDAPFilterValue(username)})`,
+					filter: `(sAMAccountName=${escapeLDAPFilterValue(userPart)})`,
 					scope: 'sub' as const,
 					attributes: ['dn', 'displayName', 'mail', 'givenName', 'sn'],
 					timeLimit: 5 // 5 seconds timeout for search
@@ -127,6 +204,7 @@ export class LDAPClient {
 
 				console.log('LDAP Search Options:', JSON.stringify(searchOptions, null, 2))
 				console.log('Searching in base DN:', this.config.baseDN)
+				console.log('Searching for user part:', userPart)
 
 				this.client.search(this.config.baseDN, searchOptions, (err: Error | null, res: ldap.SearchCallbackResponse) => {
 					if (err) {

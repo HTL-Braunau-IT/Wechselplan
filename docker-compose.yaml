@@ -4,15 +4,15 @@ services:
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: postgres://postgres:postgres@db:5432/mydb
+      
       LDAP_URL: ldap://10.10.10.1
-      LDAP_BASE_DN: "DC=htl-braunau,DC=int"
-      LDAP_USERNAME: htladmin@htl-braunau.int
-      LDAP_PASSWORD: HtLbR_IT_2k17
-      LDAP_STUDENTS_OU: "OU=Schueler,DC=htl-braunau,DC=int"
-      LDAP_TEACHERS_OU: "OU=Lehrer,DC=htl-braunau,DC=int"
-      LDAP_STUDENT_GROUPS: "SCHUELER"
-      LDAP_TEACHER_GROUPS: "LEHRER"
+      LDAP_BASE_DN: "OU=HTL-BRAUNAU,DC=ad,DC=htl-braunau,DC=at"
+      LDAP_USERNAME: wechselplan@ad.htl-braunau.at
+      LDAP_PASSWORD: Braunau#5280
+      LDAP_STUDENTS_OU: "OU=SCHUELER,OU=BENUTZER,OU=HTL-BRAUNAU,DC=ad,DC=htl-braunau,DC=at"
+      LDAP_TEACHERS_OU: "OU=LEHRER,OU=BENUTZER,OU=HTL-BRAUNAU,DC=ad,DC=htl-braunau,DC=at"
+      LDAP_STUDENT_GROUPS: "Schueler"
+      LDAP_TEACHER_GROUPS: "Lehrer"
       NEXTAUTH_URL: "http://wp.htl-braunau.at"
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       DEBUG: "ldapjs:*"  # Enable LDAP debugging
