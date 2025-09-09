@@ -252,7 +252,7 @@ export async function POST(request: Request) {
             lastName: student.lastName,
             username: student.username,
             classId: classRecord.id
-          } as any
+          }
         })
         importedCount++
       }

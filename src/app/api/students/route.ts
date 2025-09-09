@@ -51,25 +51,33 @@ export async function GET(request: Request) {
 		// Process students to include original class information for combined classes
 		const processedStudents = students.map(student => {
 			// Ensure we have valid student data
-			if (!student || !student.id) {
+			if (!student?.id) {
 				console.warn('Invalid student data:', student)
 				return null
 			}
 
-			const studentData = {
+			const studentData: {
+				id: number
+				firstName: string
+				lastName: string
+				class: string
+				username: string
+				originalClass?: string
+			} = {
 				id: student.id,
-				firstName: student.firstName || '',
-				lastName: student.lastName || '',
-				class: student.class?.name || 'Unknown',
-				username: (student as any).username || ''
-			} as any
+				firstName: student.firstName ?? '',
+				lastName: student.lastName ?? '',
+				class: student.class?.name ?? 'Unknown',
+				username: student.username ?? ''
+			}
 
 			// Check if this is a combined class by looking at the description
-			if (student.class?.description && student.class.description.includes('Combined class from')) {
+			if (student.class?.description?.includes('Combined class from')) {
 				// Extract original class information from username
 				// Format: "10A_john.doe" or "10B_john.doe1"
-				const usernameMatch = (student as any).username?.match(/^([^_]+)_(.+)$/)
-				if (usernameMatch) {
+				const usernameRegex = /^([^_]+)_(.+)$/
+				const usernameMatch = usernameRegex.exec(student.username ?? '')
+				if (usernameMatch?.[1] && usernameMatch?.[2]) {
 					const originalClass = usernameMatch[1]
 					const actualUsername = usernameMatch[2]
 					
@@ -123,7 +131,7 @@ export async function POST(request: Request) {
 
 		// Check if username already exists
 		const existingStudent = await prisma.student.findUnique({
-			where: { username } as any
+			where: { username }
 		})
 
 		if (existingStudent) {
@@ -152,7 +160,7 @@ export async function POST(request: Request) {
 				lastName,
 				username,
 				classId: classRecord.id
-			} as any
+			}
 		})
 
 		return NextResponse.json(student)

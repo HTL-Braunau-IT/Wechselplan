@@ -48,7 +48,6 @@ const UNASSIGNED_GROUP_ID = 0
 
 // Add constant for maximum group size
 const MAX_GROUP_SIZE = 12
-const MAX_STUDENTS_FOR_TWO_GROUPS = 24
 // Add constant for maximum supported students (4 groups × 12 students)
 const MAX_SUPPORTED_STUDENTS = 48
 
@@ -809,11 +808,11 @@ export default function ScheduleClassSelectPage() {
 			})
 
 			if (!response.ok) {
-				const error = await response.json() as { error?: string, details?: any }
+				const error = await response.json() as { error?: string, details?: unknown }
 				throw new Error(error.error ?? 'Failed to combine classes')
 			}
 
-			const result = await response.json()
+			await response.json()
 			
 			// Reset form and close dialog
 			setCombineClasses({

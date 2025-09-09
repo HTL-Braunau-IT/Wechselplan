@@ -74,9 +74,6 @@ export class LDAPClient {
 			reconnect: true,
 			// Add additional options for Active Directory
 			strictDN: false,
-			attributes: {
-				'*': true
-			},
 			// Try different authentication methods
 			tlsOptions: {
 				rejectUnauthorized: false
@@ -126,6 +123,10 @@ export class LDAPClient {
 			}
 			
 			const currentFormat = formats[currentIndex]
+			if (!currentFormat) {
+				callback(new Error('Invalid bind format'))
+				return
+			}
 			console.log(`Trying bind format ${currentIndex + 1}/${formats.length}: ${currentFormat}`)
 			
 			this.client.bind(currentFormat, password, (err: Error | null) => {
@@ -167,7 +168,7 @@ export class LDAPClient {
 		
 		// Test basic connectivity first
 		console.log('Testing LDAP server connectivity...')
-		this.client.search(this.config.baseDN, { scope: 'base', filter: '(objectClass=*)' }, (err, res) => {
+		this.client.search(this.config.baseDN, { scope: 'base', filter: '(objectClass=*)' }, (err, _res) => {
 			if (err) {
 				console.error('LDAP server connectivity test failed:', err)
 			} else {
@@ -195,6 +196,12 @@ export class LDAPClient {
 
 				// Search for the user - extract username part from UPN
 				const userPart = username.split('@')[0]
+				if (!userPart) {
+					clearTimeout(timeout)
+					console.error('Invalid username format')
+					reject(new Error('Invalid username format'))
+					return
+				}
 				const searchOptions: ldap.SearchOptions = {
 					filter: `(sAMAccountName=${escapeLDAPFilterValue(userPart)})`,
 					scope: 'sub' as const,

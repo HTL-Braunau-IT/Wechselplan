@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import type { Student } from '@prisma/client'
 
 interface CombineClassesRequest {
 	class1Id: number
@@ -133,28 +134,28 @@ export async function POST(request: Request) {
 				originalClass: class2.name
 			}))
 			
-			const allStudents = [...class1StudentsWithOrigin, ...class2StudentsWithOrigin]
+			type StudentWithOrigin = Student & { originalClass: string }
+			const allStudents: StudentWithOrigin[] = [...class1StudentsWithOrigin, ...class2StudentsWithOrigin]
 			
 			// Handle username conflicts by adding numeric suffixes
 			const usernameMap = new Map<string, string>()
 
 			for (const student of allStudents) {
-				const studentWithUsername = student as any // Type assertion to work around Prisma type issues
-				let finalUsername = studentWithUsername.username
+				let finalUsername = student.username
 				let counter = 1
 
 				// Check if username already exists in the combined class
 				while (usernameMap.has(finalUsername) || 
-					   await tx.student.findUnique({ where: { username: finalUsername } } as any)) {
-					finalUsername = `${studentWithUsername.username}${counter}`
+					   await tx.student.findUnique({ where: { username: finalUsername } })) {
+					finalUsername = `${student.username}${counter}`
 					counter++
 				}
 
-				usernameMap.set(studentWithUsername.username, finalUsername)
+				usernameMap.set(student.username, finalUsername)
 
 				// Store original class information in the username as a prefix
 				// Format: "10A_john.doe" or "10B_john.doe1"
-				const originalClassPrefix = studentWithUsername.originalClass ? `${studentWithUsername.originalClass}_` : ''
+				const originalClassPrefix = student.originalClass ? `${student.originalClass}_` : ''
 				const usernameWithOrigin = `${originalClassPrefix}${finalUsername}`
 
 				// Update student to belong to the new combined class
@@ -163,7 +164,7 @@ export async function POST(request: Request) {
 					data: {
 						classId: combinedClass.id,
 						username: usernameWithOrigin
-					} as any
+					}
 				})
 			}
 
