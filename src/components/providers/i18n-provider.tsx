@@ -9,8 +9,8 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const initI18n = async () => {
       try {
-        // Initialize with the current language or default to 'en'
-        const currentLang = localStorage.getItem('language') ?? 'en'
+        // Initialize with the current language or default to 'de'
+        const currentLang = localStorage.getItem('language') ?? 'de'
         await i18n.changeLanguage(currentLang)
         setIsReady(true)
       } catch (error) {

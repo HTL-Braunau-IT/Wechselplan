@@ -1,7 +1,7 @@
 /** @type {import('next-i18next').UserConfig} */
 const config = {
   i18n: {
-    defaultLocale: 'en',
+    defaultLocale: 'de',
     locales: ['en', 'de']
   },
   defaultNS: 'common',

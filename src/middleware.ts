@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
 const locales = ['en', 'de']
-const defaultLocale = 'en'
+const defaultLocale = 'de'
 
 /**
  * Middleware for handling authentication and locale redirection for incoming requests.

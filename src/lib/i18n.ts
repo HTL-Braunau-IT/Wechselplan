@@ -6,7 +6,7 @@ i18n
   .use(Backend)
   .use(initReactI18next)
   .init({
-    fallbackLng: 'en',
+    fallbackLng: 'de',
     debug: false,
     ns: ['common'],
     defaultNS: 'common',

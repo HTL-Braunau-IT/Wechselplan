@@ -37,53 +37,53 @@ async function main() {
   const holidays = [
     {
       name: 'Erste Schulwoche',
-      startDate: new Date('2024-09-09'),
-      endDate: new Date('2024-09-16')
+      startDate: new Date('2025-09-08'),
+      endDate: new Date('2025-09-19')
     },
     {
       name: 'Herbstferien',
-      startDate: new Date('2024-10-28'),
-      endDate: new Date('2024-11-03')
+      startDate: new Date('2025-10-27'),
+      endDate: new Date('2025-11-02')
     },
     {
       name: 'Weihnachtsferien',
-      startDate: new Date('2024-12-21'),
-      endDate: new Date('2025-01-06')
+      startDate: new Date('2025-12-24'),
+      endDate: new Date('2026-01-06')
     },
     {
       name: 'Semesterferien',
-      startDate: new Date('2025-02-17'),
-      endDate: new Date('2025-02-21')
+      startDate: new Date('2026-02-16'),
+      endDate: new Date('2026-02-21')
     },
     {
       name: 'Osterferien',
-      startDate: new Date('2025-04-14'),
-      endDate: new Date('2025-04-21')
+      startDate: new Date('2026-03-28'),
+      endDate: new Date('2026-04-06')
     },
     {
       name: 'Maifeiertag',
-      startDate: new Date('2025-05-01'),
-      endDate: new Date('2025-05-02')
+      startDate: new Date('2026-05-01'),
+      endDate: new Date('2026-05-02')
     },
     {
       name: 'Christi Himmelfahrt',
-      startDate: new Date('2025-05-29'),
-      endDate: new Date('2025-05-30')
+      startDate: new Date('2026-05-29'),
+      endDate: new Date('2026-05-30')
     },
     {
       name: 'Pfingstmontag',
-      startDate: new Date('2025-06-09'),
-      endDate: new Date('2025-06-09')
+      startDate: new Date('2026-05-23'),
+      endDate: new Date('2026-05-25')
     },
     {
       name: 'Fronleichnam',
-      startDate: new Date('2025-06-19'),
-      endDate: new Date('2025-06-20')
+      startDate: new Date('2026-06-19'),
+      endDate: new Date('2026-06-20')
     },
     {
       name: 'Letzten zwei Schulwoche',
-      startDate: new Date('2025-06-23'),
-      endDate: new Date('2025-07-04')
+      startDate: new Date('2026-06-29'),
+      endDate: new Date('2026-07-10')
     }
   ]
 

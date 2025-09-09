@@ -87,8 +87,8 @@ export default function RotationPage() {
   const [additionalInfo, setAdditionalInfo] = useState<string>('')
   const [allSchedules, setAllSchedules] = useState<ScheduleResponse[]>([])
 
-  const schoolYearStart = new Date(2024, 8, 9) // September 1st
-  const schoolYearEnd = new Date(2025, 8, 30) // June 30th
+  const schoolYearStart = new Date(2025, 8, 9) // September 1st
+  const schoolYearEnd = new Date(2026, 7, 10) // June 30th
 
   // Handle input changes
   const handleNumberOfTermsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
