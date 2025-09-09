@@ -224,8 +224,8 @@ export default function ScheduleClassSelectPage() {
 	 */
 	function handleReset() {
 		// Calculate appropriate number of groups based on student count
-		const resetGroups = students.length > MAX_STUDENTS_FOR_TWO_GROUPS ? 
-			(students.length > 36 ? 4 : 3) : 2
+		const resetGroups = students.length > 36 ? 4 : 
+			students.length > 18 ? 3 : 2
 		
 		setNumberOfGroups(resetGroups)
 		
@@ -305,8 +305,8 @@ export default function ScheduleClassSelectPage() {
 				setStudents(studentsData)
 
 				// Calculate initial number of groups based on student count
-				const initialGroups = studentsData.length > MAX_STUDENTS_FOR_TWO_GROUPS ? 
-					(studentsData.length > 36 ? 4 : 3) : 2
+				const initialGroups = studentsData.length > 36 ? 4 : 
+					studentsData.length > 18 ? 3 : 2
 				setNumberOfGroups(initialGroups)
 
 				// Check if class has too many students
@@ -828,13 +828,12 @@ export default function ScheduleClassSelectPage() {
 													onChange={handleGroupSizeChange}
 													className="border rounded px-2 py-1"
 												>
-													{students.length <= MAX_STUDENTS_FOR_TWO_GROUPS ? (
-														<option value="2">2</option>
-													) : (
-														<>
-															<option value="3">3</option>
-															<option value="4">4</option>
-														</>
+													<option value="2">2</option>
+													{students.length > 12 && (
+														<option value="3">3</option>
+													)}
+													{students.length > 18 && (
+														<option value="4">4</option>
 													)}
 												</select>
 											</div>
