@@ -73,6 +73,7 @@ export default function OverviewPage() {
    * Saves the round-robin teacher rotation schedule for AM and PM periods to the backend and, on success, displays the PDF generation dialog.
    *
    * Constructs teacher assignments for each group and turn, then sends them with the class name to the backend API.
+   * After successful save, sends email notifications to all teachers included in the rotation.
    *
    * @throws {Error} If saving the teacher rotation to the backend fails.
    */
@@ -121,6 +122,40 @@ export default function OverviewPage() {
           type: 'save-overview'
         })
         throw new Error('Failed to save teacher rotation');
+      }
+
+      // Send email notifications to all teachers (don't block on this)
+      try {
+        const allTeacherIds = [
+          ...uniqueAmTeachers.map(t => t.teacherId),
+          ...uniquePmTeachers.map(t => t.teacherId)
+        ].filter((id, index, arr) => arr.indexOf(id) === index); // Remove duplicates
+
+        const scheduleLink = `${window.location.origin}/schedules?class=${classId}`;
+        
+        await fetch('/api/schedule/notify-teachers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            classId: parseInt(classId || '0'),
+            className: classId,
+            teacherIds: allTeacherIds,
+            scheduleLink
+          })
+        });
+        
+        console.log('Teacher notifications sent successfully');
+      } catch (emailError) {
+        console.error('Failed to send teacher notifications:', emailError);
+        // Don't throw here, we still want to show the PDF dialog
+        captureFrontendError(emailError, {
+          location: 'schedule/create/overview',
+          type: 'notify-teachers',
+          extra: {
+            classId,
+            teacherCount: uniqueAmTeachers.length + uniquePmTeachers.length
+          }
+        });
       }
 
       // Show PDF generation dialog

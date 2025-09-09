@@ -128,4 +128,66 @@ export async function sendSupportEmail(subject: string, text: string) {
     });
     throw error;
   }
+}
+
+/**
+ * Sends an email to a specific recipient using Microsoft Graph API.
+ * 
+ * @param toEmail - The recipient's email address
+ * @param subject - The email subject
+ * @param text - The email body text
+ */
+export async function sendEmail(toEmail: string, subject: string, text: string) {
+  try {
+    console.log('Sending email to:', toEmail);
+    const token = await getGraphToken();
+    
+    const emailUrl = 'https://graph.microsoft.com/v1.0/users/' + encodeURIComponent(mailFrom) + '/sendMail';
+    console.log('Sending email via:', emailUrl);
+    
+    const res = await fetch(emailUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: {
+          subject,
+          body: {
+            contentType: 'Text',
+            content: text,
+          },
+          toRecipients: [
+            { emailAddress: { address: toEmail } }
+          ],
+        },
+        saveToSentItems: 'false',
+      }),
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error('Failed to send email:', {
+        status: res.status,
+        statusText: res.statusText,
+        error: errorText
+      });
+      throw new Error(`Failed to send email: ${errorText}`);
+    }
+    
+    console.log('Email sent successfully to:', toEmail);
+  } catch (error) {
+    console.error('Error in sendEmail:', error);
+    captureError(error, {
+      location: 'send-email',
+      type: 'send-email',
+      extra: {
+        subject,
+        toEmail,
+        mailFrom
+      }
+    });
+    throw error;
+  }
 } 
