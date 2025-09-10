@@ -40,27 +40,55 @@ export async function POST(req: Request) {
 
     const { name, description, startDate, endDate, selectedWeekday, scheduleData, classId, additionalInfo } = validationResult.data
 
-    // Delete existing schedules with the same weekday for this class
-    await prisma.schedule.deleteMany({
+    // Find existing schedule for this class and weekday
+    const existingSchedule = await prisma.schedule.findFirst({
       where: {
         classId: classId ? parseInt(classId) : null,
         selectedWeekday
+      },
+      include: {
+        scheduleTimes: true,
+        breakTimes: true
       }
     })
 
-    // Create the new schedule
-    const newSchedule = await prisma.schedule.create({
-      data: {
-        name,
-        description,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-        selectedWeekday,
-        classId: classId ? parseInt(classId) : null,
-        scheduleData,
-        additionalInfo
-      }
-    })
+    let newSchedule
+    if (existingSchedule) {
+      // Update existing schedule, preserving times
+      newSchedule = await prisma.schedule.update({
+        where: { id: existingSchedule.id },
+        data: {
+          name,
+          description,
+          startDate: new Date(startDate),
+          endDate: new Date(endDate),
+          scheduleData,
+          additionalInfo
+        },
+        include: {
+          scheduleTimes: true,
+          breakTimes: true
+        }
+      })
+    } else {
+      // Create new schedule
+      newSchedule = await prisma.schedule.create({
+        data: {
+          name,
+          description,
+          startDate: new Date(startDate),
+          endDate: new Date(endDate),
+          selectedWeekday,
+          classId: classId ? parseInt(classId) : null,
+          scheduleData,
+          additionalInfo
+        },
+        include: {
+          scheduleTimes: true,
+          breakTimes: true
+        }
+      })
+    }
 
     return NextResponse.json(newSchedule)
   } catch (error) {

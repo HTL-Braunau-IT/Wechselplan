@@ -51,6 +51,7 @@ export default function TimesPage() {
   const [teacherAssignments, ] = useState<TeacherAssignment[]>([])
   const [periods, setPeriods] = useState<Set<string>>(new Set())
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingSavedTimes, setIsLoadingSavedTimes] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isErrorDialogOpen, setIsErrorDialogOpen] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
@@ -131,27 +132,41 @@ export default function TimesPage() {
       setBreakTimes(filteredBreakTimes)
 
       // Fetch saved times for this class
-      const savedTimesResponse = await fetch(`/api/schedule/times?className=${className}`)
-      if (savedTimesResponse.ok) {
-        const savedTimes = await savedTimesResponse.json()
-        
-        // Set selected schedule times
-        if (savedTimes.times.scheduleTimes && Array.isArray(savedTimes.times.scheduleTimes)) {
-          const amTime = savedTimes.times.scheduleTimes.find((time: { id: number; period: string }) => time.period === 'AM')
-          const pmTime = savedTimes.times.scheduleTimes.find((time: { id: number; period: string }) => time.period === 'PM')
-          if (amTime?.id) setSelectedAMScheduleTime(Number(amTime.id))
-          if (pmTime?.id) setSelectedPMScheduleTime(Number(pmTime.id))
-        }
+      setIsLoadingSavedTimes(true)
+      try {
+        const savedTimesResponse = await fetch(`/api/schedule/times?className=${className}`)
+        if (savedTimesResponse.ok) {
+          const savedTimes = await savedTimesResponse.json()
+          
+          // Set selected schedule times
+          if (savedTimes.times?.scheduleTimes && Array.isArray(savedTimes.times.scheduleTimes)) {
+            const amTime = savedTimes.times.scheduleTimes.find((time: { id: number; period: string }) => time.period === 'AM')
+            const pmTime = savedTimes.times.scheduleTimes.find((time: { id: number; period: string }) => time.period === 'PM')
+            if (amTime?.id) setSelectedAMScheduleTime(Number(amTime.id))
+            if (pmTime?.id) setSelectedPMScheduleTime(Number(pmTime.id))
+          }
 
-        // Set selected break times
-        if (savedTimes.times.breakTimes && Array.isArray(savedTimes.times.breakTimes)) {
-          const amBreak = savedTimes.times.breakTimes.find((time: { id: number; period: string }) => time.period === 'AM')
-          const lunchBreak = savedTimes.times.breakTimes.find((time: { id: number; period: string }) => time.period === 'LUNCH')
-          const pmBreak = savedTimes.times.breakTimes.find((time: { id: number; period: string }) => time.period === 'PM')
-          if (amBreak?.id) setSelectedAMBreakTime(Number(amBreak.id))
-          if (lunchBreak?.id) setSelectedLunchBreakTime(Number(lunchBreak.id))
-          if (pmBreak?.id) setSelectedPMBreakTime(Number(pmBreak.id))
+          // Set selected break times
+          if (savedTimes.times?.breakTimes && Array.isArray(savedTimes.times.breakTimes)) {
+            const amBreak = savedTimes.times.breakTimes.find((time: { id: number; period: string }) => time.period === 'AM')
+            const lunchBreak = savedTimes.times.breakTimes.find((time: { id: number; period: string }) => time.period === 'LUNCH')
+            const pmBreak = savedTimes.times.breakTimes.find((time: { id: number; period: string }) => time.period === 'PM')
+            if (amBreak?.id) setSelectedAMBreakTime(Number(amBreak.id))
+            if (lunchBreak?.id) setSelectedLunchBreakTime(Number(lunchBreak.id))
+            if (pmBreak?.id) setSelectedPMBreakTime(Number(pmBreak.id))
+          }
+        } else if (savedTimesResponse.status === 404) {
+          // No saved times exist for this class - this is normal for new schedules
+          console.log('No saved times found for class:', className)
+        } else {
+          // Handle other errors
+          console.warn('Failed to fetch saved times:', savedTimesResponse.status)
         }
+      } catch (savedTimesError) {
+        console.warn('Error fetching saved times:', savedTimesError)
+        // Don't fail the entire operation if saved times can't be loaded
+      } finally {
+        setIsLoadingSavedTimes(false)
       }
 
     } catch (error) {
@@ -318,6 +333,13 @@ export default function TimesPage() {
           {success && (
             <div className="mb-4 p-4 text-green-500 bg-green-50 rounded-md">
               {success}
+            </div>
+          )}
+
+          {isLoadingSavedTimes && (
+            <div className="mb-4 p-4 text-blue-500 bg-blue-50 rounded-md flex items-center gap-2">
+              <Spinner size="sm" />
+              {t('settings.times.loadingSavedTimes')}
             </div>
           )}
 

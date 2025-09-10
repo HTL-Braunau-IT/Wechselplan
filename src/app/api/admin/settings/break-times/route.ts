@@ -5,17 +5,19 @@ import { captureError } from '~/lib/sentry'
 
 const breakTimeSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  startTime: z.string().datetime('Start time must be a valid datetime'),
-  endTime: z.string().datetime('End time must be a valid datetime'),
-  period: z.string().refine(
-    (val) => {
-      const num = parseInt(val)
-      return !isNaN(num) && num > 0
-    },
-    'Period must be a positive integer'
-  )
+  startTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, 'Start time must be in HH:mm format'),
+  endTime: z.string().regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, 'End time must be in HH:mm format'),
+  period: z.enum(['AM', 'PM', 'LUNCH'], {
+    errorMap: () => ({ message: 'Period must be AM, PM, or LUNCH' })
+  })
 }).refine(
-  (data) => new Date(data.startTime) < new Date(data.endTime),
+  (data) => {
+    const [startHour, startMin] = data.startTime.split(':').map(Number)
+    const [endHour, endMin] = data.endTime.split(':').map(Number)
+    const startMinutes = startHour * 60 + startMin
+    const endMinutes = endHour * 60 + endMin
+    return startMinutes < endMinutes
+  },
   {
     message: 'Start time must be before end time',
     path: ['startTime']

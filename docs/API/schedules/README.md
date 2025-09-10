@@ -32,8 +32,8 @@ Authorization: Bearer <jwt-token>
 - `POST /api/schedules` - Create or replace schedules for a class on specific weekdays
 
 ### Schedule Times
-- `GET /api/schedules/times` - Retrieve schedule and break times for a class
-- `POST /api/schedules/times` - Update schedule and break times for a class
+- `GET /api/schedule/times` - Retrieve schedule and break times for a class
+- `POST /api/schedule/times` - Update schedule and break times for a class
 
 ### Schedule Data
 - `GET /api/schedules/data` - Retrieve comprehensive schedule data for a teacher
