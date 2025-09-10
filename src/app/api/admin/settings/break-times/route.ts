@@ -12,8 +12,14 @@ const breakTimeSchema = z.object({
   })
 }).refine(
   (data) => {
-    const [startHour, startMin] = data.startTime.split(':').map(Number)
-    const [endHour, endMin] = data.endTime.split(':').map(Number)
+    const startTimeParts = data.startTime.split(':').map(Number)
+    const endTimeParts = data.endTime.split(':').map(Number)
+    
+    const startHour = startTimeParts[0]!
+    const startMin = startTimeParts[1]!
+    const endHour = endTimeParts[0]!
+    const endMin = endTimeParts[1]!
+    
     const startMinutes = startHour * 60 + startMin
     const endMinutes = endHour * 60 + endMin
     return startMinutes < endMinutes
