@@ -89,17 +89,17 @@ describe('Break Times API', () => {
     it('should create a new break time', async () => {
       const newBreakTime = {
         name: 'Afternoon Break',
-        startTime: '2024-03-20T14:00:00Z',
-        endTime: '2024-03-20T14:15:00Z',
-        period: '3',
+        startTime: '14:00',
+        endTime: '14:15',
+        period: 'PM',
       };
 
       const createdBreakTime = {
         id: 3,
         name: 'Afternoon Break',
-        startTime: '2024-03-20T14:00:00Z',
-        endTime: '2024-03-20T14:15:00Z',
-        period: '3',
+        startTime: '14:00',
+        endTime: '14:15',
+        period: 'PM',
         createdAt: '2025-06-11T11:30:12.849Z',
         updatedAt: '2025-06-11T11:30:12.849Z',
       };
@@ -154,9 +154,9 @@ describe('Break Times API', () => {
     it('should handle database errors during creation', async () => {
       const newBreakTime = {
         name: 'Afternoon Break',
-        startTime: '2024-03-20T14:00:00Z',
-        endTime: '2024-03-20T14:15:00Z',
-        period: '3',
+        startTime: '14:00',
+        endTime: '14:15',
+        period: 'PM',
       };
 
       const error = new Error('Database error');
