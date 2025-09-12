@@ -87,8 +87,8 @@ export default function RotationPage() {
   const [additionalInfo, setAdditionalInfo] = useState<string>('')
   const [allSchedules, setAllSchedules] = useState<ScheduleResponse[]>([])
 
-  const schoolYearStart = new Date(2025, 8, 9) // September 1st
-  const schoolYearEnd = new Date(2026, 7, 10) // June 30th
+  const schoolYearStart = new Date(2025, 8, 8) 
+  const schoolYearEnd = new Date(2026, 6, 10) 
 
   // Handle input changes
   const handleNumberOfTermsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -394,11 +394,17 @@ export default function RotationPage() {
     const dates: Date[] = [];
     let date: Date | undefined = setDay(new Date(start), weekday);
     if (date < start) date = addWeeks(date, 1);
+    
     while (date && date <= end) {
       if (!isHoliday(date)) {
         dates.push(new Date(date));
       }
-      date = addWeeks(date, 1);
+      const nextDate: Date = addWeeks(date, 1);
+      // Check if the next date would exceed the end date before adding it
+      if (nextDate > end) {
+        break;
+      }
+      date = nextDate;
     }
     
     return dates;
