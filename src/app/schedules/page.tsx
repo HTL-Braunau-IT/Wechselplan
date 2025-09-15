@@ -121,6 +121,8 @@ function ClassScheduleOverview({ className }: { className: string }) {
       classLead={classLead}
       additionalInfo={additionalInfo}
       weekday={weekday}
+      className={className}
+      showExportButtons={true}
     />
   )
 }

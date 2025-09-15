@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { addWeeks, format, setDay,  isWithinInterval } from 'date-fns'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -86,9 +87,11 @@ export default function RotationPage() {
   const [endDate] = useState<Date>(new Date())
   const [additionalInfo, setAdditionalInfo] = useState<string>('')
   const [allSchedules, setAllSchedules] = useState<ScheduleResponse[]>([])
+  const [onlyFirstSemester, setOnlyFirstSemester] = useState<boolean>(false)
 
   const schoolYearStart = new Date(2025, 8, 8) 
-  const schoolYearEnd = new Date(2026, 6, 10) 
+  const schoolYearEnd = new Date(2026, 6, 10)
+  const schoolYearMiddle = new Date(2026, 1, 15)
 
   // Handle input changes
   const handleNumberOfTermsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -134,7 +137,8 @@ export default function RotationPage() {
 
     // Calculate new schedule
     const newSchedule: Schedule = {};
-    const allRotationDates = getAllRotationDates(schoolYearStart, schoolYearEnd, selectedWeekday);
+    const endDateForCalculation = onlyFirstSemester ? schoolYearMiddle : schoolYearEnd;
+    const allRotationDates = getAllRotationDates(schoolYearStart, endDateForCalculation, selectedWeekday);
     const totalWeeks = allRotationDates.length;
     let weeksLeft = totalWeeks;
     let turnsLeft = numberOfTerms;
@@ -213,7 +217,7 @@ export default function RotationPage() {
     setSchedule(newSchedule);
     isManualChangeRef.current = false;
     shouldUpdateScheduleRef.current = false;
-  }, [numberOfTerms, selectedWeekday, isLoading, holidays, schoolYearStart, schoolYearEnd, customLengths]);
+  }, [numberOfTerms, selectedWeekday, isLoading, holidays, schoolYearStart, schoolYearEnd, customLengths, onlyFirstSemester, schoolYearMiddle]);
 
   // Handle weekday changes
   useEffect(() => {
@@ -541,6 +545,28 @@ export default function RotationPage() {
               placeholder={t('additionalInfoPlaceholder')}
               className="w-full"
             />
+          </div>
+
+          <div className="mb-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="onlyFirstSemester"
+                checked={onlyFirstSemester}
+                onCheckedChange={(checked) => {
+                  setOnlyFirstSemester(checked as boolean);
+                  shouldUpdateScheduleRef.current = true;
+                }}
+              />
+              <Label htmlFor="onlyFirstSemester" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Nur bis Semester Planen
+              </Label>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              {onlyFirstSemester 
+                ? `Rotation wird nur bis ${format(schoolYearMiddle, 'dd.MM.yyyy')} berechnet`
+                : 'Rotation wird für das gesamte Schuljahr berechnet'
+              }
+            </p>
           </div>
 
           <div className="mb-4">

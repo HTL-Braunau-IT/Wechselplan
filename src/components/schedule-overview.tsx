@@ -1,5 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { Group, TeacherAssignmentResponse, ScheduleTime, BreakTime, TurnSchedule } from '@/types/types'
+import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
+import { Spinner } from '@/components/ui/spinner'
+import { generateExcel, generatePdf, generateSchedulePDF } from '@/lib/export-utils'
 
 interface ScheduleOverviewProps {
   groups: Group[]
@@ -12,6 +16,8 @@ interface ScheduleOverviewProps {
   classLead: string
   additionalInfo: string
   weekday: number
+  className?: string
+  showExportButtons?: boolean
 }
 
 const GROUP_COLORS = [
@@ -124,8 +130,18 @@ export function ScheduleOverview({
   classHead,
   classLead,
   additionalInfo,
-  weekday
+  weekday,
+  className,
+  showExportButtons = false
 }: ScheduleOverviewProps) {
+  const { data: session } = useSession()
+  const [isTeacherForAM, setIsTeacherForAM] = useState(false)
+  const [isTeacherForPM, setIsTeacherForPM] = useState(false)
+  const [savingPdf, setSavingPdf] = useState(false)
+  const [savingPdfDatum, setSavingPdfDatum] = useState(false)
+  const [savingExcelAM, setSavingExcelAM] = useState(false)
+  const [savingExcelPM, setSavingExcelPM] = useState(false)
+
   // Find the max number of students in any group for row rendering
   const maxStudents = Math.max(...groups.map(g => g.students.length), 0);
 
@@ -138,8 +154,155 @@ export function ScheduleOverview({
     .filter(a => a.teacherId !== 0)
     .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx);
 
+  // Check if user is a teacher for the class
+  useEffect(() => {
+    async function checkTeacherAssignment() {
+      if (!session?.user?.name || !className || !showExportButtons) {
+        setIsTeacherForAM(false)
+        setIsTeacherForPM(false)
+        return
+      }
+
+      try {
+        // First, get the teacher record for the current user
+        const teacherResponse = await fetch(`/api/teachers/by-username?username=${session.user.name}`)
+        if (!teacherResponse.ok) {
+          console.log('Failed to fetch teacher record:', teacherResponse.status)
+          setIsTeacherForAM(false)
+          setIsTeacherForPM(false)
+          return
+        }
+
+        const teacher = await teacherResponse.json()
+        if (!teacher) {
+          setIsTeacherForAM(false)
+          setIsTeacherForPM(false)
+          return
+        }
+
+        // Check if user is assigned as a teacher in AM assignments
+        const isAssignedAM = amAssignments.some(a => a.teacherId === teacher.id)
+        // Check if user is assigned as a teacher in PM assignments
+        const isAssignedPM = pmAssignments.some(a => a.teacherId === teacher.id)
+        
+        setIsTeacherForAM(isAssignedAM)
+        setIsTeacherForPM(isAssignedPM)
+      } catch {
+        setIsTeacherForAM(false)
+        setIsTeacherForPM(false)
+      }
+    }
+
+    void checkTeacherAssignment()
+  }, [className, session?.user?.name, amAssignments, pmAssignments, showExportButtons])
+
+  // Export handlers
+  const handlePDFExport = async () => {
+    if (!className) return
+    setSavingPdf(true)
+    try {
+      await generatePdf(className, weekday)
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+    } finally {
+      setSavingPdf(false)
+    }
+  }
+
+  const handlePDFDatumExport = async () => {
+    if (!className) return
+    setSavingPdfDatum(true)
+    try {
+      await generateSchedulePDF(className, weekday)
+    } catch (error) {
+      console.error('Error generating PDF with date:', error)
+    } finally {
+      setSavingPdfDatum(false)
+    }
+  }
+
+  const handleExcelAMExport = async () => {
+    if (!className || !session?.user?.name) return
+    setSavingExcelAM(true)
+    try {
+      await generateExcel(className, weekday, session.user.name, 'AM')
+    } catch (error) {
+      console.error('Error generating AM Excel:', error)
+    } finally {
+      setSavingExcelAM(false)
+    }
+  }
+
+  const handleExcelPMExport = async () => {
+    if (!className || !session?.user?.name) return
+    setSavingExcelPM(true)
+    try {
+      await generateExcel(className, weekday, session.user.name, 'PM')
+    } catch (error) {
+      console.error('Error generating PM Excel:', error)
+    } finally {
+      setSavingExcelPM(false)
+    }
+  }
+
   return (
     <div className="container mx-auto p-4">
+      {/* Export Buttons */}
+      {showExportButtons && className && (
+        <div className="flex items-center gap-2 mb-8">
+          <button
+            className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
+            onClick={handlePDFExport}
+            disabled={savingPdf}
+          >
+            {savingPdf ? 'Exporting PDF...' : 'PDF Export'}
+          </button>
+          <button
+            className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
+            onClick={handlePDFDatumExport}
+            disabled={savingPdfDatum}
+          >
+            {savingPdfDatum ? 'Exporting PDF Datum ...' : 'PDF Datum Export'}
+          </button>
+
+          {/* AM Excel Export Button - only show if teacher is assigned to AM */}
+          {isTeacherForAM && (
+            <button
+              className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+              onClick={handleExcelAMExport}
+              disabled={savingExcelAM}
+            >
+              {savingExcelAM ? (
+                <>
+                  <Spinner size="sm" />
+                  Exporting AM Excel ...
+                </>
+              ) : (
+                'Export Notenliste Vormittag'
+              )}
+            </button>
+          )}
+
+          {/* PM Excel Export Button - only show if teacher is assigned to PM */}
+          {isTeacherForPM && (
+            <button
+              className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+              onClick={handleExcelPMExport}
+              disabled={savingExcelPM}
+            >
+              {savingExcelPM ? (
+                <>
+                  <Spinner size="sm" />
+                  Exporting PM Excel ...
+                </>
+              ) : (
+                'Export Notenliste Nachmittag'
+              )}
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Groups Table */}
       <Card className="mb-8">
         <CardHeader>
@@ -310,7 +473,7 @@ export function ScheduleOverview({
 
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Turnuse</CardTitle>
+          <CardTitle>Turnussgit e</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">

@@ -263,6 +263,8 @@ export default function OverviewPage() {
         classLead={classLead}
         additionalInfo={additionalInfo}
         weekday={weekday}
+        className={classId}
+        showExportButtons={true}
       />
 
       {/* Custom blurred overlay for modal */}
