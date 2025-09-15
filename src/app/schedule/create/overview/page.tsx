@@ -263,7 +263,7 @@ export default function OverviewPage() {
         classLead={classLead}
         additionalInfo={additionalInfo}
         weekday={weekday}
-        className={classId}
+        className={classId ?? undefined}
         showExportButtons={true}
       />
 
