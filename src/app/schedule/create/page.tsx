@@ -220,6 +220,7 @@ export default function ScheduleClassSelectPage() {
 		combinedClassName: ''
 	})
 	const [combiningClasses, setCombiningClasses] = useState(false)
+	const [isManualGroupChange, setIsManualGroupChange] = useState(false)
 
 	/**
 	 * Determines whether all groups, except the unassigned group, do not exceed the maximum allowed size.
@@ -313,6 +314,7 @@ export default function ScheduleClassSelectPage() {
 			if (!selectedClass) return
 			
 			setLoading(true)
+			setIsManualGroupChange(false) // Reset manual change flag when loading new class
 			try {
 				// First fetch all students
 				const studentsRes = await fetch(`/api/students?class=${selectedClass}`)
@@ -383,59 +385,42 @@ export default function ScheduleClassSelectPage() {
 	useEffect(() => {
 		if (students.length === 0) return
 
-		// If we have existing assignments, redistribute students
-		if (hasExistingAssignmentsRef.current) {
-			// Get all students from current groups
-			const allStudents = groups.flatMap(group => group.students)
-			
-			// Create new groups with the updated number of groups
-			const newGroups: Group[] = [
-				// Add unassigned group first
-				{
-					id: UNASSIGNED_GROUP_ID,
-					students: []
-				},
-				// Add regular groups
-				...Array.from({ length: numberOfGroups }, (_, i) => ({
-					id: i + 1,
-					students: []
-				}))
-			]
-
-			// Distribute students evenly across new groups
-			allStudents.forEach((student, index) => {
-				const targetGroupIndex = (index % numberOfGroups) + 1 // +1 because of unassigned group
-				newGroups[targetGroupIndex]!.students.push(student)
-			})
-
-			setGroups(newGroups)
-		} else {
-			// For new groups, distribute all students evenly using the new function
+		// Redistribute if we don't have existing assignments OR if it's a manual group change
+		if (!hasExistingAssignmentsRef.current || isManualGroupChange) {
+			// For new groups or manual changes, distribute all students evenly using the new function
 			const newGroups = distributeStudentsEvenly(students, numberOfGroups)
 			setGroups(newGroups)
+			// Reset the manual change flag after redistribution
+			if (isManualGroupChange) {
+				setIsManualGroupChange(false)
+			}
 		}
-	}, [numberOfGroups, students])
+		// If we have existing assignments and it's not a manual change, don't modify them
+	}, [numberOfGroups, students, isManualGroupChange])
 
-	// Add a new effect to handle group ID updates
+	// Add a new effect to handle group ID updates - only for new assignments or manual changes
 	useEffect(() => {
-		// Update group IDs to be sequential
-        setGroups(currentGroups => {
-            const unassignedGroup =
-                currentGroups.find(g => g.id === UNASSIGNED_GROUP_ID)
-                ?? { id: UNASSIGNED_GROUP_ID, students: [] }
-            const regularGroups = currentGroups
-                .filter(g => g.id !== UNASSIGNED_GROUP_ID)
-                .sort((a, b) => a.id - b.id)        // keep deterministic order
+		// Only renumber group IDs if we don't have existing assignments OR if it's a manual group change
+		if (!hasExistingAssignmentsRef.current || isManualGroupChange) {
+			setGroups(currentGroups => {
+				const unassignedGroup =
+					currentGroups.find(g => g.id === UNASSIGNED_GROUP_ID)
+					?? { id: UNASSIGNED_GROUP_ID, students: [] }
+				const regularGroups = currentGroups
+					.filter(g => g.id !== UNASSIGNED_GROUP_ID)
+					.sort((a, b) => a.id - b.id)        // keep deterministic order
 
-            return [
-                unassignedGroup!,
-                ...regularGroups.map((group, index) => ({
-                    ...group,
-                    id: index + 1
-                }))
-            ]
-        })
-	}, [numberOfGroups])
+				return [
+					unassignedGroup!,
+					...regularGroups.map((group, index) => ({
+						...group,
+						id: index + 1
+					}))
+				]
+			})
+		}
+		// If we have existing assignments and it's not a manual change, preserve the original group IDs from the database
+	}, [numberOfGroups, isManualGroupChange])
 
 	// Add effect to ensure unassigned group is always present
 	useEffect(() => {
@@ -470,6 +455,7 @@ export default function ScheduleClassSelectPage() {
 	 */
 	function handleGroupSizeChange(e: React.ChangeEvent<HTMLSelectElement>) {
 		setNumberOfGroups(Number(e.target.value))
+		setIsManualGroupChange(true)
 	}
 
 	async function handleNext() {

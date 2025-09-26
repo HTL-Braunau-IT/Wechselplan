@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Checkbox } from '@/components/ui/checkbox'
 import { addWeeks, format, setDay,  isWithinInterval } from 'date-fns'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -43,6 +42,7 @@ interface ScheduleResponse {
   selectedWeekday: number;
   scheduleData: unknown;
   additionalInfo?: string;
+  semesterPlanning?: string;
   className?: number;
   createdAt: string;
 }
@@ -88,6 +88,7 @@ export default function RotationPage() {
   const [additionalInfo, setAdditionalInfo] = useState<string>('')
   const [allSchedules, setAllSchedules] = useState<ScheduleResponse[]>([])
   const [onlyFirstSemester, setOnlyFirstSemester] = useState<boolean>(false)
+  const [onlySecondSemester, setOnlySecondSemester] = useState<boolean>(false)
 
   const schoolYearStart = new Date(2025, 8, 8) 
   const schoolYearEnd = new Date(2026, 6, 10)
@@ -137,8 +138,9 @@ export default function RotationPage() {
 
     // Calculate new schedule
     const newSchedule: Schedule = {};
+    const startDateForCalculation = onlySecondSemester ? schoolYearMiddle : schoolYearStart;
     const endDateForCalculation = onlyFirstSemester ? schoolYearMiddle : schoolYearEnd;
-    const allRotationDates = getAllRotationDates(schoolYearStart, endDateForCalculation, selectedWeekday);
+    const allRotationDates = getAllRotationDates(startDateForCalculation, endDateForCalculation, selectedWeekday);
     const totalWeeks = allRotationDates.length;
     let weeksLeft = totalWeeks;
     let turnsLeft = numberOfTerms;
@@ -217,7 +219,7 @@ export default function RotationPage() {
     setSchedule(newSchedule);
     isManualChangeRef.current = false;
     shouldUpdateScheduleRef.current = false;
-  }, [numberOfTerms, selectedWeekday, isLoading, holidays, schoolYearStart, schoolYearEnd, customLengths, onlyFirstSemester, schoolYearMiddle]);
+  }, [numberOfTerms, selectedWeekday, isLoading, holidays, schoolYearStart, schoolYearEnd, customLengths, onlyFirstSemester, onlySecondSemester, schoolYearMiddle]);
 
   // Handle weekday changes
   useEffect(() => {
@@ -310,6 +312,18 @@ export default function RotationPage() {
             setSchedule((currentSchedule.scheduleData as Schedule) ?? {})
             setNumberOfTerms(Object.keys((currentSchedule.scheduleData as Schedule) ?? {}).length)
             setAdditionalInfo(currentSchedule.additionalInfo ?? '')
+            
+            // Set semester planning state based on loaded data
+            if (currentSchedule.semesterPlanning === 'first') {
+              setOnlyFirstSemester(true)
+              setOnlySecondSemester(false)
+            } else if (currentSchedule.semesterPlanning === 'second') {
+              setOnlyFirstSemester(false)
+              setOnlySecondSemester(true)
+            } else {
+              setOnlyFirstSemester(false)
+              setOnlySecondSemester(false)
+            }
           } else {
             // If no schedule exists for this weekday, trigger a new schedule creation
             shouldUpdateScheduleRef.current = true
@@ -452,7 +466,8 @@ export default function RotationPage() {
           selectedWeekday: selectedWeekday ?? 1,
           scheduleData: schedule,
           additionalInfo,
-          classId: classData.id.toString()
+          classId: classData.id.toString(),
+          semesterPlanning: onlyFirstSemester ? 'first' : onlySecondSemester ? 'second' : null
         }),
       })
 
@@ -548,25 +563,43 @@ export default function RotationPage() {
           </div>
 
           <div className="mb-4">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="onlyFirstSemester"
-                checked={onlyFirstSemester}
-                onCheckedChange={(checked) => {
-                  setOnlyFirstSemester(checked as boolean);
-                  shouldUpdateScheduleRef.current = true;
-                }}
-              />
-              <Label htmlFor="onlyFirstSemester" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                Nur bis Semester Planen
-              </Label>
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium">Semesterweise planen</h3>
+              <div className="flex items-center gap-4">
+                <Button
+                  type="button"
+                  variant={onlyFirstSemester ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setOnlyFirstSemester(!onlyFirstSemester);
+                    if (!onlyFirstSemester) setOnlySecondSemester(false);
+                    shouldUpdateScheduleRef.current = true;
+                  }}
+                >
+                  Erstes Semester planen
+                </Button>
+                <Button
+                  type="button"
+                  variant={onlySecondSemester ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setOnlySecondSemester(!onlySecondSemester);
+                    if (!onlySecondSemester) setOnlyFirstSemester(false);
+                    shouldUpdateScheduleRef.current = true;
+                  }}
+                >
+                  Zweites Semester planen
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {onlyFirstSemester 
+                  ? `Rotation wird nur bis ${format(schoolYearMiddle, 'dd.MM.yyyy')} berechnet`
+                  : onlySecondSemester
+                  ? `Rotation wird ab ${format(schoolYearMiddle, 'dd.MM.yyyy')} bis ${format(schoolYearEnd, 'dd.MM.yyyy')} berechnet`
+                  : 'Rotation wird für das gesamte Schuljahr berechnet'
+                }
+              </p>
             </div>
-            <p className="text-sm text-muted-foreground mt-1">
-              {onlyFirstSemester 
-                ? `Rotation wird nur bis ${format(schoolYearMiddle, 'dd.MM.yyyy')} berechnet`
-                : 'Rotation wird für das gesamte Schuljahr berechnet'
-              }
-            </p>
           </div>
 
           <div className="mb-4">

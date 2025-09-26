@@ -15,7 +15,8 @@ const scheduleSchema = z.object({
   selectedWeekday: z.number().int().min(0).max(6),
   scheduleData: z.any(), // Using any for now since the exact structure isn't clear
   classId: z.string().optional(),
-  additionalInfo: z.any().optional()
+  additionalInfo: z.any().optional(),
+  semesterPlanning: z.enum(['first', 'second']).nullable().optional()
 })
 
 /**
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
       )
     }
 
-    const { name, description, startDate, endDate, selectedWeekday, scheduleData, classId, additionalInfo } = validationResult.data
+    const { name, description, startDate, endDate, selectedWeekday, scheduleData, classId, additionalInfo, semesterPlanning } = validationResult.data
 
     // Find existing schedule for this class and weekday
     const existingSchedule = await prisma.schedule.findFirst({
@@ -63,7 +64,8 @@ export async function POST(req: Request) {
           startDate: new Date(startDate),
           endDate: new Date(endDate),
           scheduleData,
-          additionalInfo
+          additionalInfo,
+          semesterPlanning
         },
         include: {
           scheduleTimes: true,
@@ -81,7 +83,8 @@ export async function POST(req: Request) {
           selectedWeekday,
           classId: classId ? parseInt(classId) : null,
           scheduleData,
-          additionalInfo
+          additionalInfo,
+          semesterPlanning
         },
         include: {
           scheduleTimes: true,
@@ -92,7 +95,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json(newSchedule)
   } catch (error) {
-
     captureError(error, {
       location: 'api/schedules',
       type: 'create-schedule'

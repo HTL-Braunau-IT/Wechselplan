@@ -15,7 +15,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { useTranslation } from 'react-i18next'
 import { ScheduleOverview } from '@/components/schedule-overview'
 import { Spinner } from '@/components/ui/spinner'
 import { generatePdf, generateSchedulePDF } from '@/lib/export-utils';
@@ -25,11 +24,10 @@ import { generatePdf, generateSchedulePDF } from '@/lib/export-utils';
  * Renders a centered loading spinner with a localized loading message.
  */
 function LoadingScreen() {
-    const { t } = useTranslation()
     return (
         <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
             <Spinner size="lg" />
-            <p className="text-lg text-muted-foreground">{t('schedule.loading')}</p>
+            <p className="text-lg text-muted-foreground">Lade Daten...</p>
         </div>
     )
 }
@@ -176,20 +174,7 @@ export default function OverviewPage() {
     }
   }
 
-  /**
-   * Exports the class schedule and grades as an Excel file for the selected class and weekday.
-   *
-   * @remark If the export fails, the error is logged to the console and no file is downloaded.
-   */
-
-
-
-
-  /**
-   * Generates and downloads a schedule PDF for the current class and weekday.
-   *
-   * Displays an error message if PDF generation fails.
-   */
+  
 
   async function handleGenerateSchedulePDF() {
     if (!classId) return;

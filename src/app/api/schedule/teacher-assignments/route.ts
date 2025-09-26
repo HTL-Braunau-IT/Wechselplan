@@ -171,22 +171,26 @@ export async function POST(request: Request) {
 
 		// Process AM assignments
 		for (const assignment of amAssignments) {
-			const subject = await prisma.subject.findUnique({
-				where: { name: assignment.subject }
+			// Use upsert to create subject if it doesn't exist
+			const subject = await prisma.subject.upsert({
+				where: { name: assignment.subject },
+				update: {},
+				create: { name: assignment.subject }
 			})
-			const learningContent = await prisma.learningContent.findUnique({
-				where: { name: assignment.learningContent }
+			
+			// Use upsert to create learning content if it doesn't exist
+			const learningContent = await prisma.learningContent.upsert({
+				where: { name: assignment.learningContent },
+				update: {},
+				create: { name: assignment.learningContent }
 			})
-			const room = await prisma.room.findUnique({
-				where: { name: assignment.room }
+			
+			// Use upsert to create room if it doesn't exist
+			const room = await prisma.room.upsert({
+				where: { name: assignment.room },
+				update: {},
+				create: { name: assignment.room }
 			})
-
-			if (!subject || !learningContent || !room) {
-				return NextResponse.json(
-					{ error: 'Invalid subject, learning content, or room' },
-					{ status: 400 }
-				)
-			}
 
 			await prisma.teacherAssignment.create({
 				data: {
@@ -204,22 +208,26 @@ export async function POST(request: Request) {
 
 		// Process PM assignments
 		for (const assignment of pmAssignments) {
-			const subject = await prisma.subject.findUnique({
-				where: { name: assignment.subject }
+			// Use upsert to create subject if it doesn't exist
+			const subject = await prisma.subject.upsert({
+				where: { name: assignment.subject },
+				update: {},
+				create: { name: assignment.subject }
 			})
-			const learningContent = await prisma.learningContent.findUnique({
-				where: { name: assignment.learningContent }
+			
+			// Use upsert to create learning content if it doesn't exist
+			const learningContent = await prisma.learningContent.upsert({
+				where: { name: assignment.learningContent },
+				update: {},
+				create: { name: assignment.learningContent }
 			})
-			const room = await prisma.room.findUnique({
-				where: { name: assignment.room }
+			
+			// Use upsert to create room if it doesn't exist
+			const room = await prisma.room.upsert({
+				where: { name: assignment.room },
+				update: {},
+				create: { name: assignment.room }
 			})
-
-			if (!subject || !learningContent || !room) {
-				return NextResponse.json(
-					{ error: 'Invalid subject, learning content, or room' },
-					{ status: 400 }
-				)
-			}
 
 			await prisma.teacherAssignment.create({
 				data: {

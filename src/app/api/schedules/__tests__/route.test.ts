@@ -52,6 +52,7 @@ describe('Schedules API', () => {
           classId: '1',
           scheduleData: {},
           additionalInfo: null,
+          semesterPlanning: null,
           createdAt: '2025-06-11T11:56:57.353Z',
           updatedAt: '2025-06-11T11:56:57.353Z'
         }
@@ -123,6 +124,7 @@ describe('Schedules API', () => {
         classId: 1,
         scheduleData: {},
         additionalInfo: null,
+        semesterPlanning: null,
         createdAt: '2025-06-11T11:56:57.353Z',
         updatedAt: '2025-06-11T11:56:57.353Z'
       }
@@ -146,7 +148,8 @@ describe('Schedules API', () => {
           selectedWeekday: 1,
           classId: '1',
           scheduleData: {},
-          additionalInfo: null
+          additionalInfo: null,
+          semesterPlanning: null
         })
       })
 
@@ -182,7 +185,8 @@ describe('Schedules API', () => {
           selectedWeekday: 1,
           classId: 1,
           scheduleData: {},
-          additionalInfo: null
+          additionalInfo: null,
+          semesterPlanning: null
         },
         include: {
           scheduleTimes: true,
@@ -237,7 +241,8 @@ describe('Schedules API', () => {
           selectedWeekday: 1,
           classId: '1',
           scheduleData: {},
-          additionalInfo: null
+          additionalInfo: null,
+          semesterPlanning: null
         })
       })
 
@@ -248,6 +253,76 @@ describe('Schedules API', () => {
       expect(response).toBeInstanceOf(NextResponse)
       expect(response.status).toBe(500)
       expect(await response.text()).toBe('Internal Error')
+    })
+
+    it('should create a schedule with first semester planning', async () => {
+      // Mock data
+      const mockSchedule = {
+        id: 1,
+        name: 'First Semester Schedule',
+        description: 'Test first semester schedule',
+        startDate: '2024-01-01T00:00:00.000Z',
+        endDate: '2024-01-31T00:00:00.000Z',
+        selectedWeekday: 1,
+        classId: 1,
+        scheduleData: {},
+        additionalInfo: null,
+        semesterPlanning: 'first',
+        createdAt: '2025-06-11T11:56:57.353Z',
+        updatedAt: '2025-06-11T11:56:57.353Z'
+      }
+
+      // Mock the database responses
+      vi.mocked(prisma.schedule.findFirst).mockResolvedValue(null) // No existing schedule
+      vi.mocked(prisma.schedule.create).mockResolvedValue(mockSchedule)
+
+      // Create request with first semester planning
+      const request = new Request('http://localhost/api/schedules', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: 'First Semester Schedule',
+          description: 'Test first semester schedule',
+          startDate: '2024-01-01',
+          endDate: '2024-01-31',
+          selectedWeekday: 1,
+          classId: '1',
+          scheduleData: {},
+          additionalInfo: null,
+          semesterPlanning: 'first'
+        })
+      })
+
+      // Call the POST handler
+      const response = await POST(request)
+      const text = await response.text()
+      const data = text === 'Internal Error' ? null : JSON.parse(text)
+
+      // Verify the response
+      expect(response).toBeInstanceOf(NextResponse)
+      expect(response.status).toBe(200)
+      expect(data).toEqual(mockSchedule)
+
+      // Verify the database call includes semesterPlanning
+      expect(prisma.schedule.create).toHaveBeenCalledWith({
+        data: {
+          name: 'First Semester Schedule',
+          description: 'Test first semester schedule',
+          startDate: expect.any(Date),
+          endDate: expect.any(Date),
+          selectedWeekday: 1,
+          classId: 1,
+          scheduleData: {},
+          additionalInfo: null,
+          semesterPlanning: 'first'
+        },
+        include: {
+          scheduleTimes: true,
+          breakTimes: true
+        }
+      })
     })
   })
 }) 

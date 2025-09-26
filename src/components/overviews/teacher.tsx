@@ -188,11 +188,32 @@ export function TeacherOverview() {
                             <div className="border-t dark:border-gray-700 pt-4 mt-4">
                                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{t('overview.teacher.studentsInGroup', { period: assignment.period })}</p>
                                 <div className="grid grid-cols-2 gap-2">
-                                    {getStudentsForGroup(assignment.groupId, assignment.classId).map(student => (
-                                        <div key={student.id} className="p-2 bg-gray-50 dark:bg-gray-700 rounded">
-                                            <p className="font-medium dark:text-white">{student.firstName} {student.lastName}</p>
-                                        </div>
-                                    ))}
+                                    {(() => {
+                                        const sortedStudents = getStudentsForGroup(assignment.groupId, assignment.classId)
+                                            .sort((a, b) => a.lastName.localeCompare(b.lastName))
+                                        
+                                        const leftColumnStudents = sortedStudents.slice(0, 6)
+                                        const rightColumnStudents = sortedStudents.slice(6, 12)
+                                        
+                                        return (
+                                            <>
+                                                <div className="space-y-2">
+                                                    {leftColumnStudents.map((student, index) => (
+                                                        <div key={student.id} className="p-2 bg-gray-50 dark:bg-gray-700 rounded">
+                                                            <p className="font-medium dark:text-white">{index + 1}. {student.lastName} {student.firstName} </p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <div className="space-y-2">
+                                                    {rightColumnStudents.map((student, index) => (
+                                                        <div key={student.id} className="p-2 bg-gray-50 dark:bg-gray-700 rounded">
+                                                            <p className="font-medium dark:text-white">{index + 7}. {student.lastName} {student.firstName} </p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </>
+                                        )
+                                    })()}
                                 </div>
                             </div>
                         </div>

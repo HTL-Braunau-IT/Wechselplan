@@ -8,6 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
+import { ComboboxSelect } from '@/components/ui/combobox-select'
 import { captureFrontendError } from '@/lib/frontend-error'
 
 interface Student {
@@ -43,6 +44,10 @@ interface TeacherAssignment {
 	subjectId: number
 	learningContentId: number
 	roomId: number
+	// Custom values for when user enters their own text
+	customSubject?: string
+	customLearningContent?: string
+	customRoom?: string
 }
 
 interface GroupAssignment {
@@ -119,10 +124,10 @@ function TeacherSelect({
 }
 
 /**
- * Renders a dropdown select component for choosing a room from a provided list.
+ * Renders a combobox select component for choosing a room from a provided list or entering a custom value.
  *
- * @param value - The currently selected room ID, or undefined if no selection.
- * @param onChange - Callback invoked with the selected room ID when the selection changes.
+ * @param value - The currently selected room name, or undefined if no selection.
+ * @param onChange - Callback invoked with the selected room name when the selection changes.
  * @param rooms - Array of available room options to display in the dropdown.
  */
 function RoomSelect({ 
@@ -130,36 +135,27 @@ function RoomSelect({
 	onChange, 
 	rooms 
 }: { 
-	value: number | undefined, 
-	onChange: (value: number) => void, 
+	value: string | undefined, 
+	onChange: (value: string) => void, 
 	rooms: Room[] 
 }) {
 	const { t } = useTranslation('schedule')
 
 	return (
-		<Select
-			value={value?.toString() ?? ''}
-			onValueChange={(value) => onChange(Number(value))}
-		>
-			<SelectTrigger className="w-full">
-				<SelectValue placeholder={t('selectRoom')} />
-			</SelectTrigger>
-			<SelectContent>
-				{rooms.map((room) => (
-					<SelectItem key={room.id} value={room.id.toString()}>
-						{room.name}
-					</SelectItem>
-				))}
-			</SelectContent>
-		</Select>
+		<ComboboxSelect
+			value={value ?? ''}
+			onChange={onChange}
+			options={rooms}
+			placeholder={t('selectRoom')}
+		/>
 	)
 }
 
 /**
- * Renders a dropdown select for choosing a subject from a provided list.
+ * Renders a combobox select for choosing a subject from a provided list or entering a custom value.
  *
- * @param value - The currently selected subject ID, or undefined if none is selected.
- * @param onChange - Callback invoked with the selected subject ID when the selection changes.
+ * @param value - The currently selected subject name, or undefined if none is selected.
+ * @param onChange - Callback invoked with the selected subject name when the selection changes.
  * @param subjects - Array of available subjects to display as options.
  */
 function SubjectSelect({ 
@@ -167,36 +163,27 @@ function SubjectSelect({
 	onChange, 
 	subjects 
 }: { 
-	value: number | undefined, 
-	onChange: (value: number) => void, 
+	value: string | undefined, 
+	onChange: (value: string) => void, 
 	subjects: Subject[] 
 }) {
 	const { t } = useTranslation('schedule')
 
 	return (
-		<Select
-			value={value?.toString() ?? ''}
-			onValueChange={(value) => onChange(Number(value))}
-		>
-			<SelectTrigger className="w-full">
-				<SelectValue placeholder={t('selectSubject')} />
-			</SelectTrigger>
-			<SelectContent>
-				{subjects.map((subject) => (
-					<SelectItem key={subject.id} value={subject.id.toString()}>
-						{subject.name}
-					</SelectItem>
-				))}
-			</SelectContent>
-		</Select>
+		<ComboboxSelect
+			value={value ?? ''}
+			onChange={onChange}
+			options={subjects}
+			placeholder={t('selectSubject')}
+		/>
 	)
 }
 
 /**
- * Renders a dropdown for selecting a learning content item from a provided list.
+ * Renders a combobox select for choosing a learning content from a provided list or entering a custom value.
  *
- * @param value - The currently selected learning content ID, or undefined if none is selected.
- * @param onChange - Callback invoked with the selected learning content ID.
+ * @param value - The currently selected learning content name, or undefined if none is selected.
+ * @param onChange - Callback invoked with the selected learning content name.
  * @param learningContents - Array of available learning content options.
  */
 function LearningContentSelect({ 
@@ -204,28 +191,19 @@ function LearningContentSelect({
 	onChange, 
 	learningContents 
 }: { 
-	value: number | undefined, 
-	onChange: (value: number) => void, 
+	value: string | undefined, 
+	onChange: (value: string) => void, 
 	learningContents: LearningContent[] 
 }) {
 	const { t } = useTranslation('schedule')
 
 	return (
-		<Select
-			value={value?.toString() ?? ''}
-			onValueChange={(value) => onChange(Number(value))}
-		>
-			<SelectTrigger className="w-full">
-				<SelectValue placeholder={t('selectLearningContent')} />
-			</SelectTrigger>
-			<SelectContent>
-				{learningContents.map((content) => (
-					<SelectItem key={content.id} value={content.id.toString()}>
-						{content.name}
-					</SelectItem>
-				))}
-			</SelectContent>
-		</Select>
+		<ComboboxSelect
+			value={value ?? ''}
+			onChange={onChange}
+			options={learningContents}
+			placeholder={t('selectLearningContent')}
+		/>
 	)
 }
 
@@ -249,6 +227,18 @@ export default function TeacherAssignmentPage() {
 	const [error, setError] = useState('')
 	const [amAssignments, setAmAssignments] = useState<TeacherAssignment[]>([])
 	const [pmAssignments, setPmAssignments] = useState<TeacherAssignment[]>([])
+	
+	// Helper function to get display value for subject, learning content, or room
+	const getDisplayValue = (assignment: TeacherAssignment, field: 'subject' | 'learningContent' | 'room') => {
+		if (field === 'subject') {
+			return assignment.customSubject ?? subjects.find(s => s.id === assignment.subjectId)?.name ?? ''
+		} else if (field === 'learningContent') {
+			return assignment.customLearningContent ?? learningContents.find(lc => lc.id === assignment.learningContentId)?.name ?? ''
+		} else if (field === 'room') {
+			return assignment.customRoom ?? rooms.find(r => r.id === assignment.roomId)?.name ?? ''
+		}
+		return ''
+	}
 	const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 	const [showErrorDialog, setShowErrorDialog] = useState(false)
 	const [validationErrors, setValidationErrors] = useState<{
@@ -354,7 +344,7 @@ export default function TeacherAssignmentPage() {
 					}
 
 					// Only show warning if either AM or PM has existing assignments
-					setHasExistingAssignments(hasExistingAmAssignments || hasExistingPmAssignments)
+					setHasExistingAssignments(hasExistingAmAssignments ?? hasExistingPmAssignments)
 				} else {
 					// Initialize empty assignments if none exist
 					const initialAssignments: TeacherAssignment[] = groupsData.assignments.map(assignment => ({
@@ -415,6 +405,63 @@ export default function TeacherAssignmentPage() {
 		})
 	}
 
+	function handleStringFieldChange(
+		period: 'am' | 'pm',
+		groupId: number,
+		field: 'subject' | 'learningContent' | 'room',
+		value: string
+	) {
+		const setAssignments = period === 'am' ? setAmAssignments : setPmAssignments
+		setAssignments(current => {
+			const existingAssignment = current.find(a => a.groupId === groupId)
+			
+			// Find the ID for the selected value if it exists in the options
+			let idField: keyof TeacherAssignment
+			let customField: keyof TeacherAssignment
+			let options: { id: number; name: string }[]
+			
+			if (field === 'subject') {
+				idField = 'subjectId'
+				customField = 'customSubject'
+				options = subjects
+			} else if (field === 'learningContent') {
+				idField = 'learningContentId'
+				customField = 'customLearningContent'
+				options = learningContents
+			} else {
+				idField = 'roomId'
+				customField = 'customRoom'
+				options = rooms
+			}
+			
+			const selectedOption = options.find(option => option.name === value)
+			
+			if (existingAssignment) {
+				return current.map(assignment => 
+					assignment.groupId === groupId
+						? { 
+							...assignment, 
+							[idField]: selectedOption?.id ?? 0,
+							[customField]: selectedOption ? undefined : value
+						}
+						: assignment
+				)
+			} else {
+				// Create new assignment
+				const newAssignment: TeacherAssignment = {
+					groupId,
+					teacherId: 0,
+					subjectId: 0,
+					learningContentId: 0,
+					roomId: 0,
+					[idField]: selectedOption?.id ?? 0,
+					[customField]: selectedOption ? undefined : value
+				}
+				return [...current, newAssignment]
+			}
+		})
+	}
+
 	function handleClearRow(period: 'am' | 'pm', groupId: number) {
 		const setAssignments = period === 'am' ? setAmAssignments : setPmAssignments
 		setAssignments(current => {
@@ -425,7 +472,10 @@ export default function TeacherAssignmentPage() {
 						teacherId: 0,
 						subjectId: 0,
 						learningContentId: 0,
-						roomId: 0
+						roomId: 0,
+						customSubject: undefined,
+						customLearningContent: undefined,
+						customRoom: undefined
 					}
 					: assignment
 			)
@@ -439,13 +489,19 @@ export default function TeacherAssignmentPage() {
 				a.teacherId !== 0 || 
 				a.subjectId !== 0 || 
 				a.learningContentId !== 0 || 
-				a.roomId !== 0
+				a.roomId !== 0 ||
+				(a.customSubject ??
+				a.customLearningContent ??
+				a.customRoom)
 			)
 			const validPmAssignments = pmAssignments.filter(a => 
 				a.teacherId !== 0 || 
 				a.subjectId !== 0 || 
 				a.learningContentId !== 0 || 
-				a.roomId !== 0
+				a.roomId !== 0 ||
+				(a.customSubject ??
+				a.customLearningContent ??
+				a.customRoom)
 			)
 
 			// Check if any group in AM has assignments
@@ -467,9 +523,13 @@ export default function TeacherAssignmentPage() {
 						newValidationErrors.am.push({ groupId: group.id, missingFields: ['teacher'] })
 					} else {
 						const missingFields: string[] = []
-						if (!assignment.subjectId) missingFields.push('subject')
-						if (!assignment.learningContentId) missingFields.push('learningContent')
-						if (!assignment.roomId) missingFields.push('room')
+						const hasSubject = assignment.subjectId !== 0 || assignment.customSubject
+						const hasLearningContent = assignment.learningContentId !== 0 || assignment.customLearningContent
+						const hasRoom = assignment.roomId !== 0 || assignment.customRoom
+						
+						if (!hasSubject) missingFields.push('subject')
+						if (!hasLearningContent) missingFields.push('learningContent')
+						if (!hasRoom) missingFields.push('room')
 						if (missingFields.length > 0) {
 							newValidationErrors.am.push({ groupId: group.id, missingFields })
 						}
@@ -485,9 +545,13 @@ export default function TeacherAssignmentPage() {
 						newValidationErrors.pm.push({ groupId: group.id, missingFields: ['teacher'] })
 					} else {
 						const missingFields: string[] = []
-						if (!assignment.subjectId) missingFields.push('subject')
-						if (!assignment.learningContentId) missingFields.push('learningContent')
-						if (!assignment.roomId) missingFields.push('room')
+						const hasSubject = assignment.subjectId !== 0 || assignment.customSubject
+						const hasLearningContent = assignment.learningContentId !== 0 || assignment.customLearningContent
+						const hasRoom = assignment.roomId !== 0 || assignment.customRoom
+						
+						if (!hasSubject) missingFields.push('subject')
+						if (!hasLearningContent) missingFields.push('learningContent')
+						if (!hasRoom) missingFields.push('room')
 						if (missingFields.length > 0) {
 							newValidationErrors.pm.push({ groupId: group.id, missingFields })
 						}
@@ -504,16 +568,16 @@ export default function TeacherAssignmentPage() {
 
 			// Map the assignments to include string values for subject, learningContent, and room
 			const mapAssignments = (assignments: TeacherAssignment[]) => assignments.map(assignment => {
-				const subject = subjects.find(s => s.id === assignment.subjectId)
-				const learningContent = learningContents.find(lc => lc.id === assignment.learningContentId)
-				const room = rooms.find(r => r.id === assignment.roomId)
+				const subject = assignment.customSubject ?? subjects.find(s => s.id === assignment.subjectId)?.name ?? ''
+				const learningContent = assignment.customLearningContent ?? learningContents.find(lc => lc.id === assignment.learningContentId)?.name ?? ''
+				const room = assignment.customRoom ?? rooms.find(r => r.id === assignment.roomId)?.name ?? ''
 
 				return {
 					groupId: assignment.groupId,
 					teacherId: assignment.teacherId,
-					subject: subject?.name ?? '',
-					learningContent: learningContent?.name ?? '',
-					room: room?.name ?? ''
+					subject,
+					learningContent,
+					room
 				}
 			})
 
@@ -569,16 +633,16 @@ export default function TeacherAssignmentPage() {
 		try {
 			// Map the assignments to include string values for subject, learningContent, and room
 			const mapAssignments = (assignments: TeacherAssignment[]) => assignments.map(assignment => {
-				const subject = subjects.find(s => s.id === assignment.subjectId)
-				const learningContent = learningContents.find(lc => lc.id === assignment.learningContentId)
-				const room = rooms.find(r => r.id === assignment.roomId)
+				const subject = assignment.customSubject ?? subjects.find(s => s.id === assignment.subjectId)?.name ?? ''
+				const learningContent = assignment.customLearningContent ?? learningContents.find(lc => lc.id === assignment.learningContentId)?.name ?? ''
+				const room = assignment.customRoom ?? rooms.find(r => r.id === assignment.roomId)?.name ?? ''
 
 				return {
 					groupId: assignment.groupId,
 					teacherId: assignment.teacherId,
-					subject: subject?.name ?? '',
-					learningContent: learningContent?.name ?? '',
-					room: room?.name ?? ''
+					subject,
+					learningContent,
+					room
 				}
 			})
 
@@ -629,7 +693,7 @@ export default function TeacherAssignmentPage() {
 		setPmAssignments(amAssignments.map(assignment => ({ ...assignment })))
 	}
 
-	if (isLoadingCachedData || loading) return <div className="p-4">{t('loading')}</div>
+	if (isLoadingCachedData ?? loading) return <div className="p-4">{t('loading')}</div>
 	if (error) return <div className="p-4 text-red-500">{error}</div>
 	if (!selectedClass) return <div className="p-4">{t('noClassSelected')}</div>
 
@@ -703,24 +767,24 @@ export default function TeacherAssignmentPage() {
 											<div>
 												<Label className="block text-sm font-medium mb-1">{t('subject')}</Label>
 												<SubjectSelect
-													value={amAssignments.find(a => a.groupId === group.id)?.subjectId}
-													onChange={(value) => handleAssignmentChange('am', group.id, 'subjectId', value)}
+													value={getDisplayValue(amAssignments.find(a => a.groupId === group.id) ?? { groupId: group.id, teacherId: 0, subjectId: 0, learningContentId: 0, roomId: 0 }, 'subject')}
+													onChange={(value) => handleStringFieldChange('am', group.id, 'subject', value)}
 													subjects={subjects}
 												/>
 											</div>
 											<div>
 												<Label className="block text-sm font-medium mb-1">{t('learningContent')}</Label>
 												<LearningContentSelect
-													value={amAssignments.find(a => a.groupId === group.id)?.learningContentId}
-													onChange={(value) => handleAssignmentChange('am', group.id, 'learningContentId', value)}
+													value={getDisplayValue(amAssignments.find(a => a.groupId === group.id) ?? { groupId: group.id, teacherId: 0, subjectId: 0, learningContentId: 0, roomId: 0 }, 'learningContent')}
+													onChange={(value) => handleStringFieldChange('am', group.id, 'learningContent', value)}
 													learningContents={learningContents}
 												/>
 											</div>
 											<div>
 												<Label className="block text-sm font-medium mb-1">{t('room')}</Label>
 												<RoomSelect
-													value={amAssignments.find(a => a.groupId === group.id)?.roomId}
-													onChange={(value) => handleAssignmentChange('am', group.id, 'roomId', value)}
+													value={getDisplayValue(amAssignments.find(a => a.groupId === group.id) ?? { groupId: group.id, teacherId: 0, subjectId: 0, learningContentId: 0, roomId: 0 }, 'room')}
+													onChange={(value) => handleStringFieldChange('am', group.id, 'room', value)}
 													rooms={rooms}
 												/>
 											</div>
@@ -773,24 +837,24 @@ export default function TeacherAssignmentPage() {
 											<div>
 												<Label className="block text-sm font-medium mb-1">{t('subject')}</Label>
 												<SubjectSelect
-													value={pmAssignments.find(a => a.groupId === group.id)?.subjectId}
-													onChange={(value) => handleAssignmentChange('pm', group.id, 'subjectId', value)}
+													value={getDisplayValue(pmAssignments.find(a => a.groupId === group.id) ?? { groupId: group.id, teacherId: 0, subjectId: 0, learningContentId: 0, roomId: 0 }, 'subject')}
+													onChange={(value) => handleStringFieldChange('pm', group.id, 'subject', value)}
 													subjects={subjects}
 												/>
 											</div>
 											<div>
 												<Label className="block text-sm font-medium mb-1">{t('learningContent')}</Label>
 												<LearningContentSelect
-													value={pmAssignments.find(a => a.groupId === group.id)?.learningContentId}
-													onChange={(value) => handleAssignmentChange('pm', group.id, 'learningContentId', value)}
+													value={getDisplayValue(pmAssignments.find(a => a.groupId === group.id) ?? { groupId: group.id, teacherId: 0, subjectId: 0, learningContentId: 0, roomId: 0 }, 'learningContent')}
+													onChange={(value) => handleStringFieldChange('pm', group.id, 'learningContent', value)}
 													learningContents={learningContents}
 												/>
 											</div>
 											<div>
 												<Label className="block text-sm font-medium mb-1">{t('room')}</Label>
 												<RoomSelect
-													value={pmAssignments.find(a => a.groupId === group.id)?.roomId}
-													onChange={(value) => handleAssignmentChange('pm', group.id, 'roomId', value)}
+													value={getDisplayValue(pmAssignments.find(a => a.groupId === group.id) ?? { groupId: group.id, teacherId: 0, subjectId: 0, learningContentId: 0, roomId: 0 }, 'room')}
+													onChange={(value) => handleStringFieldChange('pm', group.id, 'room', value)}
 													rooms={rooms}
 												/>
 											</div>

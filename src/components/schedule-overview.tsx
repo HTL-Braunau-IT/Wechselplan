@@ -473,7 +473,7 @@ export function ScheduleOverview({
 
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Turnussgit e</CardTitle>
+          <CardTitle>Turnusse</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">

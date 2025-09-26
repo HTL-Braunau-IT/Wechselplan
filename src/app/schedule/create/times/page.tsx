@@ -188,15 +188,7 @@ export default function TimesPage() {
       if (periods.has('PM') && !selectedPMScheduleTime) {
         errors.push(t('settings.times.errors.selectPMScheduleTime'))
       }
-      if (periods.has('AM') && !selectedAMBreakTime) {
-        errors.push(t('settings.times.errors.selectAMBreakTime'))
-      }
-      if (periods.size > 0 && !selectedLunchBreakTime) {
-        errors.push(t('settings.times.errors.selectLunchBreakTime'))
-      }
-      if (periods.has('PM') && !selectedPMBreakTime) {
-        errors.push(t('settings.times.errors.selectPMBreakTime'))
-      }
+      // Break times are now optional - no validation required
 
       if (errors.length > 0) {
         setError(errors.join('\n'))
@@ -400,7 +392,9 @@ export default function TimesPage() {
               <div className="space-y-6">
                 {periods.has('AM') && (
                   <div>
-                    <h3 className="text-lg font-medium mb-3">{t('settings.times.labels.amBreak')}</h3>
+                    <h3 className="text-lg font-medium mb-3">
+                      {t('settings.times.labels.amBreak')} <span className="text-sm text-gray-500 font-normal"></span>
+                    </h3>
                     <select
                       value={selectedAMBreakTime ?? ''}
                       onChange={(e) => setSelectedAMBreakTime(e.target.value ? parseInt(e.target.value) : null)}
@@ -420,7 +414,9 @@ export default function TimesPage() {
 
                 {periods.size > 0 && (
                   <div>
-                    <h3 className="text-lg font-medium mb-3">{t('settings.times.labels.lunchBreak')}</h3>
+                    <h3 className="text-lg font-medium mb-3">
+                      {t('settings.times.labels.lunchBreak')} <span className="text-sm text-gray-500 font-normal"></span>
+                    </h3>
                     <select
                       value={selectedLunchBreakTime ?? ''}
                       onChange={(e) => setSelectedLunchBreakTime(e.target.value ? parseInt(e.target.value) : null)}
@@ -440,7 +436,9 @@ export default function TimesPage() {
 
                 {periods.has('PM') && (
                   <div>
-                    <h3 className="text-lg font-medium mb-3">{t('settings.times.labels.pmBreak')}</h3>
+                    <h3 className="text-lg font-medium mb-3">
+                      {t('settings.times.labels.pmBreak')} <span className="text-sm text-gray-500 font-normal">({t('settings.times.optional')})</span>
+                    </h3>
                     <select
                       value={selectedPMBreakTime ?? ''}
                       onChange={(e) => setSelectedPMBreakTime(e.target.value ? parseInt(e.target.value) : null)}

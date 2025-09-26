@@ -85,5 +85,6 @@
   "combinedClassNameRequired": "Name der zusammengeführten Klasse ist erforderlich",
   "originallyFrom": "Ursprünglich aus",
   "tooManyStudentsToCombine": "Klassen können nicht zusammengeführt werden: Die zusammengeführte Klasse hätte {{total}} Schüler, aber maximal {{max}} Schüler sind erlaubt. Bitte reduzieren Sie die Anzahl der Schüler in einer oder beiden Klassen vor der Zusammenführung.",
-  "studentCountDetails": "Klasse 1: {{class1}} Schüler, Klasse 2: {{class2}} Schüler, Gesamt: {{total}} Schüler"
+  "studentCountDetails": "Klasse 1: {{class1}} Schüler, Klasse 2: {{class2}} Schüler, Gesamt: {{total}} Schüler",
+  "settings.times.optional": "Optional"
 } 

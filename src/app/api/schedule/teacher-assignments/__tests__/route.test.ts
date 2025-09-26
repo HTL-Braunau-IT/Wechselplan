@@ -16,12 +16,15 @@ vi.mock('@/lib/prisma', () => ({
     },
     subject: {
       findUnique: vi.fn(),
+      upsert: vi.fn(),
     },
     learningContent: {
       findUnique: vi.fn(),
+      upsert: vi.fn(),
     },
     room: {
       findUnique: vi.fn(),
+      upsert: vi.fn(),
     },
   },
 }));
@@ -300,25 +303,25 @@ describe('Teacher Assignments API', () => {
       const findManyAssignmentsMock = vi.mocked(prisma.teacherAssignment.findMany);
       findManyAssignmentsMock.mockResolvedValue([]);
 
-      // Mock subject, learning content, and room lookups
-      const findUniqueSubjectMock = vi.mocked(prisma.subject.findUnique);
-      findUniqueSubjectMock.mockResolvedValue({
+      // Mock subject, learning content, and room upserts
+      const upsertSubjectMock = vi.mocked(prisma.subject.upsert);
+      upsertSubjectMock.mockResolvedValue({
         id: 1,
         name: 'Math',
         createdAt: new Date(),
         updatedAt: new Date(),
       });
 
-      const findUniqueLearningContentMock = vi.mocked(prisma.learningContent.findUnique);
-      findUniqueLearningContentMock.mockResolvedValue({
+      const upsertLearningContentMock = vi.mocked(prisma.learningContent.upsert);
+      upsertLearningContentMock.mockResolvedValue({
         id: 1,
         name: 'Algebra',
         createdAt: new Date(),
         updatedAt: new Date(),
       });
 
-      const findUniqueRoomMock = vi.mocked(prisma.room.findUnique);
-      findUniqueRoomMock.mockResolvedValue({
+      const upsertRoomMock = vi.mocked(prisma.room.upsert);
+      upsertRoomMock.mockResolvedValue({
         id: 1,
         name: 'Room 101',
         createdAt: new Date(),

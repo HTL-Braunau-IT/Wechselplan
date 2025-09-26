@@ -88,8 +88,10 @@ async function main() {
   ]
 
   for (const holiday of holidays) {
-    await prisma.schoolHoliday.create({
-      data: holiday
+    await prisma.schoolHoliday.upsert({
+      where: { name: holiday.name },
+      update: holiday,
+      create: holiday
     })
   }
 

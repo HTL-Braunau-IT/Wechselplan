@@ -56,20 +56,21 @@ model Class {
 }
 
 model Schedule {
-  id              Int            @id @default(autoincrement())
-  name            String
-  description     String?
-  startDate       DateTime
-  endDate         DateTime
-  selectedWeekday Int
-  scheduleData    Json
-  additionalInfo  String?
-  classId         Int?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  class           Class?         @relation(fields: [classId], references: [id])
-  breakTimes      BreakTime[]    @relation("BreakTimeToSchedule")
-  scheduleTimes   ScheduleTime[] @relation("ScheduleToScheduleTime")
+  id                Int            @id @default(autoincrement())
+  name              String
+  description       String?
+  startDate         DateTime
+  endDate           DateTime
+  selectedWeekday   Int
+  scheduleData      Json
+  additionalInfo    String?
+  semesterPlanning  String?        // "first", "second", or null for full year
+  classId           Int?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  class             Class?         @relation(fields: [classId], references: [id])
+  breakTimes        BreakTime[]    @relation("BreakTimeToSchedule")
+  scheduleTimes     ScheduleTime[] @relation("ScheduleToScheduleTime")
 
   @@index([classId])
 }
