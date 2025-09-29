@@ -29,7 +29,7 @@ export function LearningContentTab() {
       setIsLoading(true)
       const response = await fetch('/api/admin/data?model=learningContent')
       if (response.ok) {
-        const data = await response.json() as Record<string, unknown>[]
+        const data = await response.json() as LearningContent[]
         setLearningContents(data)
       }
     } catch (error) {
@@ -88,7 +88,7 @@ export function LearningContentTab() {
     <DataTable
       model="Learning Content"
       columns={columns}
-      data={learningContents}
+      data={learningContents as unknown as Record<string, unknown>[]}
       onRefresh={fetchLearningContents}
       onEdit={handleEdit}
       onDelete={handleDelete}

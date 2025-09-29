@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Plus, Edit, Trash2, Search, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { toast } from 'sonner'
 
-interface Column {
+export interface Column {
   key: string
   label: string
   type?: 'text' | 'number' | 'date' | 'boolean' | 'select' | 'textarea'

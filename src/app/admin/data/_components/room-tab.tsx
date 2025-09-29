@@ -31,7 +31,7 @@ export function RoomTab() {
       setIsLoading(true)
       const response = await fetch('/api/admin/data?model=room')
       if (response.ok) {
-        const data = await response.json() as Record<string, unknown>[]
+        const data = await response.json() as Room[]
         setRooms(data)
       }
     } catch (error) {
@@ -90,7 +90,7 @@ export function RoomTab() {
     <DataTable
       model="Room"
       columns={columns}
-      data={rooms}
+      data={rooms as unknown as Record<string, unknown>[]}
       onRefresh={fetchRooms}
       onEdit={handleEdit}
       onDelete={handleDelete}

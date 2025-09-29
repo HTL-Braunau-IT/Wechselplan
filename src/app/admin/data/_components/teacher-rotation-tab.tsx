@@ -35,7 +35,7 @@ export function TeacherRotationTab() {
       setIsLoading(true)
       const response = await fetch('/api/admin/data?model=teacherRotation')
       if (response.ok) {
-        const data = await response.json() as Record<string, unknown>[]
+        const data = await response.json() as TeacherRotation[]
         setTeacherRotations(data)
       }
     } catch (error) {
@@ -94,7 +94,7 @@ export function TeacherRotationTab() {
     <DataTable
       model="Teacher Rotation"
       columns={columns}
-      data={teacherRotations}
+      data={teacherRotations as unknown as Record<string, unknown>[]}
       onRefresh={fetchTeacherRotations}
       onEdit={handleEdit}
       onDelete={handleDelete}

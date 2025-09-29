@@ -31,7 +31,7 @@ export function SchoolHolidayTab() {
       setIsLoading(true)
       const response = await fetch('/api/admin/data?model=schoolHoliday')
       if (response.ok) {
-        const data = await response.json() as Record<string, unknown>[]
+        const data = await response.json() as SchoolHoliday[]
         setSchoolHolidays(data)
       }
     } catch (error) {
@@ -90,7 +90,7 @@ export function SchoolHolidayTab() {
     <DataTable
       model="School Holiday"
       columns={columns}
-      data={schoolHolidays}
+      data={schoolHolidays as unknown as Record<string, unknown>[]}
       onRefresh={fetchSchoolHolidays}
       onEdit={handleEdit}
       onDelete={handleDelete}

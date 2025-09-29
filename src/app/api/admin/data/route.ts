@@ -367,39 +367,39 @@ async function createRecord(model: string, data: Record<string, unknown>) {
 
   switch (model) {
     case 'student':
-      return await prisma.student.create({ data: createData })
+      return await prisma.student.create({ data: createData as unknown as Parameters<typeof prisma.student.create>[0]['data'] })
     case 'teacher':
-      return await prisma.teacher.create({ data: createData })
+      return await prisma.teacher.create({ data: createData as unknown as Parameters<typeof prisma.teacher.create>[0]['data'] })
     case 'class':
-      return await prisma.class.create({ data: createData })
+      return await prisma.class.create({ data: createData as unknown as Parameters<typeof prisma.class.create>[0]['data'] })
     case 'schedule':
-      return await prisma.schedule.create({ data: createData })
+      return await prisma.schedule.create({ data: createData as unknown as Parameters<typeof prisma.schedule.create>[0]['data'] })
     case 'groupAssignment':
-      return await prisma.groupAssignment.create({ data: createData })
+      return await prisma.groupAssignment.create({ data: createData as unknown as Parameters<typeof prisma.groupAssignment.create>[0]['data'] })
     case 'teacherAssignment':
-      return await prisma.teacherAssignment.create({ data: createData })
+      return await prisma.teacherAssignment.create({ data: createData as unknown as Parameters<typeof prisma.teacherAssignment.create>[0]['data'] })
     case 'room':
-      return await prisma.room.create({ data: createData })
+      return await prisma.room.create({ data: createData as unknown as Parameters<typeof prisma.room.create>[0]['data'] })
     case 'subject':
-      return await prisma.subject.create({ data: createData })
+      return await prisma.subject.create({ data: createData as unknown as Parameters<typeof prisma.subject.create>[0]['data'] })
     case 'learningContent':
-      return await prisma.learningContent.create({ data: createData })
+      return await prisma.learningContent.create({ data: createData as unknown as Parameters<typeof prisma.learningContent.create>[0]['data'] })
     case 'schoolHoliday':
-      return await prisma.schoolHoliday.create({ data: createData })
+      return await prisma.schoolHoliday.create({ data: createData as unknown as Parameters<typeof prisma.schoolHoliday.create>[0]['data'] })
     case 'scheduleTime':
-      return await prisma.scheduleTime.create({ data: createData })
+      return await prisma.scheduleTime.create({ data: createData as unknown as Parameters<typeof prisma.scheduleTime.create>[0]['data'] })
     case 'breakTime':
-      return await prisma.breakTime.create({ data: createData })
+      return await prisma.breakTime.create({ data: createData as unknown as Parameters<typeof prisma.breakTime.create>[0]['data'] })
     case 'schedulePDF':
-      return await prisma.schedulePDF.create({ data: createData })
+      return await prisma.schedulePDF.create({ data: createData as unknown as Parameters<typeof prisma.schedulePDF.create>[0]['data'] })
     case 'teacherRotation':
-      return await prisma.teacherRotation.create({ data: createData })
+      return await prisma.teacherRotation.create({ data: createData as unknown as Parameters<typeof prisma.teacherRotation.create>[0]['data'] })
     case 'role':
-      return await prisma.role.create({ data: createData })
+      return await prisma.role.create({ data: createData as unknown as Parameters<typeof prisma.role.create>[0]['data'] })
     case 'userRole':
-      return await prisma.userRole.create({ data: createData })
+      return await prisma.userRole.create({ data: createData as unknown as Parameters<typeof prisma.userRole.create>[0]['data'] })
     case 'supportMessage':
-      return await prisma.supportMessage.create({ data: createData })
+      return await prisma.supportMessage.create({ data: createData as unknown as Parameters<typeof prisma.supportMessage.create>[0]['data'] })
     default:
       throw new Error(`Unknown model: ${model}`)
   }

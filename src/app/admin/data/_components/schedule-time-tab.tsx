@@ -33,7 +33,7 @@ export function ScheduleTimeTab() {
       setIsLoading(true)
       const response = await fetch('/api/admin/data?model=scheduleTime')
       if (response.ok) {
-        const data = await response.json() as Record<string, unknown>[]
+        const data = await response.json() as ScheduleTime[]
         setScheduleTimes(data)
       }
     } catch (error) {
@@ -92,7 +92,7 @@ export function ScheduleTimeTab() {
     <DataTable
       model="Schedule Time"
       columns={columns}
-      data={scheduleTimes}
+      data={scheduleTimes as unknown as Record<string, unknown>[]}
       onRefresh={fetchScheduleTimes}
       onEdit={handleEdit}
       onDelete={handleDelete}

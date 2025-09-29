@@ -37,7 +37,7 @@ export function UserRoleTab() {
       setIsLoading(true)
       const response = await fetch('/api/admin/data?model=userRole')
       if (response.ok) {
-        const data = await response.json() as Record<string, unknown>[]
+        const data = await response.json() as UserRole[]
         setUserRoles(data)
       }
     } catch (error) {
@@ -112,7 +112,7 @@ export function UserRoleTab() {
     <DataTable
       model="User Role"
       columns={columns}
-      data={userRoles}
+      data={userRoles as unknown as Record<string, unknown>[]}
       onRefresh={fetchUserRoles}
       onEdit={handleEdit}
       onDelete={handleDelete}

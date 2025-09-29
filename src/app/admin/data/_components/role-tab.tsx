@@ -29,7 +29,7 @@ export function RoleTab() {
       setIsLoading(true)
       const response = await fetch('/api/admin/data?model=role')
       if (response.ok) {
-        const data = await response.json() as Record<string, unknown>[]
+        const data = await response.json() as Role[]
         setRoles(data)
       }
     } catch (error) {
@@ -88,7 +88,7 @@ export function RoleTab() {
     <DataTable
       model="Role"
       columns={columns}
-      data={roles}
+      data={roles as unknown as Record<string, unknown>[]}
       onRefresh={fetchRoles}
       onEdit={handleEdit}
       onDelete={handleDelete}

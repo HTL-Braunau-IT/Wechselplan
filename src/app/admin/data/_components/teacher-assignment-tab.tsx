@@ -81,7 +81,7 @@ export function TeacherAssignmentTab() {
       setIsLoading(true)
       const response = await fetch('/api/admin/data?model=teacherAssignment')
       if (response.ok) {
-        const data = await response.json() as Record<string, unknown>[]
+        const data = await response.json() as TeacherAssignment[]
         setTeacherAssignments(data)
       }
     } catch (error) {
@@ -192,7 +192,7 @@ export function TeacherAssignmentTab() {
     <DataTable
       model="Teacher Assignment"
       columns={columns}
-      data={teacherAssignments}
+      data={teacherAssignments as unknown as Record<string, unknown>[]}
       onRefresh={fetchTeacherAssignments}
       onEdit={handleEdit}
       onDelete={handleDelete}
