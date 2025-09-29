@@ -1,0 +1,310 @@
+'use client'
+
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Badge } from '@/components/ui/badge'
+import { Plus, Edit, Trash2, Search, RefreshCw } from 'lucide-react'
+import { toast } from 'sonner'
+
+interface Column {
+  key: string
+  label: string
+  type?: 'text' | 'number' | 'date' | 'boolean' | 'select' | 'textarea'
+  options?: { value: any; label: string }[]
+  required?: boolean
+  readonly?: boolean
+}
+
+interface DataTableProps {
+  model: string
+  columns: Column[]
+  data: any[]
+  onRefresh: () => void
+  onEdit: (item: any) => void
+  onDelete: (id: number) => void
+  onCreate: (data: any) => void
+  isLoading?: boolean
+}
+
+export function DataTable({
+  model,
+  columns,
+  data,
+  onRefresh,
+  onEdit,
+  onDelete,
+  onCreate,
+  isLoading = false
+}: DataTableProps) {
+  const [searchTerm, setSearchTerm] = useState('')
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editingItem, setEditingItem] = useState<any>(null)
+  const [formData, setFormData] = useState<Record<string, any>>({})
+
+  const filteredData = data.filter(item =>
+    Object.values(item).some(value =>
+      String(value).toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  )
+
+  const handleCreate = () => {
+    setFormData({})
+    setIsCreateDialogOpen(true)
+  }
+
+  const handleEdit = (item: any) => {
+    setEditingItem(item)
+    setFormData(item)
+    setIsEditDialogOpen(true)
+  }
+
+  const handleSave = async () => {
+    try {
+      if (editingItem) {
+        await onEdit({ ...editingItem, ...formData })
+        setIsEditDialogOpen(false)
+        setEditingItem(null)
+      } else {
+        await onCreate(formData)
+        setIsCreateDialogOpen(false)
+      }
+      setFormData({})
+      onRefresh()
+      toast.success(`${model} ${editingItem ? 'updated' : 'created'} successfully`)
+    } catch (error) {
+      toast.error(`Failed to ${editingItem ? 'update' : 'create'} ${model}`)
+    }
+  }
+
+  const handleDelete = async (id: number) => {
+    if (confirm(`Are you sure you want to delete this ${model}?`)) {
+      try {
+        await onDelete(id)
+        onRefresh()
+        toast.success(`${model} deleted successfully`)
+      } catch (error) {
+        toast.error(`Failed to delete ${model}`)
+      }
+    }
+  }
+
+  const formatValue = (value: any, column: Column) => {
+    if (value === null || value === undefined) return '-'
+    
+    switch (column.type) {
+      case 'date':
+        return new Date(value).toLocaleDateString()
+      case 'boolean':
+        return value ? 'Yes' : 'No'
+      case 'select':
+        const option = column.options?.find(opt => opt.value === value)
+        return option?.label || value
+      default:
+        return String(value)
+    }
+  }
+
+  const renderFormField = (column: Column) => {
+    const value = formData[column.key] || ''
+
+    switch (column.type) {
+      case 'textarea':
+        return (
+          <textarea
+            value={value}
+            onChange={(e) => setFormData(prev => ({ ...prev, [column.key]: e.target.value }))}
+            className="w-full p-2 border rounded"
+            rows={3}
+            required={column.required}
+            readOnly={column.readonly}
+          />
+        )
+      case 'select':
+        return (
+          <select
+            value={value}
+            onChange={(e) => setFormData(prev => ({ ...prev, [column.key]: e.target.value }))}
+            className="w-full p-2 border rounded"
+            required={column.required}
+            disabled={column.readonly}
+          >
+            <option value="">Select {column.label}</option>
+            {column.options?.map(option => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        )
+      case 'number':
+        return (
+          <Input
+            type="number"
+            value={value}
+            onChange={(e) => setFormData(prev => ({ ...prev, [column.key]: Number(e.target.value) }))}
+            required={column.required}
+            readOnly={column.readonly}
+          />
+        )
+      case 'date':
+        return (
+          <Input
+            type="datetime-local"
+            value={value ? new Date(value).toISOString().slice(0, 16) : ''}
+            onChange={(e) => setFormData(prev => ({ ...prev, [column.key]: new Date(e.target.value) }))}
+            required={column.required}
+            readOnly={column.readonly}
+          />
+        )
+      case 'boolean':
+        return (
+          <input
+            type="checkbox"
+            checked={value}
+            onChange={(e) => setFormData(prev => ({ ...prev, [column.key]: e.target.checked }))}
+            disabled={column.readonly}
+          />
+        )
+      default:
+        return (
+          <Input
+            value={value}
+            onChange={(e) => setFormData(prev => ({ ...prev, [column.key]: e.target.value }))}
+            required={column.required}
+            readOnly={column.readonly}
+          />
+        )
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <div className="relative">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-8 w-64"
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRefresh}
+            disabled={isLoading}
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={handleCreate}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add {model}
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Create {model}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              {columns.map(column => (
+                <div key={column.key} className="space-y-2">
+                  <label className="text-sm font-medium">
+                    {column.label}
+                    {column.required && <span className="text-red-500 ml-1">*</span>}
+                  </label>
+                  {renderFormField(column)}
+                </div>
+              ))}
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSave}>
+                  Create
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {columns.map(column => (
+                <TableHead key={column.key}>{column.label}</TableHead>
+              ))}
+              <TableHead className="w-24">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredData.map((item, index) => (
+              <TableRow key={item.id || index}>
+                {columns.map(column => (
+                  <TableCell key={column.key}>
+                    {formatValue(item[column.key], column)}
+                  </TableCell>
+                ))}
+                <TableCell>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEdit(item)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDelete(item.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit {model}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {columns.map(column => (
+              <div key={column.key} className="space-y-2">
+                <label className="text-sm font-medium">
+                  {column.label}
+                  {column.required && <span className="text-red-500 ml-1">*</span>}
+                </label>
+                {renderFormField(column)}
+              </div>
+            ))}
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave}>
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
