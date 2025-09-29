@@ -22,13 +22,13 @@ export function TeacherTab() {
   const [isLoading, setIsLoading] = useState(true)
 
   const columns: Column[] = [
-    { key: 'id', label: 'ID', type: 'number', readonly: true },
-    { key: 'firstName', label: 'First Name', type: 'text', required: true },
-    { key: 'lastName', label: 'Last Name', type: 'text', required: true },
-    { key: 'username', label: 'Username', type: 'text', required: true },
-    { key: 'email', label: 'Email', type: 'text' },
-    { key: 'createdAt', label: 'Created At', type: 'date', readonly: true },
-    { key: 'updatedAt', label: 'Updated At', type: 'date', readonly: true }
+    { key: 'id', label: 'ID', type: 'number', readonly: true, sortable: true },
+    { key: 'firstName', label: 'First Name', type: 'text', required: true, sortable: true },
+    { key: 'lastName', label: 'Last Name', type: 'text', required: true, sortable: true },
+    { key: 'username', label: 'Username', type: 'text', required: true, sortable: true },
+    { key: 'email', label: 'Email', type: 'text', sortable: true },
+    { key: 'createdAt', label: 'Created At', type: 'date', readonly: true, sortable: true },
+    { key: 'updatedAt', label: 'Updated At', type: 'date', readonly: true, sortable: true }
   ]
 
   const fetchTeachers = async () => {

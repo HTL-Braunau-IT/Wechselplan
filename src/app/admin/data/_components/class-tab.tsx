@@ -22,23 +22,25 @@ export function ClassTab() {
   const [teachers, setTeachers] = useState<{ id: number; firstName: string; lastName: string }[]>([])
 
   const columns: Column[] = [
-    { key: 'id', label: 'ID', type: 'number', readonly: true },
-    { key: 'name', label: 'Name', type: 'text', required: true },
-    { key: 'description', label: 'Description', type: 'textarea' },
+    { key: 'id', label: 'ID', type: 'number', readonly: true, sortable: true },
+    { key: 'name', label: 'Name', type: 'text', required: true, sortable: true },
+    { key: 'description', label: 'Description', type: 'textarea', sortable: true },
     { 
       key: 'classHeadId', 
       label: 'Class Head', 
       type: 'select', 
-      options: [{ value: '', label: 'None' }, ...teachers.map(t => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))]
+      options: [{ value: '', label: 'None' }, ...teachers.map(t => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))],
+      sortable: true
     },
     { 
       key: 'classLeadId', 
       label: 'Class Lead', 
       type: 'select', 
-      options: [{ value: '', label: 'None' }, ...teachers.map(t => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))]
+      options: [{ value: '', label: 'None' }, ...teachers.map(t => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))],
+      sortable: true
     },
-    { key: 'createdAt', label: 'Created At', type: 'date', readonly: true },
-    { key: 'updatedAt', label: 'Updated At', type: 'date', readonly: true }
+    { key: 'createdAt', label: 'Created At', type: 'date', readonly: true, sortable: true },
+    { key: 'updatedAt', label: 'Updated At', type: 'date', readonly: true, sortable: true }
   ]
 
   const fetchClasses = async () => {

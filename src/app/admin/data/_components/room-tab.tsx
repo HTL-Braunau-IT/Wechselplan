@@ -18,12 +18,12 @@ export function RoomTab() {
   const [isLoading, setIsLoading] = useState(true)
 
   const columns: Column[] = [
-    { key: 'id', label: 'ID', type: 'number', readonly: true },
-    { key: 'name', label: 'Name', type: 'text', required: true },
-    { key: 'capacity', label: 'Capacity', type: 'number' },
-    { key: 'description', label: 'Description', type: 'textarea' },
-    { key: 'createdAt', label: 'Created At', type: 'date', readonly: true },
-    { key: 'updatedAt', label: 'Updated At', type: 'date', readonly: true }
+    { key: 'id', label: 'ID', type: 'number', readonly: true, sortable: true },
+    { key: 'name', label: 'Name', type: 'text', required: true, sortable: true },
+    { key: 'capacity', label: 'Capacity', type: 'number', sortable: true },
+    { key: 'description', label: 'Description', type: 'textarea', sortable: true },
+    { key: 'createdAt', label: 'Created At', type: 'date', readonly: true, sortable: true },
+    { key: 'updatedAt', label: 'Updated At', type: 'date', readonly: true, sortable: true }
   ]
 
   const fetchRooms = async () => {

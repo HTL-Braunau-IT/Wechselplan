@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Edit, Trash2, Search, RefreshCw } from 'lucide-react'
+import { Plus, Edit, Trash2, Search, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface Column {
@@ -16,6 +16,7 @@ interface Column {
   options?: { value: any; label: string }[]
   required?: boolean
   readonly?: boolean
+  sortable?: boolean
 }
 
 interface DataTableProps {
@@ -44,12 +45,65 @@ export function DataTable({
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<any>(null)
   const [formData, setFormData] = useState<Record<string, any>>({})
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null)
 
-  const filteredData = data.filter(item =>
-    Object.values(item).some(value =>
-      String(value).toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredAndSortedData = (() => {
+    let filtered = data.filter(item =>
+      Object.values(item).some(value =>
+        String(value).toLowerCase().includes(searchTerm.toLowerCase())
+      )
     )
-  )
+
+    if (sortConfig) {
+      filtered.sort((a, b) => {
+        const aValue = a[sortConfig.key]
+        const bValue = b[sortConfig.key]
+        
+        // Handle null/undefined values
+        if (aValue === null || aValue === undefined) return sortConfig.direction === 'asc' ? 1 : -1
+        if (bValue === null || bValue === undefined) return sortConfig.direction === 'asc' ? -1 : 1
+        
+        // Handle different data types
+        if (typeof aValue === 'number' && typeof bValue === 'number') {
+          return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue
+        }
+        
+        if (aValue instanceof Date && bValue instanceof Date) {
+          return sortConfig.direction === 'asc' ? aValue.getTime() - bValue.getTime() : bValue.getTime() - aValue.getTime()
+        }
+        
+        // String comparison
+        const aStr = String(aValue).toLowerCase()
+        const bStr = String(bValue).toLowerCase()
+        
+        if (aStr < bStr) return sortConfig.direction === 'asc' ? -1 : 1
+        if (aStr > bStr) return sortConfig.direction === 'asc' ? 1 : -1
+        return 0
+      })
+    }
+
+    return filtered
+  })()
+
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc'
+    
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc'
+    }
+    
+    setSortConfig({ key, direction })
+  }
+
+  const getSortIcon = (key: string) => {
+    if (!sortConfig || sortConfig.key !== key) {
+      return <ArrowUpDown className="h-4 w-4" />
+    }
+    
+    return sortConfig.direction === 'asc' 
+      ? <ArrowUp className="h-4 w-4" />
+      : <ArrowDown className="h-4 w-4" />
+  }
 
   const handleCreate = () => {
     setFormData({})
@@ -242,13 +296,22 @@ export function DataTable({
           <TableHeader>
             <TableRow>
               {columns.map(column => (
-                <TableHead key={column.key}>{column.label}</TableHead>
+                <TableHead 
+                  key={column.key}
+                  className={column.sortable !== false ? "cursor-pointer hover:bg-muted/50 select-none" : ""}
+                  onClick={() => column.sortable !== false && handleSort(column.key)}
+                >
+                  <div className="flex items-center space-x-1">
+                    <span>{column.label}</span>
+                    {column.sortable !== false && getSortIcon(column.key)}
+                  </div>
+                </TableHead>
               ))}
               <TableHead className="w-24">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredData.map((item, index) => (
+            {filteredAndSortedData.map((item, index) => (
               <TableRow key={item.id || index}>
                 {columns.map(column => (
                   <TableCell key={column.key}>

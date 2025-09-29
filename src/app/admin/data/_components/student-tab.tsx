@@ -26,19 +26,20 @@ export function StudentTab() {
   const [classes, setClasses] = useState<{ id: number; name: string }[]>([])
 
   const columns: Column[] = [
-    { key: 'id', label: 'ID', type: 'number', readonly: true },
-    { key: 'firstName', label: 'First Name', type: 'text', required: true },
-    { key: 'lastName', label: 'Last Name', type: 'text', required: true },
-    { key: 'username', label: 'Username', type: 'text', required: true },
+    { key: 'id', label: 'ID', type: 'number', readonly: true, sortable: true },
+    { key: 'firstName', label: 'First Name', type: 'text', required: true, sortable: true },
+    { key: 'lastName', label: 'Last Name', type: 'text', required: true, sortable: true },
+    { key: 'username', label: 'Username', type: 'text', required: true, sortable: true },
     { 
       key: 'classId', 
       label: 'Class', 
       type: 'select', 
-      options: classes.map(c => ({ value: c.id, label: c.name }))
+      options: classes.map(c => ({ value: c.id, label: c.name })),
+      sortable: true
     },
-    { key: 'groupId', label: 'Group ID', type: 'number' },
-    { key: 'createdAt', label: 'Created At', type: 'date', readonly: true },
-    { key: 'updatedAt', label: 'Updated At', type: 'date', readonly: true }
+    { key: 'groupId', label: 'Group ID', type: 'number', sortable: true },
+    { key: 'createdAt', label: 'Created At', type: 'date', readonly: true, sortable: true },
+    { key: 'updatedAt', label: 'Updated At', type: 'date', readonly: true, sortable: true }
   ]
 
   const fetchStudents = async () => {
