@@ -144,23 +144,29 @@ export default function AdminDataPage() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
-          {modelTabs.map((tab) => {
-            const Icon = tab.icon
-            return (
-              <TabsTrigger key={tab.value} value={tab.value} className="flex flex-col items-center space-y-1 p-2">
-                <Icon className="h-4 w-4" />
-                <span className="text-xs">{tab.label}</span>
-              </TabsTrigger>
-            )
-          })}
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <div className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-1 h-auto p-1">
+            {modelTabs.map((tab) => {
+              const Icon = tab.icon
+              return (
+                <TabsTrigger 
+                  key={tab.value} 
+                  value={tab.value} 
+                  className="flex flex-col items-center space-y-1 p-3 h-auto data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                >
+                  <Icon className="h-4 w-4" />
+                  <span className="text-xs text-center leading-tight">{tab.label}</span>
+                </TabsTrigger>
+              )
+            })}
+          </TabsList>
+        </div>
 
         {modelTabs.map((tab) => {
           const Icon = tab.icon
           return (
-            <TabsContent key={tab.value} value={tab.value} className="space-y-4">
+            <TabsContent key={tab.value} value={tab.value} className="space-y-4 mt-6">
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
