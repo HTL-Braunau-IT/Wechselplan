@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { DataTable } from './data-table'
-import { Column } from './data-table'
+import type { Column } from './data-table'
 
 interface BreakTime {
   id: number
@@ -33,7 +33,7 @@ export function BreakTimeTab() {
       setIsLoading(true)
       const response = await fetch('/api/admin/data?model=breakTime')
       if (response.ok) {
-        const data = await response.json()
+        const data = await response.json() as Record<string, unknown>[]
         setBreakTimes(data)
       }
     } catch (error) {
@@ -44,10 +44,10 @@ export function BreakTimeTab() {
   }
 
   useEffect(() => {
-    fetchBreakTimes()
+    void fetchBreakTimes()
   }, [])
 
-  const handleCreate = async (data: any) => {
+  const handleCreate = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
     const response = await fetch('/api/admin/data?model=breakTime', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -55,14 +55,14 @@ export function BreakTimeTab() {
     })
     
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to create break time')
+      const error = await response.json() as { error?: string }
+      throw new Error(error.error ?? 'Failed to create break time')
     }
     
-    return response.json()
+    return response.json() as Promise<Record<string, unknown>>
   }
 
-  const handleEdit = async (data: any) => {
+  const handleEdit = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
     const response = await fetch('/api/admin/data?model=breakTime', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -70,11 +70,11 @@ export function BreakTimeTab() {
     })
     
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to update break time')
+      const error = await response.json() as { error?: string }
+      throw new Error(error.error ?? 'Failed to update break time')
     }
     
-    return response.json()
+    return response.json() as Promise<Record<string, unknown>>
   }
 
   const handleDelete = async (id: number) => {
@@ -83,8 +83,8 @@ export function BreakTimeTab() {
     })
     
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to delete break time')
+      const error = await response.json() as { error?: string }
+      throw new Error(error.error ?? 'Failed to delete break time')
     }
   }
 

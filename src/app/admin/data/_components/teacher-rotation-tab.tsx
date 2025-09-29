@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { DataTable } from './data-table'
-import { Column } from './data-table'
+import type { Column } from './data-table'
 
 interface TeacherRotation {
   id: number
@@ -35,7 +35,7 @@ export function TeacherRotationTab() {
       setIsLoading(true)
       const response = await fetch('/api/admin/data?model=teacherRotation')
       if (response.ok) {
-        const data = await response.json()
+        const data = await response.json() as Record<string, unknown>[]
         setTeacherRotations(data)
       }
     } catch (error) {
@@ -46,10 +46,10 @@ export function TeacherRotationTab() {
   }
 
   useEffect(() => {
-    fetchTeacherRotations()
+    void fetchTeacherRotations()
   }, [])
 
-  const handleCreate = async (data: any) => {
+  const handleCreate = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
     const response = await fetch('/api/admin/data?model=teacherRotation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -57,14 +57,14 @@ export function TeacherRotationTab() {
     })
     
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to create teacher rotation')
+      const error = await response.json() as { error?: string }
+      throw new Error(error.error ?? 'Failed to create teacher rotation')
     }
     
-    return response.json()
+    return response.json() as Promise<Record<string, unknown>>
   }
 
-  const handleEdit = async (data: any) => {
+  const handleEdit = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
     const response = await fetch('/api/admin/data?model=teacherRotation', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -72,21 +72,21 @@ export function TeacherRotationTab() {
     })
     
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to update teacher rotation')
+      const error = await response.json() as { error?: string }
+      throw new Error(error.error ?? 'Failed to update teacher rotation')
     }
     
-    return response.json()
+    return response.json() as Promise<Record<string, unknown>>
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: number): Promise<void> => {
     const response = await fetch(`/api/admin/data?model=teacherRotation&id=${id}`, {
       method: 'DELETE'
     })
     
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to delete teacher rotation')
+      const error = await response.json() as { error?: string }
+      throw new Error(error.error ?? 'Failed to delete teacher rotation')
     }
   }
 

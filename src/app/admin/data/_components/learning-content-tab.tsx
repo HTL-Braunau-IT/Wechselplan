@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { DataTable } from './data-table'
-import { Column } from './data-table'
+import type { Column } from './data-table'
 
 interface LearningContent {
   id: number
@@ -29,7 +29,7 @@ export function LearningContentTab() {
       setIsLoading(true)
       const response = await fetch('/api/admin/data?model=learningContent')
       if (response.ok) {
-        const data = await response.json()
+        const data = await response.json() as Record<string, unknown>[]
         setLearningContents(data)
       }
     } catch (error) {
@@ -40,10 +40,10 @@ export function LearningContentTab() {
   }
 
   useEffect(() => {
-    fetchLearningContents()
+    void fetchLearningContents()
   }, [])
 
-  const handleCreate = async (data: any) => {
+  const handleCreate = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
     const response = await fetch('/api/admin/data?model=learningContent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -51,14 +51,14 @@ export function LearningContentTab() {
     })
     
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to create learning content')
+      const error = await response.json() as { error?: string }
+      throw new Error(error.error ?? 'Failed to create learning content')
     }
     
-    return response.json()
+    return response.json() as Promise<Record<string, unknown>>
   }
 
-  const handleEdit = async (data: any) => {
+  const handleEdit = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
     const response = await fetch('/api/admin/data?model=learningContent', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -66,21 +66,21 @@ export function LearningContentTab() {
     })
     
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to update learning content')
+      const error = await response.json() as { error?: string }
+      throw new Error(error.error ?? 'Failed to update learning content')
     }
     
-    return response.json()
+    return response.json() as Promise<Record<string, unknown>>
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: number): Promise<void> => {
     const response = await fetch(`/api/admin/data?model=learningContent&id=${id}`, {
       method: 'DELETE'
     })
     
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to delete learning content')
+      const error = await response.json() as { error?: string }
+      throw new Error(error.error ?? 'Failed to delete learning content')
     }
   }
 

@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { DataTable } from './data-table'
-import { Column } from './data-table'
+import type { Column } from './data-table'
 
 interface SchedulePDF {
   id: string
   classId: string
-  pdfData: any
+  pdfData: Record<string, unknown>
   createdAt: string
   updatedAt: string
 }
@@ -28,7 +28,7 @@ export function SchedulePDFTab() {
       setIsLoading(true)
       const response = await fetch('/api/admin/data?model=schedulePDF')
       if (response.ok) {
-        const data = await response.json()
+        const data = await response.json() as Record<string, unknown>[]
         setSchedulePDFs(data)
       }
     } catch (error) {
@@ -39,10 +39,10 @@ export function SchedulePDFTab() {
   }
 
   useEffect(() => {
-    fetchSchedulePDFs()
+    void fetchSchedulePDFs()
   }, [])
 
-  const handleCreate = async (data: any) => {
+  const handleCreate = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
     const response = await fetch('/api/admin/data?model=schedulePDF', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -50,14 +50,14 @@ export function SchedulePDFTab() {
     })
     
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to create schedule PDF')
+      const error = await response.json() as { error?: string }
+      throw new Error(error.error ?? 'Failed to create schedule PDF')
     }
     
-    return response.json()
+    return response.json() as Promise<Record<string, unknown>>
   }
 
-  const handleEdit = async (data: any) => {
+  const handleEdit = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
     const response = await fetch('/api/admin/data?model=schedulePDF', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -65,21 +65,21 @@ export function SchedulePDFTab() {
     })
     
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to update schedule PDF')
+      const error = await response.json() as { error?: string }
+      throw new Error(error.error ?? 'Failed to update schedule PDF')
     }
     
-    return response.json()
+    return response.json() as Promise<Record<string, unknown>>
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string): Promise<void> => {
     const response = await fetch(`/api/admin/data?model=schedulePDF&id=${id}`, {
       method: 'DELETE'
     })
     
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to delete schedule PDF')
+      const error = await response.json() as { error?: string }
+      throw new Error(error.error ?? 'Failed to delete schedule PDF')
     }
   }
 

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Database, Users, GraduationCap, Building, Calendar, Clock, BookOpen, Home, FileText, RotateCcw, Shield, MessageSquare, Settings } from 'lucide-react'
+import { Database, Users, GraduationCap, Building, Calendar, Clock, BookOpen, Home, FileText, RotateCcw, Shield, MessageSquare } from 'lucide-react'
 
 // Import individual model components
 import { StudentTab } from './_components/student-tab'

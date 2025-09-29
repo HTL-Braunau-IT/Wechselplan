@@ -69,7 +69,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const data = await createRecord(model, body)
+    const data = await createRecord(model, body as Record<string, unknown>)
     return NextResponse.json(data)
   } catch (error) {
     console.error(`Error creating ${model}:`, error)
@@ -99,7 +99,7 @@ export async function PUT(request: Request) {
 
   try {
     const body = await request.json()
-    const data = await updateRecord(model, parseInt(id), body)
+    const data = await updateRecord(model, parseInt(id), body as Record<string, unknown>)
     return NextResponse.json(data)
   } catch (error) {
     console.error(`Error updating ${model}:`, error)
@@ -361,9 +361,9 @@ async function getSingleRecord(model: string, id: number) {
   }
 }
 
-async function createRecord(model: string, data: any) {
+async function createRecord(model: string, data: Record<string, unknown>) {
   // Remove id and timestamps from data
-  const { id, createdAt, updatedAt, ...createData } = data
+  const {  ...createData } = data as Record<string, unknown>
 
   switch (model) {
     case 'student':
@@ -405,9 +405,9 @@ async function createRecord(model: string, data: any) {
   }
 }
 
-async function updateRecord(model: string, id: number, data: any) {
+async function updateRecord(model: string, id: number, data: Record<string, unknown>) {
   // Remove id and timestamps from data
-  const { id: _, createdAt, updatedAt, ...updateData } = data
+  const { ...updateData } = data as Record<string, unknown>
 
   switch (model) {
     case 'student':

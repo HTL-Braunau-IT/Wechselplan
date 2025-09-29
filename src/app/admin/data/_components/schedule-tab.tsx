@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { DataTable } from './data-table'
-import { Column } from './data-table'
+import type { Column } from './data-table'
 
 interface Schedule {
   id: number
@@ -11,7 +11,7 @@ interface Schedule {
   startDate: string
   endDate: string
   selectedWeekday: number
-  scheduleData: any
+  scheduleData: Record<string, unknown>
   additionalInfo?: string
   semesterPlanning?: string
   classId?: number
@@ -48,7 +48,7 @@ export function ScheduleTab() {
       setIsLoading(true)
       const response = await fetch('/api/admin/data?model=schedule')
       if (response.ok) {
-        const data = await response.json()
+        const data = await response.json() as Record<string, unknown>[]
         setSchedules(data)
       }
     } catch (error) {
@@ -62,8 +62,11 @@ export function ScheduleTab() {
     try {
       const response = await fetch('/api/admin/data?model=class')
       if (response.ok) {
-        const data = await response.json()
-        setClasses(data.map((c: any) => ({ id: c.id, name: c.name })))
+        const data = await response.json() as Record<string, unknown>[]
+        setClasses(data.map((c: Record<string, unknown>) => ({ 
+          id: c.id as number, 
+          name: c.name as string 
+        })))
       }
     } catch (error) {
       console.error('Error fetching classes:', error)
@@ -71,11 +74,11 @@ export function ScheduleTab() {
   }
 
   useEffect(() => {
-    fetchSchedules()
-    fetchClasses()
+    void fetchSchedules()
+    void fetchClasses()
   }, [])
 
-  const handleCreate = async (data: any) => {
+  const handleCreate = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
     const response = await fetch('/api/admin/data?model=schedule', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -83,14 +86,14 @@ export function ScheduleTab() {
     })
     
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to create schedule')
+      const error = await response.json() as { error?: string }
+      throw new Error(error.error ?? 'Failed to create schedule')
     }
     
-    return response.json()
+    return response.json() as Promise<Record<string, unknown>>
   }
 
-  const handleEdit = async (data: any) => {
+  const handleEdit = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
     const response = await fetch('/api/admin/data?model=schedule', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -98,21 +101,21 @@ export function ScheduleTab() {
     })
     
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to update schedule')
+      const error = await response.json() as { error?: string }
+      throw new Error(error.error ?? 'Failed to update schedule')
     }
     
-    return response.json()
+    return response.json() as Promise<Record<string, unknown>>
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: number): Promise<void> => {
     const response = await fetch(`/api/admin/data?model=schedule&id=${id}`, {
       method: 'DELETE'
     })
     
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to delete schedule')
+      const error = await response.json() as { error?: string }
+      throw new Error(error.error ?? 'Failed to delete schedule')
     }
   }
 

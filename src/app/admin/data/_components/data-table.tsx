@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Badge } from '@/components/ui/badge'
 import { Plus, Edit, Trash2, Search, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -13,7 +12,7 @@ interface Column {
   key: string
   label: string
   type?: 'text' | 'number' | 'date' | 'boolean' | 'select' | 'textarea'
-  options?: { value: any; label: string }[]
+  options?: { value: string | number; label: string }[]
   required?: boolean
   readonly?: boolean
   sortable?: boolean
@@ -22,12 +21,26 @@ interface Column {
 interface DataTableProps {
   model: string
   columns: Column[]
-  data: any[]
+  data: Record<string, unknown>[]
   onRefresh: () => void
-  onEdit: (item: any) => void
-  onDelete: (id: number) => void
-  onCreate: (data: any) => void
+  onEdit: (item: Record<string, unknown>) => Promise<Record<string, unknown>>
+  onDelete: (id: number) => Promise<void>
+  onCreate: (data: Record<string, unknown>) => Promise<Record<string, unknown>>
   isLoading?: boolean
+}
+
+// Helper function to safely convert values to strings
+const safeStringify = (value: unknown): string => {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'object' && value !== null) return JSON.stringify(value)
+  if (typeof value === 'string') return value
+  if (typeof value === 'number') return value.toString()
+  if (typeof value === 'boolean') return value.toString()
+  if (typeof value === 'function') return value.toString()
+  if (typeof value === 'symbol') return value.toString()
+  // This should never be reached due to the type checking above
+  // eslint-disable-next-line @typescript-eslint/no-base-to-string
+  return String(value)
 }
 
 export function DataTable({
@@ -43,12 +56,12 @@ export function DataTable({
   const [searchTerm, setSearchTerm] = useState('')
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [editingItem, setEditingItem] = useState<any>(null)
-  const [formData, setFormData] = useState<Record<string, any>>({})
+  const [editingItem, setEditingItem] = useState<Record<string, unknown> | null>(null)
+  const [formData, setFormData] = useState<Record<string, unknown>>({})
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null)
 
   const filteredAndSortedData = (() => {
-    let filtered = data.filter(item =>
+    const filtered = data.filter(item =>
       Object.values(item).some(value =>
         String(value).toLowerCase().includes(searchTerm.toLowerCase())
       )
@@ -73,8 +86,8 @@ export function DataTable({
         }
         
         // String comparison
-        const aStr = String(aValue).toLowerCase()
-        const bStr = String(bValue).toLowerCase()
+        const aStr = safeStringify(aValue).toLowerCase()
+        const bStr = safeStringify(bValue).toLowerCase()
         
         if (aStr < bStr) return sortConfig.direction === 'asc' ? -1 : 1
         if (aStr > bStr) return sortConfig.direction === 'asc' ? 1 : -1
@@ -110,7 +123,7 @@ export function DataTable({
     setIsCreateDialogOpen(true)
   }
 
-  const handleEdit = (item: any) => {
+  const handleEdit = (item: Record<string, unknown>) => {
     setEditingItem(item)
     setFormData(item)
     setIsEditDialogOpen(true)
@@ -129,7 +142,7 @@ export function DataTable({
       setFormData({})
       onRefresh()
       toast.success(`${model} ${editingItem ? 'updated' : 'created'} successfully`)
-    } catch (error) {
+    } catch {
       toast.error(`Failed to ${editingItem ? 'update' : 'create'} ${model}`)
     }
   }
@@ -140,36 +153,36 @@ export function DataTable({
         await onDelete(id)
         onRefresh()
         toast.success(`${model} deleted successfully`)
-      } catch (error) {
+      } catch {
         toast.error(`Failed to delete ${model}`)
       }
     }
   }
 
-  const formatValue = (value: any, column: Column) => {
+  const formatValue = (value: unknown, column: Column) => {
     if (value === null || value === undefined) return '-'
     
     switch (column.type) {
       case 'date':
-        return new Date(value).toLocaleDateString()
+        return new Date(value as string | number | Date).toLocaleDateString()
       case 'boolean':
         return value ? 'Yes' : 'No'
       case 'select':
         const option = column.options?.find(opt => opt.value === value)
-        return option?.label || value
+        return option?.label ?? safeStringify(value)
       default:
-        return String(value)
+        return safeStringify(value)
     }
   }
 
   const renderFormField = (column: Column) => {
-    const value = formData[column.key] || ''
+    const value = formData[column.key] ?? ''
 
     switch (column.type) {
       case 'textarea':
         return (
           <textarea
-            value={value}
+            value={safeStringify(value)}
             onChange={(e) => setFormData(prev => ({ ...prev, [column.key]: e.target.value }))}
             className="w-full p-2 border rounded"
             rows={3}
@@ -180,7 +193,7 @@ export function DataTable({
       case 'select':
         return (
           <select
-            value={value}
+            value={safeStringify(value)}
             onChange={(e) => setFormData(prev => ({ ...prev, [column.key]: e.target.value }))}
             className="w-full p-2 border rounded"
             required={column.required}
@@ -188,7 +201,7 @@ export function DataTable({
           >
             <option value="">Select {column.label}</option>
             {column.options?.map(option => (
-              <option key={option.value} value={option.value}>
+              <option key={String(option.value)} value={String(option.value)}>
                 {option.label}
               </option>
             ))}
@@ -198,7 +211,7 @@ export function DataTable({
         return (
           <Input
             type="number"
-            value={value}
+            value={safeStringify(value)}
             onChange={(e) => setFormData(prev => ({ ...prev, [column.key]: Number(e.target.value) }))}
             required={column.required}
             readOnly={column.readonly}
@@ -208,7 +221,7 @@ export function DataTable({
         return (
           <Input
             type="datetime-local"
-            value={value ? new Date(value).toISOString().slice(0, 16) : ''}
+            value={value ? new Date(value as string | number | Date).toISOString().slice(0, 16) : ''}
             onChange={(e) => setFormData(prev => ({ ...prev, [column.key]: new Date(e.target.value) }))}
             required={column.required}
             readOnly={column.readonly}
@@ -218,7 +231,7 @@ export function DataTable({
         return (
           <input
             type="checkbox"
-            checked={value}
+            checked={Boolean(value)}
             onChange={(e) => setFormData(prev => ({ ...prev, [column.key]: e.target.checked }))}
             disabled={column.readonly}
           />
@@ -226,7 +239,7 @@ export function DataTable({
       default:
         return (
           <Input
-            value={value}
+            value={safeStringify(value)}
             onChange={(e) => setFormData(prev => ({ ...prev, [column.key]: e.target.value }))}
             required={column.required}
             readOnly={column.readonly}
@@ -312,7 +325,7 @@ export function DataTable({
           </TableHeader>
           <TableBody>
             {filteredAndSortedData.map((item, index) => (
-              <TableRow key={item.id || index}>
+              <TableRow key={(item.id as number) ?? index}>
                 {columns.map(column => (
                   <TableCell key={column.key}>
                     {formatValue(item[column.key], column)}
@@ -330,7 +343,7 @@ export function DataTable({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleDelete(item.id)}
+                      onClick={() => handleDelete((item.id as number) ?? 0)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { DataTable } from './data-table'
-import { Column } from './data-table'
+import type { Column } from './data-table'
 
 interface SchoolHoliday {
   id: number
@@ -31,7 +31,7 @@ export function SchoolHolidayTab() {
       setIsLoading(true)
       const response = await fetch('/api/admin/data?model=schoolHoliday')
       if (response.ok) {
-        const data = await response.json()
+        const data = await response.json() as Record<string, unknown>[]
         setSchoolHolidays(data)
       }
     } catch (error) {
@@ -42,10 +42,10 @@ export function SchoolHolidayTab() {
   }
 
   useEffect(() => {
-    fetchSchoolHolidays()
+    void fetchSchoolHolidays()
   }, [])
 
-  const handleCreate = async (data: any) => {
+  const handleCreate = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
     const response = await fetch('/api/admin/data?model=schoolHoliday', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -53,14 +53,14 @@ export function SchoolHolidayTab() {
     })
     
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to create school holiday')
+      const error = await response.json() as { error?: string }
+      throw new Error(error.error ?? 'Failed to create school holiday')
     }
     
-    return response.json()
+    return response.json() as Promise<Record<string, unknown>>
   }
 
-  const handleEdit = async (data: any) => {
+  const handleEdit = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
     const response = await fetch('/api/admin/data?model=schoolHoliday', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -68,21 +68,21 @@ export function SchoolHolidayTab() {
     })
     
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to update school holiday')
+      const error = await response.json() as { error?: string }
+      throw new Error(error.error ?? 'Failed to update school holiday')
     }
     
-    return response.json()
+    return response.json() as Promise<Record<string, unknown>>
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: number): Promise<void> => {
     const response = await fetch(`/api/admin/data?model=schoolHoliday&id=${id}`, {
       method: 'DELETE'
     })
     
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to delete school holiday')
+      const error = await response.json() as { error?: string }
+      throw new Error(error.error ?? 'Failed to delete school holiday')
     }
   }
 

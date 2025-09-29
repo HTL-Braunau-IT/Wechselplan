@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { DataTable } from './data-table'
-import { Column } from './data-table'
+import type { Column } from './data-table'
 
 interface UserRole {
   id: number
@@ -37,7 +37,7 @@ export function UserRoleTab() {
       setIsLoading(true)
       const response = await fetch('/api/admin/data?model=userRole')
       if (response.ok) {
-        const data = await response.json()
+        const data = await response.json() as Record<string, unknown>[]
         setUserRoles(data)
       }
     } catch (error) {
@@ -51,8 +51,11 @@ export function UserRoleTab() {
     try {
       const response = await fetch('/api/admin/data?model=role')
       if (response.ok) {
-        const data = await response.json()
-        setRoles(data.map((r: any) => ({ id: r.id, name: r.name })))
+        const data = await response.json() as Record<string, unknown>[]
+        setRoles(data.map((r: Record<string, unknown>) => ({ 
+          id: r.id as number, 
+          name: r.name as string 
+        })))
       }
     } catch (error) {
       console.error('Error fetching roles:', error)
@@ -60,11 +63,11 @@ export function UserRoleTab() {
   }
 
   useEffect(() => {
-    fetchUserRoles()
-    fetchRoles()
+    void fetchUserRoles()
+    void fetchRoles()
   }, [])
 
-  const handleCreate = async (data: any) => {
+  const handleCreate = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
     const response = await fetch('/api/admin/data?model=userRole', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -72,14 +75,14 @@ export function UserRoleTab() {
     })
     
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to create user role')
+      const error = await response.json() as { error?: string }
+      throw new Error(error.error ?? 'Failed to create user role')
     }
     
-    return response.json()
+    return response.json() as Promise<Record<string, unknown>>
   }
 
-  const handleEdit = async (data: any) => {
+  const handleEdit = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
     const response = await fetch('/api/admin/data?model=userRole', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -87,21 +90,21 @@ export function UserRoleTab() {
     })
     
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to update user role')
+      const error = await response.json() as { error?: string }
+      throw new Error(error.error ?? 'Failed to update user role')
     }
     
-    return response.json()
+    return response.json() as Promise<Record<string, unknown>>
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: number): Promise<void> => {
     const response = await fetch(`/api/admin/data?model=userRole&id=${id}`, {
       method: 'DELETE'
     })
     
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to delete user role')
+      const error = await response.json() as { error?: string }
+      throw new Error(error.error ?? 'Failed to delete user role')
     }
   }
 
