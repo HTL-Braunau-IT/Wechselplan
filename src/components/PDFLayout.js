@@ -10,12 +10,12 @@ const GROUP_COLORS = [
 
 const styles = StyleSheet.create({
   page: {
-    padding: 20,
+    padding: 15,
     fontSize: 8,
     fontFamily: 'Helvetica',
   },
   section: {
-    marginBottom: 20,
+    marginBottom: 8,
   },
   table: {
     width: 'auto',
@@ -32,18 +32,57 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderLeftWidth: 0,
     borderTopWidth: 0,
-    padding: 4,
+    padding: 3,
     flexGrow: 1,
     textAlign: 'center',
   },
   tableHeader: {
     fontWeight: 'bold',
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#f8f9fa',
+    fontSize: 8,
   },
   title: {
-    fontSize: 12,
+    fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 10,
+    textAlign: 'center',
+  },
+  studentName: {
+    fontSize: 6,
+    lineHeight: 1.2,
+  },
+  teacherName: {
+    fontSize: 7,
+    lineHeight: 1.3,
+  },
+  turnusHeader: {
+    fontSize: 6,
+    lineHeight: 1,
+  },
+  infoSection: {
+    fontSize: 8,
+    marginTop: 8,
+  },
+  groupContainer: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  groupTable: {
+    width: '24%',
+    marginRight: '1%',
+  },
+  scheduleContainer: {
+    flexDirection: 'column',
+    marginBottom: 6,
+  },
+  scheduleTable: {
+    width: '100%',
+    marginBottom: 6,
+  },
+  compactTurnusHeader: {
+    fontSize: 6,
+    lineHeight: 1.1,
+    textAlign: 'center',
   },
 });
 
@@ -71,17 +110,19 @@ function renderScheduleTable(period, assignments, turns, getTurnusInfo, getGroup
           <Text style={{ ...styles.tableCol, ...styles.tableHeader, width: '10%' }}>Lehrinhalt</Text>
           <Text style={{ ...styles.tableCol, ...styles.tableHeader, width: '10%' }}>Raum</Text>
           {Object.keys(turns).map((turn, turnIdx) => {
-            const { start, end } = getTurnusInfo(turn);
+            const { start, end, days } = getTurnusInfo(turn);
+            // The 'days' value from getTurnusInfo is actually the number of weeks, not days
+            const weeks = days || 0;
             return (
-              <Text key={turn} style={{ ...styles.tableCol, ...styles.tableHeader, width: `${60 / Object.keys(turns).length}%` }}>
-                Turnus {turnIdx + 1} ({start} - {end})
+              <Text key={turn} style={{ ...styles.tableCol, ...styles.tableHeader, ...styles.compactTurnusHeader, width: `${60 / Object.keys(turns).length}%` }}>
+                T{turnIdx + 1}{'\n'}{start}-{end}{'\n'}({weeks}W)
               </Text>
             );
           })}
         </View>
         {assignments.map((assignment, teacherIdx) => (
           <View style={styles.tableRow} key={assignment.teacherId}>
-            <Text style={{ ...styles.tableCol, width: '10%' }}>{assignment.teacherLastName}, {assignment.teacherFirstName}</Text>
+            <Text style={{ ...styles.tableCol, ...styles.teacherName, width: '10%' }}>{assignment.teacherLastName}, {assignment.teacherFirstName}</Text>
             <Text style={{ ...styles.tableCol, width: '10%' }}>{assignment.subjectName ?? ''}</Text>
             <Text style={{ ...styles.tableCol, width: '10%' }}>{assignment.learningContentName ?? ''}</Text>
             <Text style={{ ...styles.tableCol, width: '10%' }}>{assignment.roomName ?? ''}</Text>
@@ -134,63 +175,81 @@ const PDFLayout = ({
   classHead = '—',
   classLead = '—',
   additionalInfo = '—'
-}) => (
-  <Document>
-    <Page size="A4" orientation="landscape" style={styles.page}>
-      {/* Gruppenübersicht */}
-      <View style={[styles.section]}>
+}) => {
+  return (
+    <Document>
+      <Page size="A4" orientation="landscape" style={styles.page}>
+        {/* Header */}
         <Text style={styles.title}>Wechselplan {className}</Text>
-        <View style={[styles.table, { width: '60%' }]}>
-          <View style={[styles.tableRow]}>
+        
+        {/* Student Groups - All groups in one row */}
+        <View style={styles.section}>
+          <View style={styles.groupContainer}>
             {groups.map((group) => (
-              <Text 
-                key={group.id} 
-                style={{ 
-                  ...styles.tableCol, 
-                  ...styles.tableHeader, 
-                  width: `${100/groups.length}%`,
-                  backgroundColor: GROUP_COLORS[(group.id - 1) % GROUP_COLORS.length]
-                }}
-              >
-                Gruppe {group.id}
-              </Text>
+              <View key={group.id} style={styles.groupTable}>
+                <View style={styles.table}>
+                  <View style={styles.tableRow}>
+                    <Text 
+                      style={{ 
+                        ...styles.tableCol, 
+                        ...styles.tableHeader,
+                        backgroundColor: GROUP_COLORS[(group.id - 1) % GROUP_COLORS.length],
+                        fontSize: 8
+                      }}
+                    >
+                      Gruppe {group.id}
+                    </Text>
+                  </View>
+                  {[...Array(12)].map((_, idx) => {
+                    const student = group.students[idx];
+                    return (
+                      <View style={styles.tableRow} key={idx}>
+                        <Text 
+                          style={{ 
+                            ...styles.tableCol, 
+                            ...styles.studentName,
+                            backgroundColor: GROUP_COLORS[(group.id - 1) % GROUP_COLORS.length]
+                          }}
+                        >
+                          {student 
+                            ? `${idx + 1}. ${student.lastName} ${student.firstName}`
+                            : `${idx + 1}. -`
+                          }
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
             ))}
           </View>
-          {[...Array(maxStudents)].map((_, rowIdx) => (
-            <View style={[styles.tableRow]} key={rowIdx} >
-              {groups.map((group) => (
-                <Text 
-                  key={group.id} 
-                  style={{ 
-                    ...styles.tableCol, 
-                    width: `${100/groups.length}%`,
-                    backgroundColor: GROUP_COLORS[(group.id - 1) % GROUP_COLORS.length]
-                  }}
-                >
-                  {group.students[rowIdx]
-                    ? `${rowIdx + 1}. ${group.students[rowIdx].lastName} ${group.students[rowIdx].firstName}`
-                    : ''}
-                </Text>
-              ))}
-            </View>
-          ))}
         </View>
-        <View style={{ marginTop: 10, fontSize: 10, fontFamily: 'Helvetica'}}>
-          <Text> Klassenvorstand: {classHead}    Klassenleitung: {classLead}</Text>
+
+        {/* Class Information */}
+        <View style={styles.infoSection}>
+          <Text>Klassenvorstand: {classHead}    Klassenleitung: {classLead}</Text>
           <Text>  </Text>
           <Text>
             <Text style={{ fontWeight: 'bold' }}>Zusätzliche Informationen:</Text>
             {'\n'}
-            <Text style={{ marginTop: 4 }}>{additionalInfo}</Text>
+            <Text style={{ marginTop: 2 }}>{additionalInfo}</Text>
           </Text>
         </View>
-      </View>
-      {/* AM Schedule Table */}
-      {renderScheduleTable('AM', amAssignments, turns, getTurnusInfo, getGroupForTeacherAndTurn, groups, styles)}
-      {/* PM Schedule Table */}
-      {renderScheduleTable('PM', pmAssignments, turns, getTurnusInfo, getGroupForTeacherAndTurn, groups, styles)}
-    </Page>
-  </Document>
-);
+
+        {/* Schedule Tables - Side by side */}
+        <View style={styles.scheduleContainer}>
+          {/* AM Schedule Table */}
+          <View style={styles.scheduleTable}>
+            {renderScheduleTable('AM', amAssignments, turns, getTurnusInfo, getGroupForTeacherAndTurn, groups, styles)}
+          </View>
+          {/* PM Schedule Table */}
+          <View style={styles.scheduleTable}>
+            {renderScheduleTable('PM', pmAssignments, turns, getTurnusInfo, getGroupForTeacherAndTurn, groups, styles)}
+          </View>
+        </View>
+      </Page>
+    </Document>
+  );
+};
 
 export default PDFLayout;

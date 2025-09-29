@@ -31,7 +31,7 @@ export function SupportMessageTab() {
       setIsLoading(true)
       const response = await fetch('/api/admin/data?model=supportMessage')
       if (response.ok) {
-        const data = await response.json() as Record<string, unknown>[]
+        const data = await response.json() as SupportMessage[]
         setSupportMessages(data)
       }
     } catch (error) {
@@ -90,7 +90,7 @@ export function SupportMessageTab() {
     <DataTable
       model="Support Message"
       columns={columns}
-      data={supportMessages}
+      data={supportMessages as unknown as Record<string, unknown>[]}
       onRefresh={fetchSupportMessages}
       onEdit={handleEdit}
       onDelete={handleDelete}

@@ -28,7 +28,7 @@ export function SchedulePDFTab() {
       setIsLoading(true)
       const response = await fetch('/api/admin/data?model=schedulePDF')
       if (response.ok) {
-        const data = await response.json() as Record<string, unknown>[]
+        const data = await response.json() as SchedulePDF[]
         setSchedulePDFs(data)
       }
     } catch (error) {
@@ -72,7 +72,7 @@ export function SchedulePDFTab() {
     return response.json() as Promise<Record<string, unknown>>
   }
 
-  const handleDelete = async (id: string): Promise<void> => {
+  const handleDelete = async (id: number): Promise<void> => {
     const response = await fetch(`/api/admin/data?model=schedulePDF&id=${id}`, {
       method: 'DELETE'
     })
@@ -87,7 +87,7 @@ export function SchedulePDFTab() {
     <DataTable
       model="Schedule PDF"
       columns={columns}
-      data={schedulePDFs}
+      data={schedulePDFs as unknown as Record<string, unknown>[]}
       onRefresh={fetchSchedulePDFs}
       onEdit={handleEdit}
       onDelete={handleDelete}

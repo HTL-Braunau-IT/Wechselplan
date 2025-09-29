@@ -29,7 +29,7 @@ export function SubjectTab() {
       setIsLoading(true)
       const response = await fetch('/api/admin/data?model=subject')
       if (response.ok) {
-        const data = await response.json() as Record<string, unknown>[]
+        const data = await response.json() as Subject[]
         setSubjects(data)
       }
     } catch (error) {
@@ -88,7 +88,7 @@ export function SubjectTab() {
     <DataTable
       model="Subject"
       columns={columns}
-      data={subjects}
+      data={subjects as unknown as Record<string, unknown>[]}
       onRefresh={fetchSubjects}
       onEdit={handleEdit}
       onDelete={handleDelete}

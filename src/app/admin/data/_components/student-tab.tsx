@@ -47,7 +47,7 @@ export function StudentTab() {
       setIsLoading(true)
       const response = await fetch('/api/admin/data?model=student')
       if (response.ok) {
-        const data = await response.json() as Record<string, unknown>[] as Student[]
+        const data = await response.json() as unknown as Student[]
         setStudents(data)
       }
     } catch (error) {
@@ -119,7 +119,7 @@ export function StudentTab() {
     <DataTable
       model="Student"
       columns={columns}
-      data={students}
+      data={students as unknown as Record<string, unknown>[]}
       onRefresh={fetchStudents}
       onEdit={handleEdit}
       onDelete={handleDelete}
