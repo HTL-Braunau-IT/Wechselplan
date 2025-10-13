@@ -385,17 +385,68 @@ export default function ScheduleClassSelectPage() {
 	useEffect(() => {
 		if (students.length === 0) return
 
-		// Redistribute if we don't have existing assignments OR if it's a manual group change
-		if (!hasExistingAssignmentsRef.current || isManualGroupChange) {
-			// For new groups or manual changes, distribute all students evenly using the new function
-			const newGroups = distributeStudentsEvenly(students, numberOfGroups)
-			setGroups(newGroups)
-			// Reset the manual change flag after redistribution
-			if (isManualGroupChange) {
-				setIsManualGroupChange(false)
-			}
+		// Only handle manual group changes, not initial load
+		if (isManualGroupChange) {
+			setGroups(currentGroups => {
+				const unassignedGroup = currentGroups.find(g => g.id === UNASSIGNED_GROUP_ID) ?? 
+					{ id: UNASSIGNED_GROUP_ID, students: [] }
+				
+				const regularGroups = currentGroups.filter(g => g.id !== UNASSIGNED_GROUP_ID)
+				const currentGroupCount = regularGroups.length
+				
+				if (numberOfGroups > currentGroupCount) {
+					// Increasing groups: keep existing assignments, add empty groups
+					const newGroups = [...regularGroups]
+					for (let i = currentGroupCount; i < numberOfGroups; i++) {
+						newGroups.push({
+							id: i + 1,
+							students: []
+						})
+					}
+					return [unassignedGroup, ...newGroups]
+				} else if (numberOfGroups < currentGroupCount) {
+					// Decreasing groups: redistribute students from removed groups
+					const groupsToKeep = regularGroups.slice(0, numberOfGroups)
+					const groupsToRemove = regularGroups.slice(numberOfGroups)
+					
+					// Collect students from groups being removed
+					const studentsToRedistribute = groupsToRemove.flatMap(group => group.students)
+					
+					// Try to redistribute students to remaining groups
+					const newGroups = [...groupsToKeep]
+					const studentsToUnassign: Student[] = []
+					
+					for (const student of studentsToRedistribute) {
+						// Find a group with space
+						const targetGroup = newGroups.find(group => group.students.length < MAX_GROUP_SIZE)
+						if (targetGroup) {
+							targetGroup.students.push(student)
+							// Keep groups sorted by last name
+							targetGroup.students.sort((a, b) => a.lastName.localeCompare(b.lastName))
+						} else {
+							// No space in any group, move to unassigned
+							studentsToUnassign.push(student)
+						}
+					}
+					
+					// Add students that couldn't fit to unassigned group
+					const updatedUnassignedGroup = {
+						...unassignedGroup,
+						students: [...unassignedGroup.students, ...studentsToUnassign].sort((a, b) => 
+							a.lastName.localeCompare(b.lastName)
+						)
+					}
+					
+					return [updatedUnassignedGroup, ...newGroups]
+				}
+				
+				// No change in group count
+				return currentGroups
+			})
+			
+			// Reset the manual change flag after handling
+			setIsManualGroupChange(false)
 		}
-		// If we have existing assignments and it's not a manual change, don't modify them
 	}, [numberOfGroups, students, isManualGroupChange])
 
 	// Add a new effect to handle group ID updates - only for new assignments or manual changes
@@ -410,13 +461,22 @@ export default function ScheduleClassSelectPage() {
 					.filter(g => g.id !== UNASSIGNED_GROUP_ID)
 					.sort((a, b) => a.id - b.id)        // keep deterministic order
 
-				return [
-					unassignedGroup!,
-					...regularGroups.map((group, index) => ({
-						...group,
-						id: index + 1
-					}))
-				]
+				// Only renumber if we have groups that need renumbering
+				// (i.e., if we have more groups than expected or gaps in numbering)
+				const needsRenumbering = regularGroups.some((group, index) => group.id !== index + 1) ||
+					regularGroups.length !== numberOfGroups
+
+				if (needsRenumbering) {
+					return [
+						unassignedGroup!,
+						...regularGroups.slice(0, numberOfGroups).map((group, index) => ({
+							...group,
+							id: index + 1
+						}))
+					]
+				}
+
+				return currentGroups
 			})
 		}
 		// If we have existing assignments and it's not a manual change, preserve the original group IDs from the database
@@ -919,12 +979,8 @@ export default function ScheduleClassSelectPage() {
 													className="border rounded px-2 py-1"
 												>
 													<option value="2">2</option>
-													{students.length > 12 && (
-														<option value="3">3</option>
-													)}
-													{students.length > 18 && (
-														<option value="4">4</option>
-													)}
+													<option value="3">3</option>
+													<option value="4">4</option>
 												</select>
 											</div>
 											<Button

@@ -71,6 +71,12 @@ export async function GET(request: Request) {
 			]
 		})
 
+		// Get all group assignments for this class (including empty groups)
+		const groupAssignments = await prisma.groupAssignment.findMany({
+			where: { class: className },
+			orderBy: { groupId: 'asc' }
+		})
+
 		// Group students by their groupId
 		const groups = new Map<number, typeof students>()
 		students.forEach(student => {
@@ -82,10 +88,10 @@ export async function GET(request: Request) {
 			}
 		})
 
-		// Convert to the expected format
-		const assignments: Assignment[] = Array.from(groups.entries()).map(([groupId, students]) => ({
-			groupId,
-			studentIds: students.map((s: { id: number }) => s.id)
+		// Convert to the expected format, including empty groups
+		const assignments: Assignment[] = groupAssignments.map(groupAssignment => ({
+			groupId: groupAssignment.groupId,
+			studentIds: groups.get(groupAssignment.groupId)?.map((s: { id: number }) => s.id) ?? []
 		}))
 
 		return NextResponse.json({
@@ -206,6 +212,26 @@ export async function POST(request: Request) {
 				{ error: 'Class not found' },
 				{ status: 404 }
 			)
+		}
+
+		// First, ensure all groups exist in GroupAssignment table
+		const groupIds = assignments.map(a => a.groupId).filter(id => id !== 0) // Exclude unassigned group
+		
+		// Create or update GroupAssignment records for all groups
+		for (const groupId of groupIds) {
+			await prisma.groupAssignment.upsert({
+				where: {
+					class_groupId: {
+						class: className,
+						groupId: groupId
+					}
+				},
+				update: {},
+				create: {
+					groupId: groupId,
+					class: className
+				}
+			})
 		}
 
 		// Update each student's groupId
