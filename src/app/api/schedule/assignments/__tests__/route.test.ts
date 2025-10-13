@@ -15,6 +15,10 @@ vi.mock('@/lib/prisma', () => ({
       findMany: vi.fn(),
       updateMany: vi.fn(),
     },
+    groupAssignment: {
+      findMany: vi.fn(),
+      upsert: vi.fn(),
+    },
   },
 }));
 
@@ -74,6 +78,25 @@ describe('Schedule Assignments API', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       });
+
+      // Mock group assignments data
+      const findManyGroupAssignmentsMock = vi.mocked(prisma.groupAssignment.findMany);
+      findManyGroupAssignmentsMock.mockResolvedValue([
+        {
+          id: 1,
+          groupId: 1,
+          class: '1A',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: 2,
+          groupId: 2,
+          class: '1A',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]);
 
       // Mock students data
       const findManyStudentsMock = vi.mocked(prisma.student.findMany);
@@ -215,6 +238,16 @@ describe('Schedule Assignments API', () => {
         id: 1,
         name: '1A',
         description: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      // Mock groupAssignment upsert
+      const upsertGroupAssignmentMock = vi.mocked(prisma.groupAssignment.upsert);
+      upsertGroupAssignmentMock.mockResolvedValue({
+        id: 1,
+        groupId: 1,
+        class: '1A',
         createdAt: new Date(),
         updatedAt: new Date(),
       });
