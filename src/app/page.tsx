@@ -1,4 +1,5 @@
 'use client'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSession, signIn } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
@@ -6,6 +7,8 @@ import { LogIn } from 'lucide-react'
 import React from 'react'
 import { TeacherOverview } from '@/components/overviews/teacher'
 import { StudentOverview } from '@/components/overviews/students'
+import { ChangelogDialog } from '@/components/changelog-dialog'
+import { useGitHubVersion } from '@/hooks/use-github-version'
 
 
 
@@ -17,6 +20,8 @@ import { StudentOverview } from '@/components/overviews/students'
 export default function Home() {
   const { t } = useTranslation()
   const { data: session } = useSession()
+  const [isChangelogOpen, setIsChangelogOpen] = useState(false)
+  const { version, release, loading } = useGitHubVersion()
 
   if (!session) {
     return (
@@ -42,9 +47,20 @@ export default function Home() {
           </h1>
 
           <div className="text-sm text-gray-400 dark:text-gray-500">
-            <div>Version: {process.env.NEXT_PUBLIC_APP_VERSION ?? '0.0.0'}</div>
-            <div>Build: {process.env.NEXT_PUBLIC_BUILD_DATE ? new Date(process.env.NEXT_PUBLIC_BUILD_DATE).toLocaleDateString('de-DE') : 'N/A'}</div>
+            <button
+              onClick={() => setIsChangelogOpen(true)}
+              className="hover:text-gray-600 dark:hover:text-gray-300 transition-colors cursor-pointer"
+              title="Click to view changelog"
+              disabled={loading || !release}
+            >
+              Version: v{version.startsWith('v') ? version.slice(1) : version}
+            </button>
           </div>
+          <ChangelogDialog
+            release={release}
+            open={isChangelogOpen}
+            onOpenChange={setIsChangelogOpen}
+          />
         </div>
         <p className="text-lg text-muted-foreground dark:text-gray-400">
             {new Date().toLocaleDateString('de-DE', {
