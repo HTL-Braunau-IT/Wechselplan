@@ -14,6 +14,9 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    env:
+      SKIP_ENV_VALIDATION: true
+
     strategy:
       matrix:
         node-version: [22.x]
