@@ -38,6 +38,7 @@
     "admin": "Administration",
     "createSchedule": "Wechselplan erstellen",
     "classSettings": "Klasseneinstellungen",
+    "notensammler": "Notensammler",
      "support": "Hilfe & Support"
   },
   "overview": {
@@ -288,5 +289,16 @@
       "admin": "Administrator"
     },
     "logout": "Abmelden"
+  },
+  "notensammler": {
+    "title": "Notensammler",
+    "selectClass": "Klasse auswählen",
+    "selectClassPlaceholder": "Bitte Klasse auswählen...",
+    "id": "ID",
+    "group": "Gruppe",
+    "average": "Durchschnitt",
+    "firstSemester": "1. Semester",
+    "secondSemester": "2. Semester",
+    "saving": "Speichere..."
   }
 } 

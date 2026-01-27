@@ -17,6 +17,7 @@ model Student {
   updatedAt DateTime @updatedAt
   username  String   @unique
   class     Class?   @relation(fields: [classId], references: [id])
+  grades    Grade[]
 
   @@index([firstName, lastName])
   @@index([groupId])
@@ -34,6 +35,7 @@ model Teacher {
   assignments TeacherAssignment[]
   headClasses Class[]             @relation("ClassHead")
   leadClasses Class[]             @relation("ClassLead")
+  grades      Grade[]
 
   @@index([firstName, lastName])
 }
@@ -49,6 +51,7 @@ model Class {
   schedules   Schedule[]
   students    Student[]
   assignments TeacherAssignment[]
+  grades      Grade[]
   classHead   Teacher?            @relation("ClassHead", fields: [classHeadId], references: [id])
   classLead   Teacher?            @relation("ClassLead", fields: [classLeadId], references: [id])
 
@@ -235,4 +238,24 @@ model SupportMessage {
   currentUri String?
 
   @@index([createdAt])
+}
+
+model Grade {
+  id        Int      @id @default(autoincrement())
+  studentId Int
+  teacherId Int
+  classId   Int
+  semester  String   // 'first' or 'second'
+  grade     Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  student   Student  @relation(fields: [studentId], references: [id])
+  teacher   Teacher  @relation(fields: [teacherId], references: [id])
+  class     Class    @relation(fields: [classId], references: [id])
+
+  @@unique([studentId, teacherId, classId, semester])
+  @@index([studentId])
+  @@index([teacherId])
+  @@index([classId])
+  @@index([semester])
 }
