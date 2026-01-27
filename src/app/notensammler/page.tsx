@@ -34,14 +34,10 @@ interface Class {
 	pmTeachers: Teacher[]
 }
 
-interface GradesData {
-	[studentId: number]: {
-		[teacherId: number]: {
-			first: number | null
-			second: number | null
-		}
-	}
-}
+type GradesData = Record<number, Record<number, {
+	first: number | null
+	second: number | null
+}>>
 
 const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
 
@@ -107,12 +103,8 @@ export default function NotensammlerPage() {
 			try {
 				const teacherResponse = await fetch(`/api/teachers/by-username?username=${session.user.name}`)
 				if (teacherResponse.ok) {
-					const teacher = await teacherResponse.json()
-					if (teacher) {
-						setCurrentTeacherId(teacher.id)
-					} else {
-						setCurrentTeacherId(null)
-					}
+				const teacher = await teacherResponse.json() as { id: number } | null
+				setCurrentTeacherId(teacher?.id ?? null)
 				} else {
 					setCurrentTeacherId(null)
 				}
@@ -192,19 +184,15 @@ export default function NotensammlerPage() {
 			})
 
 			if (!response.ok) {
-				const errorData = await response.json()
-				throw new Error(errorData.error || 'Failed to save grade')
+				const errorData = await response.json() as { error?: string }
+				throw new Error(errorData.error ?? 'Failed to save grade')
 			}
 
 			// Update local state
 			setGrades(prev => {
 				const newGrades = { ...prev }
-				if (!newGrades[studentId]) {
-					newGrades[studentId] = {}
-				}
-				if (!newGrades[studentId][teacherId]) {
-					newGrades[studentId][teacherId] = { first: null, second: null }
-				}
+				newGrades[studentId] ??= {}
+				newGrades[studentId][teacherId] ??= { first: null, second: null }
 				newGrades[studentId][teacherId][semester] = grade
 				return newGrades
 			})
@@ -230,12 +218,8 @@ export default function NotensammlerPage() {
 		// Update local state immediately for responsive UI
 		setGrades(prev => {
 			const newGrades = { ...prev }
-			if (!newGrades[studentId]) {
-				newGrades[studentId] = {}
-			}
-			if (!newGrades[studentId][teacherId]) {
-				newGrades[studentId][teacherId] = { first: null, second: null }
-			}
+			newGrades[studentId] ??= {}
+			newGrades[studentId][teacherId] ??= { first: null, second: null }
 
 			// Parse and validate grade
 			if (value === '' || value === null || value === undefined) {
