@@ -10,25 +10,23 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
-
+  build-alpine:
     runs-on: ubuntu-latest
 
     env:
       SKIP_ENV_VALIDATION: true
 
-    strategy:
-      matrix:
-        node-version: [22.x]
-        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
-
     steps:
     - uses: actions/checkout@v4
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-    - run: npm ci
-    - run: npm run build --if-present
-    - run: npm test
+    - name: Build and test on Alpine Linux
+      run: |
+        docker run --rm \
+          -v ${{ github.workspace }}:/app \
+          -w /app \
+          -e SKIP_ENV_VALIDATION=true \
+          node:22-alpine sh -c "
+            apk add --no-cache python3 make g++ libc6-compat openssl &&
+            npm ci --legacy-peer-deps &&
+            npm run build --if-present &&
+            npm test
+          "
