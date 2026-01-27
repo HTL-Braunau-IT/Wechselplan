@@ -1,5 +1,4 @@
 import React from 'react';
-import * as Sentry from '@sentry/nextjs';
 import { useTranslation } from 'react-i18next';
 
 interface ErrorBoundaryProps {
@@ -27,16 +26,8 @@ class ErrorBoundaryBase extends React.Component<ErrorBoundaryProps, State> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    Sentry.captureException(error, {
-      extra: {
-        componentStack: errorInfo.componentStack,
-      },
-      tags: {
-        location: 'frontend',
-        type: 'react-error-boundary',
-      },
-    });
+  componentDidCatch(_error: Error, _errorInfo: React.ErrorInfo) {
+    // Error logging removed - Sentry has been removed
   }
 
   render() {

@@ -5,7 +5,6 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import "./src/env.js";
-import { withSentryConfig } from "@sentry/nextjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -48,6 +47,7 @@ const nextConfig = {
   // Add configuration for Node.js runtime
   serverExternalPackages: ['ldapjs'],
   experimental: {
+    useLightningcss: false,
     serverActions: {
       allowedOrigins: ['*']
     }
@@ -61,16 +61,4 @@ const nextConfig = {
   }
 };
 
-const sentryWebpackPluginOptions = {
-  silent: true,
-  org: "sentry",
-  project: "internal",
-  authToken: process.env.SENTRY_AUTH_TOKEN,
-  url: "http://sentry.htl-braunau.at/",
-  widenClientFileUpload: true,
-  tunnelRoute: "/monitoring",
-  disableLogger: true,
-  hideSourceMaps: true,
-};
-
-export default withSentryConfig(nextConfig, sentryWebpackPluginOptions);
+export default nextConfig;

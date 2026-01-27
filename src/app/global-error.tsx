@@ -1,27 +1,23 @@
 "use client";
 
-import * as Sentry from "@sentry/nextjs";
 import NextError from "next/error";
-import { useEffect } from "react";
 
 /**
- * Displays a generic error page and reports the error to Sentry in a Next.js application.
+ * Displays a generic error page in a Next.js application.
  *
- * @param error - The error object to report and display.
+ * @param error - The error object to display.
  * @param reset - A callback intended to reset error state, though not used within this component.
  *
  * @remark
  * Always renders a generic error message because the App Router does not provide HTTP status codes for errors.
  */
 export default function GlobalError({
-  error,
+  error: _error,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  useEffect(() => {
-    Sentry.captureException(error);
-  }, [error]);
+  // Error logging removed - Sentry has been removed
 
   return (
     <html>

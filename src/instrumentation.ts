@@ -1,13 +1,9 @@
-import * as Sentry from '@sentry/nextjs';
-
+// No-op implementation - Sentry has been removed
 export async function register() {
-  if (process.env.NEXT_RUNTIME === 'nodejs') {
-    await import('../sentry.server.config');
-  }
-
-  if (process.env.NEXT_RUNTIME === 'edge') {
-    await import('../sentry.edge.config');
-  }
+  // Do nothing - Sentry has been removed
 }
 
-export const onRequestError = Sentry.captureRequestError;
+// No-op error handler
+export const onRequestError = () => {
+  // Do nothing - Sentry has been removed
+};
