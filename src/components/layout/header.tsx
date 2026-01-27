@@ -9,6 +9,8 @@ import { ThemeToggle } from '~/components/theme-toggle'
 import { useSession, signIn, signOut } from 'next-auth/react'
 import { Button } from '~/components/ui/button'
 import { SupportDialog } from '~/components/support-dialog'
+import { ChangelogDialog } from '~/components/changelog-dialog'
+import { useGitHubVersion } from '~/hooks/use-github-version'
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -27,10 +29,16 @@ import {
  */
 export function Header() {
 	const [isMenuOpen, setIsMenuOpen] = useState(false)
+	const [isChangelogOpen, setIsChangelogOpen] = useState(false)
 	const { t } = useTranslation()
 	const { data: session } = useSession()
 
-
+	const { version, release, loading } = useGitHubVersion((newRelease) => {
+		// Auto-open modal when version changes
+		if (newRelease) {
+			setIsChangelogOpen(true)
+		}
+	})
 
 	const toggleMenu = () => {
 		setIsMenuOpen(!isMenuOpen)
@@ -63,19 +71,22 @@ export function Header() {
 						{/* Support Dialog */}
 						<SupportDialog />
 
-						{/* Version Info */}
-						<div className="text-xs text-muted-foreground">
-							<div>v{process.env.NEXT_PUBLIC_APP_VERSION ?? '0.0.0'}</div>
-							<div>
-								{process.env.NEXT_PUBLIC_BUILD_DATE 
-									? new Date(process.env.NEXT_PUBLIC_BUILD_DATE).toLocaleDateString('de-DE', {
-											year: 'numeric',
-											month: '2-digit',
-											day: '2-digit'
-										})
-									: 'N/A'}
-							</div>
-						</div>
+						{/* Version Info - Clickable */}
+						<button
+							onClick={() => setIsChangelogOpen(true)}
+							className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+							title="Click to view changelog"
+							disabled={loading || !release}
+						>
+							<div>v{version.startsWith('v') ? version.slice(1) : version}</div>
+						</button>
+
+						{/* Changelog Dialog */}
+						<ChangelogDialog
+							release={release}
+							open={isChangelogOpen}
+							onOpenChange={setIsChangelogOpen}
+						/>
 
 						{/* Theme Toggle */}
 						<ThemeToggle />

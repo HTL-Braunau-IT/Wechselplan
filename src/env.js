@@ -19,6 +19,7 @@ export const env = createEnv({
     LDAP_TEACHERS_OU: z.string(),
     LDAP_STUDENT_GROUPS: z.string().optional(),
     LDAP_TEACHER_GROUPS: z.string().optional(),
+    GITHUB_TOKEN: z.string().optional(),
   },
 
   /**
@@ -46,6 +47,7 @@ export const env = createEnv({
     LDAP_TEACHERS_OU: process.env.LDAP_TEACHERS_OU,
     LDAP_STUDENT_GROUPS: process.env.LDAP_STUDENT_GROUPS,
     LDAP_TEACHER_GROUPS: process.env.LDAP_TEACHER_GROUPS,
+    GITHUB_TOKEN: process.env.GITHUB_TOKEN,
     NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION,
     NEXT_PUBLIC_BUILD_DATE: process.env.NEXT_PUBLIC_BUILD_DATE,
   },
