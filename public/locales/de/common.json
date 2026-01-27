@@ -296,9 +296,14 @@
     "selectClassPlaceholder": "Bitte Klasse auswählen...",
     "id": "ID",
     "group": "Gruppe",
+    "student": "Schüler",
     "average": "Durchschnitt",
     "firstSemester": "1. Semester",
     "secondSemester": "2. Semester",
-    "saving": "Speichere..."
+    "saving": "Speichere...",
+    "vormittag": "Vormittag",
+    "nachmittag": "Nachmittag",
+    "showFirstSemester": "1. Semester anzeigen",
+    "showSecondSemester": "2. Semester anzeigen"
   }
 } 

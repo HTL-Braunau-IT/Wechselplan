@@ -61,32 +61,43 @@ export async function GET(
 			}
 		})
 
-		// Get unique teachers (by teacherId)
-		const uniqueTeachersMap = new Map<number, { id: number; firstName: string; lastName: string }>()
+		// Get unique teachers grouped by period (AM/PM)
+		const amTeachersMap = new Map<number, { id: number; firstName: string; lastName: string }>()
+		const pmTeachersMap = new Map<number, { id: number; firstName: string; lastName: string }>()
 		
 		for (const assignment of assignments) {
-			if (!uniqueTeachersMap.has(assignment.teacherId)) {
-				uniqueTeachersMap.set(assignment.teacherId, {
-					id: assignment.teacher.id,
-					firstName: assignment.teacher.firstName,
-					lastName: assignment.teacher.lastName
-				})
+			const teacherData = {
+				id: assignment.teacher.id,
+				firstName: assignment.teacher.firstName,
+				lastName: assignment.teacher.lastName
+			}
+
+			if (assignment.period === 'AM' && !amTeachersMap.has(assignment.teacherId)) {
+				amTeachersMap.set(assignment.teacherId, teacherData)
+			} else if (assignment.period === 'PM' && !pmTeachersMap.has(assignment.teacherId)) {
+				pmTeachersMap.set(assignment.teacherId, teacherData)
 			}
 		}
 
-		const teachers = Array.from(uniqueTeachersMap.values())
-			.sort((a, b) => {
+		// Sort teachers by last name, then first name
+		const sortTeachers = (teachers: Array<{ id: number; firstName: string; lastName: string }>) => {
+			return teachers.sort((a, b) => {
 				const lastNameCompare = a.lastName.localeCompare(b.lastName)
 				if (lastNameCompare !== 0) return lastNameCompare
 				return a.firstName.localeCompare(b.firstName)
 			})
+		}
+
+		const amTeachers = sortTeachers(Array.from(amTeachersMap.values()))
+		const pmTeachers = sortTeachers(Array.from(pmTeachersMap.values()))
 
 		return NextResponse.json({
 			id: classRecord.id,
 			name: classRecord.name,
 			description: classRecord.description,
 			students: classRecord.students,
-			teachers
+			amTeachers,
+			pmTeachers
 		})
 	} catch (error) {
 		captureError(error, {
