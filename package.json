@@ -58,6 +58,8 @@
     "i18next": "^25.2.0",
     "i18next-browser-languagedetector": "^8.2.0",
     "i18next-http-backend": "^3.0.2",
+    "jspdf": "^4.0.0",
+    "jspdf-autotable": "^5.0.7",
     "ldapjs": "^3.0.7",
     "lucide-react": "^0.523.0",
     "negotiator": "^1.0.0",
