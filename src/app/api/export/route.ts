@@ -1,11 +1,7 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
-import { pdf } from '@react-pdf/renderer'
-import type { DocumentProps } from '@react-pdf/renderer'
-import type { ReactElement } from 'react'
-import PDFLayout from '@/components/PDFLayout'
-
 import { prisma } from '@/lib/prisma'
+import { generateSchedulePDF } from '@/lib/pdf-generator'
 
 /**
  * Handles HTTP POST requests to generate and return a PDF schedule for a specified class.
@@ -71,7 +67,6 @@ export async function POST(request: Request) {
             students: students.filter(s => s.groupId === groupId)
         }));
         // Find max students in any group
-        const maxStudents = Math.max(...groups.map(g => g.students.length), 0)
         // Get teacher assignments (AM/PM) with relations
         const teacherAssignments = await prisma.teacherAssignment.findMany({
             where: { classId: class_response.id },
@@ -107,14 +102,21 @@ export async function POST(request: Request) {
             roomName?: string;
         };
 
-        function mapAssignment(a: Assignment): Assignment {
+        function mapAssignment(a: Assignment): {
+            teacherFirstName: string;
+            teacherLastName: string;
+            subjectName: string;
+            learningContentName: string;
+            roomName: string;
+            groupId: number;
+        } {
             return {
-                ...a,
                 teacherFirstName: a.teacher?.firstName ?? '',
                 teacherLastName: a.teacher?.lastName ?? '',
                 subjectName: a.subject?.name ?? '',
                 learningContentName: a.learningContent?.name ?? '',
                 roomName: a.room?.name ?? '',
+                groupId: a.groupId,
             };
         }
 
@@ -128,73 +130,34 @@ export async function POST(request: Request) {
         const schedule = await prisma.schedule.findFirst({
             where: { classId: class_response.id },
             orderBy: [{ createdAt: 'desc' }],
-            select: {
-                scheduleData: true,
-                additionalInfo: true
+            include: {
+                scheduleTimes: true,
+                breakTimes: true
             }
         })
         const turns = (schedule && typeof schedule.scheduleData === 'object' && schedule.scheduleData !== null && !Array.isArray(schedule.scheduleData))
-            ? schedule.scheduleData
+            ? schedule.scheduleData as Record<string, unknown>
             : {};
 
+        // Get schedule times and break times
+        const scheduleTimes = schedule?.scheduleTimes ?? [];
+        const breakTimes = schedule?.breakTimes ?? [];
 
-        /**
-         * Retrieves the start date, end date, and number of days for a given turn key from the schedule data.
-         *
-         * @param turnKey - The key identifying the turn within the schedule.
-         * @returns An object containing the start date, end date, and total number of days for the specified turn. If the turn data is missing or invalid, returns empty strings and zero days.
-         */
-        function getTurnusInfo(turnKey: string) {
-            if (!turns || typeof turns !== 'object') return { start: '', end: '', days: 0 };
-            const entry = (turns as Record<string, unknown>)[turnKey];
-            type TurnusEntry = { weeks: { date: string }[] };
-            if (!entry || typeof entry !== 'object' || !Array.isArray((entry as TurnusEntry).weeks) || !(entry as TurnusEntry).weeks.length) return { start: '', end: '', days: 0 };
-            const weeks = (entry as TurnusEntry).weeks;
-            const start = weeks[0]?.date?.replace(/^-\s*/, '')?.trim() ?? '';
-            const end = weeks[weeks.length - 1]?.date?.replace(/^-\s*/, '')?.trim() ?? '';
-            const days = weeks.length;
-            return { start, end, days };
-        }
-
-
-        /**
-         * Returns the group assigned to a teacher for a specific turn and period.
-         *
-         * Rotates the group list by the turn index to determine the group corresponding to the teacher index for the given period.
-         *
-         * @param teacherIdx - Index of the teacher in the assignment list for the specified period.
-         * @param turnIdx - Index of the turn (rotation step).
-         * @param period - The period, either 'AM' or 'PM'.
-         * @returns The group assigned to the teacher for the specified turn and period, or null if the teacher or group does not exist.
-         */
-        function getGroupForTeacherAndTurn(teacherIdx: number, turnIdx: number, period: 'AM' | 'PM') {
-            const groupList = groups
-            const teacherList: Assignment[] = period === 'AM' ? amAssignments : pmAssignments
-            if (!groupList[0] || !teacherList[teacherIdx]) return null
-            // For each turn, rotate the group list
-            const rotatedGroups = [...groupList]
-            for (let i = 0; i < turnIdx; i++) {
-                const temp = rotatedGroups.shift()
-                if (temp !== undefined) rotatedGroups.push(temp)
-            }
-            const group = rotatedGroups[teacherIdx]
-            return group
-        }
-
-        const doc = PDFLayout({
+        // Generate PDF using jsPDF
+        const pdfBuffer = await generateSchedulePDF({
             groups,
-            maxStudents,
-            turns,
-            getTurnusInfo,
-            getGroupForTeacherAndTurn,
             amAssignments,
             pmAssignments,
+            turns,
             className: class_response.name,
             classHead: class_response.classHead ? `${class_response.classHead.firstName} ${class_response.classHead.lastName}` : '—',
             classLead: class_response.classLead ? `${class_response.classLead.firstName} ${class_response.classLead.lastName}` : '—',
-            additionalInfo: schedule?.additionalInfo ?? '—'
-        }) as ReactElement<DocumentProps>
-        const pdfBuffer = await pdf(doc).toBuffer()
+            additionalInfo: schedule?.additionalInfo ?? '—',
+            selectedWeekday: schedule?.selectedWeekday ?? 1,
+            scheduleTimes,
+            breakTimes,
+            updatedAt: schedule?.updatedAt ?? new Date()
+        })
 
         return new NextResponse(pdfBuffer as unknown as BodyInit, {
             headers: {
