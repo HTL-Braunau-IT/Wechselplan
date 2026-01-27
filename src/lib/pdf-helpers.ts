@@ -49,9 +49,10 @@ export function formatDateWithWeekday(dateStr: string): string {
   if (parts.length < 2) return dateStr;
   
   try {
+    if (!parts[0] || !parts[1]) return dateStr;
     const day = parseInt(parts[0], 10);
     const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
-    let year = parseInt(parts[2] || '', 10);
+    let year = parseInt(parts[2] ?? '', 10);
     
     // Handle 2-digit years
     if (year && year < 100) {
@@ -137,10 +138,10 @@ export function getTurnusInfo(turnKey: string, turns: Record<string, unknown>) {
   if (startDateStr) {
     try {
       const parts = startDateStr.split('.');
-      if (parts.length >= 2) {
+      if (parts.length >= 2 && parts[0] && parts[1]) {
         const day = parseInt(parts[0], 10);
         const month = parseInt(parts[1], 10) - 1;
-        let year = parseInt(parts[2] || '', 10);
+        let year = parseInt(parts[2] ?? '', 10);
         if (year && year < 100) {
           year = year < 50 ? 2000 + year : 1900 + year;
         } else if (!year) {
@@ -160,10 +161,10 @@ export function getTurnusInfo(turnKey: string, turns: Record<string, unknown>) {
   if (endDateStr) {
     try {
       const parts = endDateStr.split('.');
-      if (parts.length >= 2) {
+      if (parts.length >= 2 && parts[0] && parts[1]) {
         const day = parseInt(parts[0], 10);
         const month = parseInt(parts[1], 10) - 1;
-        let year = parseInt(parts[2] || '', 10);
+        let year = parseInt(parts[2] ?? '', 10);
         if (year && year < 100) {
           year = year < 50 ? 2000 + year : 1900 + year;
         } else if (!year) {
@@ -205,7 +206,7 @@ export function getTurnusInfo(turnKey: string, turns: Record<string, unknown>) {
  * @returns School year string like "2024/25"
  */
 export function getSchoolYear(date?: Date): string {
-  const d = date || new Date();
+  const d = date ?? new Date();
   const year = d.getFullYear();
   // School year typically starts in September
   const month = d.getMonth();

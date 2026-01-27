@@ -67,7 +67,6 @@ export async function POST(request: Request) {
             students: students.filter(s => s.groupId === groupId)
         }));
         // Find max students in any group
-        const maxStudents = Math.max(...groups.map(g => g.students.length), 0)
         // Get teacher assignments (AM/PM) with relations
         const teacherAssignments = await prisma.teacherAssignment.findMany({
             where: { classId: class_response.id },
@@ -103,14 +102,21 @@ export async function POST(request: Request) {
             roomName?: string;
         };
 
-        function mapAssignment(a: Assignment): Assignment {
+        function mapAssignment(a: Assignment): {
+            teacherFirstName: string;
+            teacherLastName: string;
+            subjectName: string;
+            learningContentName: string;
+            roomName: string;
+            groupId: number;
+        } {
             return {
-                ...a,
                 teacherFirstName: a.teacher?.firstName ?? '',
                 teacherLastName: a.teacher?.lastName ?? '',
                 subjectName: a.subject?.name ?? '',
                 learningContentName: a.learningContent?.name ?? '',
                 roomName: a.room?.name ?? '',
+                groupId: a.groupId,
             };
         }
 
@@ -134,8 +140,8 @@ export async function POST(request: Request) {
             : {};
 
         // Get schedule times and break times
-        const scheduleTimes = schedule?.scheduleTimes || [];
-        const breakTimes = schedule?.breakTimes || [];
+        const scheduleTimes = schedule?.scheduleTimes ?? [];
+        const breakTimes = schedule?.breakTimes ?? [];
 
         // Generate PDF using jsPDF
         const pdfBuffer = await generateSchedulePDF({
@@ -150,7 +156,7 @@ export async function POST(request: Request) {
             selectedWeekday: schedule?.selectedWeekday ?? 1,
             scheduleTimes,
             breakTimes,
-            updatedAt: schedule?.updatedAt || new Date()
+            updatedAt: schedule?.updatedAt ?? new Date()
         })
 
         return new NextResponse(pdfBuffer as unknown as BodyInit, {

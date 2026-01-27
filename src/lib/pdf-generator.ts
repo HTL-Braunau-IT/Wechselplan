@@ -81,7 +81,7 @@ function getGroupForTeacherAndTurn(
     if (temp !== undefined) rotatedGroups.push(temp);
   }
   
-  return rotatedGroups[teacherIdx] || null;
+  return rotatedGroups[teacherIdx] ?? null;
 }
 
 /**
@@ -146,7 +146,6 @@ export async function generateSchedulePDF(data: PDFData): Promise<Buffer> {
 
   const updatedDate = formatDateGerman(data.updatedAt);
   const updatedWeekdayName = getWeekdayName(data.updatedAt.getDay());
-  const updatedTime = data.updatedAt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
   doc.setFontSize(7);
   doc.text(`Letzte Aktualisierung: ${updatedWeekdayName}, ${updatedDate}`, pageWidth / 2, yPos, { align: 'center' });
   yPos += 6;
@@ -172,7 +171,7 @@ export async function generateSchedulePDF(data: PDFData): Promise<Buffer> {
     'Wechselklasse:'
   ];
   
-  infoItems.forEach((item, idx) => {
+  infoItems.forEach((item) => {
     // Draw box around each item
     const boxHeight = 4;
     const boxWidth = leftColumnWidth;
@@ -243,6 +242,7 @@ export async function generateSchedulePDF(data: PDFData): Promise<Buffer> {
       minCellHeight: 3,
     },
     margin: { left: rightColumnStart, right: margin },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     didParseCell: (data: any) => {
       // Apply colors to headers and body cells based on column
       const groupNum = data.column.index + 1;
@@ -257,7 +257,7 @@ export async function generateSchedulePDF(data: PDFData): Promise<Buffer> {
 
   // Set yPos to the bottom of whichever section is taller
   const infoSectionEnd = yPos;
-  const tableEnd = (doc as any).lastAutoTable.finalY;
+  const tableEnd = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
   yPos = Math.max(infoSectionEnd, tableEnd) + 4;
 
   // Schedule Sections - Simple format
@@ -273,7 +273,7 @@ export async function generateSchedulePDF(data: PDFData): Promise<Buffer> {
       if (parts.length >= 2 && parts[0] && parts[1]) {
         const day = parseInt(parts[0], 10);
         const month = parseInt(parts[1], 10) - 1;
-        let year = parseInt(parts[2] || '', 10);
+        let year = parseInt(parts[2] ?? '', 10);
         if (year && year < 100) {
           year = year < 50 ? 2000 + year : 1900 + year;
         } else if (!year) {
@@ -303,7 +303,7 @@ export async function generateSchedulePDF(data: PDFData): Promise<Buffer> {
       if (parts.length >= 2 && parts[0] && parts[1]) {
         const day = parseInt(parts[0], 10);
         const month = parseInt(parts[1], 10) - 1;
-        let year = parseInt(parts[2] || '', 10);
+        let year = parseInt(parts[2] ?? '', 10);
         if (year && year < 100) {
           year = year < 50 ? 2000 + year : 1900 + year;
         } else if (!year) {
@@ -372,7 +372,6 @@ export async function generateSchedulePDF(data: PDFData): Promise<Buffer> {
   // Vormittag (AM) Section - only render if there are AM assignments
   if (data.amAssignments.length > 0) {
   const amTimeRange = getPeriodTimeRange(data.scheduleTimes, 'AM');
-  const amUnits = data.amAssignments.length;
 
   // Build AM table data
   const amTableData: string[][] = [];
@@ -414,6 +413,7 @@ export async function generateSchedulePDF(data: PDFData): Promise<Buffer> {
   amTableData.push(amWeeksRow);
 
   // Two-level header for AM
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const amTopHeaderRow: any[] = [];
   amTopHeaderRow.push({ content: `${weekdayName} Vormittag: ${amTimeRange}`, colSpan: 5 });
   for (let idx = 0; idx < maxTurnus; idx++) {
@@ -463,11 +463,12 @@ export async function generateSchedulePDF(data: PDFData): Promise<Buffer> {
       lineColor: borderColor,
     },
     margin: { left: margin, right: margin },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     didParseCell: (data: any) => {
       // Make empty header rows (row indices 1, 2, 3) white and smaller, but only for cells with content
       if (data.section === 'head' && (data.row.index === 1 || data.row.index === 2 || data.row.index === 3)) {
         // Only style cells that have content (skip empty cells in first 4 columns)
-        if (data.cell.text && data.cell.text[0] && data.cell.text[0].trim() !== '') {
+        if (data.cell.text?.[0]?.trim() !== '') {
           data.cell.styles.fillColor = [255, 255, 255];
           data.cell.styles.minCellHeight = 3; // Reduce row height
           data.cell.styles.fontSize = 5; // Smaller font
@@ -487,11 +488,11 @@ export async function generateSchedulePDF(data: PDFData): Promise<Buffer> {
         data.cell.styles.textColor = [255, 0, 0];
       }
       // Only color body rows, not header rows, and skip U.-Wochen row
-      if (data.section === 'body' && data.column.index >= 5 && data.cell.text && data.cell.text[0]) {
+      if (data.section === 'body' && data.column.index >= 5 && data.cell.text?.[0]) {
         // Check if this is the U.-Wochen row (has "U.-Wochen" in column 4)
-        const isWeeksRow = data.row.cells && data.row.cells[4] && data.row.cells[4].text && data.row.cells[4].text[0] === 'U.-Wochen';
+        const isWeeksRow = data.row.cells?.[4]?.text?.[0] === 'U.-Wochen';
         if (!isWeeksRow) {
-          const groupNum = parseInt(data.cell.text[0]);
+          const groupNum = parseInt(String(data.cell.text?.[0] ?? '0'), 10);
           if (groupNum >= 1 && groupNum <= 4) {
             const color = GROUP_COLORS[groupNum as keyof typeof GROUP_COLORS];
             if (color) {
@@ -503,13 +504,12 @@ export async function generateSchedulePDF(data: PDFData): Promise<Buffer> {
     },
   });
 
-  yPos = (doc as any).lastAutoTable.finalY + 3;
+  yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 3;
   }
 
   // Nachmittag (PM) Section - only render if there are PM assignments
   if (data.pmAssignments.length > 0) {
   const pmTimeRange = getPeriodTimeRange(data.scheduleTimes, 'PM');
-  const pmUnits = data.pmAssignments.length;
 
   // Build PM table data
   const pmTableData: string[][] = [];
@@ -551,6 +551,7 @@ export async function generateSchedulePDF(data: PDFData): Promise<Buffer> {
   pmTableData.push(pmWeeksRow);
 
   // Two-level header for PM
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pmTopHeaderRow: any[] = [];
   pmTopHeaderRow.push({ content: `${weekdayName} Nachmittag: ${pmTimeRange}`, colSpan: 5 });
   for (let idx = 0; idx < maxTurnus; idx++) {
@@ -600,11 +601,12 @@ export async function generateSchedulePDF(data: PDFData): Promise<Buffer> {
       lineColor: borderColor,
     },
     margin: { left: margin, right: margin },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     didParseCell: (data: any) => {
       // Make empty header rows (row indices 1, 2, 3) white and smaller, but only for cells with content
       if (data.section === 'head' && (data.row.index === 1 || data.row.index === 2 || data.row.index === 3)) {
         // Only style cells that have content (skip empty cells in first 4 columns)
-        if (data.cell.text && data.cell.text[0] && data.cell.text[0].trim() !== '') {
+        if (data.cell.text?.[0]?.trim() !== '') {
           data.cell.styles.fillColor = [255, 255, 255];
           data.cell.styles.minCellHeight = 3; // Reduce row height
           data.cell.styles.fontSize = 5; // Smaller font
@@ -624,11 +626,11 @@ export async function generateSchedulePDF(data: PDFData): Promise<Buffer> {
         data.cell.styles.textColor = [255, 0, 0];
       }
       // Only color body rows, not header rows, and skip U.-Wochen row
-      if (data.section === 'body' && data.column.index >= 5 && data.cell.text && data.cell.text[0]) {
+      if (data.section === 'body' && data.column.index >= 5 && data.cell.text?.[0]) {
         // Check if this is the U.-Wochen row (has "U.-Wochen" in column 4)
-        const isWeeksRow = data.row.cells && data.row.cells[4] && data.row.cells[4].text && data.row.cells[4].text[0] === 'U.-Wochen';
+        const isWeeksRow = data.row.cells?.[4]?.text?.[0] === 'U.-Wochen';
         if (!isWeeksRow) {
-          const groupNum = parseInt(data.cell.text[0]);
+          const groupNum = parseInt(String(data.cell.text?.[0] ?? '0'), 10);
           if (groupNum >= 1 && groupNum <= 4) {
             const color = GROUP_COLORS[groupNum as keyof typeof GROUP_COLORS];
             if (color) {
@@ -640,7 +642,7 @@ export async function generateSchedulePDF(data: PDFData): Promise<Buffer> {
     },
   });
 
-  yPos = (doc as any).lastAutoTable.finalY + 3;
+  yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 3;
   }
 
   // Break Times Section - in one row with single outline, INFO on the right
@@ -686,7 +688,7 @@ export async function generateSchedulePDF(data: PDFData): Promise<Buffer> {
     
     // Split long text into multiple lines if needed
     const splitText = doc.splitTextToSize(data.additionalInfo, infoBoxWidth - 15);
-    doc.text(splitText, infoBoxStartX + 12, yPos + 3.5);
+    doc.text(splitText as string | string[], infoBoxStartX + 12, yPos + 3.5);
   }
   
   yPos += boxHeight + 2;
@@ -708,9 +710,9 @@ function hexToRgb(hex: string): [number, number, number] {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result
     ? [
-        parseInt(result[1] || 'ff', 16),
-        parseInt(result[2] || 'ff', 16),
-        parseInt(result[3] || 'ff', 16),
+        parseInt(result[1] ?? 'ff', 16),
+        parseInt(result[2] ?? 'ff', 16),
+        parseInt(result[3] ?? 'ff', 16),
       ]
     : [255, 255, 255];
 }
