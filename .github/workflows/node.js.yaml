@@ -24,9 +24,16 @@ jobs:
           -v ${{ github.workspace }}:/app \
           -w /app \
           -e SKIP_ENV_VALIDATION=true \
+          -e npm_config_build_from_source=true \
+          -e npm_config_target_platform=linux \
+          -e npm_config_target_arch=x64 \
           node:22-alpine sh -c "
-            apk add --no-cache python3 make g++ libc6-compat openssl &&
-            npm ci --legacy-peer-deps &&
+            apk add --no-cache python3 make g++ libc6-compat &&
+            npm install --legacy-peer-deps &&
+            npm i lightningcss-linux-x64-musl &&
+            apk add --no-cache openssl &&
+            [ -f .env.example ] && cp .env.example .env || true &&
+            npx prisma generate &&
             npm run build --if-present &&
             npm test
           "
