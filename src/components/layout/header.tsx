@@ -192,6 +192,15 @@ export function Header() {
 											{t('navigation.classSettings')}
 										</Link>
 									</li>
+									<li>
+										<Link
+											href="/notensammler"
+											className="block py-2 hover:text-primary"
+											onClick={() => setIsMenuOpen(false)}
+										>
+											{t('navigation.notensammler')}
+										</Link>
+									</li>
 									{session?.user?.role === 'teacher' && (
 										<li>
 											<Link
