@@ -11,15 +11,20 @@ interface GitHubRelease {
 }
 
 /**
- * Fetches the latest release from the GitHub repository.
+ * Fetches releases from the GitHub repository.
  * 
- * Uses the GitHub API to retrieve the latest release information for the private repository.
+ * Uses the GitHub API to retrieve release information for the private repository.
  * Requires GITHUB_TOKEN to be set in environment variables for authentication.
  * 
- * @returns A JSON response containing the latest release information (tag_name, body, published_at, html_url),
+ * Query parameters:
+ * - all: if true, returns all releases; otherwise returns only the latest release
+ * 
+ * @returns A JSON response containing release information (tag_name, body, published_at, html_url),
  *          or an error response if the request fails.
  */
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const fetchAll = searchParams.get('all') === 'true'
   try {
     const token = env.GITHUB_TOKEN
 
@@ -30,49 +35,113 @@ export async function GET() {
       )
     }
 
-    // Try to fetch the latest release
-    // For private repos, we need proper authentication
-    // Try Bearer format first (preferred), fallback to token format
-    let response = await fetch(
-      'https://api.github.com/repos/HTL-Braunau-IT/Wechselplan/releases/latest',
-      {
+    // Helper function to fetch with authentication
+    const fetchWithAuth = async (url: string) => {
+      let response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/vnd.github.v3+json',
           'User-Agent': 'Wechselplan-App',
         },
-        // Cache for 5 minutes to reduce API calls
         next: { revalidate: 600 },
-      }
-    )
-    
-    // If Bearer fails with 401, try token format (for older tokens)
-    if (response.status === 401) {
-      response = await fetch(
-        'https://api.github.com/repos/HTL-Braunau-IT/Wechselplan/releases/latest',
-        {
+      })
+      
+      // If Bearer fails with 401, try token format (for older tokens)
+      if (response.status === 401) {
+        response = await fetch(url, {
           headers: {
             'Authorization': `token ${token}`,
             'Accept': 'application/vnd.github.v3+json',
             'User-Agent': 'Wechselplan-App',
           },
           next: { revalidate: 600 },
-        }
-      )
+        })
+      }
+      
+      return response
     }
+
+    // If fetching all releases, use the releases endpoint
+    if (fetchAll) {
+      const response = await fetchWithAuth(
+        'https://api.github.com/repos/HTL-Braunau-IT/Wechselplan/releases'
+      )
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return NextResponse.json(
+            { error: 'Repository not found or no releases available' },
+            { status: 404 }
+          )
+        }
+
+        if (response.status === 401 || response.status === 403) {
+          const errorBody = await response.text().catch(() => 'Unknown error')
+          captureError(new Error(`GitHub API authentication failed: ${errorBody}`), {
+            location: 'api/github/releases',
+            type: 'github-auth-error',
+            extra: {
+              status: response.status,
+              statusText: response.statusText,
+              errorBody,
+              hasToken: !!token,
+              tokenLength: token?.length ?? 0,
+            }
+          })
+          return NextResponse.json(
+            { 
+              error: 'GitHub authentication failed',
+              message: response.status === 401 
+                ? 'Invalid or expired token. Please check your GITHUB_TOKEN.'
+                : 'Token does not have permission to access this repository. Ensure the token has the "repo" scope for private repositories.',
+              status: response.status
+            },
+            { status: 500 }
+          )
+        }
+
+        const errorText = await response.text().catch(() => 'Unknown error')
+        captureError(new Error(`GitHub API error: ${errorText}`), {
+          location: 'api/github/releases',
+          type: 'github-api-error',
+          extra: {
+            status: response.status,
+            statusText: response.statusText,
+          }
+        })
+
+        return NextResponse.json(
+          { error: 'Failed to fetch release information' },
+          { status: response.status }
+        )
+      }
+
+      const allReleases = await response.json() as GitHubRelease[]
+      
+      // Sort by published_at descending (newest first) and format
+      const formattedReleases = allReleases
+        .sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime())
+        .map(release => ({
+          tag_name: release.tag_name,
+          body: release.body,
+          published_at: release.published_at,
+          html_url: release.html_url,
+          name: release.name || release.tag_name,
+        }))
+
+      return NextResponse.json(formattedReleases)
+    }
+
+    // Otherwise, fetch only the latest release
+    // Try to fetch the latest release
+    let response = await fetchWithAuth(
+      'https://api.github.com/repos/HTL-Braunau-IT/Wechselplan/releases/latest'
+    )
 
     // If latest returns 404, try fetching all releases to see if any exist
     if (response.status === 404) {
-      const allReleasesResponse = await fetch(
-        'https://api.github.com/repos/HTL-Braunau-IT/Wechselplan/releases',
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/vnd.github.v3+json',
-            'User-Agent': 'Wechselplan-App',
-          },
-          next: { revalidate: 600 },
-        }
+      const allReleasesResponse = await fetchWithAuth(
+        'https://api.github.com/repos/HTL-Braunau-IT/Wechselplan/releases'
       )
 
       if (allReleasesResponse.ok) {
@@ -93,7 +162,11 @@ export async function GET() {
           )
         }
         // If releases exist but /latest returned 404, use the first one (most recent)
-        const latestRelease = allReleases[0]
+        // Sort by published_at descending to get the newest first
+        const sortedReleases = allReleases.sort((a, b) => 
+          new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
+        )
+        const latestRelease = sortedReleases[0]
         if (latestRelease) {
           return NextResponse.json({
             tag_name: latestRelease.tag_name,
