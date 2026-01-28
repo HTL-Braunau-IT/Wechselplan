@@ -134,7 +134,7 @@ export async function GET(request: Request) {
 
     // Otherwise, fetch only the latest release
     // Try to fetch the latest release
-    let response = await fetchWithAuth(
+    const response = await fetchWithAuth(
       'https://api.github.com/repos/HTL-Braunau-IT/Wechselplan/releases/latest'
     )
 

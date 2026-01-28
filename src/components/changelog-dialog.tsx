@@ -144,7 +144,7 @@ export function ChangelogDialog({ release, allReleases = [], open, onOpenChange 
         </DialogHeader>
         
         <div className="flex-1 overflow-y-auto pr-2 space-y-6">
-          {releases.map((releaseItem, index) => (
+          {releases.map((releaseItem) => (
             <div key={releaseItem.tag_name} className="space-y-3 pb-6 border-b last:border-b-0">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">

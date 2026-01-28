@@ -132,7 +132,7 @@ export function useGitHubVersion(onVersionChange?: (release: GitHubRelease) => v
   /**
    * Checks for version updates.
    */
-  const checkForUpdates = useCallback(async (showModalOnChange = true) => {
+  const checkForUpdates = useCallback(async (_showModalOnChange = true) => {
     setLoading(true)
     setError(null)
 
