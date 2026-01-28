@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
 import { useTranslation } from 'react-i18next'
 import { useSession } from 'next-auth/react'
 import { captureFrontendError } from '@/lib/frontend-error'
@@ -29,6 +30,7 @@ interface Class {
 	id: number
 	name: string
 	description: string | null
+	subjectName?: string
 	students: Student[]
 	amTeachers: Teacher[]
 	pmTeachers: Teacher[]
@@ -40,6 +42,37 @@ type GradesData = Record<number, Record<number, {
 }>>
 
 const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
+
+/**
+ * Truncates subject name according to the pattern:
+ * - "PBE4-Verbindungstechnik 1" → "PBE_4"
+ * - "PBE4-Mech. Grundausbildung" → "PBE_4"
+ * - "COPR-Elektrotechnik" → "COPR"
+ * - "COPR-Elektronische Grundschaltungen" → "COPR"
+ * - "ELWP-Elektrotechnik" → "ELWP_4"
+ * - "NWWP-Naturwissenschaften" → "NWWP_4"
+ */
+function truncateSubject(subjectName: string): string {
+	// Extract prefix before hyphen
+	const parts = subjectName.split('-')
+	const prefix = (parts[0] ?? subjectName).trim()
+	
+	// Check if prefix ends with digits
+	const regex = /^(.+?)(\d+)$/
+	const match = regex.exec(prefix)
+	if (match?.[1] && match?.[2]) {
+		// Add underscore before digits: "PBE4" → "PBE_4"
+		return `${match[1]}_${match[2]}`
+	}
+	
+	// Special case: ELWP and NWWP get "_4" appended
+	if (prefix === 'ELWP' || prefix === 'NWWP') {
+		return `${prefix}_4`
+	}
+	
+	// No trailing digits, return as-is: "COPR" → "COPR"
+	return prefix
+}
 
 /**
  * Notensammler page - Grade collection interface for teachers.
@@ -60,6 +93,8 @@ export default function NotensammlerPage() {
 	const [showFirstSemester, setShowFirstSemester] = useState(true)
 	const [showSecondSemester, setShowSecondSemester] = useState(true)
 	const [currentTeacherId, setCurrentTeacherId] = useState<number | null>(null)
+	const [downloadingPdf, setDownloadingPdf] = useState(false)
+	const [savingAll, setSavingAll] = useState(false)
 
 	// Debounce timer for auto-save
 	const saveTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -162,12 +197,15 @@ export default function NotensammlerPage() {
 		studentId: number,
 		teacherId: number,
 		semester: 'first' | 'second',
-		grade: number | null
+		grade: number | null,
+		silent = false // If true, don't update saving state (for bulk saves)
 	) => {
 		if (!classData) return
 
 		try {
-			setSaving(true)
+			if (!silent) {
+				setSaving(true)
+			}
 
 			const response = await fetch('/api/notensammler/grades', {
 				method: 'POST',
@@ -188,22 +226,27 @@ export default function NotensammlerPage() {
 				throw new Error(errorData.error ?? 'Failed to save grade')
 			}
 
-			// Update local state
-			setGrades(prev => {
-				const newGrades = { ...prev }
-				newGrades[studentId] ??= {}
-				newGrades[studentId][teacherId] ??= { first: null, second: null }
-				newGrades[studentId][teacherId][semester] = grade
-				return newGrades
-			})
+			// Update local state only if not in bulk save mode
+			if (!silent) {
+				setGrades(prev => {
+					const newGrades = { ...prev }
+					newGrades[studentId] ??= {}
+					newGrades[studentId][teacherId] ??= { first: null, second: null }
+					newGrades[studentId][teacherId][semester] = grade
+					return newGrades
+				})
+			}
 		} catch (e) {
 			captureFrontendError(e, {
 				location: 'notensammler',
 				type: 'save-grade'
 			})
 			console.error('Failed to save grade:', e)
+			throw e // Re-throw for bulk save error handling
 		} finally {
-			setSaving(false)
+			if (!silent) {
+				setSaving(false)
+			}
 		}
 	}, [classData])
 
@@ -294,6 +337,101 @@ export default function NotensammlerPage() {
 			})
 	}, [classData])
 
+	// Save all grades function
+	const saveAllGrades = useCallback(async () => {
+		if (!classData || !selectedClassId) return
+
+		try {
+			setSavingAll(true)
+			setError(null)
+
+			// Clear any pending debounce timers
+			if (saveTimerRef.current) {
+				clearTimeout(saveTimerRef.current)
+				saveTimerRef.current = null
+			}
+
+			// Collect all grades to save
+			const savePromises: Promise<void>[] = []
+
+			for (const studentId in grades) {
+				const studentGrades = grades[parseInt(studentId)]
+				if (!studentGrades) continue
+
+				for (const teacherId in studentGrades) {
+					const teacherGrades = studentGrades[parseInt(teacherId)]
+					if (!teacherGrades) continue
+
+					// Save first semester grade (silent mode to avoid state conflicts)
+					savePromises.push(
+						saveGrade(parseInt(studentId), parseInt(teacherId), 'first', teacherGrades.first ?? null, true)
+							.catch((e) => {
+								console.error(`Failed to save grade for student ${studentId}, teacher ${teacherId}, first semester:`, e)
+								throw e
+							})
+					)
+
+					// Save second semester grade (silent mode to avoid state conflicts)
+					savePromises.push(
+						saveGrade(parseInt(studentId), parseInt(teacherId), 'second', teacherGrades.second ?? null, true)
+							.catch((e) => {
+								console.error(`Failed to save grade for student ${studentId}, teacher ${teacherId}, second semester:`, e)
+								throw e
+							})
+					)
+				}
+			}
+
+			// Save all grades in parallel (but limit concurrency to avoid overwhelming the server)
+			const BATCH_SIZE = 10
+			for (let i = 0; i < savePromises.length; i += BATCH_SIZE) {
+				const batch = savePromises.slice(i, i + BATCH_SIZE)
+				await Promise.all(batch)
+			}
+		} catch (e) {
+			captureFrontendError(e, {
+				location: 'notensammler',
+				type: 'save-all-grades'
+			})
+			setError(e instanceof Error ? e.message : 'Failed to save all grades')
+		} finally {
+			setSavingAll(false)
+		}
+	}, [classData, selectedClassId, grades, saveGrade])
+
+	// Handle PDF download
+	const handleDownloadPDF = useCallback(async () => {
+		if (!selectedClassId || !classData) return
+
+		try {
+			setDownloadingPdf(true)
+			const response = await fetch(`/api/notensammler/pdf?classId=${selectedClassId}`)
+			
+			if (!response.ok) {
+				throw new Error('Failed to generate PDF')
+			}
+
+			const blob = await response.blob()
+			const url = window.URL.createObjectURL(blob)
+			const a = document.createElement('a')
+			a.href = url
+			const today = new Date().toLocaleDateString('de-DE')
+			a.download = `notensammler-${classData.name}-${today}.pdf`
+			document.body.appendChild(a)
+			a.click()
+			window.URL.revokeObjectURL(url)
+			document.body.removeChild(a)
+		} catch (e) {
+			captureFrontendError(e, {
+				location: 'notensammler',
+				type: 'download-pdf'
+			})
+			setError(e instanceof Error ? e.message : 'Failed to download PDF')
+		} finally {
+			setDownloadingPdf(false)
+		}
+	}, [selectedClassId, classData])
+
 	if (error) {
 		return (
 			<div className="container mx-auto p-8">
@@ -324,7 +462,7 @@ export default function NotensammlerPage() {
 					</Select>
 				</div>
 				{classData && (
-					<div className="flex gap-6 mb-4">
+					<div className="flex items-center gap-6 mb-4">
 						<div className="flex items-center space-x-2">
 							<Checkbox
 								id="show-first-semester"
@@ -345,6 +483,32 @@ export default function NotensammlerPage() {
 								{t('notensammler.showSecondSemester', '2. Semester anzeigen')}
 							</Label>
 						</div>
+						<Button
+							onClick={saveAllGrades}
+							disabled={savingAll || !selectedClassId}
+						>
+							{savingAll ? (
+								<>
+									<Spinner size="sm" className="mr-2" />
+									{t('notensammler.savingAll', 'Speichere...')}
+								</>
+							) : (
+								t('notensammler.saveAll', 'Alle speichern')
+							)}
+						</Button>
+						<Button
+							onClick={handleDownloadPDF}
+							disabled={downloadingPdf || !selectedClassId}
+						>
+							{downloadingPdf ? (
+								<>
+									<Spinner size="sm" className="mr-2" />
+									{t('notensammler.downloadingPdf', 'PDF wird erstellt...')}
+								</>
+							) : (
+								t('notensammler.downloadPdf', 'PDF herunterladen')
+							)}
+						</Button>
 					</div>
 				)}
 			</div>
@@ -358,7 +522,11 @@ export default function NotensammlerPage() {
 			{classData && !loading && (
 				<Card>
 					<CardHeader>
-						<CardTitle>{classData.name}</CardTitle>
+						<CardTitle>
+							{classData.subjectName 
+								? `${classData.name} - ${truncateSubject(classData.subjectName)}`
+								: classData.name}
+						</CardTitle>
 					</CardHeader>
 					<CardContent>
 						<div className="overflow-x-auto">

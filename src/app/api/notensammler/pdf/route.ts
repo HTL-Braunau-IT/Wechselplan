@@ -1,30 +1,34 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
+import { generateNotensammlerPDF } from '@/lib/pdf-generator'
 
 /**
- * Handles GET requests to retrieve class data with students and unique teachers.
+ * Handles GET requests to generate and return a PDF of notensammler (grade collector) data for a specific class.
  *
- * Returns class information, all students in the class (with groupId), and unique teachers
- * assigned to the class via TeacherAssignment (both AM and PM periods).
- *
- * @returns A JSON response containing class info, students array, and teachers array.
+ * @returns A PDF file as a response if successful, or a JSON error response with status 400 or 500 if an error occurs.
  */
-export async function GET(
-	request: Request,
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	context: any
-) {
+export async function GET(request: Request) {
 	try {
-		const id = context?.params?.id
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-		const classId = parseInt(id)
+		const { searchParams } = new URL(request.url)
+		const classIdParam = searchParams.get('classId')
 
-		if (isNaN(classId)) {
-			return NextResponse.json({ error: 'Invalid class ID' }, { status: 400 })
+		if (!classIdParam) {
+			return NextResponse.json(
+				{ error: 'classId parameter is required' },
+				{ status: 400 }
+			)
 		}
 
-		// Fetch class with students
+		const classId = parseInt(classIdParam)
+		if (isNaN(classId)) {
+			return NextResponse.json(
+				{ error: 'Invalid classId' },
+				{ status: 400 }
+			)
+		}
+
+		// Fetch class data
 		const classRecord = await prisma.class.findUnique({
 			where: { id: classId },
 			include: {
@@ -44,10 +48,13 @@ export async function GET(
 		})
 
 		if (!classRecord) {
-			return NextResponse.json({ error: 'Class not found' }, { status: 404 })
+			return NextResponse.json(
+				{ error: 'Class not found' },
+				{ status: 404 }
+			)
 		}
 
-		// Fetch all teacher assignments for this class
+		// Fetch teacher assignments
 		const assignments = await prisma.teacherAssignment.findMany({
 			where: { classId },
 			include: {
@@ -122,22 +129,58 @@ export async function GET(
 			subjectName = mostCommonSubject
 		}
 
-		return NextResponse.json({
-			id: classRecord.id,
-			name: classRecord.name,
-			description: classRecord.description,
+		// Fetch all grades for this class
+		const grades = await prisma.grade.findMany({
+			where: { classId },
+			select: {
+				studentId: true,
+				teacherId: true,
+				semester: true,
+				grade: true
+			}
+		})
+
+		// Group grades by student, then teacher, then semester
+		const gradesByStudent: Record<number, Record<number, { first: number | null; second: number | null }>> = {}
+
+		for (const gradeRecord of grades) {
+			gradesByStudent[gradeRecord.studentId] ??= {}
+			const studentGrades = gradesByStudent[gradeRecord.studentId]!
+			studentGrades[gradeRecord.teacherId] ??= {
+				first: null,
+				second: null
+			}
+			const teacherGrades = studentGrades[gradeRecord.teacherId]!
+			if (gradeRecord.semester === 'first') {
+				teacherGrades.first = gradeRecord.grade
+			} else if (gradeRecord.semester === 'second') {
+				teacherGrades.second = gradeRecord.grade
+			}
+		}
+
+		// Generate PDF
+		const pdfBuffer = await generateNotensammlerPDF({
+			className: classRecord.name,
 			subjectName,
 			students: classRecord.students,
 			amTeachers,
-			pmTeachers
+			pmTeachers,
+			grades: gradesByStudent
+		})
+
+		return new NextResponse(pdfBuffer as unknown as BodyInit, {
+			headers: {
+				'Content-Type': 'application/pdf',
+				'Content-Disposition': `attachment; filename=notensammler-${classRecord.name}.pdf`
+			}
 		})
 	} catch (error) {
-		captureError(error, {
-			location: 'api/notensammler/class/[id]',
-			type: 'fetch-class-data'
+		captureError(error as Error, {
+			location: 'api/notensammler/pdf',
+			type: 'export-pdf'
 		})
 		return NextResponse.json(
-			{ error: 'Failed to fetch class data' },
+			{ error: 'Failed to generate PDF' },
 			{ status: 500 }
 		)
 	}
