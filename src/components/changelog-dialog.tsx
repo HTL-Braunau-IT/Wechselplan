@@ -1,6 +1,5 @@
 'use client'
 
-import { useTranslation } from 'react-i18next'
 import { ExternalLink, Calendar } from 'lucide-react'
 import { Button } from '~/components/ui/button'
 import {

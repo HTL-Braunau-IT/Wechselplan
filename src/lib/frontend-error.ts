@@ -41,7 +41,7 @@ export async function tryWithErrorReporting<T>(
 ): Promise<T | null> {
   try {
     return await operation();
-  } catch (_error) {
+  } catch {
     return null;
   }
 }

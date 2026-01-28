@@ -8,6 +8,7 @@ import { authOptions } from '@/lib/auth'
 type Semester = 'first' | 'second'
 
 type NotenmanagementTokenResponse = {
+  expires_in: number
   access_token?: string
 }
 
@@ -40,7 +41,10 @@ function truncateSubject(subjectName: string): string {
   return prefix
 }
 
-async function getNotenmanagementAccessToken(username: string, password: string): Promise<string> {
+async function getNotenmanagementAccessToken(
+  username: string,
+  password: string
+): Promise<{ token: string; expiresIn: number }> {
   const tokenUrl = new URL('Token', env.NOTENMANAGEMENT_BASE_URL).toString()
   const body = new URLSearchParams({
     grant_type: 'password',
@@ -58,7 +62,10 @@ async function getNotenmanagementAccessToken(username: string, password: string)
   if (!res.ok || !data.access_token) {
     throw new Error('Notenmanagement authentication failed')
   }
-  return data.access_token
+  return {
+    token: data.access_token,
+    expiresIn: data.expires_in ?? 3600, // Default to 1 hour if not provided
+  }
 }
 
 async function fetchNotenmanagementStudents(accessToken: string): Promise<NotenmanagementStudent[]> {
@@ -96,18 +103,26 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       classId?: unknown
       semester?: unknown
+      username?: unknown
       password?: unknown
+      token?: unknown
       notes?: unknown
     }
     requestData = body
 
     const classId = typeof body.classId === 'number' ? body.classId : parseInt(String(body.classId))
     const semester = body.semester === 'first' || body.semester === 'second' ? (body.semester as Semester) : null
+    const nmUsername = typeof body.username === 'string' ? body.username : null
     const password = typeof body.password === 'string' ? body.password : null
+    const providedToken = typeof body.token === 'string' ? body.token : null
     const notes = Array.isArray(body.notes) ? body.notes : null
 
-    if (!classId || Number.isNaN(classId) || !semester || !password || !notes) {
+    if (!classId || Number.isNaN(classId) || !semester || !nmUsername || !notes) {
       return NextResponse.json({ error: 'Missing or invalid parameters' }, { status: 400 })
+    }
+
+    if (!providedToken && !password) {
+      return NextResponse.json({ error: 'Either token or password is required' }, { status: 400 })
     }
 
     const notesByStudentId = new Map<number, 1 | 2 | 3 | 4 | 5>()
@@ -173,7 +188,20 @@ export async function POST(request: Request) {
       }
     }
 
-    const accessToken = await getNotenmanagementAccessToken(username, password)
+    // Use provided token or get new one with password
+    let accessToken: string
+    let tokenExpiresIn: number | undefined
+    if (providedToken) {
+      accessToken = providedToken
+    } else {
+      if (!password) {
+        return NextResponse.json({ error: 'Password required when token is not provided' }, { status: 400 })
+      }
+      const tokenData = await getNotenmanagementAccessToken(nmUsername, password)
+      accessToken = tokenData.token
+      tokenExpiresIn = tokenData.expiresIn
+    }
+
     const nmStudents = await fetchNotenmanagementStudents(accessToken)
     const nmIndex = new Map<string, number>()
     for (const s of nmStudents) {
@@ -363,6 +391,8 @@ export async function POST(request: Request) {
         completeStudents: completeStudents.length,
         unmatchedOrMissingNote: completeStudents.length - noten.length,
       },
+      // Include token data if a new token was generated
+      ...(tokenExpiresIn && { token: accessToken, tokenExpiresIn }),
     })
   } catch (error) {
     captureError(error, {
