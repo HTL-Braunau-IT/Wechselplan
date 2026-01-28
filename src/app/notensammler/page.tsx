@@ -9,9 +9,12 @@ import { Spinner } from '@/components/ui/spinner'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useTranslation } from 'react-i18next'
 import { useSession } from 'next-auth/react'
 import { captureFrontendError } from '@/lib/frontend-error'
+import { CheckCircle2, Circle } from 'lucide-react'
 
 interface Student {
 	id: number
@@ -34,6 +37,10 @@ interface Class {
 	students: Student[]
 	amTeachers: Teacher[]
 	pmTeachers: Teacher[]
+	transferStatus?: {
+		first: { transferred: boolean; lfId: string | null }
+		second: { transferred: boolean; lfId: string | null }
+	}
 }
 
 type GradesData = Record<number, Record<number, {
@@ -42,6 +49,49 @@ type GradesData = Record<number, Record<number, {
 }>>
 
 const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
+
+type Semester = 'first' | 'second'
+
+type PreviewStudent = {
+	studentId: number
+	firstName: string
+	lastName: string
+	avg: number
+	note: 1 | 2 | 3 | 4 | 5
+	matched: boolean
+	matrikelnummer: number | null
+}
+
+type TransferPreviewResponse = {
+	classId: number
+	className: string
+	subjectName: string
+	subjectTruncated: string
+	semester: Semester
+	teacherCount: number
+	students: PreviewStudent[]
+	transferStatus?: {
+		first: { transferred: boolean; lfId: string | null }
+		second: { transferred: boolean; lfId: string | null }
+	}
+	counts: {
+		totalStudents: number
+		completeStudents: number
+		matchedCompleteStudents: number
+		unmatchedCompleteStudents: number
+	}
+}
+
+type TransferResultResponse = {
+	success: boolean
+	lfId: string
+	confirmation: unknown
+	sentCount: number
+	skipped: {
+		completeStudents: number
+		unmatchedOrMissingNote: number
+	}
+}
 
 /**
  * Truncates subject name according to the pattern:
@@ -95,6 +145,19 @@ export default function NotensammlerPage() {
 	const [currentTeacherId, setCurrentTeacherId] = useState<number | null>(null)
 	const [downloadingPdf, setDownloadingPdf] = useState(false)
 	const [savingAll, setSavingAll] = useState(false)
+
+	// Notenmanagement transfer flow state
+	const [showPasswordDialog, setShowPasswordDialog] = useState(false)
+	const [showSemesterDialog, setShowSemesterDialog] = useState(false)
+	const [showPreviewDialog, setShowPreviewDialog] = useState(false)
+	const [showResultDialog, setShowResultDialog] = useState(false)
+	const [transferPassword, setTransferPassword] = useState('')
+	const [transferSemester, setTransferSemester] = useState<Semester | null>(null)
+	const [previewLoading, setPreviewLoading] = useState(false)
+	const [transferLoading, setTransferLoading] = useState(false)
+	const [previewData, setPreviewData] = useState<TransferPreviewResponse | null>(null)
+	const [editedNotes, setEditedNotes] = useState<Record<number, 1 | 2 | 3 | 4 | 5>>({})
+	const [transferResult, setTransferResult] = useState<TransferResultResponse | null>(null)
 
 	// Debounce timer for auto-save
 	const saveTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -432,18 +495,118 @@ export default function NotensammlerPage() {
 		}
 	}, [selectedClassId, classData])
 
-	if (error) {
-		return (
-			<div className="container mx-auto p-8">
-				<div className="text-center text-red-500">{error}</div>
-			</div>
-		)
-	}
+	const openTransferFlow = useCallback(() => {
+		if (!classData || !selectedClassId) return
+		setTransferResult(null)
+		setPreviewData(null)
+		setEditedNotes({})
+		setTransferSemester(null)
+		setShowPasswordDialog(true)
+	}, [classData, selectedClassId])
+
+	const fetchTransferPreview = useCallback(async (semester: Semester) => {
+		if (!classData) return
+
+		try {
+			setPreviewLoading(true)
+			setError(null)
+
+			const res = await fetch('/api/notensammler/transfer/preview', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					classId: classData.id,
+					semester,
+					password: transferPassword
+				})
+			})
+
+			const data = await res.json() as { error?: string } | TransferPreviewResponse
+			if (!res.ok) {
+				throw new Error((data as { error?: string }).error ?? 'Failed to build preview')
+			}
+
+			const preview = data as TransferPreviewResponse
+			setPreviewData(preview)
+			setEditedNotes(
+				Object.fromEntries(preview.students.map(s => [s.studentId, s.note]))
+			)
+			setShowPreviewDialog(true)
+		} catch (e) {
+			captureFrontendError(e, { location: 'notensammler', type: 'notenmanagement-preview' })
+			setError(e instanceof Error ? e.message : 'Failed to build transfer preview')
+		} finally {
+			setPreviewLoading(false)
+		}
+	}, [classData, transferPassword])
+
+	const submitTransfer = useCallback(async () => {
+		if (!classData || !previewData || !transferSemester) return
+		try {
+			setTransferLoading(true)
+			setError(null)
+
+			const notesPayload = Object.entries(editedNotes).map(([studentId, note]) => ({
+				studentId: parseInt(studentId),
+				note
+			}))
+
+			const res = await fetch('/api/notensammler/transfer', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					classId: classData.id,
+					semester: transferSemester,
+					password: transferPassword,
+					notes: notesPayload
+				})
+			})
+
+			const data = await res.json() as { error?: string; details?: unknown } | TransferResultResponse
+			if (!res.ok) {
+				const details = (data as { details?: unknown }).details
+				const msg = (data as { error?: string }).error ?? 'Transfer failed'
+				throw new Error(details ? `${msg}\n${JSON.stringify(details, null, 2)}` : msg)
+			}
+
+			setTransferResult(data as TransferResultResponse)
+			setShowPreviewDialog(false)
+			setShowResultDialog(true)
+			
+			// Refetch class data to update transfer status
+			if (selectedClassId) {
+				try {
+					const classRes = await fetch(`/api/notensammler/class/${selectedClassId}`)
+					if (classRes.ok) {
+						const updatedClassData = await classRes.json() as Class
+						setClassData(updatedClassData)
+					}
+				} catch (e) {
+					console.error('Failed to refresh class data:', e)
+				}
+			}
+		} catch (e) {
+			captureFrontendError(e, { location: 'notensammler', type: 'notenmanagement-transfer' })
+			setError(e instanceof Error ? e.message : 'Failed to transfer')
+			setTransferResult(null)
+			setShowResultDialog(true)
+		} finally {
+			setTransferLoading(false)
+		}
+	}, [classData, editedNotes, previewData, transferPassword, transferSemester])
 
 	return (
 		<div className="container mx-auto p-4">
 			<div className="mb-8">
 				<h1 className="text-3xl font-bold mb-4">{t('notensammler.title', 'Notensammler')}</h1>
+				{error && (
+					<div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-destructive flex items-start justify-between gap-4">
+						<div className="whitespace-pre-line">{error}</div>
+						<Button variant="outline" onClick={() => setError(null)}>
+							{t('common.close', 'Schließen')}
+						</Button>
+					</div>
+				)}
 				<div className="mb-4">
 					<label className="block text-sm font-medium mb-2">
 						{t('notensammler.selectClass', 'Klasse auswählen')}
@@ -469,8 +632,19 @@ export default function NotensammlerPage() {
 								checked={showFirstSemester}
 								onCheckedChange={(checked) => setShowFirstSemester(checked === true)}
 							/>
-							<Label htmlFor="show-first-semester" className="cursor-pointer">
+							<Label htmlFor="show-first-semester" className="cursor-pointer flex items-center gap-2">
 								{t('notensammler.showFirstSemester', '1. Semester anzeigen')}
+								{classData.transferStatus?.first.transferred && (
+									<Badge variant="outline" className="text-xs">
+										<CheckCircle2 className="h-3 w-3 mr-1" />
+										{t('notensammler.transferred', 'Übertragen')}
+										{classData.transferStatus.first.lfId && (
+											<span className="ml-1 text-muted-foreground">
+												(LF: {classData.transferStatus.first.lfId})
+											</span>
+										)}
+									</Badge>
+								)}
 							</Label>
 						</div>
 						<div className="flex items-center space-x-2">
@@ -479,8 +653,19 @@ export default function NotensammlerPage() {
 								checked={showSecondSemester}
 								onCheckedChange={(checked) => setShowSecondSemester(checked === true)}
 							/>
-							<Label htmlFor="show-second-semester" className="cursor-pointer">
+							<Label htmlFor="show-second-semester" className="cursor-pointer flex items-center gap-2">
 								{t('notensammler.showSecondSemester', '2. Semester anzeigen')}
+								{classData.transferStatus?.second.transferred && (
+									<Badge variant="outline" className="text-xs">
+										<CheckCircle2 className="h-3 w-3 mr-1" />
+										{t('notensammler.transferred', 'Übertragen')}
+										{classData.transferStatus.second.lfId && (
+											<span className="ml-1 text-muted-foreground">
+												(LF: {classData.transferStatus.second.lfId})
+											</span>
+										)}
+									</Badge>
+								)}
 							</Label>
 						</div>
 						<Button
@@ -508,6 +693,13 @@ export default function NotensammlerPage() {
 							) : (
 								t('notensammler.downloadPdf', 'PDF herunterladen')
 							)}
+						</Button>
+						<Button
+							variant="secondary"
+							onClick={openTransferFlow}
+							disabled={!selectedClassId}
+						>
+							{t('notensammler.transferToNotenmanagement', 'An Notenmanagement übertragen')}
 						</Button>
 					</div>
 				)}
@@ -739,6 +931,259 @@ export default function NotensammlerPage() {
 					</CardContent>
 				</Card>
 			)}
+
+			{/* Password dialog */}
+			<Dialog open={showPasswordDialog} onOpenChange={(open) => setShowPasswordDialog(open)}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>{t('notensammler.nmPasswordTitle', 'Notenmanagement Passwort')}</DialogTitle>
+						<DialogDescription>
+							{t('notensammler.nmPasswordDesc', 'Bitte gib dein Passwort ein, um dich bei Notenmanagement anzumelden.')}
+						</DialogDescription>
+					</DialogHeader>
+					<Input
+						type="password"
+						value={transferPassword}
+						onChange={(e) => setTransferPassword(e.target.value)}
+						placeholder={t('notensammler.password', 'Passwort')}
+					/>
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setShowPasswordDialog(false)}>
+							{t('common.cancel', 'Abbrechen')}
+						</Button>
+						<Button
+							onClick={() => {
+								setShowPasswordDialog(false)
+								setShowSemesterDialog(true)
+							}}
+							disabled={!transferPassword}
+						>
+							{t('common.continue', 'Weiter')}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* Semester dialog */}
+			<Dialog open={showSemesterDialog} onOpenChange={(open) => setShowSemesterDialog(open)}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>{t('notensammler.nmSemesterTitle', 'Semester auswählen')}</DialogTitle>
+						<DialogDescription>
+							{t('notensammler.nmSemesterDesc', 'Welches Semester möchtest du übertragen?')}
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setShowSemesterDialog(false)}>
+							{t('common.cancel', 'Abbrechen')}
+						</Button>
+						<Button
+							onClick={() => {
+								setTransferSemester('first')
+								setShowSemesterDialog(false)
+								void fetchTransferPreview('first')
+							}}
+							disabled={previewLoading}
+						>
+							{previewLoading ? (
+								<>
+									<Spinner size="sm" className="mr-2" />
+									{t('notensammler.loading', 'Lade...')}
+								</>
+							) : (
+								t('notensammler.firstSemester', '1. Semester')
+							)}
+						</Button>
+						<Button
+							onClick={() => {
+								setTransferSemester('second')
+								setShowSemesterDialog(false)
+								void fetchTransferPreview('second')
+							}}
+							disabled={previewLoading}
+						>
+							{previewLoading ? (
+								<>
+									<Spinner size="sm" className="mr-2" />
+									{t('notensammler.loading', 'Lade...')}
+								</>
+							) : (
+								t('notensammler.secondSemester', '2. Semester')
+							)}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* Preview dialog */}
+			<Dialog open={showPreviewDialog} onOpenChange={(open) => setShowPreviewDialog(open)}>
+				<DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+					<DialogHeader>
+						<DialogTitle>
+							{t('notensammler.nmPreviewTitle', 'Vorschau: Übertragung an Notenmanagement')}
+						</DialogTitle>
+						{previewData && (
+							<DialogDescription className="whitespace-pre-line">
+								{t('notensammler.nmPreviewMeta', 'Klasse')}: {previewData.className} · {t('notensammler.subject', 'Fach')}: {previewData.subjectTruncated} · {t('notensammler.teachers', 'Lehrer')}: {previewData.teacherCount}
+								{previewData.counts.unmatchedCompleteStudents > 0 ? `\n${t('notensammler.nmUnmatchedWarning', 'Unmatched Schüler werden nicht übertragen.')}` : ''}
+							</DialogDescription>
+						)}
+					</DialogHeader>
+
+					{previewLoading && (
+						<div className="flex items-center justify-center py-8">
+							<Spinner size="lg" />
+						</div>
+					)}
+
+					{previewData && (
+						<div className="overflow-x-auto">
+							<Table>
+								<TableHeader>
+									<TableRow>
+										<TableHead>{t('notensammler.student', 'Schüler')}</TableHead>
+										<TableHead className="w-32">{t('notensammler.grade', 'Note')}</TableHead>
+										<TableHead className="w-40">{t('notensammler.matrikelnummer', 'Matrikelnummer')}</TableHead>
+										<TableHead className="w-28">{t('notensammler.match', 'Match')}</TableHead>
+									</TableRow>
+								</TableHeader>
+								<TableBody>
+									{previewData.students.map((s) => (
+										<TableRow key={s.studentId}>
+											<TableCell>
+												{s.lastName}, {s.firstName}
+											</TableCell>
+											<TableCell>
+												<Input
+													type="number"
+													min="1"
+													max="5"
+													step="1"
+													value={editedNotes[s.studentId] ?? s.note}
+													onChange={(e) => {
+														const v = parseInt(e.target.value)
+														if (![1, 2, 3, 4, 5].includes(v)) return
+														setEditedNotes(prev => ({ ...prev, [s.studentId]: v as 1 | 2 | 3 | 4 | 5 }))
+													}}
+													className="w-24"
+												/>
+											</TableCell>
+											<TableCell>
+												{s.matrikelnummer ?? '-'}
+											</TableCell>
+											<TableCell>
+												{s.matched ? (
+													<span className="text-green-600 font-medium">✓</span>
+												) : (
+													<span className="text-red-600 font-medium">✗</span>
+												)}
+											</TableCell>
+										</TableRow>
+									))}
+								</TableBody>
+							</Table>
+						</div>
+					)}
+
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setShowPreviewDialog(false)}>
+							{t('common.cancel', 'Abbrechen')}
+						</Button>
+						<Button onClick={() => void submitTransfer()} disabled={transferLoading || !previewData}>
+							{transferLoading ? (
+								<>
+									<Spinner size="sm" className="mr-2" />
+									{t('notensammler.transferring', 'Übertrage...')}
+								</>
+							) : (
+								previewData?.transferStatus && 
+								((previewData.semester === 'first' && previewData.transferStatus.first.transferred) ||
+								 (previewData.semester === 'second' && previewData.transferStatus.second.transferred))
+									? t('notensammler.updateTransfer', 'Aktualisieren')
+									: t('notensammler.transferNow', 'Jetzt übertragen')
+							)}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* Result dialog */}
+			<Dialog
+				open={showResultDialog}
+				onOpenChange={(open) => {
+					setShowResultDialog(open)
+					if (!open) {
+						setTransferPassword('')
+						setTransferSemester(null)
+						setPreviewData(null)
+						setEditedNotes({})
+					}
+				}}
+			>
+				<DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+					<DialogHeader>
+						<DialogTitle>
+							{transferResult?.success
+								? t('notensammler.nmSuccessTitle', 'Übertragung erfolgreich')
+								: t('notensammler.nmErrorTitle', 'Übertragung fehlgeschlagen')}
+						</DialogTitle>
+						<DialogDescription className="whitespace-pre-line">
+							{transferResult?.success && transferResult
+								? `${t('notensammler.nmLfId', 'LF_ID')}: ${transferResult.lfId}\n${t('notensammler.nmSent', 'Übertragen')}: ${transferResult.sentCount}`
+								: (error ?? t('notensammler.nmUnknownError', 'Unbekannter Fehler'))}
+						</DialogDescription>
+					</DialogHeader>
+
+					{transferResult?.success && !!transferResult.confirmation && (
+						<div className="rounded-md border bg-muted p-4">
+							<h3 className="font-semibold mb-3 text-sm">
+								{t('notensammler.nmConfirmation', 'Übertragene Noten')}
+							</h3>
+							{Array.isArray(transferResult.confirmation) && transferResult.confirmation.length > 0 ? (
+								<div className="overflow-x-auto">
+									<Table>
+										<TableHeader>
+											<TableRow>
+												<TableHead className="w-20">{t('notensammler.matrikelnummer', 'Matr.')}</TableHead>
+												<TableHead>{t('notensammler.lastName', 'Nachname')}</TableHead>
+												<TableHead>{t('notensammler.firstName', 'Vorname')}</TableHead>
+												<TableHead className="w-16 text-center">{t('notensammler.note', 'Note')}</TableHead>
+											</TableRow>
+										</TableHeader>
+										<TableBody>
+											{(transferResult.confirmation as Array<{
+												Matrikelnummer: number
+												Nachname: string
+												Vorname: string
+												Note: number
+												Punkte: number
+												Kommentar: string
+											}>).map((student, idx) => (
+												<TableRow key={student.Matrikelnummer ?? idx}>
+													<TableCell className="font-mono text-xs">{student.Matrikelnummer}</TableCell>
+													<TableCell>{student.Nachname}</TableCell>
+													<TableCell>{student.Vorname}</TableCell>
+													<TableCell className="text-center font-semibold">{student.Note}</TableCell>
+												</TableRow>
+											))}
+										</TableBody>
+									</Table>
+								</div>
+							) : (
+								<div className="text-sm text-muted-foreground">
+									<pre className="whitespace-pre-wrap">{JSON.stringify(transferResult.confirmation, null, 2)}</pre>
+								</div>
+							)}
+						</div>
+					)}
+
+					<DialogFooter>
+						<Button onClick={() => setShowResultDialog(false)}>
+							{t('common.close', 'Schließen')}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	)
 }
