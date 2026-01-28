@@ -41,19 +41,20 @@ model Teacher {
 }
 
 model Class {
-  id          Int                 @id @default(autoincrement())
-  name        String              @unique
+  id          Int                     @id @default(autoincrement())
+  name        String                  @unique
   description String?
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
   classHeadId Int?
   classLeadId Int?
   schedules   Schedule[]
   students    Student[]
   assignments TeacherAssignment[]
   grades      Grade[]
-  classHead   Teacher?            @relation("ClassHead", fields: [classHeadId], references: [id])
-  classLead   Teacher?            @relation("ClassLead", fields: [classLeadId], references: [id])
+  transfers   NotenmanagementTransfer[]
+  classHead   Teacher?                @relation("ClassHead", fields: [classHeadId], references: [id])
+  classLead   Teacher?                @relation("ClassLead", fields: [classLeadId], references: [id])
 
   @@index([name])
 }
@@ -256,6 +257,20 @@ model Grade {
   @@unique([studentId, teacherId, classId, semester])
   @@index([studentId])
   @@index([teacherId])
+  @@index([classId])
+  @@index([semester])
+}
+
+model NotenmanagementTransfer {
+  id        Int      @id @default(autoincrement())
+  classId   Int
+  semester  String   // 'first' or 'second'
+  lfId      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  class     Class    @relation(fields: [classId], references: [id])
+
+  @@unique([classId, semester])
   @@index([classId])
   @@index([semester])
 }

@@ -119,18 +119,36 @@ export async function GET(
 				}
 			}
 
-			subjectName = mostCommonSubject
-		}
+		subjectName = mostCommonSubject
+	}
 
-		return NextResponse.json({
-			id: classRecord.id,
-			name: classRecord.name,
-			description: classRecord.description,
-			subjectName,
-			students: classRecord.students,
-			amTeachers,
-			pmTeachers
-		})
+	// Fetch transfer status for this class
+	const transfers = await prisma.notenmanagementTransfer.findMany({
+		where: { classId },
+		select: { semester: true, lfId: true },
+	})
+
+	const transferStatus = {
+		first: {
+			transferred: transfers.some((t) => t.semester === 'first'),
+			lfId: transfers.find((t) => t.semester === 'first')?.lfId ?? null,
+		},
+		second: {
+			transferred: transfers.some((t) => t.semester === 'second'),
+			lfId: transfers.find((t) => t.semester === 'second')?.lfId ?? null,
+		},
+	}
+
+	return NextResponse.json({
+		id: classRecord.id,
+		name: classRecord.name,
+		description: classRecord.description,
+		subjectName,
+		students: classRecord.students,
+		amTeachers,
+		pmTeachers,
+		transferStatus,
+	})
 	} catch (error) {
 		captureError(error, {
 			location: 'api/notensammler/class/[id]',
