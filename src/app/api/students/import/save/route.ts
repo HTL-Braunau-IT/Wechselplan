@@ -237,10 +237,23 @@ export async function POST(request: Request) {
         create: { name: className }
       })
 
+      // Note: We delete all students and recreate them to sync with LDAP.
+      // This means groupId values are lost, but GroupAssignment records remain.
+      // The GET endpoint for group assignments will auto-create missing GroupAssignment
+      // records when students are later assigned to groups.
+
       // Delete existing students in this class
       await prisma.student.deleteMany({
         where: {
           classId: classRecord.id
+        }
+      })
+
+      // Clean up orphaned GroupAssignment records (groups with no students)
+      // These will be recreated automatically when students are assigned to groups
+      await prisma.groupAssignment.deleteMany({
+        where: {
+          class: className
         }
       })
 
