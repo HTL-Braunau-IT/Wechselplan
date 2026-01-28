@@ -58,8 +58,9 @@ function truncateSubject(subjectName: string): string {
 	const prefix = (parts[0] ?? subjectName).trim()
 	
 	// Check if prefix ends with digits
-	const match = prefix.match(/^(.+?)(\d+)$/)
-	if (match && match[1] && match[2]) {
+	const regex = /^(.+?)(\d+)$/
+	const match = regex.exec(prefix)
+	if (match?.[1] && match?.[2]) {
 		// Add underscore before digits: "PBE4" → "PBE_4"
 		return `${match[1]}_${match[2]}`
 	}

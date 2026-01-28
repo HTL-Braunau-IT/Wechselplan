@@ -1,6 +1,5 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ExternalLink, Calendar } from 'lucide-react'
 import { Button } from '~/components/ui/button'
@@ -33,7 +32,7 @@ interface ChangelogDialogProps {
  * Provides a link to view the full release on GitHub.
  */
 export function ChangelogDialog({ release, open, onOpenChange }: ChangelogDialogProps) {
-  const { t } = useTranslation()
+  
 
   if (!release) {
     return null

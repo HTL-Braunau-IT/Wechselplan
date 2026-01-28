@@ -757,8 +757,9 @@ function truncateSubject(subjectName: string): string {
   const prefix = (parts[0] ?? subjectName).trim();
   
   // Check if prefix ends with digits
-  const match = prefix.match(/^(.+?)(\d+)$/);
-  if (match && match[1] && match[2]) {
+  const regex = /^(.+?)(\d+)$/;
+  const match = regex.exec(prefix);
+  if (match?.[1] && match?.[2]) {
     // Add underscore before digits: "PBE4" → "PBE_4"
     return `${match[1]}_${match[2]}`;
   }
@@ -908,7 +909,6 @@ export async function generateNotensammlerPDF(data: NotensammlerPDFData): Promis
 
   // Calculate column widths
   const totalTeachers = data.amTeachers.length + data.pmTeachers.length;
-  const numColumns = 3 + (totalTeachers * 2) + 2; // ID, Gruppe, Schüler, teachers (2 semesters), averages (2)
   const availableWidth = pageWidth - (margin * 2);
   const fixedColumnWidth = 15; // For ID, Gruppe columns
   const studentColumnWidth = 50; // For student name
@@ -946,33 +946,6 @@ export async function generateNotensammlerPDF(data: NotensammlerPDFData): Promis
   });
   // Second semester average
   columnStyles[colIndex] = { cellWidth: averageColumnWidth };
-
-  // Create a more complex header structure (unused, but kept for reference)
-  const topHeaderRow: any[] = [
-    { content: '', rowSpan: 2 },
-    { content: '', rowSpan: 2 },
-    { content: '', rowSpan: 2 },
-    { content: '1. Semester', colSpan: totalTeachers },
-    { content: '', rowSpan: 2 },
-    { content: '2. Semester', colSpan: totalTeachers },
-    { content: '', rowSpan: 2 },
-  ];
-
-  const secondHeaderRow: string[] = [];
-  // First semester
-  data.amTeachers.forEach(() => secondHeaderRow.push(''));
-  if (data.amTeachers.length > 0 && data.pmTeachers.length > 0) {
-    secondHeaderRow.push('');
-  }
-  data.pmTeachers.forEach(() => secondHeaderRow.push(''));
-  secondHeaderRow.push(''); // Average column
-  // Second semester
-  data.amTeachers.forEach(() => secondHeaderRow.push(''));
-  if (data.amTeachers.length > 0 && data.pmTeachers.length > 0) {
-    secondHeaderRow.push('');
-  }
-  data.pmTeachers.forEach(() => secondHeaderRow.push(''));
-  secondHeaderRow.push(''); // Average column
 
   // Simplified header - use single row with section labels
   const simpleHeaderRow: string[] = ['ID', 'Gruppe', 'Schüler'];
