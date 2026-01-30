@@ -7,7 +7,7 @@ import { useScheduleOverview } from "@/hooks/use-schedule-overview"
 import { ScheduleOverview } from "@/components/schedule-overview"
 import { Spinner } from "@/components/ui/spinner"
 import { parse, isValid, isWithinInterval, addWeeks } from "date-fns"
-import type { ScheduleResponse, TeacherAssignmentResponse, ScheduleTerm, TeacherRotation } from "@/types/types"
+import type { ScheduleResponse, TeacherAssignmentResponse, ScheduleTerm, TurnSchedule, Group } from "@/types/types"
 
 /**
  * Renders a schedule overview for the logged-in student with conditional weekday navigation tabs.
@@ -39,13 +39,13 @@ export function StudentOverview() {
 
                 const response = await fetch(`/api/students/class?username=${session.user.name}`)
                 if (!response.ok) {
-                    const errorData = await response.json()
-                    setError(errorData.error || 'Failed to fetch student data')
+                    const errorData = await response.json() as { error?: string }
+                    setError(errorData.error ?? 'Failed to fetch student data')
                     setLoading(false)
                     return
                 }
 
-                const data = await response.json()
+                const data = await response.json() as { class: string; groupId: number | null }
                 setStudentClass(data.class)
                 setGroupId(data.groupId)
 
@@ -57,7 +57,7 @@ export function StudentOverview() {
                     return
                 }
 
-                const schedules: ScheduleResponse[] = await schedulesResponse.json()
+                const schedules = await schedulesResponse.json() as ScheduleResponse[]
                 
                 if (schedules.length === 0) {
                     setError('No schedules found for your class')
@@ -77,7 +77,7 @@ export function StudentOverview() {
 
                 // Set initial selected weekday (first available, or current day if available)
                 const today = new Date().getDay()
-                const initialWeekday = weekdays.includes(today) ? today : weekdays[0]
+                const initialWeekday = weekdays.includes(today) ? today : (weekdays[0] ?? null)
                 setSelectedWeekday(initialWeekday)
 
             } catch (err) {
@@ -108,7 +108,7 @@ export function StudentOverview() {
             4: t('overview.weekdays.thursday'),
             5: t('overview.weekdays.friday'),
         }
-        return weekdayNames[weekday] || `Weekday ${weekday}`
+        return weekdayNames[weekday] ?? `Weekday ${weekday}`
     }
 
     if (loading) {
@@ -134,7 +134,7 @@ export function StudentOverview() {
         return null
     }
 
-    const scheduleContent = availableWeekdays.length === 1 ? (
+    const scheduleContent = availableWeekdays.length === 1 && availableWeekdays[0] !== undefined ? (
         <ScheduleOverviewWrapper 
             className={studentClass} 
             weekday={availableWeekdays[0]}
@@ -189,8 +189,8 @@ function StudentCurrentAssignments({
 }: { 
     amAssignments: TeacherAssignmentResponse[]
     pmAssignments: TeacherAssignmentResponse[]
-    turns: any
-    groups: any[]
+    turns: TurnSchedule
+    groups: Group[]
     groupId: number | null
 }) {
     const { t } = useTranslation()
@@ -217,12 +217,11 @@ function StudentCurrentAssignments({
     // Logic: rotate groups based on turn, then find which teacher index has the student's group
     const findTeacherForGroup = (
         assignments: TeacherAssignmentResponse[],
-        studentGroupId: number,
-        period: 'AM' | 'PM'
+        studentGroupId: number
     ): TeacherAssignmentResponse | null => {
         if (!studentGroupId || groups.length === 0) {
             // Fallback: direct groupId match
-            return assignments.find(a => a.groupId === studentGroupId) || null
+            return assignments.find(a => a.groupId === studentGroupId) ?? null
         }
 
         // Get unique teachers for this period (sorted by their base assignment order)
@@ -247,16 +246,17 @@ function StudentCurrentAssignments({
             const teacherIndex = rotatedGroups.findIndex(g => g.id === studentGroupId)
             
             if (teacherIndex >= 0 && teacherIndex < uniqueTeachers.length) {
-                return uniqueTeachers[teacherIndex]
+                const teacher = uniqueTeachers[teacherIndex]
+                return teacher ?? null
             }
         }
 
         // Fallback: direct groupId match (no rotation or turn not found)
-        return assignments.find(a => a.groupId === studentGroupId) || null
+        return assignments.find(a => a.groupId === studentGroupId) ?? null
     }
 
-    const amAssignment = findTeacherForGroup(amAssignments, groupId || 0, 'AM')
-    const pmAssignment = findTeacherForGroup(pmAssignments, groupId || 0, 'PM')
+    const amAssignment = findTeacherForGroup(amAssignments, groupId ?? 0)
+    const pmAssignment = findTeacherForGroup(pmAssignments, groupId ?? 0)
 
     if (!amAssignment && !pmAssignment) {
         return null
@@ -377,12 +377,12 @@ function ScheduleOverviewWrapper({ className, weekday, groupId }: { className: s
                     setScheduleLoading(false)
                     return
                 }
-                const schedules: ScheduleResponse[] = await response.json()
-                if (schedules.length > 0) {
+                const schedules = await response.json() as ScheduleResponse[]
+                if (schedules.length > 0 && schedules[0]) {
                     // Get the most recent schedule for this weekday
                     const latestSchedule = schedules[0]
-                    setTurns((latestSchedule.scheduleData || {}) as typeof defaultTurns)
-                    setAdditionalInfo(latestSchedule.additionalInfo || '')
+                    setTurns((latestSchedule.scheduleData ?? {}) as typeof defaultTurns)
+                    setAdditionalInfo(latestSchedule.additionalInfo ?? '')
                 } else {
                     setScheduleError('No schedule found for this weekday')
                 }
@@ -410,7 +410,7 @@ function ScheduleOverviewWrapper({ className, weekday, groupId }: { className: s
             <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg shadow-sm">
                 <div className="flex items-center gap-2">
                     <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-500" />
-                    <p className="text-yellow-800 dark:text-yellow-200">{hookError || scheduleError}</p>
+                    <p className="text-yellow-800 dark:text-yellow-200">{hookError ?? scheduleError ?? ''}</p>
                 </div>
             </div>
         )
