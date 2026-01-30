@@ -2,6 +2,8 @@
 name-template: 'v$NEXT_PATCH_VERSION'   # You can switch to $NEXT_MINOR_VERSION or $NEXT_MAJOR_VERSION
 tag-template: 'v$NEXT_PATCH_VERSION'
 
+
+filter-by-branch: true
 # Exclude PRs with this label from release notes
 exclude-labels:
   - automated

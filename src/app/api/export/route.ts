@@ -66,8 +66,7 @@ export async function POST(request: Request) {
             id: groupId,
             students: students.filter(s => s.groupId === groupId)
         }));
-        // Find max students in any group
-        // Get teacher assignments (AM/PM) with relations
+        // Get teacher assignments (AM/PM) with relations (no weekday filter - each class has one schedule)
         const teacherAssignments = await prisma.teacherAssignment.findMany({
             where: { classId: class_response.id },
             orderBy: [{ period: 'asc' }, { groupId: 'asc' }],
@@ -76,6 +75,16 @@ export async function POST(request: Request) {
                 room: true,
                 subject: true,
                 learningContent: true,
+            }
+        })
+        
+        // Get the schedule
+        const schedule = await prisma.schedule.findFirst({
+            where: { classId: class_response.id },
+            orderBy: [{ createdAt: 'desc' }],
+            include: {
+                scheduleTimes: true,
+                breakTimes: true
             }
         })
 
@@ -127,14 +136,6 @@ export async function POST(request: Request) {
             .filter(a => a.period === 'PM')
             .map(mapAssignment); 
     
-        const schedule = await prisma.schedule.findFirst({
-            where: { classId: class_response.id },
-            orderBy: [{ createdAt: 'desc' }],
-            include: {
-                scheduleTimes: true,
-                breakTimes: true
-            }
-        })
         const turns = (schedule && typeof schedule.scheduleData === 'object' && schedule.scheduleData !== null && !Array.isArray(schedule.scheduleData))
             ? schedule.scheduleData as Record<string, unknown>
             : {};

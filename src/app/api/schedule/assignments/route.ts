@@ -71,12 +71,6 @@ export async function GET(request: Request) {
 			]
 		})
 
-		// Get all group assignments for this class (including empty groups)
-		const groupAssignments = await prisma.groupAssignment.findMany({
-			where: { class: className },
-			orderBy: { groupId: 'asc' }
-		})
-
 		// Group students by their groupId
 		const groups = new Map<number, typeof students>()
 		students.forEach(student => {
@@ -88,8 +82,45 @@ export async function GET(request: Request) {
 			}
 		})
 
+		// Get all group assignments for this class (including empty groups)
+		const groupAssignments = await prisma.groupAssignment.findMany({
+			where: { class: className },
+			orderBy: { groupId: 'asc' }
+		})
+
+		// Get all group IDs that students actually have (even if not in GroupAssignment table)
+		const studentGroupIds = Array.from(groups.keys())
+		
+		// Ensure GroupAssignment records exist for all groups that students are in
+		// This fixes cases where GroupAssignment records are missing
+		for (const groupId of studentGroupIds) {
+			const existingGroupAssignment = groupAssignments.find(ga => ga.groupId === groupId)
+			if (!existingGroupAssignment) {
+				// Create missing GroupAssignment record
+				await prisma.groupAssignment.upsert({
+					where: {
+						class_groupId: {
+							class: className,
+							groupId: groupId
+						}
+					},
+					update: {},
+					create: {
+						groupId: groupId,
+						class: className
+					}
+				})
+			}
+		}
+
+		// Get updated group assignments (including newly created ones)
+		const allGroupAssignments = await prisma.groupAssignment.findMany({
+			where: { class: className },
+			orderBy: { groupId: 'asc' }
+		})
+
 		// Convert to the expected format, including empty groups
-		const assignments: Assignment[] = groupAssignments.map(groupAssignment => ({
+		const assignments: Assignment[] = allGroupAssignments.map(groupAssignment => ({
 			groupId: groupAssignment.groupId,
 			studentIds: groups.get(groupAssignment.groupId)?.map((s: { id: number }) => s.id) ?? []
 		}))

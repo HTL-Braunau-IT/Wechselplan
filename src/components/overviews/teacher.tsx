@@ -125,26 +125,72 @@ export function TeacherOverview() {
             }).length
         }
 
-        const getCurrentGroup = (
-            assignment: typeof assignments[0],
-            scheduleInfo: Record<string, ScheduleTerm> | undefined,
-            currentWeek: [string, ScheduleTerm] | null | undefined
-        ): number | undefined => {
-            if (!currentWeek || !scheduleData?.teacherRotation) {
-                return assignment.groupId
+        // Helper function to rotate array
+        const rotateArray = <T,>(arr: T[], n: number): T[] => {
+            const rotated = [...arr]
+            for (let i = 0; i < n; i++) {
+                const temp = rotated.shift()
+                if (temp !== undefined) {
+                    rotated.push(temp)
+                }
             }
+            return rotated
+        }
 
-            const turnKey = currentWeek[0] // e.g., "TURNUS 1"
+        // Get current turn index based on current date
+        const getCurrentTurnIndex = (scheduleInfo: Record<string, ScheduleTerm> | undefined): number => {
+            if (!scheduleInfo) return 0
             
-            // Find the matching teacherRotation entry
-            const rotation = scheduleData.teacherRotation.find(tr => 
-                Number(tr.teacherId) === assignment.teacherId &&
-                Number(tr.classId) === assignment.classId &&
-                tr.period === assignment.period &&
-                tr.turnId === turnKey
-            )
+            const turnKeys = Object.keys(scheduleInfo).sort()
+            const currentWeek = getCurrentWeek(scheduleInfo)
+            
+            if (!currentWeek) return 0
+            
+            // Find which turn we're in
+            const turnIndex = turnKeys.findIndex(key => key === currentWeek[0])
+            return turnIndex >= 0 ? turnIndex : 0
+        }
 
-            return rotation ? rotation.groupId : assignment.groupId
+        // Calculate the actual group for a teacher based on rotation
+        const getActualGroupForAssignment = (assignment: typeof assignments[0]): number | null => {
+            const scheduleInfo = getScheduleInfo(assignment.classId)
+            if (!scheduleInfo) return assignment.groupId ?? null
+
+            // Get groups for this class from students
+            const classStudents = scheduleData.students.find(students => 
+                students.some(student => student.classId === assignment.classId)
+            )
+            if (!classStudents) return assignment.groupId ?? null
+
+            // Get unique group IDs and sort them
+            const groupIds = [...new Set(classStudents
+                .filter(s => s.classId === assignment.classId && s.groupId)
+                .map(s => s.groupId as number)
+            )].sort((a, b) => a - b)
+
+            if (groupIds.length === 0) return assignment.groupId ?? null
+
+            // Get unique teachers for this period and class
+            const periodAssignments = scheduleData.assignments.filter(a => 
+                a.classId === assignment.classId && 
+                a.period === assignment.period
+            )
+            const uniqueTeachers = periodAssignments
+                .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx)
+                .sort((a, b) => a.teacherId - b.teacherId)
+
+            // Find teacher index
+            const teacherIndex = uniqueTeachers.findIndex(t => t.teacherId === assignment.teacherId)
+            if (teacherIndex === -1) return assignment.groupId ?? null
+
+            // Get current turn index
+            const turnIndex = getCurrentTurnIndex(scheduleInfo)
+
+            // Rotate groups based on turn
+            const rotatedGroups = rotateArray(groupIds, turnIndex)
+            
+            // Return the group for this teacher's index
+            return rotatedGroups[teacherIndex] ?? assignment.groupId ?? null
         }
 
         const getStudentsForGroup = (groupId: number | undefined, classId: number | undefined) => {
@@ -187,6 +233,7 @@ export function TeacherOverview() {
                     const currentWeek = getCurrentWeek(scheduleInfo)
                     const currentTerm = currentWeek ? (currentWeek[1] as ScheduleTerm).name : t('overview.teacher.noSchedule')
                     const remainingWeeks = getRemainingWeeks(scheduleInfo)
+                    const actualGroupId = getActualGroupForAssignment(assignment)
 
                     const scheduleTime = getScheduleTimes(assignment.classId, assignment.period)
                     const breakTimes = getBreakTimes(assignment.classId, assignment.period)
@@ -204,7 +251,7 @@ export function TeacherOverview() {
                                 </div>
                                 <div className="space-y-2">
                                     <p className="text-sm text-gray-500 dark:text-gray-400">{t(`overview.teacher.${assignment.period.toLowerCase()}Group`)}</p>
-                                    <p className="font-semibold text-lg dark:text-white">{getCurrentGroup(assignment, scheduleInfo, currentWeek) ?? assignment.groupId}</p>
+                                    <p className="font-semibold text-lg dark:text-white">{actualGroupId ?? '—'}</p>
                                 </div>
                                 <div className="space-y-2">
                                     <p className="text-sm text-gray-500 dark:text-gray-400">{t('overview.teacher.weeksRemaining')}</p>
@@ -255,8 +302,7 @@ export function TeacherOverview() {
                                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{t('overview.teacher.studentsInGroup', { period: assignment.period })}</p>
                                 <div className="grid grid-cols-2 gap-2">
                                     {(() => {
-                                        const currentGroupId = getCurrentGroup(assignment, scheduleInfo, currentWeek) ?? assignment.groupId
-                                        const sortedStudents = getStudentsForGroup(currentGroupId, assignment.classId)
+                                        const sortedStudents = getStudentsForGroup(actualGroupId ?? undefined, assignment.classId)
                                             .sort((a, b) => a.lastName.localeCompare(b.lastName))
                                         
                                         const leftColumnStudents = sortedStudents.slice(0, 6)

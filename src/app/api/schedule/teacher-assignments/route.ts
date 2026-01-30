@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma'
 /**
  * Handles GET requests to retrieve teacher assignments for a specified class, grouped by AM and PM periods.
  *
- * Extracts the `class` query parameter from the request URL, fetches the corresponding class and its teacher assignments from the database, and returns the assignments separated into `amAssignments` and `pmAssignments` arrays, along with the `selectedWeekday` value.
+ * Extracts the `class` and optional `selectedWeekday` query parameters from the request URL, fetches the corresponding class and its teacher assignments from the database, and returns the assignments separated into `amAssignments` and `pmAssignments` arrays, along with the `selectedWeekday` value. If `selectedWeekday` is provided, assignments are filtered by that weekday.
  *
  * @returns A JSON response containing `amAssignments`, `pmAssignments`, and `selectedWeekday`, or an error message with the appropriate HTTP status code if the class is not specified, not found, or an unexpected error occurs.
  */
@@ -14,6 +14,7 @@ export async function GET(request: Request) {
 	try {
 		const { searchParams } = new URL(request.url)
 		const className = searchParams.get('class')
+		const selectedWeekdayParam = searchParams.get('selectedWeekday')
 
 		if (!className) {
 			return NextResponse.json(
@@ -41,9 +42,20 @@ export async function GET(request: Request) {
 			)
 		}
 
-		// Fetch existing assignments for this class
+		// Build where clause with optional weekday filter
+		const whereClause: { classId: number; selectedWeekday?: number } = {
+			classId: classRecord.id
+		}
+		if (selectedWeekdayParam) {
+			const weekday = parseInt(selectedWeekdayParam, 10)
+			if (!isNaN(weekday)) {
+				whereClause.selectedWeekday = weekday
+			}
+		}
+
+		// Fetch existing assignments for this class, optionally filtered by weekday
 		const assignments = await prisma.teacherAssignment.findMany({
-			where: { classId: classRecord.id },
+			where: whereClause,
 			orderBy: [
 				{ period: 'asc' },
 				{ groupId: 'asc' }
@@ -56,8 +68,8 @@ export async function GET(request: Request) {
 			}
 		})
 
-		// Get the selected weekday from the first assignment (they should all have the same weekday)
-		const selectedWeekday = assignments[0]?.selectedWeekday ?? 1
+		// Get the selected weekday from the first assignment or the parameter
+		const selectedWeekday = selectedWeekdayParam ? parseInt(selectedWeekdayParam, 10) : (assignments[0]?.selectedWeekday ?? 1)
 
 		// Group assignments by period
 		const amAssignments = assignments

@@ -12,6 +12,9 @@ vi.mock('@/lib/prisma', () => ({
       deleteMany: vi.fn(),
       create: vi.fn(),
     },
+    groupAssignment: {
+      deleteMany: vi.fn(),
+    },
   },
 }));
 
@@ -138,6 +141,8 @@ describe('Students Import Save API', () => {
       });
 
       vi.mocked(prisma.student.deleteMany).mockResolvedValue({ count: 0 });
+
+      vi.mocked(prisma.groupAssignment.deleteMany).mockResolvedValue({ count: 0 });
 
       vi.mocked(prisma.student.create).mockResolvedValue({
         id: 1,

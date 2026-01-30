@@ -67,29 +67,63 @@ export function useScheduleOverview(classId: string | null): UseScheduleOverview
           }))
         )
 
-        // Fetch teacher assignments
-        const teacherRes = await fetch(`/api/schedule/teacher-assignments?class=${classId}`)
-        if (!teacherRes.ok) throw new Error('Failed to fetch teacher assignments')
-        const teacherData: TeacherAssignmentsResponse = await teacherRes.json()
-        setAmAssignments(teacherData.amAssignments)
-        setPmAssignments(teacherData.pmAssignments)
-
-        // Fetch selected schedule times
-        const timesRes = await fetch(`/api/schedule/times?className=${classId}`)
-        if (!timesRes.ok) throw new Error('Failed to fetch schedule times')
-        const timesData: { times: { scheduleTimes: ScheduleTime[]; breakTimes: BreakTime[] } } = await timesRes.json()
-        setScheduleTimes(timesData.times.scheduleTimes)
-        setBreakTimes(timesData.times.breakTimes)
+        // Fetch selected schedule times (optional - continue if this fails)
+        try {
+          const timesRes = await fetch(`/api/schedule/times?className=${classId}`)
+          if (timesRes.ok) {
+            const timesData: { times: { scheduleTimes: ScheduleTime[]; breakTimes: BreakTime[] } } = await timesRes.json()
+            setScheduleTimes(timesData.times.scheduleTimes)
+            setBreakTimes(timesData.times.breakTimes)
+          } else {
+            console.warn(`Failed to fetch schedule times for class ${classId}`)
+            setScheduleTimes([])
+            setBreakTimes([])
+          }
+        } catch (err) {
+          console.warn(`Error fetching schedule times for class ${classId}:`, err)
+          setScheduleTimes([])
+          setBreakTimes([])
+        }
 
         // Fetch rotation/turn schedule
         const schedulesRes = await fetch(`/api/schedules?classId=${classId}`)
-        if (!schedulesRes.ok) throw new Error('Failed to fetch rotation schedule')
-        const schedules = await schedulesRes.json() as ScheduleResponse[]
-        const latestSchedule = schedules[0]
+        let latestSchedule: ScheduleResponse | undefined
+        let selectedWeekday = 6
+        
+        if (schedulesRes.ok) {
+          const schedules = await schedulesRes.json() as ScheduleResponse[]
+          // Get the most recent schedule (ordered by createdAt desc from API)
+          latestSchedule = schedules[0]
+          selectedWeekday = latestSchedule?.selectedWeekday ?? 6
+        } else if (schedulesRes.status === 404) {
+          // No schedules found - this is okay, we'll use defaults
+          console.warn(`No schedules found for class ${classId}`)
+        } else {
+          throw new Error('Failed to fetch rotation schedule')
+        }
+        
         setAdditionalInfo(latestSchedule?.additionalInfo ?? '')
-        setWeekday(latestSchedule?.selectedWeekday ?? 6)
+        setWeekday(selectedWeekday)
         const scheduleData = latestSchedule?.scheduleData ?? {}
         setTurns(scheduleData as TurnSchedule)
+
+        // Fetch teacher assignments (no weekday filter needed - each class has one schedule)
+        try {
+          const teacherRes = await fetch(`/api/schedule/teacher-assignments?class=${classId}`)
+          if (teacherRes.ok) {
+            const teacherData: TeacherAssignmentsResponse = await teacherRes.json()
+            setAmAssignments(teacherData.amAssignments)
+            setPmAssignments(teacherData.pmAssignments)
+          } else {
+            console.warn(`Failed to fetch teacher assignments for class ${classId}`)
+            setAmAssignments([])
+            setPmAssignments([])
+          }
+        } catch (err) {
+          console.warn(`Error fetching teacher assignments for class ${classId}:`, err)
+          setAmAssignments([])
+          setPmAssignments([])
+        }
 
         // Fetch class data
         const classRes = await fetch(`/api/classes/get-by-name?name=${classId}`)

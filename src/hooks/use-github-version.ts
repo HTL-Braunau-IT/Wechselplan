@@ -31,6 +31,7 @@ const CACHE_DURATION = 60 * 60 * 1000 // 1 hour in milliseconds
 export function useGitHubVersion(onVersionChange?: (release: GitHubRelease) => void) {
   const [version, setVersion] = useState<string>('0.0.0')
   const [release, setRelease] = useState<GitHubRelease | null>(null)
+  const [allReleases, setAllReleases] = useState<GitHubRelease[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [hasNewVersion, setHasNewVersion] = useState(false)
@@ -97,9 +98,41 @@ export function useGitHubVersion(onVersionChange?: (release: GitHubRelease) => v
   }, [])
 
   /**
+   * Fetches all releases from the API.
+   */
+  const fetchAllReleases = useCallback(async (): Promise<GitHubRelease[]> => {
+    try {
+      const response = await fetch('/api/github/releases?all=true')
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          setError('No releases found')
+          return []
+        }
+        if (response.status === 429) {
+          setError('Rate limit exceeded. Please try again later.')
+          return []
+        }
+        throw new Error(`Failed to fetch releases: ${response.statusText}`)
+      }
+
+      const data = await response.json() as GitHubRelease[]
+      // Sort by published_at descending (newest first)
+      const sorted = data.sort((a, b) => 
+        new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
+      )
+      return sorted
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch release information'
+      setError(errorMessage)
+      return []
+    }
+  }, [])
+
+  /**
    * Checks for version updates.
    */
-  const checkForUpdates = useCallback(async (showModalOnChange = true) => {
+  const checkForUpdates = useCallback(async (_showModalOnChange = true) => {
     setLoading(true)
     setError(null)
 
@@ -124,6 +157,10 @@ export function useGitHubVersion(onVersionChange?: (release: GitHubRelease) => v
     // Update state with latest release
     setVersion(latestRelease.tag_name)
     setRelease(latestRelease)
+    
+    // Also fetch all releases for the changelog dialog
+    const releases = await fetchAllReleases()
+    setAllReleases(releases)
 
     // Check if version has changed
     if (cachedVersion && cachedVersion !== latestRelease.tag_name) {
@@ -131,8 +168,8 @@ export function useGitHubVersion(onVersionChange?: (release: GitHubRelease) => v
       // Update cache with new version
       setCachedVersion(latestRelease.tag_name)
       
-      // Trigger callback if provided and showModalOnChange is true
-      if (showModalOnChange && onVersionChange) {
+      // Always trigger callback when version changes, regardless of showModalOnChange flag
+      if (onVersionChange) {
         onVersionChange(latestRelease)
       }
     } else if (!cachedVersion) {
@@ -144,7 +181,7 @@ export function useGitHubVersion(onVersionChange?: (release: GitHubRelease) => v
     }
 
     setLoading(false)
-  }, [getCachedVersion, setCachedVersion, fetchLatestRelease, onVersionChange])
+  }, [getCachedVersion, setCachedVersion, fetchLatestRelease, fetchAllReleases, onVersionChange])
 
   /**
    * Initial load: check cache first, then fetch if needed.
@@ -179,6 +216,7 @@ export function useGitHubVersion(onVersionChange?: (release: GitHubRelease) => v
   return {
     version,
     release,
+    allReleases,
     loading,
     error,
     hasNewVersion,
