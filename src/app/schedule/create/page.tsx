@@ -188,6 +188,7 @@ export default function ScheduleClassSelectPage() {
 
 	const [classes, setClasses] = useState<Class[]>([])
 	const [selectedClass, setSelectedClass] = useState<string>(searchParams.get('class') ?? '')
+	const [selectedClassId, setSelectedClassId] = useState<number | null>(null)
 	const [students, setStudents] = useState<Student[]>([])
 	const [loading, setLoading] = useState<boolean>(false)
 	const [loadingClasses, setLoadingClasses] = useState<boolean>(true)
@@ -302,6 +303,26 @@ export default function ScheduleClassSelectPage() {
 		void fetchClasses()
 	}, [])
 
+	// Resolve className to classId when selectedClass changes
+	useEffect(() => {
+		async function resolveClassId() {
+			if (!selectedClass) {
+				setSelectedClassId(null)
+				return
+			}
+			try {
+				const res = await fetch(`/api/classes/get-by-name?name=${selectedClass}`)
+				if (!res.ok) throw new Error('Failed to fetch class ID')
+				const data = await res.json() as { id: number }
+				setSelectedClassId(data.id)
+			} catch (err) {
+				console.error('Error resolving class ID:', err)
+				setSelectedClassId(null)
+			}
+		}
+		void resolveClassId()
+	}, [selectedClass])
+
 	useEffect(() => {
 		/**
 		 * Fetches students and their group assignments for the selected class, initializing groups accordingly.
@@ -311,7 +332,7 @@ export default function ScheduleClassSelectPage() {
 		 * @remark Throws an error if a student ID in assignments does not match any fetched student.
 		 */
 		async function fetchStudents() {
-			if (!selectedClass) return
+			if (!selectedClass || !selectedClassId) return
 			
 			setLoading(true)
 			setIsManualGroupChange(false) // Reset manual change flag when loading new class
@@ -334,7 +355,7 @@ export default function ScheduleClassSelectPage() {
 				}
 
 				// Then fetch existing assignments
-				const assignmentsRes = await fetch(`/api/schedule/assignments?class=${selectedClass}`)
+				const assignmentsRes = await fetch(`/api/schedules/assignments?classId=${selectedClassId}`)
 				if (!assignmentsRes.ok) throw new Error('Failed to fetch assignments')
 				const assignmentsData = await assignmentsRes.json() as AssignmentsResponse
 
@@ -380,7 +401,7 @@ export default function ScheduleClassSelectPage() {
 			}
 		}
 		void fetchStudents()
-	}, [selectedClass])
+	}, [selectedClass, selectedClassId, t])
 
 	useEffect(() => {
 		if (students.length === 0) return
@@ -534,7 +555,8 @@ export default function ScheduleClassSelectPage() {
 			}))
 
 			// Check if there are existing assignments
-			const existingAssignmentsRes = await fetch(`/api/schedule/assignments?class=${selectedClass}`)
+			if (!selectedClassId) throw new Error('Class ID not available')
+			const existingAssignmentsRes = await fetch(`/api/schedules/assignments?classId=${selectedClassId}`)
 			if (!existingAssignmentsRes.ok) throw new Error('Failed to fetch existing assignments')
 			const existingAssignmentsData = await existingAssignmentsRes.json() as AssignmentsResponse
 
@@ -566,16 +588,16 @@ export default function ScheduleClassSelectPage() {
 			}
 
 			// If no changes or no existing assignments, proceed with saving
-			const response = await fetch('/api/schedule/assignments', {
+			if (!selectedClassId) throw new Error('Class ID not available')
+			const response = await fetch('/api/schedules/assignments', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
 				},
 				body: JSON.stringify({
-					class: selectedClass,
+					classId: selectedClassId,
 					assignments,
-					removedStudentIds: removedStudents.map(student => student.id),
-					updateExisting: true // Always set this to true to ensure new groups are properly initialized
+					removedStudentIds: removedStudents.map(student => student.id)
 				}),
 			})
 
@@ -601,19 +623,18 @@ export default function ScheduleClassSelectPage() {
 	}
 
 	async function handleConfirmUpdate() {
-		if (!pendingAssignments) return
+		if (!pendingAssignments || !selectedClassId) return
 
 		try {
-			const response = await fetch('/api/schedule/assignments', {
+			const response = await fetch('/api/schedules/assignments', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
 				},
 				body: JSON.stringify({
-					class: selectedClass,
+					classId: selectedClassId,
 					assignments: pendingAssignments.assignments,
-					removedStudentIds: pendingAssignments.removedStudentIds,
-					updateExisting: true // Always set this to true to ensure new groups are properly initialized
+					removedStudentIds: pendingAssignments.removedStudentIds
 				}),
 			})
 
