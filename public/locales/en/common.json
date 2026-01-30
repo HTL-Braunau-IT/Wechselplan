@@ -61,7 +61,9 @@
       "classLead": "Class Lead",
       "additionalInfo": "Additional Info",
       "studentsInGroup": "Students in {{period}} Group",
-      "noSchedule": "No schedule found for this day"
+      "noSchedule": "No schedule found for this day",
+      "scheduleTime": "Schedule Time",
+      "breakTimes": "Break Times"
     }
   },
   "auth": {

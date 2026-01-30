@@ -61,7 +61,9 @@
       "classLead": "Klassenleiter",
       "additionalInfo": "Zusätzliche Informationen",
       "studentsInGroup": "Schüler in {{period}}-Gruppe",
-      "noSchedule": "Kein Wechselplan für diesen Tag gefunden"
+      "noSchedule": "Kein Wechselplan für diesen Tag gefunden",
+      "scheduleTime": "Unterrichtszeit",
+      "breakTimes": "Pausenzeiten"
     }
   },
   "auth": {
