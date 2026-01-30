@@ -620,7 +620,7 @@ export default function NotensammlerPage() {
 				const newGrades = { ...prev }
 				for (const studentId in newGrades) {
 					const studentGrades = newGrades[parseInt(studentId)]
-					if (studentGrades && studentGrades[teacherToDelete.id]) {
+					if (studentGrades?.[teacherToDelete.id]) {
 						delete studentGrades[teacherToDelete.id]
 						// Remove student entry if no teachers left
 						if (Object.keys(studentGrades).length === 0) {
