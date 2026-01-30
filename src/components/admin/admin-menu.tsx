@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Settings, Users, Trash2, Download, GraduationCap, Calendar, Clock, Database } from 'lucide-react'
+import { Settings, Users, Trash2, Download, GraduationCap, Calendar, Clock, Database, Award } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 export function AdminMenu() {
@@ -81,6 +81,14 @@ export function AdminMenu() {
         >
           <Download className="h-5 w-5" />
           <span>{t('importData')}</span>
+        </Link>
+        <Link
+          href="/admin/grades"
+          className="flex items-center space-x-2 p-2 hover:bg-accent hover:text-accent-foreground rounded-lg"
+          aria-label="Grades Import/Export"
+        >
+          <Award className="h-5 w-5" />
+          <span>Grades Import/Export</span>
         </Link>
         <Link
           href="/admin/students/delete-all"
