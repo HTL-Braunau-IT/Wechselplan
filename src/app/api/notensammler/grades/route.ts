@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
 
@@ -14,6 +16,14 @@ const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
  */
 export async function GET(request: Request) {
 	try {
+		const session = await getServerSession(authOptions)
+		if (!session?.user?.name) {
+			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+		}
+		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
+			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+		}
+
 		const { searchParams } = new URL(request.url)
 		const classIdParam = searchParams.get('classId')
 
@@ -97,6 +107,14 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
 	let requestData: unknown
 	try {
+		const session = await getServerSession(authOptions)
+		if (!session?.user?.name) {
+			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+		}
+		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
+			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+		}
+
 		const body = await request.json() as { studentId: unknown; teacherId: unknown; classId: unknown; semester: unknown; grade: unknown }
 		requestData = body
 		const { studentId, teacherId, classId, semester, grade } = body
