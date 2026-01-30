@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { useTranslation } from 'next-i18next'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,8 +15,12 @@ interface ImportResponse {
 	validationErrors?: string[]
 }
 
+interface ErrorResponse {
+	error?: string
+	errors?: string[]
+}
+
 export default function GradesPage() {
-	const { t } = useTranslation('admin')
 	const [, setFile] = useState<File | null>(null)
 	const [error, setError] = useState('')
 	const [success, setSuccess] = useState('')
@@ -54,8 +57,8 @@ export default function GradesPage() {
 				})
 
 				if (!response.ok) {
-					const errorData = await response.json()
-					setError(errorData.error || 'Import failed')
+					const errorData = await response.json() as ErrorResponse
+					setError(errorData.error ?? 'Import failed')
 					if (errorData.errors) {
 						setErrorDetails(errorData.errors)
 						setShowErrorModal(true)
@@ -95,7 +98,7 @@ export default function GradesPage() {
 			a.href = url
 			const contentDisposition = response.headers.get('Content-Disposition')
 			const filename = contentDisposition
-				? contentDisposition.split('filename=')[1]?.replace(/"/g, '') || 'grades_export.csv'
+				? contentDisposition.split('filename=')[1]?.replace(/"/g, '') ?? 'grades_export.csv'
 				: 'grades_export.csv'
 			a.download = filename
 			document.body.appendChild(a)

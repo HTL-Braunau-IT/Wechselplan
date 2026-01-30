@@ -11,14 +11,6 @@ interface ImportRequest {
 	data: string // CSV data
 }
 
-interface GradeRow {
-	className: string
-	studentUsername: string
-	teacherUsername: string
-	semester: string
-	grade: string
-}
-
 /**
  * Handles POST requests to import grades from a CSV file.
  *
@@ -71,9 +63,9 @@ export async function POST(request: Request) {
 		}
 
 		// Get all unique classes, students, and teachers to batch fetch
-		const classNames = [...new Set(records.map(r => r.className))]
-		const studentUsernames = [...new Set(records.map(r => r.studentUsername))]
-		const teacherUsernames = [...new Set(records.map(r => r.teacherUsername))]
+		const classNames = [...new Set(records.map(r => r.className).filter((name): name is string => !!name))]
+		const studentUsernames = [...new Set(records.map(r => r.studentUsername).filter((username): username is string => !!username))]
+		const teacherUsernames = [...new Set(records.map(r => r.teacherUsername).filter((username): username is string => !!username))]
 
 		// Fetch all classes, students, and teachers
 		const [classes, students, teachers] = await Promise.all([
@@ -109,6 +101,12 @@ export async function POST(request: Request) {
 		for (let i = 0; i < records.length; i++) {
 			const record = records[i]!
 			const rowNum = i + 2 // +2 because CSV is 1-indexed and we skip header
+
+			// Validate required fields exist
+			if (!record.className || !record.studentUsername || !record.teacherUsername || !record.semester) {
+				errors.push(`Row ${rowNum}: Missing required fields (className, studentUsername, teacherUsername, or semester)`)
+				continue
+			}
 
 			// Validate class
 			const classId = classMap.get(record.className)
