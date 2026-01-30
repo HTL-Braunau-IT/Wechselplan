@@ -79,15 +79,38 @@ export default function TimesPage() {
   const [isBreakTimeFormOpen, setIsBreakTimeFormOpen] = useState(false)
 
   const className = searchParams.get('class')
+  const [classId, setClassId] = useState<number | null>(null)
+
+  // Resolve className to classId when className changes
+  useEffect(() => {
+    async function resolveClassId() {
+      if (!className) {
+        setClassId(null)
+        setError('Class ID is required')
+        setIsLoading(false)
+        return
+      }
+      try {
+        const res = await fetch(`/api/classes/get-by-name?name=${className}`)
+        if (!res.ok) throw new Error('Failed to fetch class ID')
+        const data = await res.json() as { id: number }
+        setClassId(data.id)
+      } catch (err) {
+        console.error('Error resolving class ID:', err)
+        setClassId(null)
+        setError('Failed to resolve class ID')
+        setIsLoading(false)
+      }
+    }
+    void resolveClassId()
+  }, [className])
 
   useEffect(() => {
-    if (!className) {
-      setError('Class ID is required')
-      setIsLoading(false)
+    if (!className || !classId) {
       return
     }
     void fetchData()
-  }, [className])
+  }, [className, classId])
 
   const fetchData = async () => {
     try {
@@ -95,7 +118,8 @@ export default function TimesPage() {
       setError(null)
 
       // Fetch teacher assignments first to determine which periods are needed
-      const assignmentsResponse = await fetch(`/api/schedule/teacher-assignments?class=${className}`)
+      if (!classId) throw new Error('Class ID not available')
+      const assignmentsResponse = await fetch(`/api/schedules/teacher-assignments?classId=${classId}`)
       if (!assignmentsResponse.ok) throw new Error('Failed to fetch teacher assignments')
       const assignmentsData = await assignmentsResponse.json()
 
@@ -134,7 +158,7 @@ export default function TimesPage() {
       // Fetch saved times for this class
       setIsLoadingSavedTimes(true)
       try {
-        const savedTimesResponse = await fetch(`/api/schedule/times?className=${className}`)
+        const savedTimesResponse = await fetch(`/api/schedules/times?classId=${classId}`)
         if (savedTimesResponse.ok) {
           const savedTimes = await savedTimesResponse.json()
           
@@ -215,13 +239,14 @@ export default function TimesPage() {
         breakTimes.push({ id: selectedPMBreakTime })
       }
 
-      const response = await fetch('/api/schedule/times', {
+      if (!classId) throw new Error('Class ID not available')
+      const response = await fetch('/api/schedules/times', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          className: className,
+          classId: classId,
           scheduleTimes,
           breakTimes,
         }),
