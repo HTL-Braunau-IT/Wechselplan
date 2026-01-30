@@ -73,7 +73,7 @@ describe('Students Class API', () => {
         expectedData: { error: 'Student has no class assigned' },
       },
       {
-        name: 'should return 200 with class name if found',
+        name: 'should return 200 with class name and groupId if found',
         setup: () => {
           const mockStudent: Student = {
             id: 1,
@@ -81,7 +81,7 @@ describe('Students Class API', () => {
             lastName: 'Doe',
             username: 'john.doe',
             classId: 1,
-            groupId: null,
+            groupId: 1,
             createdAt: new Date(),
             updatedAt: new Date(),
             class: {
@@ -95,7 +95,7 @@ describe('Students Class API', () => {
         },
         request: () => new Request('http://localhost/api/students/class?username=john.doe'),
         expectedStatus: 200,
-        expectedData: { class: '1A' },
+        expectedData: { class: '1A', groupId: 1 },
       },
       {
         name: 'should return 500 on error',
