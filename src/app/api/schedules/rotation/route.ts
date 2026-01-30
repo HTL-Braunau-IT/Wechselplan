@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 
 interface TeacherRotationRequest {
-  className: string
+  classId: number
   turns: string[]
   amRotation: {
     groupId: number
@@ -25,17 +25,18 @@ interface TeacherRotationRequest {
 export async function POST(request: Request) {
   try {
     const data = await request.json() as TeacherRotationRequest
-    const { className, turns, amRotation, pmRotation } = data
+    const { classId, turns, amRotation, pmRotation } = data
 
-    if (!className || !turns || !amRotation || !pmRotation) {
+    if (!classId || typeof classId !== 'number' || !turns || !amRotation || !pmRotation) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       )
     }
-    const classData = await db.class.findUnique({
+
+    const classData = await prisma.class.findUnique({
       where: {
-        name: className
+        id: classId
       }
     })
 
@@ -47,7 +48,7 @@ export async function POST(request: Request) {
     }
 
     // Delete existing rotations for this class
-    await db.teacherRotation.deleteMany({
+    await prisma.teacherRotation.deleteMany({
       where: {
         classId: classData.id
       }
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
       for (let i = 0; i < turns.length; i++) {
         const teacherId = groupRotation.turns[i]
         if (teacherId !== null) {
-          await db.teacherRotation.create({
+          await prisma.teacherRotation.create({
             data: {
               classId: classData.id,
               groupId: groupRotation.groupId,
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
       for (let i = 0; i < turns.length; i++) {
         const teacherId = groupRotation.turns[i]
         if (teacherId !== null) {
-          await db.teacherRotation.create({
+          await prisma.teacherRotation.create({
             data: {
               classId: classData.id,
               groupId: groupRotation.groupId,
@@ -93,7 +94,7 @@ export async function POST(request: Request) {
   } catch (error) {
   
     captureError(error, {
-      location: 'api/schedule/teacher-rotation',
+      location: 'api/schedules/rotation',
       type: 'update-rotation'
     })
     return NextResponse.json(
@@ -101,4 +102,5 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
-} 
+}
+

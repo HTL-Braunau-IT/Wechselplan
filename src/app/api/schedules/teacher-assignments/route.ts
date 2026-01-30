@@ -6,31 +6,39 @@ import { prisma } from '@/lib/prisma'
 /**
  * Handles GET requests to retrieve teacher assignments for a specified class, grouped by AM and PM periods.
  *
- * Extracts the `class` and optional `selectedWeekday` query parameters from the request URL, fetches the corresponding class and its teacher assignments from the database, and returns the assignments separated into `amAssignments` and `pmAssignments` arrays, along with the `selectedWeekday` value. If `selectedWeekday` is provided, assignments are filtered by that weekday.
+ * Extracts the `classId` and optional `selectedWeekday` query parameters from the request URL, fetches the corresponding class and its teacher assignments from the database, and returns the assignments separated into `amAssignments` and `pmAssignments` arrays, along with the `selectedWeekday` value. If `selectedWeekday` is provided, assignments are filtered by that weekday.
  *
  * @returns A JSON response containing `amAssignments`, `pmAssignments`, and `selectedWeekday`, or an error message with the appropriate HTTP status code if the class is not specified, not found, or an unexpected error occurs.
  */
 export async function GET(request: Request) {
 	try {
 		const { searchParams } = new URL(request.url)
-		const className = searchParams.get('class')
+		const classIdParam = searchParams.get('classId')
 		const selectedWeekdayParam = searchParams.get('selectedWeekday')
 
-		if (!className) {
+		if (!classIdParam) {
 			return NextResponse.json(
-				{ error: 'Class parameter is required' },
+				{ error: 'Class ID parameter is required' },
 				{ status: 400 }
 			)
 		}
 
-		// First find the class by name
+		const classId = parseInt(classIdParam, 10)
+		if (isNaN(classId)) {
+			return NextResponse.json(
+				{ error: 'Class ID must be a number' },
+				{ status: 400 }
+			)
+		}
+
+		// Find the class by ID
 		const classRecord = await prisma.class.findUnique({
-			where: { name: className }
+			where: { id: classId }
 		})
 
 		if (!classRecord) {
 			captureError(new Error('Class not found'), {
-				location: 'api/schedule/teacher-assignments',
+				location: 'api/schedules/teacher-assignments',
 				type: 'fetch-assignments',
 				extra: {
 					searchParams: Object.fromEntries(new URL(request.url).searchParams)
@@ -103,7 +111,7 @@ export async function GET(request: Request) {
 		})
 	} catch (error) {
 		captureError(error, {
-			location: 'api/schedule/teacher-assignments',
+			location: 'api/schedules/teacher-assignments',
 			type: 'fetch-assignments',
 			extra: {
 				searchParams: Object.fromEntries(new URL(request.url).searchParams)
@@ -127,30 +135,30 @@ export async function POST(request: Request) {
 	let requestData;
 	try {
 		requestData = await request.json()
-		const { class: className, amAssignments, pmAssignments, updateExisting, selectedWeekday } = requestData
+		const { classId, amAssignments, pmAssignments, updateExisting, selectedWeekday } = requestData
 
-		if (!className) {
-			captureError(new Error('Class not found'), {
-				location: 'api/schedule/teacher-assignments',
+		if (!classId || typeof classId !== 'number') {
+			captureError(new Error('Class ID parameter is required'), {
+				location: 'api/schedules/teacher-assignments',
 				type: 'fetch-assignments',
 				extra: {
 					searchParams: Object.fromEntries(new URL(request.url).searchParams)
 				}
 			})
 			return NextResponse.json(
-				{ error: 'Class parameter is required' },
+				{ error: 'Class ID parameter is required' },
 				{ status: 400 }
 			)
 		}
 
-		// First find the class by name
+		// Find the class by ID
 		const classRecord = await prisma.class.findUnique({
-			where: { name: className }
+			where: { id: classId }
 		})
 
 		if (!classRecord) {
 			captureError(new Error('Class not found'), {
-				location: 'api/schedule/teacher-assignments',
+				location: 'api/schedules/teacher-assignments',
 				type: 'fetch-assignments',
 				extra: {
 					searchParams: Object.fromEntries(new URL(request.url).searchParams)
@@ -258,7 +266,7 @@ export async function POST(request: Request) {
 		return NextResponse.json({ success: true })
 	} catch (error) {
 		captureError(error, {
-			location: 'api/schedule/teacher-assignments',
+			location: 'api/schedules/teacher-assignments',
 			type: 'save-assignments',
 			extra: {
 				requestData
@@ -269,4 +277,5 @@ export async function POST(request: Request) {
 			{ status: 500 }
 		)
 	}
-} 
+}
+

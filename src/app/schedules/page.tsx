@@ -209,8 +209,18 @@ export default function SchedulesPage() {
           return
         }
 
+        // Resolve className to classId
+        const classRes = await fetch(`/api/classes/get-by-name?name=${selectedClass}`)
+        if (!classRes.ok) {
+          setIsTeacherForClass(false)
+          setIsTeacherForAM(false)
+          setIsTeacherForPM(false)
+          return
+        }
+        const classData = await classRes.json() as { id: number }
+        
         // Then get the teacher assignments for the class
-        const response = await fetch(`/api/schedule/teacher-assignments?class=${selectedClass}`)
+        const response = await fetch(`/api/schedules/teacher-assignments?classId=${classData.id}`)
         if (!response.ok) {
           setIsTeacherForClass(false)
           setIsTeacherForAM(false)

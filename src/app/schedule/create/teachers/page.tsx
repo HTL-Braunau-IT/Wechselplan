@@ -219,6 +219,7 @@ export default function TeacherAssignmentPage() {
 	const searchParams = useSearchParams()
 	const { t } = useTranslation('schedule')
 	const selectedClass = searchParams.get('class')
+	const [selectedClassId, setSelectedClassId] = useState<number | null>(null)
 	const [selectedWeekday, setSelectedWeekday] = useState<number | null>(null)
 
 	const { rooms, subjects, learningContents, teachers, isLoading: isLoadingCachedData } = useCachedData()
@@ -251,6 +252,26 @@ export default function TeacherAssignmentPage() {
 	} | null>(null)
 	const [hasExistingAssignments, setHasExistingAssignments] = useState(false)
 
+	// Resolve className to classId when selectedClass changes
+	useEffect(() => {
+		async function resolveClassId() {
+			if (!selectedClass) {
+				setSelectedClassId(null)
+				return
+			}
+			try {
+				const res = await fetch(`/api/classes/get-by-name?name=${selectedClass}`)
+				if (!res.ok) throw new Error('Failed to fetch class ID')
+				const data = await res.json() as { id: number }
+				setSelectedClassId(data.id)
+			} catch (err) {
+				console.error('Error resolving class ID:', err)
+				setSelectedClassId(null)
+			}
+		}
+		void resolveClassId()
+	}, [selectedClass])
+
 	// Add effect to ensure assignments are initialized for all groups
 	useEffect(() => {
 		// Create initial assignments for any new groups
@@ -274,12 +295,12 @@ export default function TeacherAssignmentPage() {
 
 	useEffect(() => {
 		async function fetchData() {
-			if (!selectedClass || isLoadingCachedData) return
+			if (!selectedClass || !selectedClassId || isLoadingCachedData) return
 
 			setLoading(true)
 			try {
 				// Fetch groups
-				const groupsRes = await fetch(`/api/schedule/assignments?class=${selectedClass}`)
+				const groupsRes = await fetch(`/api/schedules/assignments?classId=${selectedClassId}`)
 				if (!groupsRes.ok) throw new Error('Failed to fetch groups')
 				const groupsData = await groupsRes.json() as AssignmentsResponse
 				setGroups(groupsData.assignments.map(assignment => ({
@@ -288,7 +309,7 @@ export default function TeacherAssignmentPage() {
 				})))
 
 				// Fetch existing teacher assignments
-				const teacherAssignmentsRes = await fetch(`/api/schedule/teacher-assignments?class=${selectedClass}`)
+				const teacherAssignmentsRes = await fetch(`/api/schedules/teacher-assignments?classId=${selectedClassId}`)
 				if (teacherAssignmentsRes.ok) {
 					const teacherAssignmentsData = await teacherAssignmentsRes.json() as TeacherAssignmentsResponse
 					const hasExistingAmAssignments = teacherAssignmentsData.amAssignments.some(a => a.teacherId !== 0)
@@ -373,7 +394,7 @@ export default function TeacherAssignmentPage() {
 			}
 		}
 		void fetchData()
-	}, [selectedClass, isLoadingCachedData, subjects, learningContents, rooms])
+	}, [selectedClass, selectedClassId, isLoadingCachedData, subjects, learningContents, rooms])
 
 	function handleAssignmentChange(
 		period: 'am' | 'pm',
@@ -582,15 +603,17 @@ export default function TeacherAssignmentPage() {
 			})
 
 			// If no changes or no existing assignments, proceed with saving
-			const response = await fetch('/api/schedule/teacher-assignments', {
+			if (!selectedClassId) throw new Error('Class ID not available')
+			const response = await fetch('/api/schedules/teacher-assignments', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
 				},
 				body: JSON.stringify({
-					class: selectedClass,
+					classId: selectedClassId,
 					amAssignments: mapAssignments(validAmAssignments),
 					pmAssignments: mapAssignments(validPmAssignments),
+					updateExisting: true,
 					selectedWeekday: selectedWeekday ?? 1
 				}),
 			})
@@ -628,7 +651,7 @@ export default function TeacherAssignmentPage() {
 	}
 
 	async function handleConfirmUpdate() {
-		if (!pendingAssignments) return
+		if (!pendingAssignments || !selectedClassId) return
 
 		try {
 			// Map the assignments to include string values for subject, learningContent, and room
@@ -646,13 +669,13 @@ export default function TeacherAssignmentPage() {
 				}
 			})
 
-			const response = await fetch('/api/schedule/teacher-assignments', {
+			const response = await fetch('/api/schedules/teacher-assignments', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
 				},
 				body: JSON.stringify({
-					class: selectedClass,
+					classId: selectedClassId,
 					amAssignments: mapAssignments(pendingAssignments.amAssignments),
 					pmAssignments: mapAssignments(pendingAssignments.pmAssignments),
 					updateExisting: true,

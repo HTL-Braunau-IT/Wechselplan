@@ -101,12 +101,23 @@ export default function OverviewPage() {
       const pmRotation = createRotation(uniquePmTeachers);
 
       console.log("classId", classId)  
+      // Resolve className to classId if needed
+      let resolvedClassId: number
+      if (typeof classId === 'string') {
+        const classRes = await fetch(`/api/classes/get-by-name?name=${classId}`)
+        if (!classRes.ok) throw new Error('Failed to fetch class ID')
+        const classData = await classRes.json() as { id: number }
+        resolvedClassId = classData.id
+      } else {
+        resolvedClassId = classId
+      }
+
       // Save to backend
-      const response = await fetch('/api/schedule/teacher-rotation', {        
+      const response = await fetch('/api/schedules/rotation', {        
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          className: classId,
+          classId: resolvedClassId,
           turns: turnKeys,
           amRotation,
           pmRotation
@@ -130,13 +141,14 @@ export default function OverviewPage() {
         ].filter((id, index, arr) => arr.indexOf(id) === index); // Remove duplicates
 
         const scheduleLink = `${window.location.origin}/schedules?class=${classId}`;
+        const className = typeof classId === 'string' ? classId : ''
         
-        await fetch('/api/schedule/notify-teachers', {
+        await fetch('/api/schedules/notify-teachers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            classId: parseInt(classId ?? '0'),
-            className: classId,
+            classId: resolvedClassId,
+            className: className || classId?.toString() || '',
             teacherIds: allTeacherIds,
             scheduleLink
           })

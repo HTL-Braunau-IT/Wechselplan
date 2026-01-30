@@ -1,23 +1,19 @@
-export type ScheduleWeek = {
-    date: string
-    week: string
-    isHoliday: boolean
-}
-
-export type ScheduleTerm = {
-    name: string
-    weeks: ScheduleWeek[]
-}
-
-export type Schedule = {
-    id: string
-    classId: string
-    selectedWeekday: number
-    scheduleData: Record<string, ScheduleTerm>
-    additionalInfo?: string
-    breakTimes?: BreakTime[]
-    scheduleTimes?: ScheduleTime[]
-}
+// Schedule-related types moved to schedule.ts - re-export for backward compatibility
+export type {
+    ScheduleWeek,
+    ScheduleTerm,
+    ScheduleEntry,
+    Schedule,
+    ScheduleResponse,
+    ScheduleTime,
+    BreakTime,
+    Holiday,
+    TurnSchedule,
+    TeacherAssignmentResponse,
+    TeacherAssignmentsResponse,
+    GroupAssignment,
+    AssignmentsResponse
+} from './schedule'
 
 export interface Student {
     id: number
@@ -27,32 +23,14 @@ export interface Student {
     groupId: number
 }
 
-export interface Holiday {
-    id: number
-    name: string
-    startDate: string
-    endDate: string
-  }
+// Holiday moved to schedule.ts - see re-exports above
 
 export interface Group {
     id: number
     students: Student[]
 }
 
-export interface TeacherAssignmentResponse {
-    groupId: number
-    teacherId: number
-    subject: string
-    learningContent: string
-    room: string
-    teacherLastName: string
-    teacherFirstName: string
-}
-
-export interface TeacherAssignmentsResponse {
-    amAssignments: TeacherAssignmentResponse[]
-    pmAssignments: TeacherAssignmentResponse[]
-}
+// Types moved to schedule.ts - see re-exports above
 
 export interface Teacher {
     id: number
@@ -69,25 +47,7 @@ export interface Class {
     classLeadId: number | null
 }
 
-export interface ScheduleTime {
-    id: string
-    startTime: string
-    endTime: string
-    hours: number
-    period: 'AM' | 'PM'
-}
-
-export interface BreakTime {
-    id: number
-    name: string
-    startTime: string
-    endTime: string
-    period: 'AM' | 'PM' | 'LUNCH'
-    createdAt: string
-    updatedAt: string
-}
-
-export type TurnSchedule = Record<string, unknown>
+// Types moved to schedule.ts - see re-exports above
 
 export type TeacherRotation = {
     id: string
@@ -125,14 +85,4 @@ export type ClassData = {
     classLead: string | null
 }
 
-export interface ScheduleResponse {
-    id: number
-    name: string
-    description?: string
-    startDate: string
-    endDate: string
-    selectedWeekday: number
-    scheduleData: unknown
-    additionalInfo?: string
-    classId?: number
-}
+// Types moved to schedule.ts - see re-exports above
