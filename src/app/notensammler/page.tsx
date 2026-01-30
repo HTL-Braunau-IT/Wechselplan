@@ -149,6 +149,10 @@ export default function NotensammlerPage() {
 	const [downloadingPdf, setDownloadingPdf] = useState(false)
 	const [savingAll, setSavingAll] = useState(false)
 
+	// Sorting state
+	const [sortField, setSortField] = useState<'lastName' | 'groupId'>('lastName')
+	const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
 	// Notenmanagement transfer flow state
 	const [showPasswordDialog, setShowPasswordDialog] = useState(false)
 	const [showSemesterDialog, setShowSemesterDialog] = useState(false)
@@ -411,14 +415,48 @@ export default function NotensammlerPage() {
 	// Sorted students with sequential IDs (only those assigned to a group)
 	const sortedStudents = useMemo(() => {
 		if (!classData) return []
-		return [...classData.students]
+		const students = [...classData.students]
 			.filter(student => student.groupId !== null && student.groupId !== undefined)
 			.sort((a, b) => {
-				const lastNameCompare = a.lastName.localeCompare(b.lastName)
-				if (lastNameCompare !== 0) return lastNameCompare
-				return a.firstName.localeCompare(b.firstName)
+				let primaryCompare = 0
+				
+				if (sortField === 'lastName') {
+					// Sort by last name
+					primaryCompare = a.lastName.localeCompare(b.lastName)
+					if (primaryCompare !== 0) {
+						return sortDirection === 'asc' ? primaryCompare : -primaryCompare
+					}
+					// Secondary sort by first name
+					const firstNameCompare = a.firstName.localeCompare(b.firstName)
+					return sortDirection === 'asc' ? firstNameCompare : -firstNameCompare
+				} else {
+					// Sort by group ID
+					// Handle null values - put them at the end
+					if (a.groupId === null && b.groupId === null) {
+						primaryCompare = 0
+					} else if (a.groupId === null) {
+						primaryCompare = 1 // a goes after b
+					} else if (b.groupId === null) {
+						primaryCompare = -1 // a goes before b
+					} else {
+						primaryCompare = a.groupId - b.groupId
+					}
+					
+					if (primaryCompare !== 0) {
+						return sortDirection === 'asc' ? primaryCompare : -primaryCompare
+					}
+					// Secondary sort by last name
+					const lastNameCompare = a.lastName.localeCompare(b.lastName)
+					if (lastNameCompare !== 0) {
+						return sortDirection === 'asc' ? lastNameCompare : -lastNameCompare
+					}
+					// Tertiary sort by first name
+					const firstNameCompare = a.firstName.localeCompare(b.firstName)
+					return sortDirection === 'asc' ? firstNameCompare : -firstNameCompare
+				}
 			})
-	}, [classData])
+		return students
+	}, [classData, sortField, sortDirection])
 
 	// Save all grades function
 	const saveAllGrades = useCallback(async () => {
@@ -967,6 +1005,37 @@ export default function NotensammlerPage() {
 								? `${classData.name} - ${truncateSubject(classData.subjectName)}`
 								: classData.name}
 						</CardTitle>
+						<div className="flex items-center gap-2 mt-2">
+							<label className="text-sm font-medium">
+								{t('notensammler.sortBy', 'Sortieren nach')}:
+							</label>
+							<Select value={sortField} onValueChange={(value) => setSortField(value as 'lastName' | 'groupId')}>
+								<SelectTrigger className="w-[180px]">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="lastName">
+										{t('notensammler.sortByLastName', 'Nachname')}
+									</SelectItem>
+									<SelectItem value="groupId">
+										{t('notensammler.sortByGroup', 'Gruppennummer')}
+									</SelectItem>
+								</SelectContent>
+							</Select>
+							<Select value={sortDirection} onValueChange={(value) => setSortDirection(value as 'asc' | 'desc')}>
+								<SelectTrigger className="w-[150px]">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="asc">
+										{t('notensammler.sortAscending', 'Aufsteigend')}
+									</SelectItem>
+									<SelectItem value="desc">
+										{t('notensammler.sortDescending', 'Absteigend')}
+									</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
 					</CardHeader>
 					<CardContent>
 						<div className="overflow-x-auto">

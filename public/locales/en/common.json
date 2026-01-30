@@ -307,6 +307,12 @@
     "vormittag": "Morning",
     "nachmittag": "Afternoon",
     "showFirstSemester": "Show 1st Semester",
-    "showSecondSemester": "Show 2nd Semester"
+    "showSecondSemester": "Show 2nd Semester",
+    "sortBy": "Sort by",
+    "sortByLastName": "Last Name",
+    "sortByGroup": "Group Number",
+    "sortDirection": "Sort Direction",
+    "sortAscending": "Ascending",
+    "sortDescending": "Descending"
   }
 } 
