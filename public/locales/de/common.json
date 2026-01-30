@@ -51,6 +51,14 @@
       "thursday": "Donnerstag",
       "friday": "Freitag"
     },
+    "student": {
+      "currentAssignments": "Aktuelle Lehrerzuweisungen",
+      "teacher": "Lehrer",
+      "subject": "Fach",
+      "learningContent": "Lerninhalt",
+      "room": "Raum",
+      "noAssignment": "Keine Zuweisung"
+    },
     "teacher": {
       "currentClass": "Aktuelle Klasse",
       "currentTerm": "Aktuelles Semester",
