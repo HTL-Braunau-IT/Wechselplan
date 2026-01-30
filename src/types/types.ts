@@ -90,6 +90,7 @@ export type TurnSchedule = Record<string, unknown>
 export type TeacherRotation = {
     id: string
     teacherId: string
+    classId: number
     groupId: number
     turnId: string
     startDate: Date

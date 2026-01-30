@@ -125,6 +125,28 @@ export function TeacherOverview() {
             }).length
         }
 
+        const getCurrentGroup = (
+            assignment: typeof assignments[0],
+            scheduleInfo: Record<string, ScheduleTerm> | undefined,
+            currentWeek: [string, ScheduleTerm] | null | undefined
+        ): number | undefined => {
+            if (!currentWeek || !scheduleData?.teacherRotation) {
+                return assignment.groupId
+            }
+
+            const turnKey = currentWeek[0] // e.g., "TURNUS 1"
+            
+            // Find the matching teacherRotation entry
+            const rotation = scheduleData.teacherRotation.find(tr => 
+                Number(tr.teacherId) === assignment.teacherId &&
+                Number(tr.classId) === assignment.classId &&
+                tr.period === assignment.period &&
+                tr.turnId === turnKey
+            )
+
+            return rotation ? rotation.groupId : assignment.groupId
+        }
+
         const getStudentsForGroup = (groupId: number | undefined, classId: number | undefined) => {
             if (!groupId || !classId) return []
             // Find the array of students for this class
@@ -158,7 +180,7 @@ export function TeacherOverview() {
                                 </div>
                                 <div className="space-y-2">
                                     <p className="text-sm text-gray-500 dark:text-gray-400">{t(`overview.teacher.${assignment.period.toLowerCase()}Group`)}</p>
-                                    <p className="font-semibold text-lg dark:text-white">{assignment.groupId}</p>
+                                    <p className="font-semibold text-lg dark:text-white">{getCurrentGroup(assignment, scheduleInfo, currentWeek) ?? assignment.groupId}</p>
                                 </div>
                                 <div className="space-y-2">
                                     <p className="text-sm text-gray-500 dark:text-gray-400">{t('overview.teacher.weeksRemaining')}</p>
@@ -189,7 +211,8 @@ export function TeacherOverview() {
                                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{t('overview.teacher.studentsInGroup', { period: assignment.period })}</p>
                                 <div className="grid grid-cols-2 gap-2">
                                     {(() => {
-                                        const sortedStudents = getStudentsForGroup(assignment.groupId, assignment.classId)
+                                        const currentGroupId = getCurrentGroup(assignment, scheduleInfo, currentWeek) ?? assignment.groupId
+                                        const sortedStudents = getStudentsForGroup(currentGroupId, assignment.classId)
                                             .sort((a, b) => a.lastName.localeCompare(b.lastName))
                                         
                                         const leftColumnStudents = sortedStudents.slice(0, 6)
