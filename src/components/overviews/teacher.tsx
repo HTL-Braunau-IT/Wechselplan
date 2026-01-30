@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import type { ScheduleData, ScheduleTerm} from "@/types/types"
+import type { ScheduleData, ScheduleTerm, BreakTime, ScheduleTime} from "@/types/types"
 import { parse, isValid, isWithinInterval, addWeeks } from "date-fns"
 import { useTranslation } from "react-i18next"
 import { AlertTriangle } from "lucide-react"
@@ -159,6 +159,27 @@ export function TeacherOverview() {
             ) ?? []
         }
 
+        const getScheduleTimes = (classId: number, period: string): ScheduleTime | undefined => {
+            const classSchedule = scheduleData.schedules.find(schedules => 
+                schedules.some(s => Number(s.classId) === classId)
+            )
+            const schedule = classSchedule?.[0]
+            return schedule?.scheduleTimes?.find(time => time.period === period)
+        }
+
+        const getBreakTimes = (classId: number, period: string): BreakTime[] => {
+            const classSchedule = scheduleData.schedules.find(schedules => 
+                schedules.some(s => Number(s.classId) === classId)
+            )
+            const schedule = classSchedule?.[0]
+            if (!schedule?.breakTimes) return []
+            
+            // Return break times that match the period or are LUNCH breaks
+            return schedule.breakTimes.filter(time => 
+                time.period === period || time.period === 'LUNCH'
+            )
+        }
+
         return (
             <div className="space-y-6">
                 {assignments.map(assignment => {
@@ -166,6 +187,9 @@ export function TeacherOverview() {
                     const currentWeek = getCurrentWeek(scheduleInfo)
                     const currentTerm = currentWeek ? (currentWeek[1] as ScheduleTerm).name : t('overview.teacher.noSchedule')
                     const remainingWeeks = getRemainingWeeks(scheduleInfo)
+
+                    const scheduleTime = getScheduleTimes(assignment.classId, assignment.period)
+                    const breakTimes = getBreakTimes(assignment.classId, assignment.period)
 
                     return (
                         <div key={assignment.id} className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
@@ -194,6 +218,26 @@ export function TeacherOverview() {
                                     <p className="text-sm text-gray-500 dark:text-gray-400">{t('overview.teacher.classLead')}</p>
                                     <p className="font-semibold text-lg dark:text-white">{assignment.classLead}</p>
                                 </div>
+                                {scheduleTime && (
+                                    <div className="space-y-2">
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">{t('overview.teacher.scheduleTime')}</p>
+                                        <p className="font-semibold text-lg dark:text-white">
+                                            {scheduleTime.startTime} - {scheduleTime.endTime}
+                                        </p>
+                                    </div>
+                                )}
+                                {breakTimes.length > 0 && (
+                                    <div className="space-y-2">
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">{t('overview.teacher.breakTimes')}</p>
+                                        <div className="space-y-1">
+                                            {breakTimes.map((breakTime) => (
+                                                <p key={breakTime.id} className="font-semibold text-sm dark:text-white">
+                                                    {breakTime.name}: {breakTime.startTime} - {breakTime.endTime}
+                                                </p>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                             <div className="border-t dark:border-gray-700 pt-4 mt-4">
                                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{t('overview.teacher.additionalInfo')}</p>
