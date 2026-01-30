@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useTranslation } from 'react-i18next'
 import { useSession } from 'next-auth/react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { captureFrontendError } from '@/lib/frontend-error'
 import { CheckCircle2 } from 'lucide-react'
 import { getStoredToken, storeToken, clearToken } from '@/lib/notenmanagement-token'
@@ -136,6 +137,8 @@ function truncateSubject(subjectName: string): string {
 export default function NotensammlerPage() {
 	const { t } = useTranslation()
 	const { data: session } = useSession()
+	const searchParams = useSearchParams()
+	const router = useRouter()
 	const [classes, setClasses] = useState<Array<{ id: number; name: string }>>([])
 	const [selectedClassId, setSelectedClassId] = useState<string>('')
 	const [classData, setClassData] = useState<Class | null>(null)
@@ -204,6 +207,39 @@ export default function NotensammlerPage() {
 		}
 		void fetchClasses()
 	}, [])
+
+	// Preselect class from query parameter when classes are loaded
+	useEffect(() => {
+		const classNameParam = searchParams.get('class')
+		if (classNameParam && classes.length > 0 && !selectedClassId) {
+			// Find class by name (case-insensitive match)
+			const matchingClass = classes.find(
+				cls => cls.name.toLowerCase() === classNameParam.toLowerCase()
+			)
+			if (matchingClass) {
+				setSelectedClassId(matchingClass.id.toString())
+			} else {
+				// Class not found - show error message
+				setError(t('notensammler.classNotFound', `Klasse "${classNameParam}" nicht gefunden.`))
+			}
+		}
+	}, [classes, searchParams, selectedClassId, t])
+
+	// Handle class selection and sync URL
+	const handleClassChange = useCallback((classId: string) => {
+		setSelectedClassId(classId)
+		// Update URL query parameter
+		const params = new URLSearchParams(searchParams.toString())
+		if (classId) {
+			const selectedClass = classes.find(cls => cls.id.toString() === classId)
+			if (selectedClass) {
+				params.set('class', selectedClass.name)
+			}
+		} else {
+			params.delete('class')
+		}
+		router.replace(`/notensammler?${params.toString()}`, { scroll: false })
+	}, [classes, router, searchParams])
 
 	// Cleanup timer on unmount
 	useEffect(() => {
@@ -879,7 +915,7 @@ export default function NotensammlerPage() {
 					<label className="block text-sm font-medium mb-2">
 						{t('notensammler.selectClass', 'Klasse auswählen')}
 					</label>
-					<Select value={selectedClassId} onValueChange={setSelectedClassId}>
+					<Select value={selectedClassId} onValueChange={handleClassChange}>
 						<SelectTrigger className="w-[300px]">
 							<SelectValue placeholder={t('notensammler.selectClassPlaceholder', 'Bitte Klasse auswählen...')} />
 						</SelectTrigger>
