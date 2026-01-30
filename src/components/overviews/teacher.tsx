@@ -105,7 +105,7 @@ export function TeacherOverview() {
                     const parsedDate = parse(week.date, 'dd.MM.yy', new Date())
                     if (!isValid(parsedDate)) return false
                     
-                    // Check if current date is within the week
+                    
                     const weekEnd = addWeeks(parsedDate, 1)
                     return isWithinInterval(currentDate, {
                         start: parsedDate,
