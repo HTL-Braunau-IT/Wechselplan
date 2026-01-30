@@ -11,11 +11,12 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { useTranslation } from 'react-i18next'
 import { useSession } from 'next-auth/react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { captureFrontendError } from '@/lib/frontend-error'
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, X } from 'lucide-react'
 import { getStoredToken, storeToken, clearToken } from '@/lib/notenmanagement-token'
 
 interface Student {
@@ -185,6 +186,11 @@ export default function NotensammlerPage() {
 		Kommentar: string
 	}> | null>(null)
 	const [selectedLfId, setSelectedLfId] = useState<string | null>(null)
+
+	// Delete teacher grades state
+	const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+	const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null)
+	const [deleting, setDeleting] = useState(false)
 
 	// Debounce timer for auto-save
 	const saveTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -588,6 +594,56 @@ export default function NotensammlerPage() {
 			setDownloadingPdf(false)
 		}
 	}, [selectedClassId, classData])
+
+	// Delete all grades for a teacher
+	const deleteTeacherGrades = useCallback(async () => {
+		if (!teacherToDelete || !classData || !selectedClassId) return
+
+		try {
+			setDeleting(true)
+			setError(null)
+
+			const response = await fetch(
+				`/api/notensammler/grades?teacherId=${teacherToDelete.id}&classId=${classData.id}`,
+				{
+					method: 'DELETE'
+				}
+			)
+
+			if (!response.ok) {
+				const errorData = await response.json() as { error?: string }
+				throw new Error(errorData.error ?? 'Failed to delete grades')
+			}
+
+			// Update local state to remove deleted teacher's grades
+			setGrades(prev => {
+				const newGrades = { ...prev }
+				for (const studentId in newGrades) {
+					const studentGrades = newGrades[parseInt(studentId)]
+					if (studentGrades && studentGrades[teacherToDelete.id]) {
+						delete studentGrades[teacherToDelete.id]
+						// Remove student entry if no teachers left
+						if (Object.keys(studentGrades).length === 0) {
+							delete newGrades[parseInt(studentId)]
+						}
+					}
+				}
+				return newGrades
+			})
+
+			// Close dialog and reset state
+			setShowDeleteDialog(false)
+			setTeacherToDelete(null)
+		} catch (e) {
+			captureFrontendError(e, {
+				location: 'notensammler',
+				type: 'delete-teacher-grades'
+			})
+			setError(e instanceof Error ? e.message : 'Failed to delete grades')
+		} finally {
+			setDeleting(false)
+		}
+	}, [teacherToDelete, classData, selectedClassId])
 
 	const openTransferFlow = useCallback(() => {
 		if (!classData || !selectedClassId) return
@@ -1123,7 +1179,22 @@ export default function NotensammlerPage() {
 												key={`first-am-${teacher.id}`}
 												className={currentTeacherId === teacher.id ? 'bg-primary/20 font-semibold' : ''}
 											>
-												{teacher.firstName} {teacher.lastName}
+												<div className="flex items-center justify-between gap-2">
+													<span>{teacher.firstName} {teacher.lastName}</span>
+													<Button
+														variant="ghost"
+														size="icon"
+														className="h-5 w-5 opacity-60 hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+														onClick={(e) => {
+															e.stopPropagation()
+															setTeacherToDelete(teacher)
+															setShowDeleteDialog(true)
+														}}
+														title={t('notensammler.deleteTeacherGrades', 'Alle Noten für diesen Lehrer löschen')}
+													>
+														<X className="h-3 w-3" />
+													</Button>
+												</div>
 											</TableHead>
 										))}
 										{/* First Semester - PM Teachers */}
@@ -1132,7 +1203,22 @@ export default function NotensammlerPage() {
 												key={`first-pm-${teacher.id}`}
 												className={currentTeacherId === teacher.id ? 'bg-primary/20 font-semibold' : ''}
 											>
-												{teacher.firstName} {teacher.lastName}
+												<div className="flex items-center justify-between gap-2">
+													<span>{teacher.firstName} {teacher.lastName}</span>
+													<Button
+														variant="ghost"
+														size="icon"
+														className="h-5 w-5 opacity-60 hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+														onClick={(e) => {
+															e.stopPropagation()
+															setTeacherToDelete(teacher)
+															setShowDeleteDialog(true)
+														}}
+														title={t('notensammler.deleteTeacherGrades', 'Alle Noten für diesen Lehrer löschen')}
+													>
+														<X className="h-3 w-3" />
+													</Button>
+												</div>
 											</TableHead>
 										))}
 										{/* Second Semester - AM Teachers */}
@@ -1141,7 +1227,22 @@ export default function NotensammlerPage() {
 												key={`second-am-${teacher.id}`}
 												className={currentTeacherId === teacher.id ? 'bg-primary/20 font-semibold' : ''}
 											>
-												{teacher.firstName} {teacher.lastName}
+												<div className="flex items-center justify-between gap-2">
+													<span>{teacher.firstName} {teacher.lastName}</span>
+													<Button
+														variant="ghost"
+														size="icon"
+														className="h-5 w-5 opacity-60 hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+														onClick={(e) => {
+															e.stopPropagation()
+															setTeacherToDelete(teacher)
+															setShowDeleteDialog(true)
+														}}
+														title={t('notensammler.deleteTeacherGrades', 'Alle Noten für diesen Lehrer löschen')}
+													>
+														<X className="h-3 w-3" />
+													</Button>
+												</div>
 											</TableHead>
 										))}
 										{/* Second Semester - PM Teachers */}
@@ -1150,7 +1251,22 @@ export default function NotensammlerPage() {
 												key={`second-pm-${teacher.id}`}
 												className={currentTeacherId === teacher.id ? 'bg-primary/20 font-semibold' : ''}
 											>
-												{teacher.firstName} {teacher.lastName}
+												<div className="flex items-center justify-between gap-2">
+													<span>{teacher.firstName} {teacher.lastName}</span>
+													<Button
+														variant="ghost"
+														size="icon"
+														className="h-5 w-5 opacity-60 hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+														onClick={(e) => {
+															e.stopPropagation()
+															setTeacherToDelete(teacher)
+															setShowDeleteDialog(true)
+														}}
+														title={t('notensammler.deleteTeacherGrades', 'Alle Noten für diesen Lehrer löschen')}
+													>
+														<X className="h-3 w-3" />
+													</Button>
+												</div>
 											</TableHead>
 										))}
 									</TableRow>
@@ -1649,6 +1765,46 @@ export default function NotensammlerPage() {
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
+
+			{/* Delete Teacher Grades Confirmation Dialog */}
+			<AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>
+							{t('notensammler.deleteTeacherGradesTitle', 'Noten löschen')}
+						</AlertDialogTitle>
+						<AlertDialogDescription>
+							{teacherToDelete && (
+								<>
+									{t('notensammler.deleteTeacherGradesConfirm', 'Möchtest du wirklich alle Noten für')} <strong>{teacherToDelete.firstName} {teacherToDelete.lastName}</strong> {t('notensammler.deleteTeacherGradesConfirm2', 'löschen?')}
+									<br />
+									<br />
+									{t('notensammler.deleteTeacherGradesWarning', 'Diese Aktion kann nicht rückgängig gemacht werden. Alle Noten für diesen Lehrer in dieser Klasse werden dauerhaft gelöscht.')}
+								</>
+							)}
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel disabled={deleting}>
+							{t('common.cancel', 'Abbrechen')}
+						</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={() => void deleteTeacherGrades()}
+							disabled={deleting}
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+						>
+							{deleting ? (
+								<>
+									<Spinner size="sm" className="mr-2" />
+									{t('notensammler.deleting', 'Lösche...')}
+								</>
+							) : (
+								t('notensammler.delete', 'Löschen')
+							)}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	)
 }

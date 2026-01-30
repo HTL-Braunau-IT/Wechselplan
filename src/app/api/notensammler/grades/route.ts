@@ -241,3 +241,87 @@ export async function POST(request: Request) {
 	}
 }
 
+/**
+ * Handles DELETE requests to remove all grades for a specific teacher in a class.
+ *
+ * Deletes all Grade records matching teacherId and classId (both first and second semester).
+ *
+ * @returns A JSON response with success status or an error message.
+ */
+export async function DELETE(request: Request) {
+	try {
+		const session = await getServerSession(authOptions)
+		if (!session?.user?.name) {
+			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+		}
+		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
+			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+		}
+
+		const { searchParams } = new URL(request.url)
+		const teacherIdParam = searchParams.get('teacherId')
+		const classIdParam = searchParams.get('classId')
+
+		if (!teacherIdParam || !classIdParam) {
+			return NextResponse.json(
+				{ error: 'teacherId and classId parameters are required' },
+				{ status: 400 }
+			)
+		}
+
+		const teacherId = parseInt(teacherIdParam)
+		const classId = parseInt(classIdParam)
+
+		if (isNaN(teacherId) || isNaN(classId)) {
+			return NextResponse.json(
+				{ error: 'Invalid teacherId or classId format' },
+				{ status: 400 }
+			)
+		}
+
+		// Verify teacher exists
+		const teacher = await prisma.teacher.findUnique({
+			where: { id: teacherId }
+		})
+		if (!teacher) {
+			return NextResponse.json(
+				{ error: 'Teacher not found' },
+				{ status: 404 }
+			)
+		}
+
+		// Verify class exists
+		const classRecord = await prisma.class.findUnique({
+			where: { id: classId }
+		})
+		if (!classRecord) {
+			return NextResponse.json(
+				{ error: 'Class not found' },
+				{ status: 404 }
+			)
+		}
+
+		// Delete all grades for this teacher in this class
+		const result = await prisma.grade.deleteMany({
+			where: {
+				teacherId,
+				classId
+			}
+		})
+
+		return NextResponse.json({ 
+			success: true, 
+			deletedCount: result.count 
+		})
+	} catch (error) {
+		captureError(error, {
+			location: 'api/notensammler/grades',
+			type: 'delete-teacher-grades'
+		})
+		return NextResponse.json(
+			{ error: 'Failed to delete grades' },
+			{ status: 500 }
+		)
+	}
+}
+
