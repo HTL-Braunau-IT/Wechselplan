@@ -38,6 +38,23 @@ export interface ScheduleResponse {
 	classId?: number
 	createdAt: string
 	updatedAt?: string
+	turns?: Array<{
+		name: string
+		customLength?: number | null
+		weeks: Array<{
+			date: string
+			week: string
+			isHoliday: boolean
+		}>
+		holidays?: Array<{
+			holiday: {
+				id: number
+				name: string
+				startDate: Date | string
+				endDate: Date | string
+			}
+		}>
+	}>
 }
 
 export interface ScheduleTime {

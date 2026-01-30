@@ -9,6 +9,9 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useTranslation } from 'react-i18next'
 import { Spinner } from '@/components/ui/spinner'
 import { AlertCircle } from 'lucide-react'
+import { useClassDataByName } from '@/hooks/use-class-data'
+import { useScheduleTimes } from '@/hooks/use-schedule-times'
+import { useTeacherAssignments } from '@/hooks/use-teacher-assignments'
 
 interface ScheduleTime {
   id: number
@@ -82,51 +85,40 @@ export default function TimesPage() {
   const [classId, setClassId] = useState<number | null>(null)
 
   // Resolve className to classId when className changes
+  const { data: classData } = useClassDataByName(className || null)
+  
   useEffect(() => {
-    async function resolveClassId() {
-      if (!className) {
-        setClassId(null)
-        setError('Class ID is required')
-        setIsLoading(false)
-        return
-      }
-      try {
-        const res = await fetch(`/api/classes/get-by-name?name=${className}`)
-        if (!res.ok) throw new Error('Failed to fetch class ID')
-        const data = await res.json() as { id: number }
-        setClassId(data.id)
-      } catch (err) {
-        console.error('Error resolving class ID:', err)
-        setClassId(null)
-        setError('Failed to resolve class ID')
-        setIsLoading(false)
-      }
+    if (classData) {
+      setClassId(classData.id)
+    } else if (!className) {
+      setClassId(null)
+      setError('Class ID is required')
+      setIsLoading(false)
     }
-    void resolveClassId()
-  }, [className])
+  }, [classData, className])
+
+  // Fetch teacher assignments to determine periods
+  const { data: teacherAssignmentsData } = useTeacherAssignments(classId, null)
+  
+  // Fetch schedule times
+  const { data: scheduleTimesData, isLoading: isLoadingScheduleTimes } = useScheduleTimes(classId)
 
   useEffect(() => {
     if (!className || !classId) {
       return
     }
     void fetchData()
-  }, [className, classId])
+  }, [className, classId, teacherAssignmentsData])
 
   const fetchData = async () => {
     try {
       setIsLoading(true)
       setError(null)
 
-      // Fetch teacher assignments first to determine which periods are needed
-      if (!classId) throw new Error('Class ID not available')
-      const assignmentsResponse = await fetch(`/api/schedules/teacher-assignments?classId=${classId}`)
-      if (!assignmentsResponse.ok) throw new Error('Failed to fetch teacher assignments')
-      const assignmentsData = await assignmentsResponse.json()
-
       // Get unique periods from assignments
       const newPeriods = new Set<string>()
-      if (assignmentsData.amAssignments?.length > 0) newPeriods.add('AM')
-      if (assignmentsData.pmAssignments?.length > 0) newPeriods.add('PM')
+      if (teacherAssignmentsData?.amAssignments?.length > 0) newPeriods.add('AM')
+      if (teacherAssignmentsData?.pmAssignments?.length > 0) newPeriods.add('PM')
       setPeriods(newPeriods)
 
       // Fetch schedule times

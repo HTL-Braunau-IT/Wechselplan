@@ -4,6 +4,10 @@ import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 
+// Force dynamic rendering - no caching
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
 
 /**
@@ -65,6 +69,8 @@ export async function GET(request: Request) {
 			}
 		})
 
+		console.log(`[GET /api/notensammler/grades] Found ${grades.length} grades for classId ${classId}`)
+
 		// Group grades by student, then teacher, then semester
 		const gradesByStudent: Record<number, Record<number, { first: number | null; second: number | null }>> = {}
 
@@ -83,6 +89,7 @@ export async function GET(request: Request) {
 			}
 		}
 
+		console.log(`[GET /api/notensammler/grades] Returning ${Object.keys(gradesByStudent).length} students with grades`)
 		return NextResponse.json(gradesByStudent)
 	} catch (error) {
 		captureError(error, {
@@ -204,7 +211,15 @@ export async function POST(request: Request) {
 					? parseFloat(grade) 
 					: null
 
-		await prisma.grade.upsert({
+		console.log(`[POST /api/notensammler/grades] Attempting to upsert grade:`, {
+			studentId: studentIdNum,
+			teacherId: teacherIdNum,
+			classId: classIdNum,
+			semester,
+			grade: gradeValue
+		})
+
+		const result = await prisma.grade.upsert({
 			where: {
 				studentId_teacherId_classId_semester: {
 					studentId: studentIdNum,
@@ -225,17 +240,52 @@ export async function POST(request: Request) {
 			}
 		})
 
-		return NextResponse.json({ success: true })
+		// Log for debugging
+		console.log(`[POST /api/notensammler/grades] Grade saved successfully:`, {
+			id: result.id,
+			studentId: result.studentId,
+			teacherId: result.teacherId,
+			classId: result.classId,
+			semester: result.semester,
+			grade: result.grade
+		})
+
+		// Verify the grade was actually saved by reading it back
+		const verifyGrade = await prisma.grade.findUnique({
+			where: {
+				studentId_teacherId_classId_semester: {
+					studentId: studentIdNum,
+					teacherId: teacherIdNum,
+					classId: classIdNum,
+					semester: semester as 'first' | 'second'
+				}
+			}
+		})
+
+		if (!verifyGrade) {
+			console.error(`[POST /api/notensammler/grades] WARNING: Grade was not found after upsert!`)
+		} else {
+			console.log(`[POST /api/notensammler/grades] Verification: Grade exists in DB with value: ${verifyGrade.grade}`)
+		}
+
+		return NextResponse.json({ success: true, grade: result })
 	} catch (error) {
+		console.error('Error saving grade:', error)
+		console.error('Request data:', requestData)
 		captureError(error, {
 			location: 'api/notensammler/grades',
 			type: 'save-grade',
 			extra: {
-				requestData
+				requestData,
+				errorMessage: error instanceof Error ? error.message : String(error),
+				errorStack: error instanceof Error ? error.stack : undefined
 			}
 		})
 		return NextResponse.json(
-			{ error: 'Failed to save grade' },
+			{ 
+				error: 'Failed to save grade',
+				details: error instanceof Error ? error.message : String(error)
+			},
 			{ status: 500 }
 		)
 	}

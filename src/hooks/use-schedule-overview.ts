@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { Student, Group, TeacherAssignmentResponse, TeacherAssignmentsResponse, ScheduleTime, BreakTime, TurnSchedule, ScheduleResponse } from '@/types/types'
 import { captureFrontendError } from '@/lib/frontend-error'
+import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
 
 interface UseScheduleOverviewResult {
   groups: Group[]
@@ -127,8 +128,19 @@ export function useScheduleOverview(classId: string | null): UseScheduleOverview
         
         setAdditionalInfo(latestSchedule?.additionalInfo ?? '')
         setWeekday(selectedWeekday)
-        const scheduleData = latestSchedule?.scheduleData ?? {}
-        setTurns(scheduleData as TurnSchedule)
+        
+        // Convert normalized turns to legacy format, or fall back to scheduleData if available
+        if (latestSchedule?.turns && Array.isArray(latestSchedule.turns) && latestSchedule.turns.length > 0) {
+          // Use normalized turns data
+          const normalizedTurns = normalizeToJsonFormat(latestSchedule.turns)
+          setTurns(normalizedTurns)
+        } else if (latestSchedule?.scheduleData && typeof latestSchedule.scheduleData === 'object') {
+          // Fall back to scheduleData for backward compatibility
+          setTurns(latestSchedule.scheduleData as TurnSchedule)
+        } else {
+          // No turn data available
+          setTurns({})
+        }
 
         // Fetch teacher assignments (no weekday filter needed - each class has one schedule)
         try {

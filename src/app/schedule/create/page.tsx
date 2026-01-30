@@ -2,16 +2,22 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors, useDroppable, useDraggable } from '@dnd-kit/core'
+import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import { useTranslation } from 'next-i18next'
+import { useQuery } from '@tanstack/react-query'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { captureFrontendError } from '@/lib/frontend-error'
+import { StudentItem } from '@/components/schedule/student-item'
+import { GroupContainer } from '@/components/schedule/group-container'
+import { AddStudentDialog } from '@/components/schedule/add-student-dialog'
+import { CombineClassesDialog } from '@/components/schedule/combine-classes-dialog'
+import { useClassDataByName } from '@/hooks/use-class-data'
+import { useGroupAssignments } from '@/hooks/use-group-assignments'
 
 
 interface Student {
@@ -51,87 +57,6 @@ const MAX_GROUP_SIZE = 12
 // Add constant for maximum supported students (4 groups × 12 students)
 const MAX_SUPPORTED_STUDENTS = 48
 
-/**
- * Renders a draggable student item with the student's name and index, and provides a button to remove the student from the group.
- *
- * @param student - The student to display.
- * @param index - The position of the student in the list.
- * @param onRemove - Callback invoked with the student's ID when the remove button is clicked.
- */
-function StudentItem({ student, index, onRemove, t }: { student: Student, index: number, onRemove: (studentId: number) => void, t: (key: string) => string }) {
-	const { attributes, listeners, setNodeRef, transform } = useDraggable({
-		id: `student-${student.id}`
-	})
-
-	const style = transform ? {
-		transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-	} : undefined
-
-	return (
-		<div
-			ref={setNodeRef}
-			style={style}
-			{...listeners}
-			{...attributes}
-			className="text-sm p-3 bg-card border border-border rounded-lg cursor-move hover:bg-accent transition-all duration-200 flex items-start justify-between group min-h-[60px]"
-		>
-			<div className="flex-1 min-w-0 pr-2">
-				<div className="flex items-center mb-1">
-					<span className="text-muted-foreground mr-2 text-xs font-medium">{index + 1}.</span>
-					<span className="font-medium truncate">{`${student.lastName}, ${student.firstName}`}</span>
-				</div>
-				{student.originalClass && (
-					<div className="text-xs text-muted-foreground ml-4 bg-muted/50 px-2 py-1 rounded-md inline-block">
-						{t('originallyFrom')}: {student.originalClass}
-					</div>
-				)}
-			</div>
-			<button
-				onClick={(e) => {
-					e.stopPropagation()
-					onRemove(student.id)
-				}}
-				className="text-destructive hover:text-destructive/80 opacity-0 group-hover:opacity-100 transition-opacity"
-				title="Remove student"
-			>
-				<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-					<path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-				</svg>
-			</button>
-		</div>
-	)
-}
-
-/**
- * Renders a droppable container for a group, displaying its title and containing student items.
- *
- * Highlights the container when a draggable item is hovered over it. Shows "Unassigned" for the unassigned group or "Group X" for other groups.
- *
- * @param group - The group to display, including its ID.
- * @param children - The student items or other elements to render inside the group container.
- */
-function GroupContainer({ group, children }: { group: Group, children: React.ReactNode }) {
-	const { t } = useTranslation('schedule')
-	const { setNodeRef, isOver } = useDroppable({
-		id: `group-${group.id}`
-	})
-
-	return (
-		<div 
-			ref={setNodeRef}
-			className={`border border-border rounded-lg p-4 w-[320px] transition-colors bg-card min-h-[200px] ${
-				isOver ? 'bg-accent/50 border-accent' : ''
-			}`}
-		>
-			<h3 className="font-semibold mb-3 text-foreground text-center pb-2 border-b border-border/50">
-				{group.id === UNASSIGNED_GROUP_ID ? t('unassigned') : `${t('group')} ${group.id}`}
-			</h3>
-			<div className="space-y-2">
-				{children}
-			</div>
-		</div>
-	)
-}
 
 /**
  * Distributes students evenly across groups, ensuring the difference between the largest and smallest group is at most 1.
@@ -282,126 +207,127 @@ export default function ScheduleClassSelectPage() {
 		})
 	)
 
+	// Fetch classes using React Query
+	const { data: classesData, isLoading: isLoadingClassesData } = useQuery<Class[]>({
+		queryKey: ['classes'],
+		queryFn: async () => {
+			const res = await fetch('/api/classes')
+			if (!res.ok) throw new Error('Failed to fetch classes')
+			return res.json() as Promise<Class[]>
+		},
+		staleTime: 1000 * 60 * 5, // 5 minutes
+	})
+
 	useEffect(() => {
-		async function fetchClasses() {
-			try {
-				const res = await fetch('/api/classes')
-				if (!res.ok) throw new Error('Failed to fetch classes')
-				const data = await res.json() as Class[]
-				setClasses(data)
-			} catch (err) {
-				console.error('Error fetching classes:', err)
-				captureFrontendError(err, {
-					location: 'schedule/create',
-					type: 'fetch-classes'
-				})
-				setError('Fehler beim Laden der Klassen.')
-			} finally {
-				setLoadingClasses(false)
-			}
+		if (classesData) {
+			setClasses(classesData)
+			setLoadingClasses(false)
 		}
-		void fetchClasses()
-	}, [])
+		if (isLoadingClassesData !== undefined) {
+			setLoadingClasses(isLoadingClassesData)
+		}
+	}, [classesData, isLoadingClassesData])
 
 	// Resolve className to classId when selectedClass changes
+	const { data: classData } = useClassDataByName(selectedClass || null)
+	
 	useEffect(() => {
-		async function resolveClassId() {
-			if (!selectedClass) {
-				setSelectedClassId(null)
+		if (classData) {
+			setSelectedClassId(classData.id)
+		} else if (!selectedClass) {
+			setSelectedClassId(null)
+		}
+	}, [classData, selectedClass])
+
+	// Fetch students
+	const { data: studentsData, isLoading: isLoadingStudents } = useQuery<Student[]>({
+		queryKey: ['students', selectedClass],
+		queryFn: async () => {
+			if (!selectedClass) throw new Error('Class name is required')
+			const res = await fetch(`/api/students?class=${selectedClass}`)
+			if (!res.ok) throw new Error('Failed to fetch students')
+			return res.json() as Promise<Student[]>
+		},
+		enabled: !!selectedClass,
+		staleTime: 1000 * 60 * 5, // 5 minutes
+	})
+
+	// Fetch group assignments
+	const { data: assignmentsData, isLoading: isLoadingAssignments } = useGroupAssignments(selectedClassId)
+
+	// Update students when data is fetched
+	useEffect(() => {
+		if (studentsData) {
+			setStudents(studentsData)
+		}
+	}, [studentsData])
+
+	// Initialize groups when students and assignments are loaded
+	useEffect(() => {
+		if (!selectedClass || !selectedClassId || isLoadingStudents || isLoadingAssignments) {
+			setLoading(isLoadingStudents || isLoadingAssignments)
+			return
+		}
+
+		if (!studentsData) return
+
+		setLoading(true)
+		setIsManualGroupChange(false) // Reset manual change flag when loading new class
+
+		try {
+			// Calculate initial number of groups based on student count
+			const initialGroups = studentsData.length > 36 ? 4 : 
+				studentsData.length > 18 ? 3 : 2
+			setNumberOfGroups(initialGroups)
+
+			// Check if class has too many students
+			if (studentsData.length > MAX_SUPPORTED_STUDENTS) {
+				setError(t('tooManyStudentsError', { max: MAX_SUPPORTED_STUDENTS, count: studentsData.length }))
+				setLoading(false)
 				return
 			}
-			try {
-				const res = await fetch(`/api/classes/get-by-name?name=${selectedClass}`)
-				if (!res.ok) throw new Error('Failed to fetch class ID')
-				const data = await res.json() as { id: number }
-				setSelectedClassId(data.id)
-			} catch (err) {
-				console.error('Error resolving class ID:', err)
-				setSelectedClassId(null)
+
+			if (assignmentsData?.assignments && assignmentsData.assignments.length > 0) {
+				// If we have existing assignments, use them
+				const existingGroups: Group[] = [
+					// Always include unassigned group first
+					{
+						id: UNASSIGNED_GROUP_ID,
+						students: assignmentsData.unassignedStudents || []
+					},
+					// Then add regular groups
+					...assignmentsData.assignments.map(assignment => ({
+						id: assignment.groupId,
+						students: assignment.studentIds.map(id => {
+							const student = studentsData.find(s => s.id === id)
+							if (!student) throw new Error(`Student with id ${id} not found`)
+							return student
+						})
+					}))
+				]
+				setGroups(existingGroups)
+				setNumberOfGroups(existingGroups.length - 1) // Subtract 1 for unassigned group
+				hasExistingAssignmentsRef.current = true
+			} else {
+				// Otherwise, create default groups with even distribution
+				const newGroups = distributeStudentsEvenly(studentsData, initialGroups)
+				setGroups(newGroups)
+				hasExistingAssignmentsRef.current = false
 			}
-		}
-		void resolveClassId()
-	}, [selectedClass])
-
-	useEffect(() => {
-		/**
-		 * Fetches students and their group assignments for the selected class, initializing groups accordingly.
-		 *
-		 * If existing assignments are found, reconstructs groups based on those assignments; otherwise, creates default groups by evenly distributing students sorted by last name. Sets the number of groups based on student count, defaulting to 2 or 3. Handles loading and error states.
-		 *
-		 * @remark Throws an error if a student ID in assignments does not match any fetched student.
-		 */
-		async function fetchStudents() {
-			if (!selectedClass || !selectedClassId) return
-			
-			setLoading(true)
-			setIsManualGroupChange(false) // Reset manual change flag when loading new class
-			try {
-				// First fetch all students
-				const studentsRes = await fetch(`/api/students?class=${selectedClass}`)
-				if (!studentsRes.ok) throw new Error('Failed to fetch students')
-				const studentsData = await studentsRes.json() as Student[]
-				setStudents(studentsData)
-
-				// Calculate initial number of groups based on student count
-				const initialGroups = studentsData.length > 36 ? 4 : 
-					studentsData.length > 18 ? 3 : 2
-				setNumberOfGroups(initialGroups)
-
-				// Check if class has too many students
-				if (studentsData.length > MAX_SUPPORTED_STUDENTS) {
-					setError(t('tooManyStudentsError', { max: MAX_SUPPORTED_STUDENTS, count: studentsData.length }))
-					return
+		} catch (err) {
+			console.error('Error processing students and assignments:', err)
+			captureFrontendError(err, {
+				location: 'schedule/create',
+				type: 'process-students-assignments',
+				extra: {
+					selectedClass
 				}
-
-				// Then fetch existing assignments
-				const assignmentsRes = await fetch(`/api/schedules/assignments?classId=${selectedClassId}`)
-				if (!assignmentsRes.ok) throw new Error('Failed to fetch assignments')
-				const assignmentsData = await assignmentsRes.json() as AssignmentsResponse
-
-				if (assignmentsData.assignments && assignmentsData.assignments.length > 0) {
-					// If we have existing assignments, use them
-					const existingGroups: Group[] = [
-						// Always include unassigned group first
-						{
-							id: UNASSIGNED_GROUP_ID,
-							students: assignmentsData.unassignedStudents || []
-						},
-						// Then add regular groups
-						...assignmentsData.assignments.map(assignment => ({
-							id: assignment.groupId,
-							students: assignment.studentIds.map(id => {
-								const student = studentsData.find(s => s.id === id)
-								if (!student) throw new Error(`Student with id ${id} not found`)
-								return student
-							})
-						}))
-					]
-					setGroups(existingGroups)
-					setNumberOfGroups(existingGroups.length - 1) // Subtract 1 for unassigned group
-					hasExistingAssignmentsRef.current = true
-				} else {
-					// Otherwise, create default groups with even distribution
-					const newGroups = distributeStudentsEvenly(studentsData, initialGroups)
-					setGroups(newGroups)
-					hasExistingAssignmentsRef.current = false
-				}
-			} catch (err) {
-				console.error('Error fetching students and assignments:', err)
-				captureFrontendError(err, {
-					location: 'schedule/create',
-					type: 'fetch-students-assignments',
-					extra: {
-						selectedClass
-					}
-				})
-				setError('Fehler beim Laden der Schüler und Zuweisungen.')
-			} finally {
-				setLoading(false)
-			}
+			})
+			setError('Fehler beim Laden der Schüler und Zuweisungen.')
+		} finally {
+			setLoading(false)
 		}
-		void fetchStudents()
-	}, [selectedClass, selectedClassId, t])
+	}, [selectedClass, selectedClassId, studentsData, assignmentsData, isLoadingStudents, isLoadingAssignments, t])
 
 	useEffect(() => {
 		if (students.length === 0) return
@@ -1139,142 +1065,26 @@ export default function ScheduleClassSelectPage() {
 			)}
 
 			{/* Add Student Dialog */}
-			<Dialog open={showAddStudentDialog} onOpenChange={setShowAddStudentDialog}>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>{t('addStudentTitle')}</DialogTitle>
-					</DialogHeader>
-					<div className="grid gap-4 py-4">
-						<div className="grid grid-cols-4 items-center gap-4">
-							<Label htmlFor="firstName" className="text-right">
-								{t('firstName')}
-							</Label>
-							<Input
-								id="firstName"
-								value={newStudent.firstName}
-								onChange={(e) => setNewStudent(prev => ({ ...prev, firstName: e.target.value }))}
-								className="col-span-3"
-							/>
-						</div>
-						<div className="grid grid-cols-4 items-center gap-4">
-							<Label htmlFor="lastName" className="text-right">
-								{t('lastName')}
-							</Label>
-							<Input
-								id="lastName"
-								value={newStudent.lastName}
-								onChange={(e) => setNewStudent(prev => ({ ...prev, lastName: e.target.value }))}
-								className="col-span-3"
-							/>
-						</div>
-						<div className="grid grid-cols-4 items-center gap-4">
-							<Label htmlFor="username" className="text-right">
-								{t('username')}
-							</Label>
-							<Input
-								id="username"
-								value={newStudent.username}
-								onChange={(e) => setNewStudent(prev => ({ ...prev, username: e.target.value }))}
-								className="col-span-3"
-							/>
-						</div>
-					</div>
-					<DialogFooter>
-						<Button variant="outline" onClick={() => setShowAddStudentDialog(false)}>
-							{t('cancel')}
-						</Button>
-						<Button onClick={handleAddStudent}>
-							{t('add')}
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			<AddStudentDialog
+				open={showAddStudentDialog}
+				onOpenChange={setShowAddStudentDialog}
+				newStudent={newStudent}
+				onStudentChange={setNewStudent}
+				onAdd={handleAddStudent}
+				t={t}
+			/>
 
 			{/* Combine Classes Dialog */}
-			<Dialog open={showCombineClassesDialog} onOpenChange={setShowCombineClassesDialog}>
-				<DialogContent className="max-w-md mx-auto w-[95vw] sm:w-full">
-					<DialogHeader className="space-y-3">
-						<DialogTitle className="text-xl font-semibold">{t('combineClasses')}</DialogTitle>
-						<DialogDescription className="text-sm text-muted-foreground leading-relaxed">
-							{t('combineClassesDescription')}
-						</DialogDescription>
-					</DialogHeader>
-					<form onSubmit={handleCombineClasses} className="space-y-6">
-						<div className="space-y-5">
-							<div className="space-y-2">
-								<Label htmlFor="class1" className="text-sm font-medium text-foreground">
-									{t('selectFirstClass')}
-								</Label>
-								<Select
-									value={combineClasses.class1Id}
-									onValueChange={(value) => setCombineClasses(prev => ({ ...prev, class1Id: value }))}
-								>
-									<SelectTrigger className="w-full">
-										<SelectValue placeholder={t('pleaseSelect')} />
-									</SelectTrigger>
-									<SelectContent>
-										{classes.map((cls) => (
-											<SelectItem key={cls.id} value={cls.id.toString()}>
-												{cls.name}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-							<div className="space-y-2">
-								<Label htmlFor="class2" className="text-sm font-medium text-foreground">
-									{t('selectSecondClass')}
-								</Label>
-								<Select
-									value={combineClasses.class2Id}
-									onValueChange={(value) => setCombineClasses(prev => ({ ...prev, class2Id: value }))}
-								>
-									<SelectTrigger className="w-full">
-										<SelectValue placeholder={t('pleaseSelect')} />
-									</SelectTrigger>
-									<SelectContent>
-										{classes.map((cls) => (
-											<SelectItem key={cls.id} value={cls.id.toString()}>
-												{cls.name}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-							<div className="space-y-2">
-								<Label htmlFor="combinedClassName" className="text-sm font-medium text-foreground">
-									{t('combinedClassName')}
-								</Label>
-								<Input
-									id="combinedClassName"
-									value={combineClasses.combinedClassName}
-									onChange={(e) => setCombineClasses(prev => ({ ...prev, combinedClassName: e.target.value }))}
-									placeholder={t('combinedClassNamePlaceholder')}
-									className="w-full"
-								/>
-							</div>
-						</div>
-						<DialogFooter className="flex flex-col sm:flex-row gap-3 sm:justify-end">
-							<Button 
-								type="button" 
-								variant="outline" 
-								onClick={() => setShowCombineClassesDialog(false)}
-								disabled={combiningClasses}
-								className="w-full sm:w-auto"
-							>
-								{t('cancel')}
-							</Button>
-							<Button 
-								type="submit" 
-								disabled={combiningClasses}
-								className="w-full sm:w-auto"
-							>
-								{combiningClasses ? t('combiningClasses') : t('createCombinedClass')}
-							</Button>
-						</DialogFooter>
-					</form>
-				</DialogContent>
-			</Dialog>
+			<CombineClassesDialog
+				open={showCombineClassesDialog}
+				onOpenChange={setShowCombineClassesDialog}
+				classes={classes}
+				combineClasses={combineClasses}
+				onCombineClassesChange={setCombineClasses}
+				onSubmit={handleCombineClasses}
+				combining={combiningClasses}
+				t={t}
+			/>
 		</div>
 	)
 } 

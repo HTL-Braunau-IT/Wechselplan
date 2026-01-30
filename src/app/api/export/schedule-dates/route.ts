@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { pdf } from '@react-pdf/renderer'
 import ScheduleTurnusPDF, { type ScheduleData } from '@/components/ScheduleTurnusPDF'
-
+import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
 
 import { prisma } from '@/lib/prisma'
 
@@ -46,9 +46,20 @@ export async function POST(request: Request) {
                 selectedWeekday: weekday
             },
             orderBy: [{ createdAt: 'desc' }],
-            select: {
-                scheduleData: true,
-                additionalInfo: true
+            include: {
+                turns: {
+                    include: {
+                        weeks: true,
+                        holidays: {
+                            include: {
+                                holiday: true
+                            }
+                        }
+                    },
+                    orderBy: {
+                        order: 'asc'
+                    }
+                }
             }
         })
 
@@ -59,10 +70,13 @@ export async function POST(request: Request) {
         const days = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
         const weekdayString = days[weekday];
         
-        const scheduleData =
-            schedule.scheduleData && typeof schedule.scheduleData === 'object' && !Array.isArray(schedule.scheduleData)
-                ? schedule.scheduleData
-                : {};
+        // Use normalized turns if available, otherwise fall back to scheduleData
+        let scheduleData: ScheduleData = {};
+        if (schedule.turns && schedule.turns.length > 0) {
+            scheduleData = normalizeToJsonFormat(schedule.turns) as ScheduleData;
+        } else if (schedule.scheduleData && typeof schedule.scheduleData === 'object' && !Array.isArray(schedule.scheduleData)) {
+            scheduleData = schedule.scheduleData as ScheduleData;
+        }
         const doc = ScheduleTurnusPDF({ scheduleData: scheduleData as unknown as ScheduleData, className: className ?? '', weekdayString: weekdayString ?? '' })
         const pdfBuffer = await pdf(doc).toBuffer()
         return new NextResponse(pdfBuffer as unknown as BodyInit, {

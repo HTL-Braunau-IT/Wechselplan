@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { captureError } from '~/lib/sentry'
 import { prisma } from '@/lib/prisma'
+import { parseJsonToNormalized, createScheduleTurnData } from '@/lib/schedule-data-helpers'
 
 const scheduleSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -55,6 +56,11 @@ export async function POST(req: Request) {
 
     let newSchedule
     if (existingSchedule) {
+      // Delete existing turns (cascade will delete weeks and holidays)
+      await prisma.scheduleTurn.deleteMany({
+        where: { scheduleId: existingSchedule.id }
+      })
+
       // Update existing schedule, preserving times
       newSchedule = await prisma.schedule.update({
         where: { id: existingSchedule.id },
@@ -63,13 +69,34 @@ export async function POST(req: Request) {
           description,
           startDate: new Date(startDate),
           endDate: new Date(endDate),
-          scheduleData,
+          scheduleData, // Keep for backward compatibility during migration
           additionalInfo,
-          semesterPlanning
+          semesterPlanning,
+          // Create normalized turns if scheduleData is provided
+          ...(scheduleData ? {
+            turns: {
+              create: parseJsonToNormalized(scheduleData).map((turnData, order) =>
+                createScheduleTurnData(turnData, order)
+              )
+            }
+          } : {})
         },
         include: {
           scheduleTimes: true,
-          breakTimes: true
+          breakTimes: true,
+          turns: {
+            include: {
+              weeks: true,
+              holidays: {
+                include: {
+                  holiday: true
+                }
+              }
+            },
+            orderBy: {
+              order: 'asc'
+            }
+          }
         }
       })
     } else {
@@ -82,13 +109,34 @@ export async function POST(req: Request) {
           endDate: new Date(endDate),
           selectedWeekday,
           classId: classId ? parseInt(classId) : null,
-          scheduleData,
+          scheduleData, // Keep for backward compatibility during migration
           additionalInfo,
-          semesterPlanning
+          semesterPlanning,
+          // Create normalized turns if scheduleData is provided
+          ...(scheduleData ? {
+            turns: {
+              create: parseJsonToNormalized(scheduleData).map((turnData, order) =>
+                createScheduleTurnData(turnData, order)
+              )
+            }
+          } : {})
         },
         include: {
           scheduleTimes: true,
-          breakTimes: true
+          breakTimes: true,
+          turns: {
+            include: {
+              weeks: true,
+              holidays: {
+                include: {
+                  holiday: true
+                }
+              }
+            },
+            orderBy: {
+              order: 'asc'
+            }
+          }
         }
       })
     }
@@ -134,6 +182,21 @@ export async function GET(req: Request) {
       where: {
         classId: classRecord.id,
         ...(weekday ? { selectedWeekday: parseInt(weekday) } : {})
+      },
+      include: {
+        turns: {
+          include: {
+            weeks: true,
+            holidays: {
+              include: {
+                holiday: true
+              }
+            }
+          },
+          orderBy: {
+            order: 'asc'
+          }
+        }
       },
       orderBy: {
         createdAt: 'desc'

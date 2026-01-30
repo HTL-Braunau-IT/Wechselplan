@@ -3,13 +3,20 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useTranslation } from 'next-i18next'
+import { useQuery } from '@tanstack/react-query'
 import { useCachedData } from '@/hooks/use-cached-data'
+import { useClassDataByName } from '@/hooks/use-class-data'
+import { useGroupAssignments } from '@/hooks/use-group-assignments'
+import { useTeacherAssignments } from '@/hooks/use-teacher-assignments'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
-import { ComboboxSelect } from '@/components/ui/combobox-select'
 import { captureFrontendError } from '@/lib/frontend-error'
+import { TeacherSelect } from '@/components/schedule/teacher-select'
+import { SubjectSelect } from '@/components/schedule/subject-select'
+import { LearningContentSelect } from '@/components/schedule/learning-content-select'
+import { RoomSelect } from '@/components/schedule/room-select'
 
 interface Student {
 	id: number
@@ -87,127 +94,6 @@ const WEEKDAYS = [
 ]
 
 /**
- * Renders a dropdown for selecting a teacher from a provided list.
- *
- * @param value - The currently selected teacher's ID, or undefined if none is selected.
- * @param onChange - Callback invoked with the selected teacher's ID when the selection changes.
- * @param teachers - Array of teacher objects to display as options.
- */
-function TeacherSelect({ 
-	value, 
-	onChange, 
-	teachers 
-}: { 
-	value: number | undefined, 
-	onChange: (value: number) => void, 
-	teachers: { id: number; firstName: string; lastName: string; }[] 
-}) {
-	const { t } = useTranslation('schedule')
-
-	return (
-		<Select
-			value={value?.toString() ?? ''}
-			onValueChange={(value) => onChange(Number(value))}
-		>
-			<SelectTrigger className="w-full">
-				<SelectValue placeholder={t('selectTeacher')} />
-			</SelectTrigger>
-			<SelectContent>
-				{teachers.map((teacher) => (
-					<SelectItem key={teacher.id} value={teacher.id.toString()}>
-						{`${teacher.lastName}, ${teacher.firstName}`}
-					</SelectItem>
-				))}
-			</SelectContent>
-		</Select>
-	)
-}
-
-/**
- * Renders a combobox select component for choosing a room from a provided list or entering a custom value.
- *
- * @param value - The currently selected room name, or undefined if no selection.
- * @param onChange - Callback invoked with the selected room name when the selection changes.
- * @param rooms - Array of available room options to display in the dropdown.
- */
-function RoomSelect({ 
-	value, 
-	onChange, 
-	rooms 
-}: { 
-	value: string | undefined, 
-	onChange: (value: string) => void, 
-	rooms: Room[] 
-}) {
-	const { t } = useTranslation('schedule')
-
-	return (
-		<ComboboxSelect
-			value={value ?? ''}
-			onChange={onChange}
-			options={rooms}
-			placeholder={t('selectRoom')}
-		/>
-	)
-}
-
-/**
- * Renders a combobox select for choosing a subject from a provided list or entering a custom value.
- *
- * @param value - The currently selected subject name, or undefined if none is selected.
- * @param onChange - Callback invoked with the selected subject name when the selection changes.
- * @param subjects - Array of available subjects to display as options.
- */
-function SubjectSelect({ 
-	value, 
-	onChange, 
-	subjects 
-}: { 
-	value: string | undefined, 
-	onChange: (value: string) => void, 
-	subjects: Subject[] 
-}) {
-	const { t } = useTranslation('schedule')
-
-	return (
-		<ComboboxSelect
-			value={value ?? ''}
-			onChange={onChange}
-			options={subjects}
-			placeholder={t('selectSubject')}
-		/>
-	)
-}
-
-/**
- * Renders a combobox select for choosing a learning content from a provided list or entering a custom value.
- *
- * @param value - The currently selected learning content name, or undefined if none is selected.
- * @param onChange - Callback invoked with the selected learning content name.
- * @param learningContents - Array of available learning content options.
- */
-function LearningContentSelect({ 
-	value, 
-	onChange, 
-	learningContents 
-}: { 
-	value: string | undefined, 
-	onChange: (value: string) => void, 
-	learningContents: LearningContent[] 
-}) {
-	const { t } = useTranslation('schedule')
-
-	return (
-		<ComboboxSelect
-			value={value ?? ''}
-			onChange={onChange}
-			options={learningContents}
-			placeholder={t('selectLearningContent')}
-		/>
-	)
-}
-
-/**
  * React component for assigning teachers, subjects, learning contents, and rooms to student groups for a selected class and weekday.
  *
  * Displays and manages AM and PM teacher assignments for each group, supports weekday selection, validates input, handles conflicts with existing assignments, and persists changes. Provides UI feedback for loading, errors, and confirmation dialogs.
@@ -253,24 +139,15 @@ export default function TeacherAssignmentPage() {
 	const [hasExistingAssignments, setHasExistingAssignments] = useState(false)
 
 	// Resolve className to classId when selectedClass changes
+	const { data: classData } = useClassDataByName(selectedClass || null)
+	
 	useEffect(() => {
-		async function resolveClassId() {
-			if (!selectedClass) {
-				setSelectedClassId(null)
-				return
-			}
-			try {
-				const res = await fetch(`/api/classes/get-by-name?name=${selectedClass}`)
-				if (!res.ok) throw new Error('Failed to fetch class ID')
-				const data = await res.json() as { id: number }
-				setSelectedClassId(data.id)
-			} catch (err) {
-				console.error('Error resolving class ID:', err)
-				setSelectedClassId(null)
-			}
+		if (classData) {
+			setSelectedClassId(classData.id)
+		} else if (!selectedClass) {
+			setSelectedClassId(null)
 		}
-		void resolveClassId()
-	}, [selectedClass])
+	}, [classData, selectedClass])
 
 	// Add effect to ensure assignments are initialized for all groups
 	useEffect(() => {

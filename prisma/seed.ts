@@ -340,8 +340,8 @@ async function main() {
       where: {
         name: roomName
       },
-      update: { name: roomName },
-      create: { name: roomName }
+      update: { name: roomName, isCustom: false },
+      create: { name: roomName, isCustom: false }
     })
   }
 
@@ -457,8 +457,8 @@ async function main() {
       where: {
         name: subjectName
       },
-      update: { name: subjectName },
-      create: { name: subjectName }
+      update: { name: subjectName, isCustom: false },
+      create: { name: subjectName, isCustom: false }
     })
   }
 
