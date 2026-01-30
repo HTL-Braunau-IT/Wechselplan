@@ -15,6 +15,8 @@ export type Schedule = {
     selectedWeekday: number
     scheduleData: Record<string, ScheduleTerm>
     additionalInfo?: string
+    breakTimes?: BreakTime[]
+    scheduleTimes?: ScheduleTime[]
 }
 
 export interface Student {
@@ -90,6 +92,7 @@ export type TurnSchedule = Record<string, unknown>
 export type TeacherRotation = {
     id: string
     teacherId: string
+    classId: number
     groupId: number
     turnId: string
     startDate: Date

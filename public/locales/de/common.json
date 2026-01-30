@@ -51,6 +51,14 @@
       "thursday": "Donnerstag",
       "friday": "Freitag"
     },
+    "student": {
+      "currentAssignments": "Aktuelle Lehrerzuweisungen",
+      "teacher": "Lehrer",
+      "subject": "Fach",
+      "learningContent": "Lerninhalt",
+      "room": "Raum",
+      "noAssignment": "Keine Zuweisung"
+    },
     "teacher": {
       "currentClass": "Aktuelle Klasse",
       "currentTerm": "Aktuelles Semester",
@@ -61,7 +69,9 @@
       "classLead": "Klassenleiter",
       "additionalInfo": "Zusätzliche Informationen",
       "studentsInGroup": "Schüler in {{period}}-Gruppe",
-      "noSchedule": "Kein Wechselplan für diesen Tag gefunden"
+      "noSchedule": "Kein Wechselplan für diesen Tag gefunden",
+      "scheduleTime": "Unterrichtszeit",
+      "breakTimes": "Pausenzeiten"
     }
   },
   "auth": {

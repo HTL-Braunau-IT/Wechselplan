@@ -97,6 +97,10 @@ export async function GET(req: Request) {
                 },
                 orderBy: {
                     createdAt: 'desc'
+                },
+                include: {
+                    breakTimes: true,
+                    scheduleTimes: true
                 }
             })
         
