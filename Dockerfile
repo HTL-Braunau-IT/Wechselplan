@@ -14,8 +14,6 @@ ENV npm_config_target_arch=x64
 
 COPY package.json package-lock.json* ./
 RUN npm install --legacy-peer-deps
-RUN npm install --no-save lightningcss-linux-x64-musl && \
-    rm -rf node_modules/.cache
 
 # Stage 2: Build the application in  environment
 FROM node:22-alpine AS builder-alpine
