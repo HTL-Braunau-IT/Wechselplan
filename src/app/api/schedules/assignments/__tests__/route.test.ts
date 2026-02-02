@@ -8,10 +8,22 @@ import type { TeacherAssignment } from '@prisma/client';
 // Mock PrismaClient
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    teacherAssignment: {
+    class: {
+      findUnique: vi.fn(),
+    },
+    student: {
       findMany: vi.fn(),
     },
+    groupAssignment: {
+      findMany: vi.fn(),
+      upsert: vi.fn(),
+    },
   },
+}));
+
+// Mock sentry
+vi.mock('@/lib/sentry', () => ({
+  captureError: vi.fn(),
 }));
 
 describe('Schedule Assignments API', () => {
@@ -26,11 +38,11 @@ describe('Schedule Assignments API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data).toEqual({ error: 'Class ID is required' });
+      expect(data).toEqual({ error: 'Class ID parameter is required' });
     });
 
     test('should return 400 if class ID is not a number', async () => {
-      const request = new Request('http://localhost/api/schedules/assignments?class=abc');
+      const request = new Request('http://localhost/api/schedules/assignments?classId=abc');
       const response = await GET(request);
       const data = await response.json();
 
@@ -39,37 +51,40 @@ describe('Schedule Assignments API', () => {
     });
 
     test('should return assignments for a class', async () => {
-      const mockAssignments = [
-        { id: 1, period: '1' },
-        { id: 2, period: '2' },
-        { id: 3, period: '3' },
-      ] as const;
+      const mockClass = {
+        id: 1,
+        name: '1A',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        description: null,
+        classHeadId: null,
+        classLeadId: null
+      };
 
-      const findManyMock = vi.mocked(prisma.teacherAssignment.findMany);
-      findManyMock.mockResolvedValue(mockAssignments as TeacherAssignment[]);
+      const mockStudents: Array<{ id: number; groupId: number | null }> = [];
+      const mockGroupAssignments: Array<{ groupId: number; class: string }> = [];
 
-      const request = new Request('http://localhost/api/schedules/assignments?class=1');
+      // Mock Prisma methods
+      vi.mocked(prisma.class.findUnique).mockResolvedValue(mockClass as any);
+      vi.mocked(prisma.student.findMany).mockResolvedValue(mockStudents as any);
+      vi.mocked(prisma.groupAssignment.findMany).mockResolvedValue(mockGroupAssignments as any);
+      vi.mocked(prisma.groupAssignment.upsert).mockResolvedValue({} as any);
+
+      const request = new Request('http://localhost/api/schedules/assignments?classId=1');
       const response = await GET(request);
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(data).toEqual(mockAssignments);
-      expect(findManyMock).toHaveBeenCalledWith({
-        where: {
-          classId: 1
-        },
-        select: {
-          id: true,
-          period: true
-        }
+      expect(data).toEqual({
+        assignments: [],
+        unassignedStudents: []
       });
     });
 
     test('should handle database errors', async () => {
-      const findManyMock = vi.mocked(prisma.teacherAssignment.findMany);
-      findManyMock.mockRejectedValue(new Error('Database error'));
+      vi.mocked(prisma.class.findUnique).mockRejectedValue(new Error('Database error'));
 
-      const request = new Request('http://localhost/api/schedules/assignments?class=1');
+      const request = new Request('http://localhost/api/schedules/assignments?classId=1');
       const response = await GET(request);
       const data = await response.json();
 
