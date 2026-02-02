@@ -213,6 +213,12 @@ export async function POST(request: Request) {
           teacherGrades.push(g)
         }
         if (teacherGrades.length !== teacherIds.length) return null
+        
+        // Exclude students with "nicht beurteilt" (6) or "gestunden" (7)
+        if (teacherGrades.some(g => g === 6 || g === 7)) {
+          return null
+        }
+        
         const avg = teacherGrades.reduce((a, b) => a + b, 0) / teacherGrades.length
         const note = truncateAvgToNote(avg)
 
