@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import * as XLSX from 'xlsx'
+import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
 
 interface Week {
     date: string
@@ -77,9 +78,20 @@ export async function POST(request: Request) {
                 selectedWeekday: weekday
             },
             orderBy: [{ createdAt: 'desc' }],
-            select: {
-                scheduleData: true,
-                additionalInfo: true
+            include: {
+                turns: {
+                    include: {
+                        weeks: true,
+                        holidays: {
+                            include: {
+                                holiday: true
+                            }
+                        }
+                    },
+                    orderBy: {
+                        order: 'asc'
+                    }
+                }
             }
         })
 
@@ -175,9 +187,16 @@ export async function POST(request: Request) {
             maxCol = Math.max(maxCol, index + 18)
         })
 
+        // Use normalized turns if available, otherwise fall back to scheduleData
+        let scheduleData: ScheduleData = {};
+        if (schedule?.turns && schedule.turns.length > 0) {
+            scheduleData = normalizeToJsonFormat(schedule.turns) as ScheduleData;
+        } else if (schedule?.scheduleData && typeof schedule.scheduleData === 'object' && !Array.isArray(schedule.scheduleData)) {
+            scheduleData = schedule.scheduleData as unknown as ScheduleData;
+        }
+        
         // Process schedule data for turns
-        if (schedule.scheduleData) {
-            const scheduleData = schedule.scheduleData as unknown as ScheduleData
+        if (Object.keys(scheduleData).length > 0) {
             
             // Debug log to see the structure of scheduleData
             console.log('Schedule Data Structure:', JSON.stringify(scheduleData, null, 2))

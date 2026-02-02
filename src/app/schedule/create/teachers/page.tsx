@@ -4,33 +4,22 @@ import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useTranslation } from 'next-i18next'
 import { useCachedData } from '@/hooks/use-cached-data'
+import { useClassDataByName } from '@/hooks/use-class-data'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
-import { ComboboxSelect } from '@/components/ui/combobox-select'
 import { captureFrontendError } from '@/lib/frontend-error'
+import { TeacherSelect } from '@/components/schedule/teacher-select'
+import { SubjectSelect } from '@/components/schedule/subject-select'
+import { LearningContentSelect } from '@/components/schedule/learning-content-select'
+import { RoomSelect } from '@/components/schedule/room-select'
 
 interface Student {
 	id: number
 	firstName: string
 	lastName: string
 	class: string
-}
-
-interface Room {
-	id: number
-	name: string
-}
-
-interface Subject {
-	id: number
-	name: string
-}
-
-interface LearningContent {
-	id: number
-	name: string
 }
 
 interface Group {
@@ -87,127 +76,6 @@ const WEEKDAYS = [
 ]
 
 /**
- * Renders a dropdown for selecting a teacher from a provided list.
- *
- * @param value - The currently selected teacher's ID, or undefined if none is selected.
- * @param onChange - Callback invoked with the selected teacher's ID when the selection changes.
- * @param teachers - Array of teacher objects to display as options.
- */
-function TeacherSelect({ 
-	value, 
-	onChange, 
-	teachers 
-}: { 
-	value: number | undefined, 
-	onChange: (value: number) => void, 
-	teachers: { id: number; firstName: string; lastName: string; }[] 
-}) {
-	const { t } = useTranslation('schedule')
-
-	return (
-		<Select
-			value={value?.toString() ?? ''}
-			onValueChange={(value) => onChange(Number(value))}
-		>
-			<SelectTrigger className="w-full">
-				<SelectValue placeholder={t('selectTeacher')} />
-			</SelectTrigger>
-			<SelectContent>
-				{teachers.map((teacher) => (
-					<SelectItem key={teacher.id} value={teacher.id.toString()}>
-						{`${teacher.lastName}, ${teacher.firstName}`}
-					</SelectItem>
-				))}
-			</SelectContent>
-		</Select>
-	)
-}
-
-/**
- * Renders a combobox select component for choosing a room from a provided list or entering a custom value.
- *
- * @param value - The currently selected room name, or undefined if no selection.
- * @param onChange - Callback invoked with the selected room name when the selection changes.
- * @param rooms - Array of available room options to display in the dropdown.
- */
-function RoomSelect({ 
-	value, 
-	onChange, 
-	rooms 
-}: { 
-	value: string | undefined, 
-	onChange: (value: string) => void, 
-	rooms: Room[] 
-}) {
-	const { t } = useTranslation('schedule')
-
-	return (
-		<ComboboxSelect
-			value={value ?? ''}
-			onChange={onChange}
-			options={rooms}
-			placeholder={t('selectRoom')}
-		/>
-	)
-}
-
-/**
- * Renders a combobox select for choosing a subject from a provided list or entering a custom value.
- *
- * @param value - The currently selected subject name, or undefined if none is selected.
- * @param onChange - Callback invoked with the selected subject name when the selection changes.
- * @param subjects - Array of available subjects to display as options.
- */
-function SubjectSelect({ 
-	value, 
-	onChange, 
-	subjects 
-}: { 
-	value: string | undefined, 
-	onChange: (value: string) => void, 
-	subjects: Subject[] 
-}) {
-	const { t } = useTranslation('schedule')
-
-	return (
-		<ComboboxSelect
-			value={value ?? ''}
-			onChange={onChange}
-			options={subjects}
-			placeholder={t('selectSubject')}
-		/>
-	)
-}
-
-/**
- * Renders a combobox select for choosing a learning content from a provided list or entering a custom value.
- *
- * @param value - The currently selected learning content name, or undefined if none is selected.
- * @param onChange - Callback invoked with the selected learning content name.
- * @param learningContents - Array of available learning content options.
- */
-function LearningContentSelect({ 
-	value, 
-	onChange, 
-	learningContents 
-}: { 
-	value: string | undefined, 
-	onChange: (value: string) => void, 
-	learningContents: LearningContent[] 
-}) {
-	const { t } = useTranslation('schedule')
-
-	return (
-		<ComboboxSelect
-			value={value ?? ''}
-			onChange={onChange}
-			options={learningContents}
-			placeholder={t('selectLearningContent')}
-		/>
-	)
-}
-
-/**
  * React component for assigning teachers, subjects, learning contents, and rooms to student groups for a selected class and weekday.
  *
  * Displays and manages AM and PM teacher assignments for each group, supports weekday selection, validates input, handles conflicts with existing assignments, and persists changes. Provides UI feedback for loading, errors, and confirmation dialogs.
@@ -219,6 +87,7 @@ export default function TeacherAssignmentPage() {
 	const searchParams = useSearchParams()
 	const { t } = useTranslation('schedule')
 	const selectedClass = searchParams.get('class')
+	const [selectedClassId, setSelectedClassId] = useState<number | null>(null)
 	const [selectedWeekday, setSelectedWeekday] = useState<number | null>(null)
 
 	const { rooms, subjects, learningContents, teachers, isLoading: isLoadingCachedData } = useCachedData()
@@ -251,6 +120,17 @@ export default function TeacherAssignmentPage() {
 	} | null>(null)
 	const [hasExistingAssignments, setHasExistingAssignments] = useState(false)
 
+	// Resolve className to classId when selectedClass changes
+	const { data: classData } = useClassDataByName(selectedClass ?? null)
+	
+	useEffect(() => {
+		if (classData) {
+			setSelectedClassId(classData.id)
+		} else if (!selectedClass) {
+			setSelectedClassId(null)
+		}
+	}, [classData, selectedClass])
+
 	// Add effect to ensure assignments are initialized for all groups
 	useEffect(() => {
 		// Create initial assignments for any new groups
@@ -274,12 +154,12 @@ export default function TeacherAssignmentPage() {
 
 	useEffect(() => {
 		async function fetchData() {
-			if (!selectedClass || isLoadingCachedData) return
+			if (!selectedClass || !selectedClassId || isLoadingCachedData) return
 
 			setLoading(true)
 			try {
 				// Fetch groups
-				const groupsRes = await fetch(`/api/schedule/assignments?class=${selectedClass}`)
+				const groupsRes = await fetch(`/api/schedules/assignments?classId=${selectedClassId}`)
 				if (!groupsRes.ok) throw new Error('Failed to fetch groups')
 				const groupsData = await groupsRes.json() as AssignmentsResponse
 				setGroups(groupsData.assignments.map(assignment => ({
@@ -288,7 +168,7 @@ export default function TeacherAssignmentPage() {
 				})))
 
 				// Fetch existing teacher assignments
-				const teacherAssignmentsRes = await fetch(`/api/schedule/teacher-assignments?class=${selectedClass}`)
+				const teacherAssignmentsRes = await fetch(`/api/schedules/teacher-assignments?classId=${selectedClassId}`)
 				if (teacherAssignmentsRes.ok) {
 					const teacherAssignmentsData = await teacherAssignmentsRes.json() as TeacherAssignmentsResponse
 					const hasExistingAmAssignments = teacherAssignmentsData.amAssignments.some(a => a.teacherId !== 0)
@@ -373,7 +253,7 @@ export default function TeacherAssignmentPage() {
 			}
 		}
 		void fetchData()
-	}, [selectedClass, isLoadingCachedData, subjects, learningContents, rooms])
+	}, [selectedClass, selectedClassId, isLoadingCachedData, subjects, learningContents, rooms])
 
 	function handleAssignmentChange(
 		period: 'am' | 'pm',
@@ -582,15 +462,17 @@ export default function TeacherAssignmentPage() {
 			})
 
 			// If no changes or no existing assignments, proceed with saving
-			const response = await fetch('/api/schedule/teacher-assignments', {
+			if (!selectedClassId) throw new Error('Class ID not available')
+			const response = await fetch('/api/schedules/teacher-assignments', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
 				},
 				body: JSON.stringify({
-					class: selectedClass,
+					classId: selectedClassId,
 					amAssignments: mapAssignments(validAmAssignments),
 					pmAssignments: mapAssignments(validPmAssignments),
+					updateExisting: true,
 					selectedWeekday: selectedWeekday ?? 1
 				}),
 			})
@@ -628,7 +510,7 @@ export default function TeacherAssignmentPage() {
 	}
 
 	async function handleConfirmUpdate() {
-		if (!pendingAssignments) return
+		if (!pendingAssignments || !selectedClassId) return
 
 		try {
 			// Map the assignments to include string values for subject, learningContent, and room
@@ -646,13 +528,13 @@ export default function TeacherAssignmentPage() {
 				}
 			})
 
-			const response = await fetch('/api/schedule/teacher-assignments', {
+			const response = await fetch('/api/schedules/teacher-assignments', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
 				},
 				body: JSON.stringify({
-					class: selectedClass,
+					classId: selectedClassId,
 					amAssignments: mapAssignments(pendingAssignments.amAssignments),
 					pmAssignments: mapAssignments(pendingAssignments.pmAssignments),
 					updateExisting: true,

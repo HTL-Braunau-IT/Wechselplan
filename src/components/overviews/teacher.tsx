@@ -84,12 +84,12 @@ export function TeacherOverview() {
             return 0
         })
 
-        const getScheduleInfo = (classId: number) => {
+        const getScheduleInfo = (classId: number): Record<string, ScheduleTerm> | undefined => {
             const classSchedule = scheduleData.schedules.find(schedules => 
                 schedules.some(s => Number(s.classId) === classId)
             )
 
-            return classSchedule?.[0]?.scheduleData
+            return classSchedule?.[0]?.scheduleData as Record<string, ScheduleTerm> | undefined
         }
 
         const getCurrentWeek = (scheduleInfo: Record<string, ScheduleTerm> | undefined) => {
@@ -184,7 +184,7 @@ export function TeacherOverview() {
             if (teacherIndex === -1) return assignment.groupId ?? null
 
             // Get current turn index
-            const turnIndex = getCurrentTurnIndex(scheduleInfo)
+            const turnIndex = getCurrentTurnIndex(scheduleInfo as Record<string, ScheduleTerm> | undefined)
 
             // Rotate groups based on turn
             const rotatedGroups = rotateArray(groupIds, turnIndex)
@@ -209,19 +209,19 @@ export function TeacherOverview() {
             const classSchedule = scheduleData.schedules.find(schedules => 
                 schedules.some(s => Number(s.classId) === classId)
             )
-            const schedule = classSchedule?.[0]
-            return schedule?.scheduleTimes?.find(time => time.period === period)
+            const schedule = classSchedule?.[0] as { scheduleTimes?: ScheduleTime[] } | undefined
+            return schedule?.scheduleTimes?.find((time: ScheduleTime) => time.period === period)
         }
 
         const getBreakTimes = (classId: number, period: string): BreakTime[] => {
             const classSchedule = scheduleData.schedules.find(schedules => 
                 schedules.some(s => Number(s.classId) === classId)
             )
-            const schedule = classSchedule?.[0]
+            const schedule = classSchedule?.[0] as { breakTimes?: BreakTime[] } | undefined
             if (!schedule?.breakTimes) return []
             
             // Return break times that match the period or are LUNCH breaks
-            return schedule.breakTimes.filter(time => 
+            return schedule.breakTimes.filter((time: BreakTime) => 
                 time.period === period || time.period === 'LUNCH'
             )
         }
@@ -230,9 +230,9 @@ export function TeacherOverview() {
             <div className="space-y-6">
                 {assignments.map(assignment => {
                     const scheduleInfo = getScheduleInfo(assignment.classId)
-                    const currentWeek = getCurrentWeek(scheduleInfo)
+                    const currentWeek = getCurrentWeek(scheduleInfo as Record<string, ScheduleTerm> | undefined)
                     const currentTerm = currentWeek ? (currentWeek[1] as ScheduleTerm).name : t('overview.teacher.noSchedule')
-                    const remainingWeeks = getRemainingWeeks(scheduleInfo)
+                    const remainingWeeks = getRemainingWeeks(scheduleInfo as Record<string, ScheduleTerm> | undefined)
                     const actualGroupId = getActualGroupForAssignment(assignment)
 
                     const scheduleTime = getScheduleTimes(assignment.classId, assignment.period)
@@ -290,9 +290,9 @@ export function TeacherOverview() {
                                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{t('overview.teacher.additionalInfo')}</p>
                                 <p className="font-semibold text-lg dark:text-white">
                                     {
-                                        scheduleData.schedules
+                                        (scheduleData.schedules
                                             .find(sList => sList.some(s => Number(s.classId) === assignment.classId))
-                                            ?.at(0)
+                                            ?.at(0) as { additionalInfo?: string } | undefined)
                                             ?.additionalInfo ?? '—'
                                     }
                                 </p>

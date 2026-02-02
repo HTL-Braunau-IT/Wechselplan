@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { generateSchedulePDF } from '@/lib/pdf-generator'
+import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
 
 /**
  * Handles HTTP POST requests to generate and return a PDF schedule for a specified class.
@@ -84,7 +85,20 @@ export async function POST(request: Request) {
             orderBy: [{ createdAt: 'desc' }],
             include: {
                 scheduleTimes: true,
-                breakTimes: true
+                breakTimes: true,
+                turns: {
+                    include: {
+                        weeks: true,
+                        holidays: {
+                            include: {
+                                holiday: true
+                            }
+                        }
+                    },
+                    orderBy: {
+                        order: 'asc'
+                    }
+                }
             }
         })
 
@@ -136,9 +150,13 @@ export async function POST(request: Request) {
             .filter(a => a.period === 'PM')
             .map(mapAssignment); 
     
-        const turns = (schedule && typeof schedule.scheduleData === 'object' && schedule.scheduleData !== null && !Array.isArray(schedule.scheduleData))
-            ? schedule.scheduleData as Record<string, unknown>
-            : {};
+        // Use normalized turns if available, otherwise fall back to scheduleData
+        let turns: Record<string, unknown> = {};
+        if (schedule?.turns && schedule.turns.length > 0) {
+            turns = normalizeToJsonFormat(schedule.turns) as Record<string, unknown>;
+        } else if (schedule && typeof schedule.scheduleData === 'object' && schedule.scheduleData !== null && !Array.isArray(schedule.scheduleData)) {
+            turns = schedule.scheduleData as Record<string, unknown>;
+        }
 
         // Get schedule times and break times
         const scheduleTimes = schedule?.scheduleTimes ?? [];

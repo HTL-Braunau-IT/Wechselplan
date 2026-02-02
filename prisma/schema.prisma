@@ -66,7 +66,7 @@ model Schedule {
   startDate         DateTime
   endDate           DateTime
   selectedWeekday   Int
-  scheduleData      Json
+  scheduleData      Json?          // Deprecated: will be removed after migration
   additionalInfo    String?
   semesterPlanning  String?        // "first", "second", or null for full year
   classId           Int?
@@ -75,8 +75,53 @@ model Schedule {
   class             Class?         @relation(fields: [classId], references: [id])
   breakTimes        BreakTime[]    @relation("BreakTimeToSchedule")
   scheduleTimes     ScheduleTime[] @relation("ScheduleToScheduleTime")
+  turns             ScheduleTurn[]
 
   @@index([classId])
+}
+
+model ScheduleTurn {
+  id                Int            @id @default(autoincrement())
+  scheduleId        Int
+  name              String         // e.g., "TURNUS 1"
+  customLength      Int?           // Optional custom length for this turn
+  order             Int             // Order of the turn within the schedule
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  schedule          Schedule       @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  weeks             ScheduleWeek[]
+  holidays          ScheduleTurnHoliday[]
+
+  @@unique([scheduleId, order])
+  @@index([scheduleId])
+}
+
+model ScheduleWeek {
+  id                Int            @id @default(autoincrement())
+  turnId            Int
+  date              String         // Date in format "dd.MM.yy"
+  week              String         // Week number in format "KW##"
+  isHoliday         Boolean        @default(false)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  turn              ScheduleTurn   @relation(fields: [turnId], references: [id], onDelete: Cascade)
+
+  @@index([turnId])
+  @@index([date])
+}
+
+model ScheduleTurnHoliday {
+  id                Int            @id @default(autoincrement())
+  turnId            Int
+  holidayId         Int
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  turn              ScheduleTurn   @relation(fields: [turnId], references: [id], onDelete: Cascade)
+  holiday           SchoolHoliday  @relation(fields: [holidayId], references: [id], onDelete: Cascade)
+
+  @@unique([turnId, holidayId])
+  @@index([turnId])
+  @@index([holidayId])
 }
 
 model GroupAssignment {
@@ -121,6 +166,7 @@ model Room {
   name        String              @unique
   capacity    Int?
   description String?
+  isCustom    Boolean             @default(false) // True if created by user, false if from seed/import
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
   assignments TeacherAssignment[]
@@ -132,6 +178,7 @@ model Subject {
   id                Int                 @id @default(autoincrement())
   name              String              @unique
   description       String?
+  isCustom          Boolean             @default(false) // True if created by user, false if from seed/import
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
   TeacherAssignment TeacherAssignment[]
@@ -143,6 +190,7 @@ model LearningContent {
   id                Int                 @id @default(autoincrement())
   name              String              @unique
   description       String?
+  isCustom          Boolean             @default(false) // True if created by user, false if from seed/import
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
   TeacherAssignment TeacherAssignment[]
@@ -151,12 +199,13 @@ model LearningContent {
 }
 
 model SchoolHoliday {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
+  id        Int                   @id @default(autoincrement())
+  name      String                @unique
   startDate DateTime
   endDate   DateTime
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+  scheduleTurns ScheduleTurnHoliday[]
 }
 
 model ScheduleTime {

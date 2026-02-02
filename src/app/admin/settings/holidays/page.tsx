@@ -136,7 +136,7 @@ export default function HolidaysPage() {
                         <Input
                           id="startDate"
                           type="date"
-                          value={newHoliday.startDate}
+                          value={typeof newHoliday.startDate === 'string' ? newHoliday.startDate : newHoliday.startDate instanceof Date ? newHoliday.startDate.toISOString().split('T')[0] : ''}
                           onChange={(e) => {
                             const startDate = e.target.value;
                             setNewHoliday({ ...newHoliday, startDate, endDate: startDate });
@@ -149,7 +149,7 @@ export default function HolidaysPage() {
                         <Input
                           id="endDate"
                           type="date"
-                          value={newHoliday.endDate}
+                          value={typeof newHoliday.endDate === 'string' ? newHoliday.endDate : newHoliday.endDate instanceof Date ? newHoliday.endDate.toISOString().split('T')[0] : ''}
                           onChange={(e) => setNewHoliday({ ...newHoliday, endDate: e.target.value })}
                         />
                       </div>

@@ -78,8 +78,9 @@ export async function POST(request: Request) {
 				if (filteredData.length === 0) {
 					result = { count: 0 }
 				} else {
+					// Imported values are not custom (they come from seed/import)
 					result = await prisma.room.createMany({
-						data: filteredData
+						data: filteredData.map(item => ({ ...item, isCustom: false }))
 					})
 				}
 				break
@@ -90,8 +91,9 @@ export async function POST(request: Request) {
 				})
 				const existingNames = new Set(existing.map(s => s.name))
 				const filteredData = transformedData.filter(item => !existingNames.has(item.name))
+				// Imported values are not custom (they come from seed/import)
 				result = await (prisma as unknown as { subject: { createMany: (args: Prisma.SubjectCreateManyArgs) => Promise<{ count: number }> } }).subject.createMany({
-					data: filteredData
+					data: filteredData.map(item => ({ ...item, isCustom: false }))
 				})
 				break
 			}
@@ -101,8 +103,9 @@ export async function POST(request: Request) {
 				})
 				const existingNames = new Set(existing.map(lc => lc.name))
 				const filteredData = transformedData.filter(item => !existingNames.has(item.name))
+				// Imported values are not custom (they come from seed/import)
 				result = await (prisma as unknown as { learningContent: { createMany: (args: Prisma.LearningContentCreateManyArgs) => Promise<{ count: number }> } }).learningContent.createMany({
-					data: filteredData
+					data: filteredData.map(item => ({ ...item, isCustom: false }))
 				})
 				break
 			}
