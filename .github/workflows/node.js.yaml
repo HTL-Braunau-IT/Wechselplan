@@ -30,7 +30,8 @@ jobs:
           node:22-alpine sh -c "
             apk add --no-cache python3 make g++ libc6-compat &&
             npm install --legacy-peer-deps &&
-            npm i lightningcss-linux-x64-musl &&
+            npm install --no-save lightningcss-linux-x64-musl &&
+            rm -rf node_modules/.cache &&
             apk add --no-cache openssl &&
             [ -f .env.example ] && cp .env.example .env || true &&
             npx prisma generate &&
