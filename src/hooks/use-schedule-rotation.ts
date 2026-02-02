@@ -1,14 +1,6 @@
 'use client'
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-
-interface TeacherRotation {
-	classId: number
-	groupId: number
-	teacherId: number
-	turnId: string
-	period: 'AM' | 'PM'
-}
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 interface TeacherRotationRequest {
 	classId: number
@@ -34,8 +26,8 @@ interface TeacherRotationRequest {
 export function useScheduleRotationMutation() {
 	const queryClient = useQueryClient()
 	
-	return useMutation({
-		mutationFn: async (data: TeacherRotationRequest) => {
+		return useMutation({
+		mutationFn: async (data: TeacherRotationRequest): Promise<unknown> => {
 			const response = await fetch('/api/schedules/rotation', {
 				method: 'POST',
 				headers: {
@@ -48,11 +40,11 @@ export function useScheduleRotationMutation() {
 				throw new Error('Failed to save teacher rotation')
 			}
 			
-			return response.json()
+			return response.json() as Promise<unknown>
 		},
 		onSuccess: () => {
 			// Invalidate related queries if needed
-			queryClient.invalidateQueries({ queryKey: ['teacher-assignments'] })
+			void queryClient.invalidateQueries({ queryKey: ['teacher-assignments'] })
 		},
 	})
 }

@@ -293,7 +293,7 @@ export default function ScheduleClassSelectPage() {
 					// Always include unassigned group first
 					{
 						id: UNASSIGNED_GROUP_ID,
-						students: assignmentsData.unassignedStudents || []
+						students: (assignmentsData.unassignedStudents || []).map(s => ({ ...s, class: selectedClass || '' }))
 					},
 					// Then add regular groups
 					...assignmentsData.assignments.map(assignment => ({

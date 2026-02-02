@@ -75,7 +75,7 @@ export async function POST(request: Request) {
         if (schedule.turns && schedule.turns.length > 0) {
             scheduleData = normalizeToJsonFormat(schedule.turns) as ScheduleData;
         } else if (schedule.scheduleData && typeof schedule.scheduleData === 'object' && !Array.isArray(schedule.scheduleData)) {
-            scheduleData = schedule.scheduleData as ScheduleData;
+            scheduleData = schedule.scheduleData as unknown as ScheduleData;
         }
         const doc = ScheduleTurnusPDF({ scheduleData: scheduleData as unknown as ScheduleData, className: className ?? '', weekdayString: weekdayString ?? '' })
         const pdfBuffer = await pdf(doc).toBuffer()

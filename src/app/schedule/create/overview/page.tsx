@@ -108,6 +108,8 @@ export default function OverviewPage() {
         if (!classRes.ok) throw new Error('Failed to fetch class ID')
         const classData = await classRes.json() as { id: number }
         resolvedClassId = classData.id
+      } else if (classId === null) {
+        throw new Error('Class ID is required')
       } else {
         resolvedClassId = classId
       }
@@ -148,7 +150,7 @@ export default function OverviewPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             classId: resolvedClassId,
-            className: className || classId?.toString() || '',
+            className: className ?? classId?.toString() ?? '',
             teacherIds: allTeacherIds,
             scheduleLink
           })

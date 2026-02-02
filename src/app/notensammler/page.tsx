@@ -421,23 +421,25 @@ export default function NotensammlerPage() {
 			const previousValue = grades[studentId]?.[teacherId]?.[semester] ?? null
 
 			// Set new timer
-			saveTimerRef.current = setTimeout(async () => {
-				try {
-					await saveGrade(studentId, teacherId, semester, gradeValue)
-				} catch (error) {
-					// Revert optimistic update on error
-					console.error('Failed to save grade, reverting:', error)
-					setGrades(prev => {
-						const newGrades = { ...prev }
-						newGrades[studentId] ??= {}
-						newGrades[studentId][teacherId] ??= { first: null, second: null }
-						newGrades[studentId][teacherId][semester] = previousValue
-						return newGrades
-					})
-					setError('Failed to save grade. Please try again.')
-				} finally {
-					saveTimerRef.current = null
-				}
+			saveTimerRef.current = setTimeout(() => {
+				void (async () => {
+					try {
+						await saveGrade(studentId, teacherId, semester, gradeValue)
+					} catch (error) {
+						// Revert optimistic update on error
+						console.error('Failed to save grade, reverting:', error)
+						setGrades(prev => {
+							const newGrades = { ...prev }
+							newGrades[studentId] ??= {}
+							newGrades[studentId][teacherId] ??= { first: null, second: null }
+							newGrades[studentId][teacherId][semester] = previousValue
+							return newGrades
+						})
+						setError('Failed to save grade. Please try again.')
+					} finally {
+						saveTimerRef.current = null
+					}
+				})()
 			}, 500)
 		}
 	}, [saveGrade, saveTimerRef])

@@ -46,6 +46,29 @@ async function migrateScheduleData() {
         continue
       }
 
+      // Check if normalized data already exists and delete it (makes script idempotent)
+      try {
+        const existingTurns = await prisma.scheduleTurn.findMany({
+          where: { scheduleId: schedule.id }
+        })
+        
+        if (existingTurns.length > 0) {
+          console.log(`Deleting existing normalized data for schedule ${schedule.id} (${existingTurns.length} turns)`)
+          // Delete turns (cascades will delete related weeks and holidays)
+          await prisma.scheduleTurn.deleteMany({
+            where: { scheduleId: schedule.id }
+          })
+        }
+      } catch (error) {
+        // If table doesn't exist yet, that's fine - we'll create it
+        // This can happen if Prisma client is out of sync
+        if (error instanceof Error && error.message.includes('does not exist')) {
+          console.log(`No existing normalized data found for schedule ${schedule.id} (table may not exist yet)`)
+        } else {
+          throw error
+        }
+      }
+
       // Get all holidays for reference
       const allHolidays = await prisma.schoolHoliday.findMany()
 

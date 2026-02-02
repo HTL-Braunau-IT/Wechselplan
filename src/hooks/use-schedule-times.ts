@@ -48,7 +48,7 @@ export function useSaveScheduleTimes() {
 	const queryClient = useQueryClient()
 	
 	return useMutation({
-		mutationFn: async (data: SaveTimesRequest) => {
+		mutationFn: async (data: SaveTimesRequest): Promise<unknown> => {
 			const response = await fetch('/api/schedules/times', {
 				method: 'POST',
 				headers: {
@@ -61,11 +61,11 @@ export function useSaveScheduleTimes() {
 				throw new Error('Failed to save schedule times')
 			}
 			
-			return response.json()
+			return response.json() as Promise<unknown>
 		},
 		onSuccess: (_, variables) => {
 			// Invalidate the schedule times query for this class
-			queryClient.invalidateQueries({ queryKey: ['schedule-times', variables.classId] })
+			void queryClient.invalidateQueries({ queryKey: ['schedule-times', variables.classId] })
 		},
 	})
 }

@@ -24,15 +24,16 @@
 - [x] Frontend resolves className to classId using `/api/classes/get-by-name`
 - [x] Removed class name lookups from individual endpoints
 
-## Phase 2: Data Structure Normalization 🔄 IN PROGRESS
+## Phase 2: Data Structure Normalization ✅ COMPLETED
 
 ### 2.1 Normalize Schedule Data
 - [x] Create `ScheduleTurn` and `ScheduleWeek` models in Prisma schema
 - [x] Write migration script to parse existing JSON and populate new tables
-- [x] Update API endpoints to use new structure (backward compatible - saves to both JSON and normalized tables)
+- [x] Update API endpoints to use new structure (now saves only to normalized tables, scheduleData set to null)
 - [x] Run data migration (✅ 30 schedules migrated successfully)
 - [x] Clear `scheduleData` JSON field (✅ 28 schedules cleared - see docs/MIGRATION_GUIDE.md)
-- [ ] Remove `scheduleData` column (optional - field is already null for all schedules)
+- [x] Update schedule creation to not store scheduleData (now sets to null)
+- [ ] Remove `scheduleData` column from schema (optional - field is already null for all schedules, can be done in future migration)
 
 ### 2.2 Simplify Group Storage
 - [x] Document decision: Keep `Student.groupId` as source of truth
@@ -44,7 +45,7 @@
 - [x] Create migration script to mark existing custom values
 - [x] Run custom values migration (✅ 2 rooms, 1 subject marked as custom)
 
-## Phase 3: Component Refactoring 🔄 IN PROGRESS
+## Phase 3: Component Refactoring ✅ MOSTLY COMPLETED
 
 ### 3.1 Break Down Large Components
 - [x] Extract student assignment UI into `StudentAssignmentManager`
@@ -55,17 +56,17 @@
 - [x] Update main schedule creation page to use new components
 - [x] Extract teacher assignment UI components (`TeacherSelect`, `SubjectSelect`, `LearningContentSelect`, `RoomSelect`)
 - [x] Update teachers page to use extracted select components
-- [ ] Extract rotation schedule UI into `RotationScheduleEditor` (large component, can be done later)
-- [ ] Extract times selection into `ScheduleTimesSelector` (large component, can be done later)
+- [x] Extract rotation schedule UI into `RotationScheduleEditor` ✅
+- [x] Extract times selection into `ScheduleTimesSelector` ✅
 
-### 3.2 Create Shared Hooks
+### 3.2 Create Shared Hooks ✅ COMPLETED
 - [x] Create `useScheduleCreation()` hook (provides navigation helpers and class ID resolution)
-- [x] Create `useClassData(classId)` hook
-- [x] Create `useGroupAssignments(classId)` hook
-- [x] Create `useTeacherAssignments(classId, weekday)` hook
-- [x] Create `useScheduleRotation(classId, weekday)` hook
-- [x] Create `useScheduleTimes(classId)` hook
-- [x] Update schedule creation pages to use new hooks (main page and times page completed, teachers page updated)
+- [x] Create `useClassData(classId)` hook (uses React Query)
+- [x] Create `useGroupAssignments(classId)` hook (uses React Query)
+- [x] Create `useTeacherAssignments(classId, weekday)` hook (uses React Query)
+- [x] Create `useScheduleRotation(classId, weekday)` hook (uses React Query)
+- [x] Create `useScheduleTimes(classId)` hook (uses React Query)
+- [x] Update schedule creation pages to use new hooks (main page, times page, and teachers page completed)
 
 ### 3.3 Standardize Types ✅ COMPLETED
 - [x] Consolidate all Schedule-related types in `src/types/schedule.ts`
@@ -74,17 +75,18 @@
 - [x] Update schedule creation pages to use consolidated types
 - [ ] Use Zod schemas for runtime validation (future enhancement)
 
-## Phase 4: State Management 🔄 PENDING
+## Phase 4: State Management 🔄 PARTIALLY COMPLETED
 
 ### 4.1 Create Schedule Creation Context
-- [ ] Create `ScheduleCreationContext`
-- [ ] Replace prop drilling with context
-- [ ] Add optimistic updates
+- [ ] Create `ScheduleCreationContext` (optional - would reduce prop drilling but current implementation works)
+- [ ] Replace prop drilling with context (optional)
+- [ ] Add optimistic updates (optional enhancement)
 
-### 4.2 Implement Data Caching
-- [ ] Use React Query or SWR for data fetching
-- [ ] Implement cache invalidation strategies
-- [ ] Add request deduplication
+### 4.2 Implement Data Caching ✅ MOSTLY COMPLETED
+- [x] Use React Query for data fetching (all hooks use `@tanstack/react-query`)
+- [x] Request deduplication (automatic with React Query)
+- [x] Basic cache configuration (staleTime: 5 minutes for most queries)
+- [ ] Improve cache invalidation strategies (some mutations invalidate cache, could be more comprehensive)
 
 ## Notes
 

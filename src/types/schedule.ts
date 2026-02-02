@@ -121,6 +121,9 @@ export interface AssignmentsResponse {
 	unassignedStudents: Student[]
 }
 
+// Import Student type
+import type { Student } from './types'
+
 // Re-export Student and Group from types.ts for convenience
 export type { Student, Group } from './types'
 

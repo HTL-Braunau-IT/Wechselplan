@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 import { captureError } from '~/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { parseJsonToNormalized, createScheduleTurnData } from '@/lib/schedule-data-helpers'
@@ -69,7 +70,7 @@ export async function POST(req: Request) {
           description,
           startDate: new Date(startDate),
           endDate: new Date(endDate),
-          scheduleData, // Keep for backward compatibility during migration
+          scheduleData: Prisma.JsonNull, // No longer storing JSON - using normalized turns instead
           additionalInfo,
           semesterPlanning,
           // Create normalized turns if scheduleData is provided
@@ -109,7 +110,7 @@ export async function POST(req: Request) {
           endDate: new Date(endDate),
           selectedWeekday,
           classId: classId ? parseInt(classId) : null,
-          scheduleData, // Keep for backward compatibility during migration
+          scheduleData: Prisma.JsonNull, // No longer storing JSON - using normalized turns instead
           additionalInfo,
           semesterPlanning,
           // Create normalized turns if scheduleData is provided

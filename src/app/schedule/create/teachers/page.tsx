@@ -3,11 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useTranslation } from 'next-i18next'
-import { useQuery } from '@tanstack/react-query'
 import { useCachedData } from '@/hooks/use-cached-data'
 import { useClassDataByName } from '@/hooks/use-class-data'
-import { useGroupAssignments } from '@/hooks/use-group-assignments'
-import { useTeacherAssignments } from '@/hooks/use-teacher-assignments'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -23,21 +20,6 @@ interface Student {
 	firstName: string
 	lastName: string
 	class: string
-}
-
-interface Room {
-	id: number
-	name: string
-}
-
-interface Subject {
-	id: number
-	name: string
-}
-
-interface LearningContent {
-	id: number
-	name: string
 }
 
 interface Group {
@@ -139,7 +121,7 @@ export default function TeacherAssignmentPage() {
 	const [hasExistingAssignments, setHasExistingAssignments] = useState(false)
 
 	// Resolve className to classId when selectedClass changes
-	const { data: classData } = useClassDataByName(selectedClass || null)
+	const { data: classData } = useClassDataByName(selectedClass ?? null)
 	
 	useEffect(() => {
 		if (classData) {

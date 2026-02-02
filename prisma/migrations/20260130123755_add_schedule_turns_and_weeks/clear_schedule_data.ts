@@ -10,7 +10,7 @@
  * Run with: npx tsx prisma/migrations/20260130123755_add_schedule_turns_and_weeks/clear_schedule_data.ts
  */
 
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, Prisma } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
@@ -22,7 +22,7 @@ async function clearScheduleData() {
   const schedules = await prisma.schedule.findMany({
     where: {
       scheduleData: {
-        not: null
+        not: Prisma.JsonNull
       }
     },
     include: {
@@ -44,7 +44,7 @@ async function clearScheduleData() {
       // Clear the scheduleData field
       await prisma.schedule.update({
         where: { id: schedule.id },
-        data: { scheduleData: null }
+        data: { scheduleData: Prisma.JsonNull }
       })
       clearedCount++
       console.log(`✓ Cleared scheduleData for schedule ${schedule.id} (${schedule.turns.length} turns)`)

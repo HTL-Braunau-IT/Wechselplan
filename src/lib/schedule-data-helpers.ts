@@ -3,7 +3,7 @@
  * and normalized ScheduleTurn/ScheduleWeek database structure
  */
 
-import type { ScheduleWeek, ScheduleTerm, TurnSchedule } from '@/types/schedule'
+import type { ScheduleTerm, TurnSchedule } from '@/types/schedule'
 import type { Prisma } from '@prisma/client'
 
 export interface ScheduleTurnData {
@@ -33,8 +33,8 @@ export function normalizeToJsonFormat(
 			holiday: {
 				id: number
 				name: string
-				startDate: Date
-				endDate: Date
+				startDate: Date | string
+				endDate: Date | string
 			}
 		}>
 	}>
@@ -90,7 +90,6 @@ export function parseJsonToNormalized(
 	const data = scheduleData as Record<string, ScheduleTerm>
 	const result: ScheduleTurnData[] = []
 	
-	let order = 0
 	for (const [turnName, turnData] of Object.entries(data)) {
 		if (!turnData || typeof turnData !== 'object') continue
 		
@@ -108,7 +107,6 @@ export function parseJsonToNormalized(
 				? turnData.holidays.map(h => typeof h === 'object' && h !== null && 'id' in h ? Number(h.id) : 0).filter(id => id > 0)
 				: []
 		})
-		order++
 	}
 	
 	return result
@@ -121,7 +119,7 @@ export function parseJsonToNormalized(
 export function createScheduleTurnData(
 	turnData: ScheduleTurnData,
 	order: number
-): Prisma.ScheduleTurnCreateInput {
+): Omit<Prisma.ScheduleTurnCreateInput, 'schedule'> {
 	return {
 		name: turnData.name,
 		customLength: turnData.customLength ?? null,

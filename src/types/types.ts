@@ -1,4 +1,5 @@
 // Schedule-related types moved to schedule.ts - re-export for backward compatibility
+import type { Schedule } from './schedule'
 export type {
     ScheduleWeek,
     ScheduleTerm,

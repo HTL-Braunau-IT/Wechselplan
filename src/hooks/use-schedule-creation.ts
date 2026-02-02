@@ -22,7 +22,7 @@ export function useScheduleCreation() {
 	)
 
 	// Resolve className to classId
-	const { data: classData, isLoading: isLoadingClass } = useClassDataByName(className || null)
+	const { data: classData, isLoading: isLoadingClass } = useClassDataByName(className ?? null)
 	
 	useEffect(() => {
 		if (classData) {
