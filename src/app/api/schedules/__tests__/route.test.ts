@@ -50,11 +50,12 @@ describe('Schedules API', () => {
           endDate: '2024-01-31T00:00:00.000Z',
           selectedWeekday: 1,
           classId: '1',
-          scheduleData: {},
+          scheduleData: null,
           additionalInfo: null,
           semesterPlanning: null,
           createdAt: '2025-06-11T11:56:57.353Z',
-          updatedAt: '2025-06-11T11:56:57.353Z'
+          updatedAt: '2025-06-11T11:56:57.353Z',
+          turns: []
         }
       ]
 
@@ -73,7 +74,11 @@ describe('Schedules API', () => {
       // Verify the response
       expect(response).toBeInstanceOf(NextResponse)
       expect(response.status).toBe(200)
-      expect(data).toEqual(mockSchedules)
+      // After migration, scheduleData is converted from turns, so it should be null for empty turns
+      expect(data).toEqual([{
+        ...mockSchedules[0],
+        scheduleData: null
+      }])
 
       // Verify the database calls
       expect(prisma.class.findFirst).toHaveBeenCalledWith({
@@ -86,6 +91,21 @@ describe('Schedules API', () => {
         where: {
           classId: 1,
           selectedWeekday: 1
+        },
+        include: {
+          turns: {
+            include: {
+              weeks: true,
+              holidays: {
+                include: {
+                  holiday: true
+                }
+              }
+            },
+            orderBy: {
+              order: 'asc'
+            }
+          }
         },
         orderBy: {
           createdAt: 'desc'
@@ -184,13 +204,29 @@ describe('Schedules API', () => {
           endDate: expect.any(Date),
           selectedWeekday: 1,
           classId: 1,
-          scheduleData: {},
+          scheduleData: expect.anything(), // JsonNull after migration
           additionalInfo: null,
-          semesterPlanning: null
+          semesterPlanning: null,
+          turns: {
+            create: []
+          }
         },
         include: {
           scheduleTimes: true,
-          breakTimes: true
+          breakTimes: true,
+          turns: {
+            include: {
+              weeks: true,
+              holidays: {
+                include: {
+                  holiday: true
+                }
+              }
+            },
+            orderBy: {
+              order: 'asc'
+            }
+          }
         }
       })
     })
@@ -314,13 +350,29 @@ describe('Schedules API', () => {
           endDate: expect.any(Date),
           selectedWeekday: 1,
           classId: 1,
-          scheduleData: {},
+          scheduleData: expect.anything(), // JsonNull after migration
           additionalInfo: null,
-          semesterPlanning: 'first'
+          semesterPlanning: 'first',
+          turns: {
+            create: []
+          }
         },
         include: {
           scheduleTimes: true,
-          breakTimes: true
+          breakTimes: true,
+          turns: {
+            include: {
+              weeks: true,
+              holidays: {
+                include: {
+                  holiday: true
+                }
+              }
+            },
+            orderBy: {
+              order: 'asc'
+            }
+          }
         }
       })
     })
