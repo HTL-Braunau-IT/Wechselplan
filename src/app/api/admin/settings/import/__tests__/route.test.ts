@@ -202,8 +202,8 @@ Room 2,20,Test Room 2`;
       expect(data).toEqual({ count: 2 });
       expect(prisma.room.createMany).toHaveBeenCalledWith({
         data: [
-          { name: 'Room 1', capacity: 30, description: 'Test Room 1' },
-          { name: 'Room 2', capacity: 20, description: 'Test Room 2' },
+          { name: 'Room 1', capacity: 30, description: 'Test Room 1', isCustom: false },
+          { name: 'Room 2', capacity: 20, description: 'Test Room 2', isCustom: false },
         ],
       });
     });
@@ -238,8 +238,8 @@ Science,Natural Sciences`;
       expect(data).toEqual({ count: 2 });
       expect(prisma.subject.createMany).toHaveBeenCalledWith({
         data: [
-          { name: 'Math', description: 'Mathematics' },
-          { name: 'Science', description: 'Natural Sciences' },
+          { name: 'Math', description: 'Mathematics', isCustom: false },
+          { name: 'Science', description: 'Natural Sciences', isCustom: false },
         ],
       });
     });
@@ -274,7 +274,7 @@ Room 2,20,Test Room 2`;
       expect(response.status).toBe(200);
       expect(data).toEqual({ count: 1 });
       expect(prisma.room.createMany).toHaveBeenCalledWith({
-        data: [{ name: 'Room 2', capacity: 20, description: 'Test Room 2' }],
+        data: [{ name: 'Room 2', capacity: 20, description: 'Test Room 2', isCustom: false }],
       });
     });
 

@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 import { captureError } from '~/lib/sentry'
 import { prisma } from '@/lib/prisma'
-import { parseJsonToNormalized, createScheduleTurnData } from '@/lib/schedule-data-helpers'
+import { parseJsonToNormalized, createScheduleTurnData, normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
 
 const scheduleSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -212,7 +212,15 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'No schedules found' }, { status: 404 })
     }
 
-    return NextResponse.json(schedules)
+    // Convert normalized turns back to scheduleData JSON format for backward compatibility
+    const schedulesWithData = schedules.map(schedule => ({
+      ...schedule,
+      scheduleData: schedule.turns && schedule.turns.length > 0
+        ? normalizeToJsonFormat(schedule.turns)
+        : null
+    }))
+
+    return NextResponse.json(schedulesWithData)
   } catch (error) {
     captureError(error, {
       location: 'api/schedules',
