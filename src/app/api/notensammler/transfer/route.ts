@@ -214,13 +214,23 @@ export async function POST(request: Request) {
     }
 
     // Only students with all teacher grades (same filter as preview)
+    // Exclude students with "nicht beurteilt" (6) or "gestunden" (7)
     const completeStudents = classRecord.students
       .filter((st: (typeof classRecord.students)[number]) => st.groupId !== null && st.groupId !== undefined)
       .filter((st: (typeof classRecord.students)[number]): st is (typeof classRecord.students)[number] => {
-        return teacherIds.every((tid) => {
+        // Check all teachers have grades
+        const hasAllGrades = teacherIds.every((tid) => {
           const g = gradeByStudentTeacher.get(`${st.id}:${tid}`)
           return typeof g === 'number'
         })
+        if (!hasAllGrades) return false
+        
+        // Exclude if any grade is 6 or 7
+        const hasSpecialGrade = teacherIds.some((tid) => {
+          const g = gradeByStudentTeacher.get(`${st.id}:${tid}`)
+          return g === 6 || g === 7
+        })
+        return !hasSpecialGrade
       })
 
     // Build Noten entries: only matched students and only those with a provided note

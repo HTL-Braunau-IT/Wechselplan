@@ -818,17 +818,55 @@ export async function generateNotensammlerPDF(data: NotensammlerPDFData): Promis
       return a.firstName.localeCompare(b.firstName);
     });
 
+  // Special grade values
+  const NICHT_BEURTEILT = 6;
+  const GESTUNDEN = 7;
+
+  // Helper function to check if a grade should be included in average calculations
+  const isGradeIncludedInAverage = (grade: number | null): boolean => {
+    if (grade === null) return false;
+    // Exclude special values 6 and 7 from averages
+    if (grade === NICHT_BEURTEILT || grade === GESTUNDEN) return false;
+    // Include only regular grades 1-5 (and their .5 increments)
+    return grade >= 1 && grade <= 5;
+  };
+
+  // Helper function to get display text for a grade
+  const getGradeDisplayText = (grade: number | null): string => {
+    if (grade === null) return '';
+    if (grade === NICHT_BEURTEILT) return 'nicht beurteilt';
+    if (grade === GESTUNDEN) return 'gestunden';
+    return grade.toString();
+  };
+
   // Calculate averages for each student
-  const calculateAverage = (studentId: number, semester: 'first' | 'second'): number | null => {
+  // Returns: number (average), "nicht beurteilt", "gestunden", or null
+  const calculateAverage = (studentId: number, semester: 'first' | 'second'): number | string | null => {
     const studentGrades = data.grades[studentId];
     if (!studentGrades) return null;
 
+    // First check if any grade is "nicht beurteilt" (6) or "gestunden" (7)
+    for (const teacherId in studentGrades) {
+      const teacherGrades = studentGrades[parseInt(teacherId)];
+      if (teacherGrades) {
+        const grade = teacherGrades[semester];
+        if (grade === NICHT_BEURTEILT) {
+          return 'nicht beurteilt';
+        }
+        if (grade === GESTUNDEN) {
+          return 'gestunden';
+        }
+      }
+    }
+
+    // If no special grades, calculate normal average
     const gradeValues: number[] = [];
     for (const teacherId in studentGrades) {
       const teacherGrades = studentGrades[parseInt(teacherId)];
       if (teacherGrades) {
         const grade = teacherGrades[semester];
-        if (grade !== null && grade !== undefined) {
+        // Only include grades that should be counted in averages (exclude 6 and 7)
+        if (grade !== null && grade !== undefined && isGradeIncludedInAverage(grade)) {
           gradeValues.push(grade);
         }
       }
@@ -879,30 +917,30 @@ export async function generateNotensammlerPDF(data: NotensammlerPDFData): Promis
     // First semester grades
     data.amTeachers.forEach(teacher => {
       const grade = getGrade(student.id, teacher.id, 'first');
-      row.push(grade !== null ? grade.toString() : '');
+      row.push(getGradeDisplayText(grade));
     });
     data.pmTeachers.forEach(teacher => {
       const grade = getGrade(student.id, teacher.id, 'first');
-      row.push(grade !== null ? grade.toString() : '');
+      row.push(getGradeDisplayText(grade));
     });
     
     // First semester average
     const firstAvg = calculateAverage(student.id, 'first');
-    row.push(firstAvg !== null ? firstAvg.toFixed(1) : '-');
+    row.push(firstAvg === null ? '-' : typeof firstAvg === 'string' ? firstAvg : firstAvg.toFixed(1));
 
     // Second semester grades
     data.amTeachers.forEach(teacher => {
       const grade = getGrade(student.id, teacher.id, 'second');
-      row.push(grade !== null ? grade.toString() : '');
+      row.push(getGradeDisplayText(grade));
     });
     data.pmTeachers.forEach(teacher => {
       const grade = getGrade(student.id, teacher.id, 'second');
-      row.push(grade !== null ? grade.toString() : '');
+      row.push(getGradeDisplayText(grade));
     });
     
     // Second semester average
     const secondAvg = calculateAverage(student.id, 'second');
-    row.push(secondAvg !== null ? secondAvg.toFixed(1) : '-');
+    row.push(secondAvg === null ? '-' : typeof secondAvg === 'string' ? secondAvg : secondAvg.toFixed(1));
 
     tableData.push(row);
   });

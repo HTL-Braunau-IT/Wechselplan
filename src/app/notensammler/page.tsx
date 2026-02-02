@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,7 +16,7 @@ import { useTranslation } from 'react-i18next'
 import { useSession } from 'next-auth/react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { captureFrontendError } from '@/lib/frontend-error'
-import { CheckCircle2, X } from 'lucide-react'
+import { CheckCircle2, X, ChevronDownIcon, CheckIcon } from 'lucide-react'
 import { getStoredToken, storeToken, clearToken } from '@/lib/notenmanagement-token'
 
 interface Student {
@@ -51,7 +51,45 @@ type GradesData = Record<number, Record<number, {
 	second: number | null
 }>>
 
-const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
+const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7]
+
+// Special grade values
+const NICHT_BEURTEILT = 6
+const GESTUNDEN = 7
+
+// Helper functions to convert between numeric values and display text
+const getGradeDisplayText = (grade: number | null): string => {
+	if (grade === null) return ''
+	if (grade === NICHT_BEURTEILT) return 'nicht beurteilt'
+	if (grade === GESTUNDEN) return 'gestunden'
+	return grade.toString()
+}
+
+const parseGradeInput = (value: string): number | null => {
+	if (value === '' || value === null || value === undefined) return null
+	
+	// Check for text inputs
+	const lowerValue = value.toLowerCase().trim()
+	if (lowerValue === 'nicht beurteilt' || lowerValue === 'nb') return NICHT_BEURTEILT
+	if (lowerValue === 'gestunden' || lowerValue === 'gs') return GESTUNDEN
+	
+	// Parse numeric value
+	const gradeNum = parseFloat(value)
+	if (!isNaN(gradeNum) && ALLOWED_GRADES.includes(gradeNum)) {
+		return gradeNum
+	}
+	
+	return null
+}
+
+// Check if a grade should be included in average calculations
+const isGradeIncludedInAverage = (grade: number | null): boolean => {
+	if (grade === null) return false
+	// Exclude special values 6 and 7 from averages
+	if (grade === NICHT_BEURTEILT || grade === GESTUNDEN) return false
+	// Include only regular grades 1-5 (and their .5 increments)
+	return grade >= 1 && grade <= 5
+}
 
 type Semester = 'first' | 'second'
 
@@ -127,6 +165,151 @@ function truncateSubject(subjectName: string): string {
 	
 	// No trailing digits, return as-is: "COPR" → "COPR"
 	return prefix
+}
+
+/**
+ * Grade Input Component - Allows direct typing and dropdown selection
+ */
+function GradeInput({
+	value,
+	onChange,
+	className
+}: {
+	value: number | null
+	onChange: (value: string) => void
+	className?: string
+}) {
+	const [isOpen, setIsOpen] = useState(false)
+	const [inputValue, setInputValue] = useState('')
+	const inputRef = useRef<HTMLInputElement>(null)
+	const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+	// Update input value when external value changes
+	useEffect(() => {
+		setInputValue(getGradeDisplayText(value))
+	}, [value])
+
+	// Cleanup timeout on unmount
+	useEffect(() => {
+		return () => {
+			if (closeTimeoutRef.current) {
+				clearTimeout(closeTimeoutRef.current)
+			}
+		}
+	}, [])
+
+	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const newValue = e.target.value
+		setInputValue(newValue)
+		setIsOpen(true)
+		
+		// Clear any existing close timeout
+		if (closeTimeoutRef.current) {
+			clearTimeout(closeTimeoutRef.current)
+			closeTimeoutRef.current = null
+		}
+		
+		// Immediately process valid input (no Enter needed)
+		const parsed = parseGradeInput(newValue)
+		if (parsed !== null || newValue === '') {
+			onChange(newValue)
+			
+			// If a valid grade was entered, auto-close dropdown after 500ms
+			if (parsed !== null) {
+				closeTimeoutRef.current = setTimeout(() => {
+					setIsOpen(false)
+					closeTimeoutRef.current = null
+				}, 500)
+			}
+		}
+	}
+
+	const handleOptionSelect = (optionValue: string) => {
+		// Clear any existing timeout
+		if (closeTimeoutRef.current) {
+			clearTimeout(closeTimeoutRef.current)
+			closeTimeoutRef.current = null
+		}
+		
+		setInputValue(optionValue === '6' ? 'nicht beurteilt' : optionValue === '7' ? 'gestunden' : optionValue)
+		onChange(optionValue)
+		setIsOpen(false)
+		inputRef.current?.blur()
+	}
+
+	const handleBlur = () => {
+		// Delay closing to allow clicking on options
+		setTimeout(() => setIsOpen(false), 150)
+	}
+
+	const handleFocus = () => {
+		setIsOpen(true)
+	}
+
+	const gradeOptions = [
+		{ value: '6', label: 'nicht beurteilt' },
+		{ value: '7', label: 'gestunden' },
+		{ value: '1', label: '1' },
+		{ value: '1.5', label: '1.5' },
+		{ value: '2', label: '2' },
+		{ value: '2.5', label: '2.5' },
+		{ value: '3', label: '3' },
+		{ value: '3.5', label: '3.5' },
+		{ value: '4', label: '4' },
+		{ value: '4.5', label: '4.5' },
+		{ value: '5', label: '5' }
+	]
+
+	return (
+		<div className={`relative ${className ?? ''}`}>
+			<div className="relative">
+				<Input
+					ref={inputRef}
+					type="text"
+					value={inputValue}
+					onChange={handleInputChange}
+					onFocus={handleFocus}
+					onBlur={handleBlur}
+					placeholder="-"
+					className="w-32 h-8 pr-8"
+				/>
+				<Button
+					type="button"
+					variant="ghost"
+					size="sm"
+					className="absolute right-0 top-0 h-full px-2 py-0 hover:bg-transparent"
+					onClick={() => {
+						setIsOpen(!isOpen)
+						inputRef.current?.focus()
+					}}
+				>
+					<ChevronDownIcon className="h-4 w-4" />
+				</Button>
+			</div>
+
+			{isOpen && (
+				<div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-60 overflow-auto">
+					<div className="p-1">
+						{gradeOptions.map((option) => (
+							<button
+								key={option.value}
+								type="button"
+								className={`w-full text-left px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground flex items-center justify-between ${
+									value !== null && value.toString() === option.value ? 'bg-accent text-accent-foreground' : ''
+								}`}
+								onClick={() => handleOptionSelect(option.value)}
+							>
+								<span>{option.label}</span>
+								{value !== null && value.toString() === option.value && (
+									<CheckIcon className="h-4 w-4" />
+								)}
+							</button>
+						))}
+					</div>
+				</div>
+			)}
+		</div>
+	)
 }
 
 /**
@@ -387,31 +570,20 @@ export default function NotensammlerPage() {
 		semester: 'first' | 'second',
 		value: string
 	) => {
+		// Parse grade using helper function
+		const gradeValue = parseGradeInput(value)
+
 		// Update local state immediately for responsive UI
 		setGrades(prev => {
 			const newGrades = { ...prev }
 			newGrades[studentId] ??= {}
 			newGrades[studentId][teacherId] ??= { first: null, second: null }
-
-			// Parse and validate grade
-			if (value === '' || value === null || value === undefined) {
-				newGrades[studentId][teacherId][semester] = null
-			} else {
-				const gradeNum = parseFloat(value)
-				if (!isNaN(gradeNum) && ALLOWED_GRADES.includes(gradeNum)) {
-					newGrades[studentId][teacherId][semester] = gradeNum
-				} else {
-					// Invalid grade, don't update
-					return prev
-				}
-			}
-
+			newGrades[studentId][teacherId][semester] = gradeValue
 			return newGrades
 		})
 
 		// Debounce save
-		const gradeValue = value === '' ? null : parseFloat(value)
-		if (gradeValue === null || (!isNaN(gradeValue) && ALLOWED_GRADES.includes(gradeValue))) {
+		if (gradeValue !== null || value === '') {
 			// Clear existing timer
 			if (saveTimerRef.current) {
 				clearTimeout(saveTimerRef.current)
@@ -442,21 +614,38 @@ export default function NotensammlerPage() {
 				})()
 			}, 500)
 		}
-	}, [saveGrade, saveTimerRef])
+	}, [saveGrade, saveTimerRef, grades])
 
 	// Calculate average for a student in a semester
-	const calculateAverage = useCallback((studentId: number, semester: 'first' | 'second'): number | null => {
+	// Returns: number (average), "nicht beurteilt", "gestunden", or null
+	const calculateAverage = useCallback((studentId: number, semester: 'first' | 'second'): number | string | null => {
 		if (!classData) return null
 
 		const studentGrades = grades[studentId]
 		if (!studentGrades) return null
 
+		// First check if any grade is "nicht beurteilt" (6) or "gestunden" (7)
+		for (const teacherId in studentGrades) {
+			const teacherGrades = studentGrades[parseInt(teacherId)]
+			if (teacherGrades) {
+				const grade = teacherGrades[semester]
+				if (grade === NICHT_BEURTEILT) {
+					return 'nicht beurteilt'
+				}
+				if (grade === GESTUNDEN) {
+					return 'gestunden'
+				}
+			}
+		}
+
+		// If no special grades, calculate normal average
 		const gradeValues: number[] = []
 		for (const teacherId in studentGrades) {
 			const teacherGrades = studentGrades[parseInt(teacherId)]
 			if (teacherGrades) {
 				const grade = teacherGrades[semester]
-				if (grade !== null && grade !== undefined) {
+				// Only include grades that should be counted in averages (exclude 6 and 7)
+				if (grade !== null && grade !== undefined && isGradeIncludedInAverage(grade)) {
 					gradeValues.push(grade)
 				}
 			}
@@ -1314,14 +1503,9 @@ export default function NotensammlerPage() {
 															key={`first-am-${student.id}-${teacher.id}`}
 															className={isCurrentTeacher ? 'bg-primary/10' : ''}
 														>
-															<Input
-																type="number"
-																min="1"
-																max="5"
-																step="0.5"
-																value={grade ?? ''}
-																onChange={(e) => handleGradeChange(student.id, teacher.id, 'first', e.target.value)}
-																className="w-20"
+															<GradeInput
+																value={grade}
+																onChange={(value) => handleGradeChange(student.id, teacher.id, 'first', value)}
 															/>
 														</TableCell>
 													)
@@ -1339,21 +1523,16 @@ export default function NotensammlerPage() {
 															key={`first-pm-${student.id}-${teacher.id}`}
 															className={isCurrentTeacher ? 'bg-primary/10' : ''}
 														>
-															<Input
-																type="number"
-																min="1"
-																max="5"
-																step="0.5"
-																value={grade ?? ''}
-																onChange={(e) => handleGradeChange(student.id, teacher.id, 'first', e.target.value)}
-																className="w-20"
+															<GradeInput
+																value={grade}
+																onChange={(value) => handleGradeChange(student.id, teacher.id, 'first', value)}
 															/>
 														</TableCell>
 													)
 												})}
 												{/* First semester average */}
 												<TableCell className="bg-muted font-medium">
-													{firstAvg !== null ? firstAvg.toFixed(1) : '-'}
+													{firstAvg === null ? '-' : typeof firstAvg === 'string' ? firstAvg : firstAvg.toFixed(1)}
 												</TableCell>
 												{/* Second semester - AM teacher columns */}
 												{showSecondSemester && classData.amTeachers.map((teacher) => {
@@ -1364,14 +1543,9 @@ export default function NotensammlerPage() {
 															key={`second-am-${student.id}-${teacher.id}`}
 															className={isCurrentTeacher ? 'bg-primary/10' : ''}
 														>
-															<Input
-																type="number"
-																min="1"
-																max="5"
-																step="0.5"
-																value={grade ?? ''}
-																onChange={(e) => handleGradeChange(student.id, teacher.id, 'second', e.target.value)}
-																className="w-20"
+															<GradeInput
+																value={grade}
+																onChange={(value) => handleGradeChange(student.id, teacher.id, 'second', value)}
 															/>
 														</TableCell>
 													)
@@ -1389,21 +1563,16 @@ export default function NotensammlerPage() {
 															key={`second-pm-${student.id}-${teacher.id}`}
 															className={isCurrentTeacher ? 'bg-primary/10' : ''}
 														>
-															<Input
-																type="number"
-																min="1"
-																max="5"
-																step="0.5"
-																value={grade ?? ''}
-																onChange={(e) => handleGradeChange(student.id, teacher.id, 'second', e.target.value)}
-																className="w-20"
+															<GradeInput
+																value={grade}
+																onChange={(value) => handleGradeChange(student.id, teacher.id, 'second', value)}
 															/>
 														</TableCell>
 													)
 												})}
 												{/* Second semester average */}
 												<TableCell className="bg-muted font-medium">
-													{secondAvg !== null ? secondAvg.toFixed(1) : '-'}
+													{secondAvg === null ? '-' : typeof secondAvg === 'string' ? secondAvg : secondAvg.toFixed(1)}
 												</TableCell>
 											</TableRow>
 										)

@@ -5,7 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions, hasRole } from '@/lib/auth'
 import { captureError } from '@/lib/sentry'
 
-const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
+const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7]
 
 interface ImportRequest {
 	data: string // CSV data

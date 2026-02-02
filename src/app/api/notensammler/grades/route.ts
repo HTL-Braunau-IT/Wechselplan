@@ -8,7 +8,7 @@ import { authOptions } from '@/lib/auth'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
+const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7]
 
 /**
  * Handles GET requests to retrieve all grades for a specific class.
