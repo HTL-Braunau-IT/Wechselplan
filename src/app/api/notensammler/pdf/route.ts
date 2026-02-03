@@ -168,6 +168,21 @@ export async function GET(request: Request) {
 			}
 		}
 
+		// Fetch final grades for this class
+		const finalGradeRecords = await prisma.finalGrade.findMany({
+			where: { classId },
+			select: { studentId: true, semester: true, grade: true }
+		})
+		const finalGrades: Record<number, { first: number | null; second: number | null }> = {}
+		for (const fg of finalGradeRecords) {
+			finalGrades[fg.studentId] ??= { first: null, second: null }
+			if (fg.semester === 'first') {
+				finalGrades[fg.studentId]!.first = fg.grade
+			} else if (fg.semester === 'second') {
+				finalGrades[fg.studentId]!.second = fg.grade
+			}
+		}
+
 		// Generate PDF
 		const pdfBuffer = await generateNotensammlerPDF({
 			className: classRecord.name,
@@ -175,7 +190,8 @@ export async function GET(request: Request) {
 			students: classRecord.students,
 			amTeachers,
 			pmTeachers,
-			grades: gradesByStudent
+			grades: gradesByStudent,
+			finalGrades
 		})
 
 		return new NextResponse(pdfBuffer as unknown as BodyInit, {
