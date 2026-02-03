@@ -1,0 +1,164 @@
+import { NextResponse } from 'next/server'
+import { captureError } from '@/lib/sentry'
+import { prisma } from '@/lib/prisma'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+
+// Force dynamic rendering - no caching
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
+// Endnote: integer grades only (no .5) plus 6 = nicht beurteilt, 7 = gestundet
+const ALLOWED_FINAL_GRADES = [1, 2, 3, 4, 5, 6, 7]
+
+/**
+ * Handles POST requests to save or update a final grade (Endnote).
+ *
+ * Validates the grade value (must be one of: 1, 2, 3, 4, 5, 6, 7 or null),
+ * verifies that student and class exist, and upserts the FinalGrade record.
+ *
+ * @returns A JSON response with success status or an error message.
+ */
+export async function POST(request: Request) {
+	let requestData: unknown
+	try {
+		const session = await getServerSession(authOptions)
+		if (!session?.user?.name) {
+			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+		}
+		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
+			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+		}
+
+		const body = (await request.json()) as {
+			studentId: unknown
+			classId: unknown
+			semester: unknown
+			grade: unknown
+		}
+		requestData = body
+		const { studentId, classId, semester, grade } = body
+
+		// Validate required fields
+		if (
+			studentId === undefined ||
+			classId === undefined ||
+			semester === undefined
+		) {
+			return NextResponse.json(
+				{ error: 'Missing required fields: studentId, classId, semester' },
+				{ status: 400 }
+			)
+		}
+
+		// Validate semester
+		if (semester !== 'first' && semester !== 'second') {
+			return NextResponse.json(
+				{ error: 'Semester must be "first" or "second"' },
+				{ status: 400 }
+			)
+		}
+
+		// Validate grade value (can be null or one of the allowed integer values)
+		if (grade !== null && grade !== undefined) {
+			const gradeNum =
+				typeof grade === 'string'
+					? parseInt(grade, 10)
+					: typeof grade === 'number'
+						? Math.floor(grade)
+						: NaN
+			if (
+				isNaN(gradeNum) ||
+				!ALLOWED_FINAL_GRADES.includes(gradeNum) ||
+				(typeof grade === 'number' && grade !== gradeNum)
+			) {
+				return NextResponse.json(
+					{
+						error: `Final grade must be one of: ${ALLOWED_FINAL_GRADES.join(', ')} (integer only) or null`
+					},
+					{ status: 400 }
+				)
+			}
+		}
+
+		// Parse IDs
+		const studentIdNum =
+			typeof studentId === 'string' ? parseInt(studentId, 10) : typeof studentId === 'number' ? studentId : NaN
+		const classIdNum =
+			typeof classId === 'string' ? parseInt(classId, 10) : typeof classId === 'number' ? classId : NaN
+
+		if (isNaN(studentIdNum) || isNaN(classIdNum)) {
+			return NextResponse.json(
+				{ error: 'Invalid ID format' },
+				{ status: 400 }
+			)
+		}
+
+		// Verify student exists
+		const student = await prisma.student.findUnique({
+			where: { id: studentIdNum }
+		})
+		if (!student) {
+			return NextResponse.json(
+				{ error: 'Student not found' },
+				{ status: 404 }
+			)
+		}
+
+		// Verify class exists
+		const classRecord = await prisma.class.findUnique({
+			where: { id: classIdNum }
+		})
+		if (!classRecord) {
+			return NextResponse.json(
+				{ error: 'Class not found' },
+				{ status: 404 }
+			)
+		}
+
+		// Parse grade value
+		const gradeValue =
+			grade === null || grade === undefined
+				? null
+				: typeof grade === 'number'
+					? grade
+					: typeof grade === 'string'
+						? parseInt(grade, 10)
+						: null
+
+		const result = await prisma.finalGrade.upsert({
+			where: {
+				studentId_classId_semester: {
+					studentId: studentIdNum,
+					classId: classIdNum,
+					semester: semester as 'first' | 'second'
+				}
+			},
+			update: { grade: gradeValue },
+			create: {
+				studentId: studentIdNum,
+				classId: classIdNum,
+				semester: semester as 'first' | 'second',
+				grade: gradeValue
+			}
+		})
+
+		return NextResponse.json({ success: true, finalGrade: result })
+	} catch (error) {
+		captureError(error, {
+			location: 'api/notensammler/final-grades',
+			type: 'save-final-grade',
+			extra: {
+				requestData,
+				errorMessage: error instanceof Error ? error.message : String(error)
+			}
+		})
+		return NextResponse.json(
+			{
+				error: 'Failed to save final grade',
+				details: error instanceof Error ? error.message : String(error)
+			},
+			{ status: 500 }
+		)
+	}
+}

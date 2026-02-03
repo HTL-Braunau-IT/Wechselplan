@@ -17,7 +17,8 @@ model Student {
   updatedAt DateTime @updatedAt
   username  String   @unique
   class     Class?   @relation(fields: [classId], references: [id])
-  grades    Grade[]
+  grades       Grade[]
+  finalGrades  FinalGrade[]
 
   @@index([firstName, lastName])
   @@index([groupId])
@@ -51,7 +52,8 @@ model Class {
   schedules   Schedule[]
   students    Student[]
   assignments TeacherAssignment[]
-  grades      Grade[]
+  grades       Grade[]
+  finalGrades  FinalGrade[]
   transfers   NotenmanagementTransfer[]
   classHead   Teacher?                @relation("ClassHead", fields: [classHeadId], references: [id])
   classLead   Teacher?                @relation("ClassLead", fields: [classLeadId], references: [id])
@@ -306,6 +308,23 @@ model Grade {
   @@unique([studentId, teacherId, classId, semester])
   @@index([studentId])
   @@index([teacherId])
+  @@index([classId])
+  @@index([semester])
+}
+
+model FinalGrade {
+  id        Int      @id @default(autoincrement())
+  studentId Int
+  classId   Int
+  semester  String   // 'first' or 'second'
+  grade     Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  student   Student  @relation(fields: [studentId], references: [id])
+  class     Class    @relation(fields: [classId], references: [id])
+
+  @@unique([studentId, classId, semester])
+  @@index([studentId])
   @@index([classId])
   @@index([semester])
 }

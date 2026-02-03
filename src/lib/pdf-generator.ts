@@ -740,6 +740,7 @@ interface NotensammlerPDFData {
     first: number | null;
     second: number | null;
   }>>;
+  finalGrades?: Record<number, { first: number | null; second: number | null }>;
 }
 
 /**
@@ -882,6 +883,16 @@ export async function generateNotensammlerPDF(data: NotensammlerPDFData): Promis
     return data.grades[studentId]?.[teacherId]?.[semester] ?? null;
   };
 
+  // Display value for final grade (Endnote): saved or pre-populated from average (nicht beurteilt/gestunden)
+  const getFinalGradeDisplayText = (studentId: number, semester: 'first' | 'second'): string => {
+    const saved = data.finalGrades?.[studentId]?.[semester];
+    if (saved != null) return getGradeDisplayText(saved);
+    const avg = calculateAverage(studentId, semester);
+    if (avg === 'nicht beurteilt') return 'nicht beurteilt';
+    if (avg === 'gestunden') return 'gestunden';
+    return '-';
+  };
+
   // Build table data
   const tableData: string[][] = [];
 
@@ -896,7 +907,8 @@ export async function generateNotensammlerPDF(data: NotensammlerPDFData): Promis
     headerRow.push(`${teacher.firstName} ${teacher.lastName}`);
   });
   headerRow.push('Ø 1. Sem.'); // First semester average
-  
+  headerRow.push('Endnote'); // First semester Endnote
+
   // Second semester headers
   data.amTeachers.forEach(teacher => {
     headerRow.push(`${teacher.firstName} ${teacher.lastName}`);
@@ -905,6 +917,7 @@ export async function generateNotensammlerPDF(data: NotensammlerPDFData): Promis
     headerRow.push(`${teacher.firstName} ${teacher.lastName}`);
   });
   headerRow.push('Ø 2. Sem.'); // Second semester average
+  headerRow.push('Endnote'); // Second semester Endnote
 
   // Build data rows
   sortedStudents.forEach((student, index) => {
@@ -927,6 +940,8 @@ export async function generateNotensammlerPDF(data: NotensammlerPDFData): Promis
     // First semester average
     const firstAvg = calculateAverage(student.id, 'first');
     row.push(firstAvg === null ? '-' : typeof firstAvg === 'string' ? firstAvg : firstAvg.toFixed(1));
+    // First semester Endnote
+    row.push(getFinalGradeDisplayText(student.id, 'first'));
 
     // Second semester grades
     data.amTeachers.forEach(teacher => {
@@ -941,17 +956,19 @@ export async function generateNotensammlerPDF(data: NotensammlerPDFData): Promis
     // Second semester average
     const secondAvg = calculateAverage(student.id, 'second');
     row.push(secondAvg === null ? '-' : typeof secondAvg === 'string' ? secondAvg : secondAvg.toFixed(1));
+    // Second semester Endnote
+    row.push(getFinalGradeDisplayText(student.id, 'second'));
 
     tableData.push(row);
   });
 
-  // Calculate column widths
+  // Calculate column widths (2 average + 2 endnote columns)
   const totalTeachers = data.amTeachers.length + data.pmTeachers.length;
   const availableWidth = pageWidth - (margin * 2);
   const fixedColumnWidth = 15; // For ID, Gruppe columns
   const studentColumnWidth = 50; // For student name
-  const averageColumnWidth = 12; // For average columns (reduced from 20mm)
-  const teacherColumnWidth = (availableWidth - (fixedColumnWidth * 2) - studentColumnWidth - (averageColumnWidth * 2)) / (totalTeachers * 2);
+  const averageColumnWidth = 12; // For average and endnote columns
+  const teacherColumnWidth = (availableWidth - (fixedColumnWidth * 2) - studentColumnWidth - (averageColumnWidth * 4)) / (totalTeachers * 2);
 
   const columnStyles: Record<number, { cellWidth: number }> = {
     0: { cellWidth: fixedColumnWidth }, // ID
@@ -972,6 +989,9 @@ export async function generateNotensammlerPDF(data: NotensammlerPDFData): Promis
   // First semester average
   columnStyles[colIndex] = { cellWidth: averageColumnWidth };
   colIndex++;
+  // First semester Endnote
+  columnStyles[colIndex] = { cellWidth: averageColumnWidth };
+  colIndex++;
 
   // Second semester teacher columns
   data.amTeachers.forEach(() => {
@@ -983,6 +1003,9 @@ export async function generateNotensammlerPDF(data: NotensammlerPDFData): Promis
     colIndex++;
   });
   // Second semester average
+  columnStyles[colIndex] = { cellWidth: averageColumnWidth };
+  colIndex++;
+  // Second semester Endnote
   columnStyles[colIndex] = { cellWidth: averageColumnWidth };
 
   // Simplified header - use single row with section labels
@@ -996,7 +1019,8 @@ export async function generateNotensammlerPDF(data: NotensammlerPDFData): Promis
     simpleHeaderRow.push(`${teacher.firstName} ${teacher.lastName}`);
   });
   simpleHeaderRow.push('Ø 1. Sem.');
-  
+  simpleHeaderRow.push('Endnote');
+
   // Second semester section
   data.amTeachers.forEach(teacher => {
     simpleHeaderRow.push(`${teacher.firstName} ${teacher.lastName}`);
@@ -1005,6 +1029,7 @@ export async function generateNotensammlerPDF(data: NotensammlerPDFData): Promis
     simpleHeaderRow.push(`${teacher.firstName} ${teacher.lastName}`);
   });
   simpleHeaderRow.push('Ø 2. Sem.');
+  simpleHeaderRow.push('Endnote');
 
   autoTable(doc, {
     startY: yPos,
@@ -1031,20 +1056,17 @@ export async function generateNotensammlerPDF(data: NotensammlerPDFData): Promis
     margin: { left: margin, right: margin },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     didParseCell: (cellData: any) => {
-      const colIndex = cellData.column.index;
-      
-      // Calculate first semester average column index
-      // 3 fixed columns + amTeachers + pmTeachers
+      const colIndex = Number(cellData.column.index);
       const firstAvgCol = 3 + data.amTeachers.length + data.pmTeachers.length;
-      
-      // Calculate second semester average column index
-      // After first avg: firstAvgCol + 1 + amTeachers + pmTeachers
-      const secondAvgCol = firstAvgCol + 1 + data.amTeachers.length + data.pmTeachers.length;
-      
-      // Style average columns
-      if (cellData.section === 'body' && (colIndex === firstAvgCol || colIndex === secondAvgCol)) {
+      const firstEndnoteCol = firstAvgCol + 1;
+      const secondAvgCol = firstEndnoteCol + 1 + data.amTeachers.length + data.pmTeachers.length;
+      const secondEndnoteCol = secondAvgCol + 1;
+      const avgOrEndnoteCols = [firstAvgCol, firstEndnoteCol, secondAvgCol, secondEndnoteCol];
+      if (cellData.section === 'body' && avgOrEndnoteCols.includes(colIndex)) {
         cellData.cell.styles.fillColor = averageColor;
-        cellData.cell.styles.fontStyle = 'bold';
+        if (colIndex === firstAvgCol || colIndex === secondAvgCol) {
+          cellData.cell.styles.fontStyle = 'bold';
+        }
       }
     },
   });

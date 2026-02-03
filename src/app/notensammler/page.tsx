@@ -51,7 +51,12 @@ type GradesData = Record<number, Record<number, {
 	second: number | null
 }>>
 
+type FinalGradesData = Record<number, { first: number | null; second: number | null }>
+
 const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7]
+
+// Endnote: integer only (no .5)
+const ALLOWED_FINAL_GRADES = [1, 2, 3, 4, 5, 6, 7]
 
 // Special grade values
 const NICHT_BEURTEILT = 6
@@ -79,6 +84,18 @@ const parseGradeInput = (value: string): number | null => {
 		return gradeNum
 	}
 	
+	return null
+}
+
+const parseFinalGradeInput = (value: string): number | null => {
+	if (value === '' || value === null || value === undefined) return null
+	const lowerValue = value.toLowerCase().trim()
+	if (lowerValue === 'nicht beurteilt' || lowerValue === 'nb') return NICHT_BEURTEILT
+	if (lowerValue === 'gestunden' || lowerValue === 'gs') return GESTUNDEN
+	const gradeNum = parseInt(value, 10)
+	if (!isNaN(gradeNum) && ALLOWED_FINAL_GRADES.includes(gradeNum)) {
+		return gradeNum
+	}
 	return null
 }
 
@@ -313,6 +330,135 @@ function GradeInput({
 }
 
 /**
+ * Final Grade (Endnote) Input - Integer grades only (1-5, 6 = nicht beurteilt, 7 = gestundet)
+ */
+function FinalGradeInput({
+	value,
+	onChange,
+	className
+}: {
+	value: number | null
+	onChange: (value: string) => void
+	className?: string
+}) {
+	const [isOpen, setIsOpen] = useState(false)
+	const [inputValue, setInputValue] = useState('')
+	const inputRef = useRef<HTMLInputElement>(null)
+	const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+	useEffect(() => {
+		setInputValue(getGradeDisplayText(value))
+	}, [value])
+
+	useEffect(() => {
+		return () => {
+			if (closeTimeoutRef.current) {
+				clearTimeout(closeTimeoutRef.current)
+			}
+		}
+	}, [])
+
+	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const newValue = e.target.value
+		setInputValue(newValue)
+		setIsOpen(true)
+		if (closeTimeoutRef.current) {
+			clearTimeout(closeTimeoutRef.current)
+			closeTimeoutRef.current = null
+		}
+		const parsed = parseFinalGradeInput(newValue)
+		if (parsed !== null || newValue === '') {
+			onChange(newValue)
+			if (parsed !== null) {
+				closeTimeoutRef.current = setTimeout(() => {
+					setIsOpen(false)
+					closeTimeoutRef.current = null
+				}, 500)
+			}
+		}
+	}
+
+	const handleOptionSelect = (optionValue: string) => {
+		if (closeTimeoutRef.current) {
+			clearTimeout(closeTimeoutRef.current)
+			closeTimeoutRef.current = null
+		}
+		setInputValue(optionValue === '6' ? 'nicht beurteilt' : optionValue === '7' ? 'gestunden' : optionValue)
+		onChange(optionValue)
+		setIsOpen(false)
+		inputRef.current?.blur()
+	}
+
+	const handleBlur = () => {
+		setTimeout(() => setIsOpen(false), 150)
+	}
+
+	const handleFocus = () => {
+		setIsOpen(true)
+	}
+
+	const finalGradeOptions = [
+		{ value: '6', label: 'nicht beurteilt' },
+		{ value: '7', label: 'gestunden' },
+		{ value: '1', label: '1' },
+		{ value: '2', label: '2' },
+		{ value: '3', label: '3' },
+		{ value: '4', label: '4' },
+		{ value: '5', label: '5' }
+	]
+
+	return (
+		<div className={`relative ${className ?? ''}`}>
+			<div className="relative">
+				<Input
+					ref={inputRef}
+					type="text"
+					value={inputValue}
+					onChange={handleInputChange}
+					onFocus={handleFocus}
+					onBlur={handleBlur}
+					placeholder="-"
+					className="w-32 h-8 pr-8"
+				/>
+				<Button
+					type="button"
+					variant="ghost"
+					size="sm"
+					className="absolute right-0 top-0 h-full px-2 py-0 hover:bg-transparent"
+					onClick={() => {
+						setIsOpen(!isOpen)
+						inputRef.current?.focus()
+					}}
+				>
+					<ChevronDownIcon className="h-4 w-4" />
+				</Button>
+			</div>
+			{isOpen && (
+				<div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-60 overflow-auto">
+					<div className="p-1">
+						{finalGradeOptions.map((option) => (
+							<button
+								key={option.value}
+								type="button"
+								className={`w-full text-left px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground flex items-center justify-between ${
+									value !== null && value.toString() === option.value ? 'bg-accent text-accent-foreground' : ''
+								}`}
+								onClick={() => handleOptionSelect(option.value)}
+							>
+								<span>{option.label}</span>
+								{value !== null && value.toString() === option.value && (
+									<CheckIcon className="h-4 w-4" />
+								)}
+							</button>
+						))}
+					</div>
+				</div>
+			)}
+		</div>
+	)
+}
+
+/**
  * Notensammler page - Grade collection interface for teachers.
  * 
  * Allows selecting a class and entering grades for students across two semesters.
@@ -327,6 +473,7 @@ export default function NotensammlerPage() {
 	const [selectedClassId, setSelectedClassId] = useState<string>('')
 	const [classData, setClassData] = useState<Class | null>(null)
 	const [grades, setGrades] = useState<GradesData>({})
+	const [finalGrades, setFinalGrades] = useState<FinalGradesData>({})
 	const [loading, setLoading] = useState(false)
 	const [saving, setSaving] = useState(false)
 	const [error, setError] = useState<string | null>(null)
@@ -377,6 +524,7 @@ export default function NotensammlerPage() {
 
 	// Debounce timer for auto-save
 	const saveTimerRef = useRef<NodeJS.Timeout | null>(null)
+	const saveFinalGradeTimerRef = useRef<NodeJS.Timeout | null>(null)
 
 	// Fetch all classes on mount
 	useEffect(() => {
@@ -430,12 +578,11 @@ export default function NotensammlerPage() {
 		router.replace(`/notensammler?${params.toString()}`, { scroll: false })
 	}, [classes, router, searchParams])
 
-	// Cleanup timer on unmount
+	// Cleanup timers on unmount
 	useEffect(() => {
 		return () => {
-			if (saveTimerRef.current) {
-				clearTimeout(saveTimerRef.current)
-			}
+			if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+			if (saveFinalGradeTimerRef.current) clearTimeout(saveFinalGradeTimerRef.current)
 		}
 	}, [])
 
@@ -469,6 +616,7 @@ export default function NotensammlerPage() {
 		if (!selectedClassId) {
 			setClassData(null)
 			setGrades({})
+			setFinalGrades({})
 			return
 		}
 
@@ -486,10 +634,13 @@ export default function NotensammlerPage() {
 				if (!gradesResponse.ok) throw new Error('Failed to fetch grades')
 
 				const classDataResult = await classResponse.json() as Class
-				const gradesResult = await gradesResponse.json() as GradesData
+				const gradesPayload = await gradesResponse.json() as { grades: GradesData; finalGrades: FinalGradesData }
+				const gradesResult = gradesPayload.grades ?? gradesPayload as unknown as GradesData
+				const finalGradesResult = gradesPayload.finalGrades ?? {}
 
 				setClassData(classDataResult)
 				setGrades(gradesResult)
+				setFinalGrades(finalGradesResult)
 			} catch (e) {
 				captureFrontendError(e, {
 					location: 'notensammler',
@@ -662,6 +813,100 @@ export default function NotensammlerPage() {
 		return grades[studentId]?.[teacherId]?.[semester] ?? null
 	}, [grades])
 
+	// Display value for Endnote: saved value or pre-populate from average (nicht beurteilt/gestunden)
+	const getFinalGradeDisplay = useCallback(
+		(studentId: number, semester: 'first' | 'second'): number | null => {
+			const saved = finalGrades[studentId]?.[semester]
+			if (saved != null) return saved
+			const avg = calculateAverage(studentId, semester)
+			if (avg === 'nicht beurteilt') return NICHT_BEURTEILT
+			if (avg === 'gestunden') return GESTUNDEN
+			return null
+		},
+		[finalGrades, calculateAverage]
+	)
+
+	// Save final grade function
+	const saveFinalGrade = useCallback(
+		async (
+			studentId: number,
+			semester: 'first' | 'second',
+			grade: number | null,
+			silent = false
+		) => {
+			if (!classData) return
+			try {
+				if (!silent) setSaving(true)
+				const response = await fetch('/api/notensammler/final-grades', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						studentId,
+						classId: classData.id,
+						semester,
+						grade
+					})
+				})
+				if (!response.ok) {
+					const errorData = (await response.json()) as { error?: string }
+					throw new Error(errorData.error ?? 'Failed to save final grade')
+				}
+				if (!silent) {
+					setFinalGrades(prev => {
+						const next = { ...prev }
+						next[studentId] ??= { first: null, second: null }
+						next[studentId]![semester] = grade
+						return next
+					})
+				}
+			} catch (e) {
+				captureFrontendError(e, { location: 'notensammler', type: 'save-final-grade' })
+				throw e
+			} finally {
+				if (!silent) setSaving(false)
+			}
+		},
+		[classData]
+	)
+
+	// Handle final grade input change
+	const handleFinalGradeChange = useCallback(
+		(studentId: number, semester: 'first' | 'second', value: string) => {
+			const gradeValue = parseFinalGradeInput(value)
+			setFinalGrades(prev => {
+				const next = { ...prev }
+				next[studentId] ??= { first: null, second: null }
+				next[studentId]![semester] = gradeValue
+				return next
+			})
+			if (gradeValue !== null || value === '') {
+				if (saveFinalGradeTimerRef.current) {
+					clearTimeout(saveFinalGradeTimerRef.current)
+					saveFinalGradeTimerRef.current = null
+				}
+				const previousValue = finalGrades[studentId]?.[semester] ?? null
+				saveFinalGradeTimerRef.current = setTimeout(() => {
+					void (async () => {
+						try {
+							await saveFinalGrade(studentId, semester, gradeValue)
+						} catch {
+							setFinalGrades(prev => {
+								const next = { ...prev }
+								next[studentId] ??= { first: null, second: null }
+								next[studentId]![semester] = previousValue
+								return next
+							})
+							setError('Failed to save final grade. Please try again.')
+						} finally {
+							saveFinalGradeTimerRef.current = null
+						}
+					})()
+				}, 500)
+			}
+		},
+		[saveFinalGrade, finalGrades]
+	)
+
 	// Sorted students with sequential IDs (only those assigned to a group)
 	const sortedStudents = useMemo(() => {
 		if (!classData) return []
@@ -721,6 +966,10 @@ export default function NotensammlerPage() {
 				clearTimeout(saveTimerRef.current)
 				saveTimerRef.current = null
 			}
+			if (saveFinalGradeTimerRef.current) {
+				clearTimeout(saveFinalGradeTimerRef.current)
+				saveFinalGradeTimerRef.current = null
+			}
 
 			// Collect all grades to save
 			const savePromises: Promise<void>[] = []
@@ -753,6 +1002,29 @@ export default function NotensammlerPage() {
 				}
 			}
 
+			// Save final grades (Endnote) for each student/semester with a display value (including pre-populated)
+			for (const studentId in grades) {
+				const sid = parseInt(studentId)
+				const firstVal = getFinalGradeDisplay(sid, 'first')
+				if (firstVal != null) {
+					savePromises.push(
+						saveFinalGrade(sid, 'first', firstVal, true).catch((e) => {
+							console.error(`Failed to save final grade for student ${studentId}, first semester:`, e)
+							throw e
+						})
+					)
+				}
+				const secondVal = getFinalGradeDisplay(sid, 'second')
+				if (secondVal != null) {
+					savePromises.push(
+						saveFinalGrade(sid, 'second', secondVal, true).catch((e) => {
+							console.error(`Failed to save final grade for student ${studentId}, second semester:`, e)
+							throw e
+						})
+					)
+				}
+			}
+
 			// Save all grades in parallel (but limit concurrency to avoid overwhelming the server)
 			const BATCH_SIZE = 10
 			for (let i = 0; i < savePromises.length; i += BATCH_SIZE) {
@@ -768,7 +1040,7 @@ export default function NotensammlerPage() {
 		} finally {
 			setSavingAll(false)
 		}
-	}, [classData, selectedClassId, grades, saveGrade])
+	}, [classData, selectedClassId, grades, saveGrade, saveFinalGrade, getFinalGradeDisplay])
 
 	// Handle PDF download
 	const handleDownloadPDF = useCallback(async () => {
@@ -1362,6 +1634,7 @@ export default function NotensammlerPage() {
 											</TableHead>
 										)}
 										<TableHead rowSpan={2} className="bg-muted">{t('notensammler.average', 'Durchschnitt')} ({t('notensammler.firstSemester', '1. Semester')})</TableHead>
+										<TableHead rowSpan={2} className="bg-primary/10">{t('notensammler.endnoteFirstSemester', 'Endnote (1. Semester)')}</TableHead>
 										{/* Second Semester - Period labels */}
 										{showSecondSemester && classData.amTeachers.length > 0 && (
 											<TableHead colSpan={classData.amTeachers.length} className="text-center border-b">
@@ -1378,6 +1651,7 @@ export default function NotensammlerPage() {
 											</TableHead>
 										)}
 										<TableHead rowSpan={2} className="bg-muted">{t('notensammler.average', 'Durchschnitt')} ({t('notensammler.secondSemester', '2. Semester')})</TableHead>
+										<TableHead rowSpan={2} className="bg-primary/10">{t('notensammler.endnoteSecondSemester', 'Endnote (2. Semester)')}</TableHead>
 									</TableRow>
 									{/* Teacher names row */}
 									<TableRow>
@@ -1534,6 +1808,13 @@ export default function NotensammlerPage() {
 												<TableCell className="bg-muted font-medium">
 													{firstAvg === null ? '-' : typeof firstAvg === 'string' ? firstAvg : firstAvg.toFixed(1)}
 												</TableCell>
+												{/* First semester Endnote */}
+												<TableCell className="bg-primary/10">
+													<FinalGradeInput
+														value={getFinalGradeDisplay(student.id, 'first')}
+														onChange={(value) => handleFinalGradeChange(student.id, 'first', value)}
+													/>
+												</TableCell>
 												{/* Second semester - AM teacher columns */}
 												{showSecondSemester && classData.amTeachers.map((teacher) => {
 													const grade = getGrade(student.id, teacher.id, 'second')
@@ -1573,6 +1854,13 @@ export default function NotensammlerPage() {
 												{/* Second semester average */}
 												<TableCell className="bg-muted font-medium">
 													{secondAvg === null ? '-' : typeof secondAvg === 'string' ? secondAvg : secondAvg.toFixed(1)}
+												</TableCell>
+												{/* Second semester Endnote */}
+												<TableCell className="bg-primary/10">
+													<FinalGradeInput
+														value={getFinalGradeDisplay(student.id, 'second')}
+														onChange={(value) => handleFinalGradeChange(student.id, 'second', value)}
+													/>
 												</TableCell>
 											</TableRow>
 										)
