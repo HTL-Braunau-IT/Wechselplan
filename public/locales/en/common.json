@@ -295,6 +295,7 @@
   },
   "notensammler": {
     "title": "Grade Collector",
+    "allClasses": "All classes",
     "selectClass": "Select Class",
     "selectClassPlaceholder": "Please select a class...",
     "id": "ID",
@@ -306,6 +307,8 @@
     "endnoteSecondSemester": "Final Grade (2nd Semester)",
     "firstSemester": "1st Semester",
     "secondSemester": "2nd Semester",
+    "firstSemesterShort": "1. Sem",
+    "secondSemesterShort": "2. Sem",
     "saving": "Saving...",
     "vormittag": "Morning",
     "nachmittag": "Afternoon",

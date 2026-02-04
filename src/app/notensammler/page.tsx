@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next'
 import { useSession } from 'next-auth/react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { captureFrontendError } from '@/lib/frontend-error'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CheckCircle2, X, ChevronDownIcon, CheckIcon } from 'lucide-react'
 import { getStoredToken, storeToken, clearToken } from '@/lib/notenmanagement-token'
 
@@ -540,6 +541,14 @@ export default function NotensammlerPage() {
 	const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null)
 	const [deleting, setDeleting] = useState(false)
 
+	// Teacher's classes for tab bar (with per-semester completion)
+	const [teacherClasses, setTeacherClasses] = useState<Array<{
+		id: number
+		name: string
+		allGradesEnteredFirst: boolean
+		allGradesEnteredSecond: boolean
+	}>>([])
+
 	// Debounce timer for auto-save
 	const saveTimerRef = useRef<NodeJS.Timeout | null>(null)
 	const saveFinalGradeTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -627,6 +636,26 @@ export default function NotensammlerPage() {
 		}
 
 		void fetchCurrentTeacher()
+	}, [session?.user?.name])
+
+	// Fetch teacher's classes (for tab bar with per-semester completion)
+	useEffect(() => {
+		if (!session?.user?.name) {
+			setTeacherClasses([])
+			return
+		}
+		const fetchTeacherClasses = async () => {
+			try {
+				const response = await fetch('/api/notensammler/teacher-classes')
+				if (!response.ok) return
+				const data = await response.json() as { classes: Array<{ id: number; name: string; allGradesEnteredFirst: boolean; allGradesEnteredSecond: boolean }> }
+				setTeacherClasses(data.classes ?? [])
+			} catch (e) {
+				captureFrontendError(e, { location: 'notensammler', type: 'fetch-teacher-classes' })
+				setTeacherClasses([])
+			}
+		}
+		void fetchTeacherClasses()
 	}, [session?.user?.name])
 
 	// Fetch class data and grades when class is selected
@@ -1048,6 +1077,17 @@ export default function NotensammlerPage() {
 			for (let i = 0; i < savePromises.length; i += BATCH_SIZE) {
 				const batch = savePromises.slice(i, i + BATCH_SIZE)
 				await Promise.all(batch)
+			}
+
+			// Refetch teacher classes so tab icons (1. Sem / 2. Sem check/cross) update
+			try {
+				const tcRes = await fetch('/api/notensammler/teacher-classes')
+				if (tcRes.ok) {
+					const tcData = await tcRes.json() as { classes: Array<{ id: number; name: string; allGradesEnteredFirst: boolean; allGradesEnteredSecond: boolean }> }
+					setTeacherClasses(tcData.classes ?? [])
+				}
+			} catch {
+				// Non-fatal: tab icons may be stale until next load
 			}
 		} catch (e) {
 			captureFrontendError(e, {
@@ -1481,6 +1521,9 @@ export default function NotensammlerPage() {
 					</div>
 				)}
 				<div className="mb-4">
+					<p className="text-sm font-medium mb-2">
+						{t('notensammler.allClasses', 'Alle Klassen')}
+					</p>
 					<label className="block text-sm font-medium mb-2">
 						{t('notensammler.selectClass', 'Klasse auswählen')}
 					</label>
@@ -1497,6 +1540,43 @@ export default function NotensammlerPage() {
 						</SelectContent>
 					</Select>
 				</div>
+				{teacherClasses.length > 0 && (
+					<Tabs
+						value={teacherClasses.some((c) => c.id.toString() === selectedClassId) ? selectedClassId : ''}
+						onValueChange={handleClassChange}
+						className="mb-4"
+					>
+						<TabsList className="flex flex-wrap gap-2 h-auto p-0 bg-transparent text-foreground">
+							{teacherClasses.map((cls) => (
+								<TabsTrigger
+									key={cls.id}
+									value={cls.id.toString()}
+									className="group flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium shadow-sm transition-all hover:bg-muted/80 data-[state=active]:shadow-md data-[state=active]:ring-2 data-[state=active]:ring-primary data-[state=active]:ring-inset"
+								>
+									<span className="font-semibold">{cls.name}</span>
+									<span className="flex items-center gap-2 text-xs font-normal opacity-90">
+										<span className="flex items-center gap-1 rounded-md bg-background/60 px-2 py-0.5">
+											{t('notensammler.firstSemesterShort', '1. Sem')}
+											{cls.allGradesEnteredFirst ? (
+												<CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0 dark:text-green-400" aria-hidden />
+											) : (
+												<X className="h-3.5 w-3.5 text-destructive shrink-0" aria-hidden />
+											)}
+										</span>
+										<span className="flex items-center gap-1 rounded-md bg-background/60 px-2 py-0.5">
+											{t('notensammler.secondSemesterShort', '2. Sem')}
+											{cls.allGradesEnteredSecond ? (
+												<CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0 dark:text-green-400" aria-hidden />
+											) : (
+												<X className="h-3.5 w-3.5 text-destructive shrink-0" aria-hidden />
+											)}
+										</span>
+									</span>
+								</TabsTrigger>
+							))}
+						</TabsList>
+					</Tabs>
+				)}
 				{classData && (
 					<div className="flex items-center gap-6 mb-4">
 						<div className="flex items-center space-x-2">

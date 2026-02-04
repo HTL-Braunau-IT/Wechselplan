@@ -302,6 +302,7 @@
   },
   "notensammler": {
     "title": "Notensammler",
+    "allClasses": "Alle Klassen",
     "selectClass": "Klasse auswählen",
     "selectClassPlaceholder": "Bitte Klasse auswählen...",
     "id": "ID",
@@ -313,6 +314,8 @@
     "endnoteSecondSemester": "Endnote (2. Semester)",
     "firstSemester": "1. Semester",
     "secondSemester": "2. Semester",
+    "firstSemesterShort": "1. Sem",
+    "secondSemesterShort": "2. Sem",
     "saving": "Speichere...",
     "vormittag": "Vormittag",
     "nachmittag": "Nachmittag",
