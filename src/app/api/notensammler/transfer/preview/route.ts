@@ -290,7 +290,7 @@ export async function POST(request: Request) {
 
     // Matrikelnummer of all matched students (will get an entry in transfer, numeric or Keine Note)
     const matchedMatrikelnummer = new Set(
-      students.filter((s) => s.matched && s.matrikelnummer != null).map((s) => s.matrikelnummer as number)
+      students.filter((s) => s.matched && s.matrikelnummer != null).map((s) => s.matrikelnummer!)
     )
 
     const nmStudentsWithoutGradeOrMatch = nmStudents
@@ -301,7 +301,7 @@ export async function POST(request: Request) {
         return normalizeNamePart(klasse) === classNorm && !matchedMatrikelnummer.has(matr)
       })
       .map((s) => ({
-        Matrikelnummer: s.Matrikelnummer as number,
+        Matrikelnummer: s.Matrikelnummer!,
         Student_ID: s.Student_ID,
         Nachname: s.Nachname ?? '',
         Vorname: s.Vorname ?? '',

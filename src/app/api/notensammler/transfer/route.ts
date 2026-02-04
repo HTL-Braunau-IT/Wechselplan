@@ -138,7 +138,7 @@ export async function POST(request: Request) {
         if (reason) nullNoteReasonByStudentId.set(studentId, reason)
         continue
       }
-      const noteNum = typeof n.note === 'number' ? n.note : parseInt(String(n.note))
+      const noteNum = typeof n.note === 'number' ? n.note : (typeof n.note === 'string' ? parseInt(n.note, 10) : Number.NaN)
       if (Number.isNaN(noteNum) || ![1, 2, 3, 4, 5].includes(noteNum)) {
         notesByStudentId.set(studentId, null)
         if (reason) nullNoteReasonByStudentId.set(studentId, reason)
@@ -239,7 +239,7 @@ export async function POST(request: Request) {
     type NotenEntry = { Matrikelnummer: number; Note: number | null; Punkte: number; Kommentar: string }
 
     // When Note is null, set Kommentar: use payload nullNoteReason if provided, else infer from student grades (6 or 7)
-    function commentForNullNote(st: (typeof classRecord.students)[number]): string {
+    function commentForNullNote(st: { id: number }): string {
       const fromPayload = nullNoteReasonByStudentId.get(st.id)
       if (fromPayload) return fromPayload
       let hasGestundet = false
@@ -278,7 +278,7 @@ export async function POST(request: Request) {
       if (!matr || Number.isNaN(matr)) continue
       let note: number | null = null
       if (item.note !== null && item.note !== undefined) {
-        const n = typeof item.note === 'number' ? item.note : parseInt(String(item.note))
+        const n = typeof item.note === 'number' ? item.note : (typeof item.note === 'string' ? parseInt(item.note, 10) : Number.NaN)
         if (!Number.isNaN(n) && [1, 2, 3, 4, 5].includes(n)) note = n as 1 | 2 | 3 | 4 | 5
       }
       noten.push({

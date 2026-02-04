@@ -1207,7 +1207,7 @@ export default function NotensammlerPage() {
 						setEditedNotes(
 							Object.fromEntries(preview.students.map(s => [
 								s.studentId,
-								s.note !== null ? s.note : (s.nullNoteLabel ?? 'Nicht beurteilt')
+								s.note ?? s.nullNoteLabel ?? 'Nicht beurteilt'
 							]))
 						)
 						setShowPreviewDialog(true)
@@ -1227,7 +1227,7 @@ export default function NotensammlerPage() {
 			setEditedNotes(
 				Object.fromEntries(preview.students.map(s => [
 					s.studentId,
-					s.note !== null ? s.note : (s.nullNoteLabel ?? 'Nicht beurteilt')
+					s.note ?? s.nullNoteLabel ?? 'Nicht beurteilt'
 				]))
 			)
 			setShowPreviewDialog(true)
@@ -2037,7 +2037,7 @@ export default function NotensammlerPage() {
 								</TableHeader>
 								<TableBody>
 									{previewData.students.map((s) => {
-										const noteValue: EditableNote = editedNotes[s.studentId] ?? (s.note !== null ? s.note : (s.nullNoteLabel ?? 'Nicht beurteilt'))
+										const noteValue: EditableNote = editedNotes[s.studentId] ?? s.note ?? s.nullNoteLabel ?? 'Nicht beurteilt'
 										return (
 											<TableRow key={s.studentId}>
 												<TableCell>
