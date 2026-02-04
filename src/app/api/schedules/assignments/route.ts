@@ -261,10 +261,10 @@ export async function POST(request: Request) {
 		}
 
 		// First, ensure all groups exist in GroupAssignment table
-		const groupIds = assignments.map(a => a.groupId).filter(id => id !== 0) // Exclude unassigned group
-		
-		// Create or update GroupAssignment records for all groups
-		for (const groupId of groupIds) {
+		const requestedGroupIds = assignments.map(a => a.groupId).filter(id => id !== 0) // Exclude unassigned group
+
+		// Create or update GroupAssignment records for all requested groups
+		for (const groupId of requestedGroupIds) {
 			await prisma.groupAssignment.upsert({
 				where: {
 					class_groupId: {
@@ -277,6 +277,20 @@ export async function POST(request: Request) {
 					groupId: groupId,
 					class: classRecord.name
 				}
+			})
+		}
+
+		// Remove orphan GroupAssignment rows for this class (e.g. empty group 3 after reducing to 2 groups)
+		if (requestedGroupIds.length > 0) {
+			await prisma.groupAssignment.deleteMany({
+				where: {
+					class: classRecord.name,
+					groupId: { notIn: requestedGroupIds }
+				}
+			})
+		} else {
+			await prisma.groupAssignment.deleteMany({
+				where: { class: classRecord.name }
 			})
 		}
 

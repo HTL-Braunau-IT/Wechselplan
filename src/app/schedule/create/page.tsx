@@ -288,15 +288,18 @@ export default function ScheduleClassSelectPage() {
 			}
 
 			if (assignmentsData?.assignments && assignmentsData.assignments.length > 0) {
-				// If we have existing assignments, use them
+				// Only count real groups: exclude unassigned (groupId 0) and empty rows
+				const regularAssignments = assignmentsData.assignments.filter(
+					a => a.groupId !== UNASSIGNED_GROUP_ID && a.studentIds.length > 0
+				)
 				const existingGroups: Group[] = [
 					// Always include unassigned group first
 					{
 						id: UNASSIGNED_GROUP_ID,
 						students: (assignmentsData.unassignedStudents || []).map(s => ({ ...s, class: selectedClass || '' }))
 					},
-					// Then add regular groups
-					...assignmentsData.assignments.map(assignment => ({
+					// Then add only regular (non-empty, non-unassigned) groups
+					...regularAssignments.map(assignment => ({
 						id: assignment.groupId,
 						students: assignment.studentIds.map(id => {
 							const student = studentsData.find(s => s.id === id)
@@ -306,7 +309,7 @@ export default function ScheduleClassSelectPage() {
 					}))
 				]
 				setGroups(existingGroups)
-				setNumberOfGroups(existingGroups.length - 1) // Subtract 1 for unassigned group
+				setNumberOfGroups(regularAssignments.length)
 				hasExistingAssignmentsRef.current = true
 			} else {
 				// Otherwise, create default groups with even distribution
