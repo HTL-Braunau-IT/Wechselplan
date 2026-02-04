@@ -17,10 +17,13 @@ type NotenmanagementTokenResponse = {
 
 type NotenmanagementStudent = {
   Matrikelnummer?: number
+  Student_ID?: string
   Vorname?: string
   Nachname?: string
   klasse?: string
   Klasse?: string
+  EMailAdresse1?: string
+  EMailAdresse2?: string
 }
 
 function normalizeNamePart(v: string): string {
@@ -203,9 +206,25 @@ export async function POST(request: Request) {
       nmIndex.set(key, matr)
     }
 
+    type PreviewStudent = {
+      studentId: number
+      firstName: string
+      lastName: string
+      avg: number | null
+      note: 1 | 2 | 3 | 4 | 5 | null
+      matched: boolean
+      matrikelnummer: number | null
+      hasNbOrGestunden?: boolean
+      /** When note is null and hasNbOrGestunden: display "Nicht beurteilt" or "Gestundet" */
+      nullNoteLabel?: 'Nicht beurteilt' | 'Gestundet'
+    }
+
+    const classNorm = normalizeNamePart(classRecord.name)
+
+    // Students with all teacher grades and no 6/7 (numeric note)
     const completeStudents = classRecord.students
       .filter((st) => st.groupId !== null && st.groupId !== undefined)
-      .map((st) => {
+      .map((st): PreviewStudent | null => {
         const teacherGrades: number[] = []
         for (const tid of teacherIds) {
           const g = gradeByStudentTeacher.get(`${st.id}:${tid}`)
@@ -213,16 +232,12 @@ export async function POST(request: Request) {
           teacherGrades.push(g)
         }
         if (teacherGrades.length !== teacherIds.length) return null
-        
-        // Exclude students with "nicht beurteilt" (6) or "gestunden" (7)
-        if (teacherGrades.some(g => g === 6 || g === 7)) {
-          return null
-        }
-        
+
+        if (teacherGrades.some((g) => g === 6 || g === 7)) return null
+
         const avg = teacherGrades.reduce((a, b) => a + b, 0) / teacherGrades.length
         const note = truncateAvgToNote(avg)
-
-        const key = `${normalizeNamePart(classRecord.name)}|${normalizeNamePart(st.lastName)}|${normalizeNamePart(st.firstName)}`
+        const key = `${classNorm}|${normalizeNamePart(st.lastName)}|${normalizeNamePart(st.firstName)}`
         const matrikelnummer = nmIndex.get(key) ?? null
 
         return {
@@ -235,15 +250,65 @@ export async function POST(request: Request) {
           matrikelnummer,
         }
       })
-      .filter(Boolean) as Array<{
-      studentId: number
-      firstName: string
-      lastName: string
-      avg: number
-      note: 1 | 2 | 3 | 4 | 5
-      matched: boolean
-      matrikelnummer: number | null
-    }>
+      .filter((s): s is PreviewStudent => s !== null)
+
+    // Students with all teacher grades but at least one 6 or 7 (Keine Note by default)
+    const studentsWithNbOrGestunden = classRecord.students
+      .filter((st) => st.groupId !== null && st.groupId !== undefined)
+      .map((st): PreviewStudent | null => {
+        const teacherGrades: number[] = []
+        for (const tid of teacherIds) {
+          const g = gradeByStudentTeacher.get(`${st.id}:${tid}`)
+          if (typeof g !== 'number') return null
+          teacherGrades.push(g)
+        }
+        if (teacherGrades.length !== teacherIds.length) return null
+
+        if (!teacherGrades.some((g) => g === 6 || g === 7)) return null
+
+        const hasGestundet = teacherGrades.some((g) => g === 7)
+        const nullNoteLabel = hasGestundet ? 'Gestundet' : ('Nicht beurteilt' as const)
+
+        const key = `${classNorm}|${normalizeNamePart(st.lastName)}|${normalizeNamePart(st.firstName)}`
+        const matrikelnummer = nmIndex.get(key) ?? null
+
+        return {
+          studentId: st.id,
+          firstName: st.firstName,
+          lastName: st.lastName,
+          avg: null,
+          note: null,
+          matched: matrikelnummer !== null,
+          matrikelnummer,
+          hasNbOrGestunden: true,
+          nullNoteLabel,
+        }
+      })
+      .filter((s): s is PreviewStudent => s !== null)
+
+    const students = [...completeStudents, ...studentsWithNbOrGestunden]
+
+    // Matrikelnummer of all matched students (will get an entry in transfer, numeric or Keine Note)
+    const matchedMatrikelnummer = new Set(
+      students.filter((s) => s.matched && s.matrikelnummer != null).map((s) => s.matrikelnummer!)
+    )
+
+    const nmStudentsWithoutGradeOrMatch = nmStudents
+      .filter((s) => {
+        const matr = s.Matrikelnummer
+        const klasse = s.klasse ?? s.Klasse
+        if (!matr || !klasse) return false
+        return normalizeNamePart(klasse) === classNorm && !matchedMatrikelnummer.has(matr)
+      })
+      .map((s) => ({
+        Matrikelnummer: s.Matrikelnummer!,
+        Student_ID: s.Student_ID,
+        Nachname: s.Nachname ?? '',
+        Vorname: s.Vorname ?? '',
+        Klasse: s.klasse ?? s.Klasse,
+        EMailAdresse1: s.EMailAdresse1,
+        EMailAdresse2: s.EMailAdresse2,
+      }))
 
     // Fetch transfer status for this class
     const transfers = await prisma.notenmanagementTransfer.findMany({
@@ -269,14 +334,15 @@ export async function POST(request: Request) {
       subjectTruncated,
       semester,
       teacherCount: teacherIds.length,
-      students: completeStudents,
+      students,
       transferStatus,
       counts: {
         totalStudents: classRecord.students.length,
         completeStudents: completeStudents.length,
-        matchedCompleteStudents: completeStudents.filter((s) => s.matched).length,
-        unmatchedCompleteStudents: completeStudents.filter((s) => !s.matched).length,
+        matchedCompleteStudents: students.filter((s) => s.matched).length,
+        unmatchedCompleteStudents: students.filter((s) => !s.matched).length,
       },
+      nmStudentsWithoutGradeOrMatch,
       // Include token data if a new token was generated
       ...(tokenExpiresIn && { token: accessToken, tokenExpiresIn }),
     })
