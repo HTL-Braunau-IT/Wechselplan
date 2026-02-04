@@ -107,6 +107,7 @@ export async function POST(request: Request) {
       password?: unknown
       token?: unknown
       notes?: unknown
+      notesByMatrikelnummer?: unknown
     }
     requestData = body
 
@@ -116,6 +117,7 @@ export async function POST(request: Request) {
     const password = typeof body.password === 'string' ? body.password : null
     const providedToken = typeof body.token === 'string' ? body.token : null
     const notes = Array.isArray(body.notes) ? body.notes : null
+    const notesByMatrikelnummerRaw = Array.isArray(body.notesByMatrikelnummer) ? body.notesByMatrikelnummer : []
 
     if (!classId || Number.isNaN(classId) || !semester || !nmUsername || !notes) {
       return NextResponse.json({ error: 'Missing or invalid parameters' }, { status: 400 })
@@ -125,12 +127,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Either token or password is required' }, { status: 400 })
     }
 
-    const notesByStudentId = new Map<number, 1 | 2 | 3 | 4 | 5>()
-    for (const n of notes as Array<{ studentId?: unknown; note?: unknown }>) {
+    const notesByStudentId = new Map<number, 1 | 2 | 3 | 4 | 5 | null>()
+    const nullNoteReasonByStudentId = new Map<number, 'Nicht beurteilt' | 'Gestundet'>()
+    for (const n of notes as Array<{ studentId?: unknown; note?: unknown; nullNoteReason?: unknown }>) {
       const studentId = typeof n.studentId === 'number' ? n.studentId : parseInt(String(n.studentId))
-      const noteNum = typeof n.note === 'number' ? n.note : parseInt(String(n.note))
       if (!studentId || Number.isNaN(studentId)) continue
-      if (![1, 2, 3, 4, 5].includes(noteNum)) continue
+      const reason = n.nullNoteReason === 'Nicht beurteilt' || n.nullNoteReason === 'Gestundet' ? n.nullNoteReason : undefined
+      if (n.note === null || n.note === undefined) {
+        notesByStudentId.set(studentId, null)
+        if (reason) nullNoteReasonByStudentId.set(studentId, reason)
+        continue
+      }
+      const noteNum = typeof n.note === 'number' ? n.note : parseInt(String(n.note))
+      if (Number.isNaN(noteNum) || ![1, 2, 3, 4, 5].includes(noteNum)) {
+        notesByStudentId.set(studentId, null)
+        if (reason) nullNoteReasonByStudentId.set(studentId, reason)
+        continue
+      }
       notesByStudentId.set(studentId, noteNum as 1 | 2 | 3 | 4 | 5)
     }
 
@@ -213,46 +226,68 @@ export async function POST(request: Request) {
       nmIndex.set(`${normalizeNamePart(klasse)}|${normalizeNamePart(nach)}|${normalizeNamePart(vor)}`, matr)
     }
 
-    // Only students with all teacher grades (same filter as preview)
-    // Exclude students with "nicht beurteilt" (6) or "gestunden" (7)
+    // All students with all teacher grades (including "nicht beurteilt" 6 or "gestunden" 7), same as preview
     const completeStudents = classRecord.students
       .filter((st: (typeof classRecord.students)[number]) => st.groupId !== null && st.groupId !== undefined)
       .filter((st: (typeof classRecord.students)[number]): st is (typeof classRecord.students)[number] => {
-        // Check all teachers have grades
-        const hasAllGrades = teacherIds.every((tid) => {
+        return teacherIds.every((tid) => {
           const g = gradeByStudentTeacher.get(`${st.id}:${tid}`)
           return typeof g === 'number'
         })
-        if (!hasAllGrades) return false
-        
-        // Exclude if any grade is 6 or 7
-        const hasSpecialGrade = teacherIds.some((tid) => {
-          const g = gradeByStudentTeacher.get(`${st.id}:${tid}`)
-          return g === 6 || g === 7
-        })
-        return !hasSpecialGrade
       })
 
-    // Build Noten entries: only matched students and only those with a provided note
+    type NotenEntry = { Matrikelnummer: number; Note: number | null; Punkte: number; Kommentar: string }
+
+    // When Note is null, set Kommentar: use payload nullNoteReason if provided, else infer from student grades (6 or 7)
+    function commentForNullNote(st: (typeof classRecord.students)[number]): string {
+      const fromPayload = nullNoteReasonByStudentId.get(st.id)
+      if (fromPayload) return fromPayload
+      let hasGestundet = false
+      let hasNichtBeurteilt = false
+      for (const tid of teacherIds) {
+        const g = gradeByStudentTeacher.get(`${st.id}:${tid}`)
+        if (g === 7) hasGestundet = true
+        if (g === 6) hasNichtBeurteilt = true
+      }
+      if (hasGestundet) return 'Gestundet'
+      if (hasNichtBeurteilt) return 'Nicht beurteilt'
+      return ''
+    }
+
+    // Build Noten entries: only matched students, with note (1-5) or "Keine Note" (null)
     const noten = completeStudents
-      .map((st: typeof completeStudents[number]): { Matrikelnummer: number; Note: number; Punkte: number; Kommentar: string } | null => {
-        const note = notesByStudentId.get(st.id)
-        if (!note) return null
+      .map((st: (typeof classRecord.students)[number]): NotenEntry | null => {
+        if (!notesByStudentId.has(st.id)) return null
         const key = `${normalizeNamePart(classRecord.name)}|${normalizeNamePart(st.lastName)}|${normalizeNamePart(st.firstName)}`
         const matrikelnummer = nmIndex.get(key) ?? null
-        if (!matrikelnummer) return null // IMPORTANT: do not POST unmatched users
+        if (!matrikelnummer) return null
+        const note = notesByStudentId.get(st.id) ?? null
+        const kommentar = note === null ? commentForNullNote(st) : ''
         return {
           Matrikelnummer: matrikelnummer,
           Note: note,
           Punkte: 0.0,
-          Kommentar: '',
+          Kommentar: kommentar,
         }
       })
-      .filter(
-        (
-          n: { Matrikelnummer: number; Note: number; Punkte: number; Kommentar: string } | null
-        ): n is { Matrikelnummer: number; Note: number; Punkte: number; Kommentar: string } => n !== null
-      )
+      .filter((n): n is NotenEntry => n !== null)
+
+    // Add entries for NM-only students (in Notenmanagement but not locally matched)
+    for (const item of notesByMatrikelnummerRaw as Array<{ matrikelnummer?: unknown; note?: unknown }>) {
+      const matr = typeof item.matrikelnummer === 'number' ? item.matrikelnummer : parseInt(String(item.matrikelnummer))
+      if (!matr || Number.isNaN(matr)) continue
+      let note: number | null = null
+      if (item.note !== null && item.note !== undefined) {
+        const n = typeof item.note === 'number' ? item.note : parseInt(String(item.note))
+        if (!Number.isNaN(n) && [1, 2, 3, 4, 5].includes(n)) note = n as 1 | 2 | 3 | 4 | 5
+      }
+      noten.push({
+        Matrikelnummer: matr,
+        Note: note,
+        Punkte: 0.0,
+        Kommentar: '',
+      })
+    }
 
     if (noten.length === 0) {
       return NextResponse.json(

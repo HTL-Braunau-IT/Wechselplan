@@ -323,6 +323,9 @@
     "sortByGroup": "Gruppennummer",
     "sortDirection": "Sortierrichtung",
     "sortAscending": "Aufsteigend",
-    "sortDescending": "Absteigend"
+    "sortDescending": "Absteigend",
+    "nmStudentsWithoutGradeOrMatch": "Schüler in Notenmanagement ohne Zuordnung oder Note",
+    "keineNote": "Keine Note",
+    "class": "Klasse"
   }
 } 

@@ -114,10 +114,26 @@ type PreviewStudent = {
 	studentId: number
 	firstName: string
 	lastName: string
-	avg: number
-	note: 1 | 2 | 3 | 4 | 5
+	avg: number | null
+	note: 1 | 2 | 3 | 4 | 5 | null
 	matched: boolean
 	matrikelnummer: number | null
+	hasNbOrGestunden?: boolean
+	/** When note is null: display "Nicht beurteilt" or "Gestundet" */
+	nullNoteLabel?: 'Nicht beurteilt' | 'Gestundet'
+}
+
+/** Editable note in preview: 1-5 or "Nicht beurteilt" / "Gestundet" (both sent as Note: null with Kommentar) */
+type EditableNote = 1 | 2 | 3 | 4 | 5 | 'Nicht beurteilt' | 'Gestundet'
+
+type NmStudentWithoutGradeOrMatch = {
+	Matrikelnummer: number
+	Student_ID?: string
+	Nachname: string
+	Vorname: string
+	Klasse?: string
+	EMailAdresse1?: string
+	EMailAdresse2?: string
 }
 
 type TransferPreviewResponse = {
@@ -138,6 +154,7 @@ type TransferPreviewResponse = {
 		matchedCompleteStudents: number
 		unmatchedCompleteStudents: number
 	}
+	nmStudentsWithoutGradeOrMatch?: NmStudentWithoutGradeOrMatch[]
 	token?: string
 	tokenExpiresIn?: number
 }
@@ -498,7 +515,8 @@ export default function NotensammlerPage() {
 	const [previewLoading, setPreviewLoading] = useState(false)
 	const [transferLoading, setTransferLoading] = useState(false)
 	const [previewData, setPreviewData] = useState<TransferPreviewResponse | null>(null)
-	const [editedNotes, setEditedNotes] = useState<Record<number, 1 | 2 | 3 | 4 | 5>>({})
+	const [editedNotes, setEditedNotes] = useState<Record<number, EditableNote>>({})
+	const [editedNotesNmOnly, setEditedNotesNmOnly] = useState<Record<number, 1 | 2 | 3 | 4 | 5 | null>>({})
 	const [transferResult, setTransferResult] = useState<TransferResultResponse | null>(null)
 
 	// LF view state
@@ -1130,6 +1148,7 @@ export default function NotensammlerPage() {
 		setTransferResult(null)
 		setPreviewData(null)
 		setEditedNotes({})
+		setEditedNotesNmOnly({})
 		setTransferSemester(null)
 		setTransferUsername(session?.user?.name ?? '')
 		setTransferPassword('')
@@ -1186,7 +1205,10 @@ export default function NotensammlerPage() {
 						const preview = retryData as TransferPreviewResponse
 						setPreviewData(preview)
 						setEditedNotes(
-							Object.fromEntries(preview.students.map(s => [s.studentId, s.note]))
+							Object.fromEntries(preview.students.map(s => [
+								s.studentId,
+								s.note !== null ? s.note : (s.nullNoteLabel ?? 'Nicht beurteilt')
+							]))
 						)
 						setShowPreviewDialog(true)
 						return
@@ -1203,7 +1225,10 @@ export default function NotensammlerPage() {
 			const preview = data as TransferPreviewResponse
 			setPreviewData(preview)
 			setEditedNotes(
-				Object.fromEntries(preview.students.map(s => [s.studentId, s.note]))
+				Object.fromEntries(preview.students.map(s => [
+					s.studentId,
+					s.note !== null ? s.note : (s.nullNoteLabel ?? 'Nicht beurteilt')
+				]))
 			)
 			setShowPreviewDialog(true)
 		} catch (e) {
@@ -1220,9 +1245,15 @@ export default function NotensammlerPage() {
 			setTransferLoading(true)
 			setError(null)
 
-			const notesPayload = Object.entries(editedNotes).map(([studentId, note]) => ({
+			const notesPayload = Object.entries(editedNotes).map(([studentId, n]) => ({
 				studentId: parseInt(studentId),
-				note
+				note: typeof n === 'number' ? n : null,
+				nullNoteReason: (n === 'Nicht beurteilt' || n === 'Gestundet') ? n : undefined
+			}))
+
+			const notesByMatrikelnummer = (previewData.nmStudentsWithoutGradeOrMatch ?? []).map((nm) => ({
+				matrikelnummer: nm.Matrikelnummer,
+				note: editedNotesNmOnly[nm.Matrikelnummer] ?? null
 			}))
 
 			// Check for stored token first
@@ -1237,7 +1268,8 @@ export default function NotensammlerPage() {
 					semester: transferSemester,
 					username: transferUsername,
 					...(useStoredToken ? { token: storedToken.token } : { password: transferPassword }),
-					notes: notesPayload
+					notes: notesPayload,
+					notesByMatrikelnummer
 				})
 			})
 
@@ -1254,10 +1286,11 @@ export default function NotensammlerPage() {
 							semester: transferSemester,
 							username: transferUsername,
 							password: transferPassword,
-							notes: notesPayload
+							notes: notesPayload,
+							notesByMatrikelnummer
 						})
 					})
-					const retryData = await retryRes.json() as { error?: string; details?: unknown; token?: string; tokenExpiresIn?: number } | TransferResultResponse
+			const retryData = await retryRes.json() as { error?: string; details?: unknown; token?: string; tokenExpiresIn?: number } | TransferResultResponse
 					if (!retryRes.ok) {
 						const details = (retryData as { details?: unknown }).details
 						const msg = (retryData as { error?: string }).error ?? 'Transfer failed'
@@ -1306,7 +1339,7 @@ export default function NotensammlerPage() {
 		} finally {
 			setTransferLoading(false)
 		}
-	}, [classData, editedNotes, previewData, transferPassword, transferSemester])
+	}, [classData, editedNotes, editedNotesNmOnly, previewData, transferPassword, transferSemester])
 
 	// Helper to fetch LF data with token
 	const fetchLfDataWithToken = useCallback(async (token: string, username: string, lfId: string) => {
@@ -2003,40 +2036,107 @@ export default function NotensammlerPage() {
 									</TableRow>
 								</TableHeader>
 								<TableBody>
-									{previewData.students.map((s) => (
-										<TableRow key={s.studentId}>
-											<TableCell>
-												{s.lastName}, {s.firstName}
-											</TableCell>
-											<TableCell>
-												<Input
-													type="number"
-													min="1"
-													max="5"
-													step="1"
-													value={editedNotes[s.studentId] ?? s.note}
-													onChange={(e) => {
-														const v = parseInt(e.target.value)
-														if (![1, 2, 3, 4, 5].includes(v)) return
-														setEditedNotes(prev => ({ ...prev, [s.studentId]: v as 1 | 2 | 3 | 4 | 5 }))
-													}}
-													className="w-24"
-												/>
-											</TableCell>
-											<TableCell>
-												{s.matrikelnummer ?? '-'}
-											</TableCell>
-											<TableCell>
-												{s.matched ? (
-													<span className="text-green-600 font-medium">✓</span>
-												) : (
-													<span className="text-red-600 font-medium">✗</span>
-												)}
-											</TableCell>
-										</TableRow>
-									))}
+									{previewData.students.map((s) => {
+										const noteValue: EditableNote = editedNotes[s.studentId] ?? (s.note !== null ? s.note : (s.nullNoteLabel ?? 'Nicht beurteilt'))
+										return (
+											<TableRow key={s.studentId}>
+												<TableCell>
+													{s.lastName}, {s.firstName}
+												</TableCell>
+												<TableCell>
+													<Select
+														value={typeof noteValue === 'number' ? String(noteValue) : noteValue}
+														onValueChange={(v) => {
+															const n: EditableNote = v === 'Nicht beurteilt' || v === 'Gestundet'
+																? v
+																: (parseInt(v, 10) as 1 | 2 | 3 | 4 | 5)
+															setEditedNotes(prev => ({ ...prev, [s.studentId]: n }))
+														}}
+													>
+														<SelectTrigger className="w-40">
+															<SelectValue />
+														</SelectTrigger>
+														<SelectContent>
+															<SelectItem value="1">1</SelectItem>
+															<SelectItem value="2">2</SelectItem>
+															<SelectItem value="3">3</SelectItem>
+															<SelectItem value="4">4</SelectItem>
+															<SelectItem value="5">5</SelectItem>
+															<SelectItem value="Nicht beurteilt">Nicht beurteilt</SelectItem>
+															<SelectItem value="Gestundet">Gestundet</SelectItem>
+														</SelectContent>
+													</Select>
+												</TableCell>
+												<TableCell>
+													{s.matrikelnummer ?? '-'}
+												</TableCell>
+												<TableCell>
+													{s.matched ? (
+														<span className="text-green-600 font-medium">✓</span>
+													) : (
+														<span className="text-red-600 font-medium">✗</span>
+													)}
+												</TableCell>
+											</TableRow>
+										)
+									})}
 								</TableBody>
 							</Table>
+						</div>
+					)}
+
+					{previewData?.nmStudentsWithoutGradeOrMatch && previewData.nmStudentsWithoutGradeOrMatch.length > 0 && (
+						<div className="mt-6">
+							<h3 className="text-sm font-semibold mb-2">
+								{t('notensammler.nmStudentsWithoutGradeOrMatch', 'Schüler in Notenmanagement ohne Zuordnung oder Note')}
+							</h3>
+							<div className="max-h-48 overflow-y-auto rounded-md border">
+								<Table>
+									<TableHeader>
+										<TableRow>
+											<TableHead className="w-24">{t('notensammler.matrikelnummer', 'Matr.')}</TableHead>
+											<TableHead>{t('notensammler.lastName', 'Nachname')}</TableHead>
+											<TableHead>{t('notensammler.firstName', 'Vorname')}</TableHead>
+											<TableHead className="w-24">{t('notensammler.class', 'Klasse')}</TableHead>
+											<TableHead className="w-32">{t('notensammler.grade', 'Note')}</TableHead>
+										</TableRow>
+									</TableHeader>
+									<TableBody>
+										{previewData.nmStudentsWithoutGradeOrMatch.map((nm) => {
+											const noteValue = editedNotesNmOnly[nm.Matrikelnummer] ?? null
+											return (
+												<TableRow key={nm.Matrikelnummer}>
+													<TableCell className="font-mono text-xs">{nm.Matrikelnummer}</TableCell>
+													<TableCell>{nm.Nachname}</TableCell>
+													<TableCell>{nm.Vorname}</TableCell>
+													<TableCell>{nm.Klasse ?? '-'}</TableCell>
+													<TableCell>
+														<Select
+															value={noteValue === null ? 'keine' : String(noteValue)}
+															onValueChange={(v) => {
+																const n = v === 'keine' ? null : (parseInt(v, 10) as 1 | 2 | 3 | 4 | 5)
+																setEditedNotesNmOnly(prev => ({ ...prev, [nm.Matrikelnummer]: n }))
+															}}
+														>
+															<SelectTrigger className="w-32">
+																<SelectValue placeholder={t('notensammler.keineNote', 'Keine Note')} />
+															</SelectTrigger>
+															<SelectContent>
+																<SelectItem value="keine">{t('notensammler.keineNote', 'Keine Note')}</SelectItem>
+																<SelectItem value="1">1</SelectItem>
+																<SelectItem value="2">2</SelectItem>
+																<SelectItem value="3">3</SelectItem>
+																<SelectItem value="4">4</SelectItem>
+																<SelectItem value="5">5</SelectItem>
+															</SelectContent>
+														</Select>
+													</TableCell>
+												</TableRow>
+											)
+										})}
+									</TableBody>
+								</Table>
+							</div>
 						</div>
 					)}
 
@@ -2110,17 +2210,26 @@ export default function NotensammlerPage() {
 												Matrikelnummer: number
 												Nachname: string
 												Vorname: string
-												Note: number
+												Note: number | null
 												Punkte: number
 												Kommentar: string
-											}>).map((student, idx) => (
-												<TableRow key={student.Matrikelnummer ?? idx}>
-													<TableCell className="font-mono text-xs">{student.Matrikelnummer}</TableCell>
-													<TableCell>{student.Nachname}</TableCell>
-													<TableCell>{student.Vorname}</TableCell>
-													<TableCell className="text-center font-semibold">{student.Note}</TableCell>
-												</TableRow>
-											))}
+											}>).map((student, idx) => {
+												const noteDisplay = student.Note != null
+													? String(student.Note)
+													: (student.Kommentar === 'Nicht beurteilt' || student.Kommentar === 'Gestundet'
+														? student.Kommentar
+														: t('notensammler.keineNote', 'Keine Note'))
+												return (
+													<TableRow key={student.Matrikelnummer ?? idx}>
+														<TableCell className="font-mono text-xs">{student.Matrikelnummer}</TableCell>
+														<TableCell>{student.Nachname}</TableCell>
+														<TableCell>{student.Vorname}</TableCell>
+														<TableCell className="text-center font-semibold">
+															{noteDisplay}
+														</TableCell>
+													</TableRow>
+												)
+											})}
 										</TableBody>
 									</Table>
 								</div>

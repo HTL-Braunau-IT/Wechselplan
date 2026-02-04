@@ -316,6 +316,9 @@
     "sortByGroup": "Group Number",
     "sortDirection": "Sort Direction",
     "sortAscending": "Ascending",
-    "sortDescending": "Descending"
+    "sortDescending": "Descending",
+    "nmStudentsWithoutGradeOrMatch": "Students in Notenmanagement without match or grade",
+    "keineNote": "No grade",
+    "class": "Class"
   }
 } 
