@@ -5,6 +5,7 @@ import { LDAPClient } from '@/lib/ldap'
 import { prisma } from '@/lib/prisma'
 import type { User } from 'next-auth'
 import { captureError } from '@/lib/sentry'
+import { normalizeUsername } from '@/lib/username'
 
 async function ensureRolesExist() {
   try {
@@ -144,20 +145,21 @@ export const authOptions: NextAuthOptions = {
           console.log('Role determination:', { isStudent, isTeacher })
           const role = isTeacher ? 'teacher' : isStudent ? 'student' : 'user'
           console.log('Assigned role:', role)
-          
-          // Save the role to the database asynchronously
-          saveUserRole(credentials.username, role).catch(error => {
+
+          const normalizedName = normalizeUsername(credentials.username)
+          // Save the role to the database asynchronously (use normalized username)
+          saveUserRole(normalizedName, role).catch(error => {
             console.error('Error saving user role:', error)
             captureError(error, {
               location: 'auth',
               type: 'async_save_user_role_error',
-              extra: { username: credentials.username, role }
+              extra: { username: normalizedName, role }
             })
           })
 
           return {
-            id: credentials.username,
-            name: credentials.username,
+            id: normalizedName,
+            name: normalizedName,
             firstName: user.givenName,
             lastName: user.sn,
             email: user.mail,
@@ -255,6 +257,10 @@ export const authOptions: NextAuthOptions = {
         session.user.role = token.role as 'admin' | 'teacher' | 'student'
         session.user.firstName = token.firstName as string | null
         session.user.lastName = token.lastName as string | null
+        // Normalize name for teacher/student lookups (e.g. firstname.lastname, email/UPN)
+        session.user.name = normalizeUsername(
+          session.user.name ?? session.user.email ?? token.sub ?? ''
+        )
       }
       return session
     },

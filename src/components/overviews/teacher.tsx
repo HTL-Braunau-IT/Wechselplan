@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import type { ScheduleData, ScheduleTerm, BreakTime, ScheduleTime} from "@/types/types"
+import type { TeacherScheduleData, NormalizedTurn, BreakTime, ScheduleTime } from "@/types/types"
 import { parse, isValid, isWithinInterval, addWeeks } from "date-fns"
 import { useTranslation } from "react-i18next"
 import { AlertTriangle } from "lucide-react"
@@ -16,7 +16,7 @@ import { AlertTriangle } from "lucide-react"
 export function TeacherOverview() {
     const { data: session } = useSession()
     const { t } = useTranslation()
-    const [scheduleData, setScheduleData] = useState<ScheduleData | null>(null)
+    const [scheduleData, setScheduleData] = useState<TeacherScheduleData | null>(null)
     const [error, setError] = useState<string | null>(null)
     const today = new Date().getDay()
     
@@ -34,12 +34,12 @@ export function TeacherOverview() {
         }
 
         // Check if we have any schedules
-        if (!data.schedules || data.schedules.length === 0 || data.schedules.every((s: ScheduleData['schedules'][0]) => s.length === 0)) {
+        if (!data.schedules || data.schedules.length === 0 || data.schedules.every((s: TeacherScheduleData['schedules'][0]) => s.length === 0)) {
             setError(t('overview.teacher.noSchedule'))
             return
         }
         
-        setScheduleData(data as ScheduleData)
+        setScheduleData(data as TeacherScheduleData)
         if (process.env.NODE_ENV === "development") {
 
         }
@@ -84,85 +84,63 @@ export function TeacherOverview() {
             return 0
         })
 
-        const getScheduleInfo = (classId: number): Record<string, ScheduleTerm> | undefined => {
-            const classSchedule = scheduleData.schedules.find(schedules => 
+        const getTurnsForClass = (classId: number): NormalizedTurn[] | undefined => {
+            const classSchedule = scheduleData.schedules.find(schedules =>
                 schedules.some(s => Number(s.classId) === classId)
             )
-
-            return classSchedule?.[0]?.scheduleData as Record<string, ScheduleTerm> | undefined
+            return classSchedule?.[0]?.turns
         }
 
-        const getCurrentWeek = (scheduleInfo: Record<string, ScheduleTerm> | undefined) => {
-            if (!scheduleInfo) {
-                console.log("No schedule info found")
-                return null
-            }
+        type CurrentWeekResult = { turnIndex: number; turn: NormalizedTurn } | null
 
-            return Object.entries(scheduleInfo).find(([_, data]) => {
-                const termData = data as ScheduleTerm
-                return termData.weeks.some(week => {
-                    // Parse the date string using date-fns
+        const getCurrentWeek = (turns: NormalizedTurn[] | undefined): CurrentWeekResult => {
+            if (!turns || turns.length === 0) return null
+            for (let i = 0; i < turns.length; i++) {
+                const turn = turns[i]
+                if (!turn) continue
+                const inThisTurn = turn.weeks.some(week => {
                     const parsedDate = parse(week.date, 'dd.MM.yy', new Date())
                     if (!isValid(parsedDate)) return false
-                    
-                    
                     const weekEnd = addWeeks(parsedDate, 1)
-                    return isWithinInterval(currentDate, {
-                        start: parsedDate,
-                        end: weekEnd
-                    })
+                    return isWithinInterval(currentDate, { start: parsedDate, end: weekEnd })
                 })
-            })
+                if (inThisTurn) return { turnIndex: i, turn }
+            }
+            return null
         }
 
-        const getRemainingWeeks = (scheduleInfo: Record<string, ScheduleTerm> | undefined) => {
-            if (!scheduleInfo) return 0
-            const currentWeek = getCurrentWeek(scheduleInfo)
+        const getRemainingWeeks = (turns: NormalizedTurn[] | undefined): number => {
+            const currentWeek = getCurrentWeek(turns)
             if (!currentWeek) return 0
-            return (currentWeek[1] as ScheduleTerm).weeks.filter(week => {
+            return currentWeek.turn.weeks.filter(week => {
                 const parsedDate = parse(week.date, 'dd.MM.yy', new Date())
                 return isValid(parsedDate) && parsedDate > currentDate
             }).length
         }
 
-        // Helper function to rotate array
         const rotateArray = <T,>(arr: T[], n: number): T[] => {
             const rotated = [...arr]
             for (let i = 0; i < n; i++) {
                 const temp = rotated.shift()
-                if (temp !== undefined) {
-                    rotated.push(temp)
-                }
+                if (temp !== undefined) rotated.push(temp)
             }
             return rotated
         }
 
-        // Get current turn index based on current date
-        const getCurrentTurnIndex = (scheduleInfo: Record<string, ScheduleTerm> | undefined): number => {
-            if (!scheduleInfo) return 0
-            
-            const turnKeys = Object.keys(scheduleInfo).sort()
-            const currentWeek = getCurrentWeek(scheduleInfo)
-            
-            if (!currentWeek) return 0
-            
-            // Find which turn we're in
-            const turnIndex = turnKeys.findIndex(key => key === currentWeek[0])
-            return turnIndex >= 0 ? turnIndex : 0
+        const getCurrentTurnIndex = (turns: NormalizedTurn[] | undefined): number => {
+            const currentWeek = getCurrentWeek(turns)
+            return currentWeek?.turnIndex ?? 0
         }
 
-        // Calculate the actual group for a teacher based on rotation
         const getActualGroupForAssignment = (assignment: typeof assignments[0]): number | null => {
-            const scheduleInfo = getScheduleInfo(assignment.classId)
-            if (!scheduleInfo) return assignment.groupId ?? null
+            const turns = getTurnsForClass(assignment.classId)
+            if (!turns) return assignment.groupId ?? null
 
-            // Get groups for this class from students
-            const classStudents = scheduleData.students.find(students => 
+            const classStudents = scheduleData.students.find(students =>
                 students.some(student => student.classId === assignment.classId)
             )
             if (!classStudents) return assignment.groupId ?? null
 
-            // Get unique group IDs and sort them
             const groupIds = [...new Set(classStudents
                 .filter(s => s.classId === assignment.classId && s.groupId)
                 .map(s => s.groupId as number)
@@ -170,26 +148,19 @@ export function TeacherOverview() {
 
             if (groupIds.length === 0) return assignment.groupId ?? null
 
-            // Get unique teachers for this period and class
-            const periodAssignments = scheduleData.assignments.filter(a => 
-                a.classId === assignment.classId && 
+            const periodAssignments = scheduleData.assignments.filter(a =>
+                a.classId === assignment.classId &&
                 a.period === assignment.period
             )
             const uniqueTeachers = periodAssignments
                 .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx)
                 .sort((a, b) => a.teacherId - b.teacherId)
 
-            // Find teacher index
             const teacherIndex = uniqueTeachers.findIndex(t => t.teacherId === assignment.teacherId)
             if (teacherIndex === -1) return assignment.groupId ?? null
 
-            // Get current turn index
-            const turnIndex = getCurrentTurnIndex(scheduleInfo as Record<string, ScheduleTerm> | undefined)
-
-            // Rotate groups based on turn
+            const turnIndex = getCurrentTurnIndex(turns)
             const rotatedGroups = rotateArray(groupIds, turnIndex)
-            
-            // Return the group for this teacher's index
             return rotatedGroups[teacherIndex] ?? assignment.groupId ?? null
         }
 
@@ -206,22 +177,19 @@ export function TeacherOverview() {
         }
 
         const getScheduleTimes = (classId: number, period: string): ScheduleTime | undefined => {
-            const classSchedule = scheduleData.schedules.find(schedules => 
+            const classSchedule = scheduleData.schedules.find(schedules =>
                 schedules.some(s => Number(s.classId) === classId)
             )
-            const schedule = classSchedule?.[0] as { scheduleTimes?: ScheduleTime[] } | undefined
-            return schedule?.scheduleTimes?.find((time: ScheduleTime) => time.period === period)
+            return classSchedule?.[0]?.scheduleTimes?.find((time: ScheduleTime) => time.period === period)
         }
 
         const getBreakTimes = (classId: number, period: string): BreakTime[] => {
-            const classSchedule = scheduleData.schedules.find(schedules => 
+            const classSchedule = scheduleData.schedules.find(schedules =>
                 schedules.some(s => Number(s.classId) === classId)
             )
-            const schedule = classSchedule?.[0] as { breakTimes?: BreakTime[] } | undefined
+            const schedule = classSchedule?.[0]
             if (!schedule?.breakTimes) return []
-            
-            // Return break times that match the period or are LUNCH breaks
-            return schedule.breakTimes.filter((time: BreakTime) => 
+            return schedule.breakTimes.filter((time: BreakTime) =>
                 time.period === period || time.period === 'LUNCH'
             )
         }
@@ -229,10 +197,10 @@ export function TeacherOverview() {
         return (
             <div className="space-y-6">
                 {assignments.map(assignment => {
-                    const scheduleInfo = getScheduleInfo(assignment.classId)
-                    const currentWeek = getCurrentWeek(scheduleInfo as Record<string, ScheduleTerm> | undefined)
-                    const currentTerm = currentWeek ? (currentWeek[1] as ScheduleTerm).name : t('overview.teacher.noSchedule')
-                    const remainingWeeks = getRemainingWeeks(scheduleInfo as Record<string, ScheduleTerm> | undefined)
+                    const turns = getTurnsForClass(assignment.classId)
+                    const currentWeek = getCurrentWeek(turns)
+                    const currentTerm = currentWeek ? currentWeek.turn.name : t('overview.teacher.noSchedule')
+                    const remainingWeeks = getRemainingWeeks(turns)
                     const actualGroupId = getActualGroupForAssignment(assignment)
 
                     const scheduleTime = getScheduleTimes(assignment.classId, assignment.period)
@@ -289,12 +257,9 @@ export function TeacherOverview() {
                             <div className="border-t dark:border-gray-700 pt-4 mt-4">
                                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{t('overview.teacher.additionalInfo')}</p>
                                 <p className="font-semibold text-lg dark:text-white">
-                                    {
-                                        (scheduleData.schedules
-                                            .find(sList => sList.some(s => Number(s.classId) === assignment.classId))
-                                            ?.at(0) as { additionalInfo?: string } | undefined)
-                                            ?.additionalInfo ?? '—'
-                                    }
+                                    {scheduleData.schedules
+                                        .find(sList => sList.some(s => Number(s.classId) === assignment.classId))
+                                        ?.at(0)?.additionalInfo ?? '—'}
                                 </p>
                             </div>
                             

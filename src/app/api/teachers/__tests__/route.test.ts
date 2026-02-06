@@ -31,8 +31,8 @@ describe('Teachers API', () => {
   describe('GET', () => {
     test('should return list of teachers ordered by last name', async () => {
       const mockTeachers = [
-        { id: 1, firstName: 'John', lastName: 'Doe', username: 'johndoe' },
-        { id: 2, firstName: 'Jane', lastName: 'Smith', username: 'janesmith' },
+        { id: 1, firstName: 'John', lastName: 'Doe', username: 'johndoe', email: null, createdAt: new Date(), updatedAt: new Date() },
+        { id: 2, firstName: 'Jane', lastName: 'Smith', username: 'janesmith', email: null, createdAt: new Date(), updatedAt: new Date() },
       ];
 
       vi.mocked(prisma.teacher.findMany).mockResolvedValue(mockTeachers);
@@ -41,7 +41,9 @@ describe('Teachers API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(data).toEqual(mockTeachers);
+      expect(data).toHaveLength(2);
+      expect(data[0]).toMatchObject({ id: 1, firstName: 'John', lastName: 'Doe', username: 'johndoe' });
+      expect(data[1]).toMatchObject({ id: 2, firstName: 'Jane', lastName: 'Smith', username: 'janesmith' });
 
       // Verify prisma call
       expect(prisma.teacher.findMany).toHaveBeenCalledWith({
@@ -94,8 +96,8 @@ describe('Teachers API', () => {
       const mockCreatedTeacher = {
         id: 1,
         ...validTeacher,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
 
       vi.mocked(prisma.teacher.findUnique).mockResolvedValue(null);
@@ -113,7 +115,9 @@ describe('Teachers API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(data).toEqual(mockCreatedTeacher);
+      expect(data).toMatchObject({ id: 1, ...validTeacher });
+      expect(typeof data.createdAt).toBe('string');
+      expect(typeof data.updatedAt).toBe('string');
 
       // Verify prisma calls
       expect(prisma.teacher.findUnique).toHaveBeenCalledWith({

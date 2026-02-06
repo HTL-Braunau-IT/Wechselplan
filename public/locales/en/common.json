@@ -322,6 +322,11 @@
     "sortDescending": "Descending",
     "nmStudentsWithoutGradeOrMatch": "Students in Notenmanagement without match or grade",
     "keineNote": "No grade",
-    "class": "Class"
+    "class": "Class",
+    "classLead": "Class Lead",
+    "downloadPdf": "Download PDF",
+    "downloadingPdf": "Generating PDF...",
+    "downloadAllClassesPdf": "Download all classes as PDF",
+    "downloadingAllClassesPdf": "Generating PDF..."
   }
 } 

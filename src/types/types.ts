@@ -1,5 +1,5 @@
 // Schedule-related types moved to schedule.ts - re-export for backward compatibility
-import type { Schedule } from './schedule'
+import type { Schedule, ScheduleWithTurns } from './schedule'
 export type {
     ScheduleWeek,
     ScheduleTerm,
@@ -10,6 +10,8 @@ export type {
     BreakTime,
     Holiday,
     TurnSchedule,
+    NormalizedTurn,
+    ScheduleWithTurns,
     TeacherAssignmentResponse,
     TeacherAssignmentsResponse,
     GroupAssignment,
@@ -76,7 +78,15 @@ export type ScheduleData = {
     teacherRotation: TeacherRotation[]
     assignments: Assignment[]
     classdata: ClassData[]
-   
+}
+
+/** Teacher overview payload: schedules have required turns (normalized only). */
+export type TeacherScheduleData = {
+    schedules: ScheduleWithTurns[][]
+    students: Student[][]
+    teacherRotation: TeacherRotation[]
+    assignments: Assignment[]
+    classdata: ClassData[]
 }
 
 export type ClassData = {

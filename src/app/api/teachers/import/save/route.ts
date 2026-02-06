@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
-import { PrismaClient} from '@prisma/client'
+import { PrismaClient } from '@prisma/client'
 import { captureError } from '~/lib/sentry'
+import { normalizeUsername } from '@/lib/username'
 
 const prisma = new PrismaClient()
 
@@ -35,15 +36,17 @@ export async function POST(request: Request) {
     ).values())
 
 
-    // Process all unique teachers
+    // Process all unique teachers (normalize username for storage)
     await Promise.all(
-      uniqueTeachers.map(t =>
-        prisma.teacher.upsert({
-          where: { username: t.username },
-          create: t,
-          update: t,
+      uniqueTeachers.map(t => {
+        const username = normalizeUsername(t.username) || t.username
+        const data = { ...t, username }
+        return prisma.teacher.upsert({
+          where: { username },
+          create: data,
+          update: data,
         }).then(() => importedCount++)
-      )
+      })
     )
     return NextResponse.json({
       message: 'Import completed successfully',

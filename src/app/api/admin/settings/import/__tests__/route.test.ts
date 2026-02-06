@@ -34,19 +34,21 @@ describe('Import API', () => {
   describe('GET /api/admin/settings/import', () => {
     it('should return rooms when type is room', async () => {
       const mockRooms = [
-        { 
-          id: 1, 
-          name: 'Room 1', 
-          capacity: 30, 
+        {
+          id: 1,
+          name: 'Room 1',
+          capacity: 30,
           description: 'Test Room 1',
+          isCustom: false,
           createdAt: new Date('2024-03-20T09:30:00Z'),
           updatedAt: new Date('2024-03-20T09:30:00Z'),
         },
-        { 
-          id: 2, 
-          name: 'Room 2', 
-          capacity: 20, 
+        {
+          id: 2,
+          name: 'Room 2',
+          capacity: 20,
           description: 'Test Room 2',
+          isCustom: false,
           createdAt: new Date('2024-03-20T09:30:00Z'),
           updatedAt: new Date('2024-03-20T09:30:00Z'),
         },
@@ -73,17 +75,19 @@ describe('Import API', () => {
 
     it('should return subjects when type is subject', async () => {
       const mockSubjects = [
-        { 
-          id: 1, 
-          name: 'Math', 
+        {
+          id: 1,
+          name: 'Math',
           description: 'Mathematics',
+          isCustom: false,
           createdAt: new Date('2024-03-20T09:30:00Z'),
           updatedAt: new Date('2024-03-20T09:30:00Z'),
         },
-        { 
-          id: 2, 
-          name: 'Science', 
+        {
+          id: 2,
+          name: 'Science',
           description: 'Natural Sciences',
+          isCustom: false,
           createdAt: new Date('2024-03-20T09:30:00Z'),
           updatedAt: new Date('2024-03-20T09:30:00Z'),
         },
@@ -110,17 +114,19 @@ describe('Import API', () => {
 
     it('should return learning content when type is learningContent', async () => {
       const mockContent = [
-        { 
-          id: 1, 
-          name: 'Algebra', 
+        {
+          id: 1,
+          name: 'Algebra',
           description: 'Basic Algebra',
+          isCustom: false,
           createdAt: new Date('2024-03-20T09:30:00Z'),
           updatedAt: new Date('2024-03-20T09:30:00Z'),
         },
-        { 
-          id: 2, 
-          name: 'Physics', 
+        {
+          id: 2,
+          name: 'Physics',
           description: 'Basic Physics',
+          isCustom: false,
           createdAt: new Date('2024-03-20T09:30:00Z'),
           updatedAt: new Date('2024-03-20T09:30:00Z'),
         },
@@ -176,11 +182,12 @@ describe('Import API', () => {
 Room 1,30,Test Room 1
 Room 2,20,Test Room 2`;
 
-      const existingRooms = [{ 
+      const existingRooms = [{
         name: 'Room 3',
         id: 3,
         capacity: 25,
         description: 'Test Room 3',
+        isCustom: false,
         createdAt: new Date('2024-03-20T09:30:00Z'),
         updatedAt: new Date('2024-03-20T09:30:00Z'),
       }];
@@ -213,10 +220,11 @@ Room 2,20,Test Room 2`;
 Math,Mathematics
 Science,Natural Sciences`;
 
-      const existingSubjects = [{ 
+      const existingSubjects = [{
         name: 'History',
         id: 1,
         description: 'World History',
+        isCustom: false,
         createdAt: new Date('2024-03-20T09:30:00Z'),
         updatedAt: new Date('2024-03-20T09:30:00Z'),
       }];
@@ -249,11 +257,12 @@ Science,Natural Sciences`;
 Room 1,30,Test Room 1
 Room 2,20,Test Room 2`;
 
-      const existingRooms = [{ 
+      const existingRooms = [{
         name: 'Room 1',
         id: 1,
         capacity: 30,
         description: 'Test Room 1',
+        isCustom: false,
         createdAt: new Date('2024-03-20T09:30:00Z'),
         updatedAt: new Date('2024-03-20T09:30:00Z'),
       }];

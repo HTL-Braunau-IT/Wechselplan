@@ -4,6 +4,7 @@ import { parse } from 'csv-parse/sync'
 import { getServerSession } from 'next-auth'
 import { authOptions, hasRole } from '@/lib/auth'
 import { captureError } from '@/lib/sentry'
+import { normalizeUsername } from '@/lib/username'
 
 const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7]
 
@@ -62,10 +63,10 @@ export async function POST(request: Request) {
 			)
 		}
 
-		// Get all unique classes, students, and teachers to batch fetch
+		// Get all unique classes, students, and teachers to batch fetch (normalize usernames for DB lookup)
 		const classNames = [...new Set(records.map(r => r.className).filter((name): name is string => !!name))]
-		const studentUsernames = [...new Set(records.map(r => r.studentUsername).filter((username): username is string => !!username))]
-		const teacherUsernames = [...new Set(records.map(r => r.teacherUsername).filter((username): username is string => !!username))]
+		const studentUsernames = [...new Set(records.map(r => normalizeUsername(r.studentUsername ?? '')).filter((u): u is string => !!u))]
+		const teacherUsernames = [...new Set(records.map(r => normalizeUsername(r.teacherUsername ?? '')).filter((u): u is string => !!u))]
 
 		// Fetch all classes, students, and teachers
 		const [classes, students, teachers] = await Promise.all([
@@ -115,15 +116,15 @@ export async function POST(request: Request) {
 				continue
 			}
 
-			// Validate student
-			const studentId = studentMap.get(record.studentUsername)
+			// Validate student (lookup by normalized username)
+			const studentId = studentMap.get(normalizeUsername(record.studentUsername))
 			if (!studentId) {
 				errors.push(`Row ${rowNum}: Student with username "${record.studentUsername}" not found`)
 				continue
 			}
 
-			// Validate teacher
-			const teacherId = teacherMap.get(record.teacherUsername)
+			// Validate teacher (lookup by normalized username)
+			const teacherId = teacherMap.get(normalizeUsername(record.teacherUsername))
 			if (!teacherId) {
 				errors.push(`Row ${rowNum}: Teacher with username "${record.teacherUsername}" not found`)
 				continue

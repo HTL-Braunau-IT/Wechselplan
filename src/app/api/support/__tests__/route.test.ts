@@ -45,8 +45,8 @@ describe('Support API', () => {
         name: validRequest.name,
         message: validRequest.message,
         currentUri: validRequest.currentUri,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
 
       vi.mocked(prisma.supportMessage.create).mockResolvedValue(mockSupportMessage);
@@ -64,7 +64,14 @@ describe('Support API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(data).toEqual(mockSupportMessage);
+      expect(data).toMatchObject({
+        id: 1,
+        name: validRequest.name,
+        message: validRequest.message,
+        currentUri: validRequest.currentUri,
+      });
+      expect(typeof data.createdAt).toBe('string');
+      expect(typeof data.updatedAt).toBe('string');
 
       // Verify prisma call
       expect(prisma.supportMessage.create).toHaveBeenCalledWith({
@@ -120,8 +127,8 @@ describe('Support API', () => {
         name: validRequest.name,
         message: validRequest.message,
         currentUri: validRequest.currentUri,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
 
       vi.mocked(prisma.supportMessage.create).mockResolvedValue(mockSupportMessage);
@@ -138,9 +145,16 @@ describe('Support API', () => {
       const response = await POST(request);
       const data = await response.json();
 
-      // Should still return success to user
+      // Should still return success to user (API returns JSON so dates are strings)
       expect(response.status).toBe(200);
-      expect(data).toEqual(mockSupportMessage);
+      expect(data).toMatchObject({
+        id: 1,
+        name: validRequest.name,
+        message: validRequest.message,
+        currentUri: validRequest.currentUri,
+      });
+      expect(typeof data.createdAt).toBe('string');
+      expect(typeof data.updatedAt).toBe('string');
 
       // Verify error was logged and captured
 

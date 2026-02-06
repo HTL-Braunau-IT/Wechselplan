@@ -1083,3 +1083,190 @@ export async function generateNotensammlerPDF(data: NotensammlerPDFData): Promis
   // Return PDF as buffer
   return Buffer.from(doc.output('arraybuffer'));
 }
+
+// --- Notensammler "all classes" (one teacher) PDF ---
+
+export interface NotensammlerAllClassesClassData {
+  className: string;
+  subjectName?: string;
+  students: Array<{
+    id: number;
+    firstName: string;
+    lastName: string;
+    groupId: number | null;
+  }>;
+  grades: Record<number, { first: number | null; second: number | null }>;
+  finalGrades?: Record<number, { first: number | null; second: number | null }>;
+}
+
+export interface NotensammlerAllClassesPDFData {
+  teacherName: string;
+  classes: NotensammlerAllClassesClassData[];
+}
+
+const CLASSES_PER_PAGE = 4;
+const GAP_BETWEEN_COLUMNS_MM = 4;
+const TITLE_HEIGHT_MM = 5;
+const FOOTER_HEIGHT_MM = 8;
+const MAX_STUDENTS_PER_CLASS = 36;
+
+/**
+ * Generates a PDF with one table per class side-by-side (no averages or final grades).
+ * Exactly 4 classes per page in one row; row height sized so up to 36 students fit.
+ */
+export async function generateNotensammlerAllClassesPDF(data: NotensammlerAllClassesPDFData): Promise<Buffer> {
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 10;
+
+  const textColor: [number, number, number] = [0, 0, 0];
+  const borderColor: [number, number, number] = [0, 0, 0];
+  const headerColor: [number, number, number] = [240, 240, 240];
+
+  const NICHT_BEURTEILT = 6;
+  const GESTUNDEN = 7;
+
+  const getGradeDisplayText = (grade: number | null): string => {
+    if (grade === null) return '';
+    if (grade === NICHT_BEURTEILT) return 'nb';
+    if (grade === GESTUNDEN) return 'gs';
+    return grade.toString();
+  };
+
+  const availableWidth = pageWidth - margin * 2;
+  const totalGaps = (CLASSES_PER_PAGE - 1) * GAP_BETWEEN_COLUMNS_MM;
+  const colWidth = (availableWidth - totalGaps) / CLASSES_PER_PAGE;
+
+  const tableAreaHeight = pageHeight - margin * 2 - TITLE_HEIGHT_MM - FOOTER_HEIGHT_MM;
+  const rowHeightMm = tableAreaHeight / (MAX_STUDENTS_PER_CLASS + 1);
+  const cellPaddingMm = Math.max(0.3, (rowHeightMm - 2) / 2);
+
+  const classes = data.classes;
+  let pageStartIndex = 0;
+  let isFirstPage = true;
+
+  while (pageStartIndex < classes.length) {
+    if (pageStartIndex > 0) {
+      doc.addPage([pageWidth, pageHeight], 'landscape');
+      isFirstPage = false;
+    }
+
+    const pageClasses = classes.slice(pageStartIndex, pageStartIndex + CLASSES_PER_PAGE);
+    let yPos = margin;
+
+    if (isFirstPage && pageStartIndex === 0) {
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Notensammler', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 5;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(data.teacherName, pageWidth / 2, yPos, { align: 'center' });
+      yPos += 6;
+    }
+
+    const rowTableStartY = yPos + TITLE_HEIGHT_MM;
+
+    for (let colIndex = 0; colIndex < pageClasses.length; colIndex++) {
+      const classData = pageClasses[colIndex]!;
+
+      const classDisplayText = classData.subjectName
+        ? `${classData.className} - ${truncateSubject(classData.subjectName)}`
+        : classData.className;
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'bold');
+      doc.text(classDisplayText, margin + colIndex * (colWidth + GAP_BETWEEN_COLUMNS_MM), yPos);
+
+      const sortedStudents = [...classData.students]
+        .filter(s => s.groupId != null)
+        .sort((a, b) => {
+          const ln = a.lastName.localeCompare(b.lastName);
+          if (ln !== 0) return ln;
+          return a.firstName.localeCompare(b.firstName);
+        });
+
+      const grades = classData.grades;
+      const getGrade = (studentId: number, semester: 'first' | 'second'): number | null =>
+        grades[studentId]?.[semester] ?? null;
+
+      const headerRow: string[] = ['ID', 'Gr', 'Schüler', '1.', '2.'];
+      const tableData: string[][] = [];
+      for (let i = 0; i < sortedStudents.length; i++) {
+        const student = sortedStudents[i]!;
+        tableData.push([
+          (i + 1).toString(),
+          student.groupId?.toString() ?? '-',
+          `${student.lastName}, ${student.firstName}`,
+          getGradeDisplayText(getGrade(student.id, 'first')),
+          getGradeDisplayText(getGrade(student.id, 'second'))
+        ]);
+      }
+
+      const tableLeft = margin + colIndex * (colWidth + GAP_BETWEEN_COLUMNS_MM);
+      const tableRight = pageWidth - tableLeft - colWidth;
+      const w = colWidth;
+      const idW = 6;
+      const grW = 6;
+      const semW = 10;
+      const studentW = Math.max(25, w - idW - grW - semW - semW);
+      const columnStyles: Record<number, { cellWidth: number }> = {
+        0: { cellWidth: idW },
+        1: { cellWidth: grW },
+        2: { cellWidth: studentW },
+        3: { cellWidth: semW },
+        4: { cellWidth: semW }
+      };
+
+      autoTable(doc, {
+        startY: rowTableStartY,
+        head: [headerRow],
+        body: tableData,
+        theme: 'grid',
+        headStyles: {
+          fillColor: headerColor,
+          textColor: textColor,
+          fontStyle: 'bold',
+          fontSize: 5,
+          halign: 'center',
+          minCellHeight: rowHeightMm
+        },
+        bodyStyles: {
+          fontSize: 5,
+          textColor: textColor,
+          minCellHeight: rowHeightMm
+        },
+        columnStyles,
+        styles: {
+          cellPadding: cellPaddingMm,
+          lineWidth: 0.15,
+          lineColor: borderColor,
+          minCellHeight: rowHeightMm
+        },
+        margin: { left: tableLeft, right: tableRight }
+      });
+    }
+
+    pageStartIndex += pageClasses.length;
+  }
+
+  const totalPages = doc.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'italic');
+    doc.text(
+      `erstellt am: ${formatDateGerman(new Date())}`,
+      pageWidth - margin,
+      pageHeight - 5,
+      { align: 'right' }
+    );
+  }
+
+  return Buffer.from(doc.output('arraybuffer'));
+}

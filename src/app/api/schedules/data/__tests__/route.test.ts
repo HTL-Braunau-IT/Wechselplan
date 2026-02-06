@@ -79,6 +79,7 @@ describe('Schedule Data API', () => {
         subjectId: 1,
         learningContentId: 1,
         roomId: 1,
+        selectedWeekday: 1,
       },
     ]);
     vi.mocked(prisma.teacherRotation.findMany).mockResolvedValue([]);
@@ -111,6 +112,7 @@ describe('Schedule Data API', () => {
         subjectId: 1,
         learningContentId: 1,
         roomId: 1,
+        selectedWeekday: 1,
       },
     ]);
     vi.mocked(prisma.teacherRotation.findMany).mockResolvedValue([
@@ -131,6 +133,8 @@ describe('Schedule Data API', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       description: null,
+      classHeadId: null,
+      classLeadId: null,
     });
     vi.mocked(prisma.schedule.findFirst).mockResolvedValue({
       id: 1,
@@ -144,7 +148,11 @@ describe('Schedule Data API', () => {
       selectedWeekday: 0,
       scheduleData: {},
       additionalInfo: null,
-    });
+      semesterPlanning: null,
+      breakTimes: [],
+      scheduleTimes: [],
+      turns: [],
+    } as Awaited<ReturnType<typeof prisma.schedule.findFirst>>);
     vi.mocked(prisma.student.findMany).mockResolvedValue([]);
     const req = new Request('http://localhost/api/schedules/data?teacher=foo');
     const res = await GET(req);
@@ -175,6 +183,7 @@ describe('Schedule Data API', () => {
         subjectId: 1,
         learningContentId: 1,
         roomId: 1,
+        selectedWeekday: 1,
       },
     ]);
     vi.mocked(prisma.teacherRotation.findMany).mockResolvedValue([
@@ -195,6 +204,8 @@ describe('Schedule Data API', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       description: null,
+      classHeadId: null,
+      classLeadId: null,
     });
     vi.mocked(prisma.schedule.findFirst).mockResolvedValue({
       id: 1,
@@ -208,7 +219,11 @@ describe('Schedule Data API', () => {
       selectedWeekday: 0,
       scheduleData: {},
       additionalInfo: null,
-    });
+      semesterPlanning: null,
+      breakTimes: [],
+      scheduleTimes: [],
+      turns: [],
+    } as Awaited<ReturnType<typeof prisma.schedule.findFirst>>);
     vi.mocked(prisma.student.findMany).mockResolvedValue([
       {
         id: 1,

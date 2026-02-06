@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { normalizeUsername } from '@/lib/username'
 
 interface CreateStudentRequest {
 	firstName: string
@@ -120,11 +121,18 @@ export async function POST(request: Request) {
 	}
 	try {
 		requestBody = await request.json()
-		const { firstName, lastName, username, className } = requestBody
+		const { firstName, lastName, username: rawUsername, className } = requestBody
 
-		if (!firstName || !lastName || !username || !className) {
+		if (!firstName || !lastName || !rawUsername || !className) {
 			return NextResponse.json(
 				{ error: 'Missing required fields' },
+				{ status: 400 }
+			)
+		}
+		const username = normalizeUsername(rawUsername)
+		if (!username) {
+			return NextResponse.json(
+				{ error: 'Username is required' },
 				{ status: 400 }
 			)
 		}

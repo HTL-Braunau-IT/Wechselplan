@@ -89,6 +89,8 @@ describe('Export API', () => {
         description: null,
         createdAt: new Date(),
         updatedAt: new Date(),
+        classHeadId: null,
+        classLeadId: null,
       });
 
       // Mock students data
@@ -142,9 +144,10 @@ describe('Export API', () => {
           },
         },
         additionalInfo: null,
+        semesterPlanning: null,
         createdAt: new Date(),
         updatedAt: new Date(),
-      } as Schedule);
+      });
 
       const request = new Request('http://localhost/api/export?className=1A');
       const response = await POST(request);

@@ -34,7 +34,7 @@ export async function GET(
 			return NextResponse.json({ error: 'Invalid class ID' }, { status: 400 })
 		}
 
-		// Fetch class with students
+		// Fetch class with students and class lead
 		const classRecord = await prisma.class.findUnique({
 			where: { id: classId },
 			include: {
@@ -48,6 +48,12 @@ export async function GET(
 						firstName: true,
 						lastName: true,
 						groupId: true
+					}
+				},
+				classLead: {
+					select: {
+						firstName: true,
+						lastName: true
 					}
 				}
 			}
@@ -154,6 +160,9 @@ export async function GET(
 		name: classRecord.name,
 		description: classRecord.description,
 		subjectName,
+		classLead: classRecord.classLead
+			? `${classRecord.classLead.firstName} ${classRecord.classLead.lastName}`
+			: null,
 		students: classRecord.students,
 		amTeachers,
 		pmTeachers,

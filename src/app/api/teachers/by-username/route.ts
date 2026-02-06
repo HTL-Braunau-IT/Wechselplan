@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { normalizeUsername } from '@/lib/username'
 
 /**
  * Handles GET requests to retrieve a teacher's information by username.
@@ -12,8 +13,14 @@ import { captureError } from '@/lib/sentry'
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const username = searchParams.get('username')
-
+    const rawUsername = searchParams.get('username')
+    if (!rawUsername) {
+      return NextResponse.json(
+        { error: 'Username parameter is required' },
+        { status: 400 }
+      )
+    }
+    const username = normalizeUsername(rawUsername)
     if (!username) {
       return NextResponse.json(
         { error: 'Username parameter is required' },
@@ -26,6 +33,7 @@ export async function GET(request: Request) {
     })
 
     if (!teacher) {
+      console.warn('[username-match] Teacher not found', { raw: rawUsername, normalized: username })
       return NextResponse.json(
         { error: 'Teacher not found' },
         { status: 404 }

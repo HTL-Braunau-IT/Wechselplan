@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '~/lib/sentry'
+import { normalizeUsername } from '@/lib/username'
 /**
  * Processes a GET request to retrieve the class name and group ID assigned to a student by username.
  *
@@ -10,8 +11,14 @@ import { captureError } from '~/lib/sentry'
  */
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
-    const username = searchParams.get('username')
-
+    const rawUsername = searchParams.get('username')
+    if (!rawUsername) {
+        return NextResponse.json(
+            { error: 'Username parameter is required' },
+            { status: 400 }
+        )
+    }
+    const username = normalizeUsername(rawUsername)
     if (!username) {
         return NextResponse.json(
             { error: 'Username parameter is required' },
@@ -29,6 +36,7 @@ export async function GET(request: Request) {
         })
 
         if (!student) {
+            console.warn('[username-match] Student not found', { raw: rawUsername, normalized: username })
             return NextResponse.json(
                 { error: 'Student not found' },
                 { status: 404 }
