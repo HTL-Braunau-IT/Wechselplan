@@ -22,6 +22,7 @@ export async function GET(request: Request) {
 
 		const { searchParams } = new URL(request.url)
 		const classIdParam = searchParams.get('classId')
+		const schoolYearIdParam = searchParams.get('schoolYearId')
 
 		if (!classIdParam) {
 			return NextResponse.json(
@@ -38,23 +39,22 @@ export async function GET(request: Request) {
 			)
 		}
 
-		// Fetch class data
+		let schoolYearId: number | undefined = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
+		if (schoolYearId == null || Number.isNaN(schoolYearId)) {
+			const now = new Date()
+			const current = await prisma.schoolYear.findFirst({
+				where: { startDate: { lte: now }, endDate: { gte: now } },
+				select: { id: true }
+			})
+			schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
+		}
+		if (schoolYearId == null) {
+			return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
+		}
+
+		// Fetch class (students by year via ClassMembership below)
 		const classRecord = await prisma.class.findUnique({
-			where: { id: classId },
-			include: {
-				students: {
-					orderBy: [
-						{ lastName: 'asc' },
-						{ firstName: 'asc' }
-					],
-					select: {
-						id: true,
-						firstName: true,
-						lastName: true,
-						groupId: true
-					}
-				}
-			}
+			where: { id: classId }
 		})
 
 		if (!classRecord) {
@@ -64,9 +64,23 @@ export async function GET(request: Request) {
 			)
 		}
 
-		// Fetch teacher assignments
+		const memberships = await prisma.classMembership.findMany({
+			where: { classId, schoolYearId },
+			select: { studentId: true }
+		})
+		const studentIds = memberships.map((m) => m.studentId)
+		const studentsList =
+			studentIds.length > 0
+				? await prisma.student.findMany({
+						where: { id: { in: studentIds } },
+						orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+						select: { id: true, firstName: true, lastName: true, groupId: true }
+					})
+				: []
+
+		// Fetch teacher assignments for this year
 		const assignments = await prisma.teacherAssignment.findMany({
-			where: { classId },
+			where: { classId, schoolYearId },
 			include: {
 				teacher: {
 					select: {
@@ -139,9 +153,9 @@ export async function GET(request: Request) {
 			subjectName = mostCommonSubject
 		}
 
-		// Fetch all grades for this class
+		// Fetch all grades for this class and year
 		const grades = await prisma.grade.findMany({
-			where: { classId },
+			where: { classId, schoolYearId },
 			select: {
 				studentId: true,
 				teacherId: true,
@@ -168,9 +182,9 @@ export async function GET(request: Request) {
 			}
 		}
 
-		// Fetch final grades for this class
+		// Fetch final grades for this class and year
 		const finalGradeRecords = await prisma.finalGrade.findMany({
-			where: { classId },
+			where: { classId, schoolYearId },
 			select: { studentId: true, semester: true, grade: true }
 		})
 		const finalGrades: Record<number, { first: number | null; second: number | null }> = {}
@@ -187,7 +201,7 @@ export async function GET(request: Request) {
 		const pdfBuffer = await generateNotensammlerPDF({
 			className: classRecord.name,
 			subjectName,
-			students: classRecord.students,
+			students: studentsList,
 			amTeachers,
 			pmTeachers,
 			grades: gradesByStudent,

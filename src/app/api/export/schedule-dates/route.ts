@@ -32,6 +32,20 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Class Name is required' }, { status: 400 })
         }
 
+        const schoolYearIdParam = searchParams.get('schoolYearId')
+        let schoolYearId: number | null = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : null
+        if (schoolYearId == null || Number.isNaN(schoolYearId)) {
+            const now = new Date()
+            const current = await prisma.schoolYear.findFirst({
+                where: { startDate: { lte: now }, endDate: { gte: now } },
+                select: { id: true }
+            })
+            schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id ?? null
+        }
+        if (schoolYearId == null) {
+            return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
+        }
+
         const class_response = await prisma.class.findUnique({
             where: { name: className }
         })
@@ -41,9 +55,10 @@ export async function POST(request: Request) {
         }
 
         const schedule = await prisma.schedule.findFirst({
-            where: { 
+            where: {
                 classId: class_response.id,
-                selectedWeekday: weekday
+                selectedWeekday: weekday,
+                schoolYearId
             },
             orderBy: [{ createdAt: 'desc' }],
             include: {

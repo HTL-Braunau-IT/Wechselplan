@@ -35,9 +35,27 @@ export async function POST(request: Request) {
 			classId: unknown
 			semester: unknown
 			grade: unknown
+			schoolYearId?: number
 		}
 		requestData = body
-		const { studentId, classId, semester, grade } = body
+		const { studentId, classId, semester, grade, schoolYearId: bodySchoolYearId } = body
+
+		// Resolve school year: from body or current (today between start and end)
+		let schoolYearId = bodySchoolYearId
+		if (schoolYearId == null) {
+			const now = new Date()
+			const current = await prisma.schoolYear.findFirst({
+				where: { startDate: { lte: now }, endDate: { gte: now } },
+				select: { id: true }
+			})
+			schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
+		}
+		if (schoolYearId == null) {
+			return NextResponse.json(
+				{ error: 'No school year found. Create a school year in Admin / Data / School Years first.' },
+				{ status: 400 }
+			)
+		}
 
 		// Validate required fields
 		if (
@@ -128,10 +146,11 @@ export async function POST(request: Request) {
 
 		const result = await prisma.finalGrade.upsert({
 			where: {
-				studentId_classId_semester: {
+				studentId_classId_semester_schoolYearId: {
 					studentId: studentIdNum,
 					classId: classIdNum,
-					semester: semester as 'first' | 'second'
+					semester: semester as 'first' | 'second',
+					schoolYearId
 				}
 			},
 			update: { grade: gradeValue },
@@ -139,6 +158,7 @@ export async function POST(request: Request) {
 				studentId: studentIdNum,
 				classId: classIdNum,
 				semester: semester as 'first' | 'second',
+				schoolYearId,
 				grade: gradeValue
 			}
 		})

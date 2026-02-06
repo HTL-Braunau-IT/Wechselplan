@@ -16,6 +16,7 @@ import { RoomTab } from './_components/room-tab'
 import { SubjectTab } from './_components/subject-tab'
 import { LearningContentTab } from './_components/learning-content-tab'
 import { SchoolHolidayTab } from './_components/school-holiday-tab'
+import { SchoolYearTab } from './_components/school-year-tab'
 import { ScheduleTimeTab } from './_components/schedule-time-tab'
 import { BreakTimeTab } from './_components/break-time-tab'
 import { SchedulePDFTab } from './_components/schedule-pdf-tab'
@@ -84,6 +85,12 @@ const modelTabs = [
     label: 'School Holidays',
     icon: Calendar,
     description: 'Manage school holiday periods'
+  },
+  {
+    value: 'schoolYears',
+    label: 'School Years',
+    icon: Calendar,
+    description: 'Manage school years and semester dates'
   },
   {
     value: 'scheduleTimes',
@@ -209,6 +216,8 @@ function renderTabContent(tabValue: string) {
       return <LearningContentTab />
     case 'schoolHolidays':
       return <SchoolHolidayTab />
+    case 'schoolYears':
+      return <SchoolYearTab />
     case 'scheduleTimes':
       return <ScheduleTimeTab />
     case 'breakTimes':

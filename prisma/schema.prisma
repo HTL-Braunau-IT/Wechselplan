@@ -8,17 +8,18 @@ datasource db {
 }
 
 model Student {
-  id        Int      @id @default(autoincrement())
-  firstName String
-  lastName  String
-  classId   Int?
-  groupId   Int?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  username  String   @unique
-  class     Class?   @relation(fields: [classId], references: [id])
-  grades       Grade[]
-  finalGrades  FinalGrade[]
+  id              Int               @id @default(autoincrement())
+  firstName       String
+  lastName        String
+  classId         Int?
+  groupId         Int?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  username        String            @unique
+  class           Class?            @relation(fields: [classId], references: [id])
+  grades          Grade[]
+  finalGrades     FinalGrade[]
+  classMemberships ClassMembership[]
 
   @@index([firstName, lastName])
   @@index([groupId])
@@ -42,23 +43,60 @@ model Teacher {
 }
 
 model Class {
-  id          Int                     @id @default(autoincrement())
-  name        String                  @unique
-  description String?
-  createdAt   DateTime                @default(now())
-  updatedAt   DateTime                @updatedAt
-  classHeadId Int?
-  classLeadId Int?
-  schedules   Schedule[]
-  students    Student[]
-  assignments TeacherAssignment[]
-  grades       Grade[]
-  finalGrades  FinalGrade[]
-  transfers   NotenmanagementTransfer[]
-  classHead   Teacher?                @relation("ClassHead", fields: [classHeadId], references: [id])
-  classLead   Teacher?                @relation("ClassLead", fields: [classLeadId], references: [id])
+  id               Int                     @id @default(autoincrement())
+  name             String                  @unique
+  description      String?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  classHeadId      Int?
+  classLeadId      Int?
+  schedules        Schedule[]
+  students         Student[]
+  assignments      TeacherAssignment[]
+  grades           Grade[]
+  finalGrades      FinalGrade[]
+  transfers        NotenmanagementTransfer[]
+  classMemberships ClassMembership[]
+  classHead        Teacher?                @relation("ClassHead", fields: [classHeadId], references: [id])
+  classLead        Teacher?                @relation("ClassLead", fields: [classLeadId], references: [id])
 
   @@index([name])
+}
+
+model SchoolYear {
+  id                 Int       @id @default(autoincrement())
+  label              String    @unique // e.g. "2025/2026"
+  startDate          DateTime
+  endDate            DateTime
+  semesterChangeDate DateTime  // day when first semester ends / second semester starts
+  isCurrent          Boolean?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  schedules              Schedule[]
+  teacherAssignments    TeacherAssignment[]
+  grades                Grade[]
+  finalGrades           FinalGrade[]
+  notenmanagementTransfers NotenmanagementTransfer[]
+  classMemberships      ClassMembership[]
+
+  @@index([label])
+}
+
+model ClassMembership {
+  id           Int        @id @default(autoincrement())
+  studentId    Int
+  classId      Int
+  schoolYearId Int
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  student      Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  class        Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, schoolYearId])
+  @@index([studentId])
+  @@index([classId])
+  @@index([schoolYearId])
 }
 
 model Schedule {
@@ -72,14 +110,17 @@ model Schedule {
   additionalInfo    String?
   semesterPlanning  String?        // "first", "second", or null for full year
   classId           Int?
+  schoolYearId      Int
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   class             Class?         @relation(fields: [classId], references: [id])
+  schoolYear        SchoolYear     @relation(fields: [schoolYearId], references: [id])
   breakTimes        BreakTime[]    @relation("BreakTimeToSchedule")
   scheduleTimes     ScheduleTime[] @relation("ScheduleToScheduleTime")
   turns             ScheduleTurn[]
 
   @@index([classId])
+  @@index([schoolYearId])
 }
 
 model ScheduleTurn {
@@ -147,6 +188,7 @@ model TeacherAssignment {
   learningContentId Int
   roomId            Int
   selectedWeekday   Int             @default(1)
+  schoolYearId      Int
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   class             Class           @relation(fields: [classId], references: [id])
@@ -154,13 +196,15 @@ model TeacherAssignment {
   room              Room            @relation(fields: [roomId], references: [id])
   subject           Subject         @relation(fields: [subjectId], references: [id])
   teacher           Teacher         @relation(fields: [teacherId], references: [id])
+  schoolYear        SchoolYear      @relation(fields: [schoolYearId], references: [id])
 
-  @@unique([classId, period, groupId])
+  @@unique([classId, period, groupId, schoolYearId])
   @@index([classId])
   @@index([teacherId])
   @@index([subjectId])
   @@index([learningContentId])
   @@index([roomId])
+  @@index([schoolYearId])
 }
 
 model Room {
@@ -293,52 +337,61 @@ model SupportMessage {
 }
 
 model Grade {
-  id        Int      @id @default(autoincrement())
-  studentId Int
-  teacherId Int
-  classId   Int
-  semester  String   // 'first' or 'second'
-  grade     Float?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  student   Student  @relation(fields: [studentId], references: [id])
-  teacher   Teacher  @relation(fields: [teacherId], references: [id])
-  class     Class    @relation(fields: [classId], references: [id])
+  id           Int         @id @default(autoincrement())
+  studentId   Int
+  teacherId   Int
+  classId     Int
+  semester    String       // 'first' or 'second'
+  grade       Float?
+  schoolYearId Int
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  student     Student      @relation(fields: [studentId], references: [id])
+  teacher     Teacher      @relation(fields: [teacherId], references: [id])
+  class       Class        @relation(fields: [classId], references: [id])
+  schoolYear  SchoolYear   @relation(fields: [schoolYearId], references: [id])
 
-  @@unique([studentId, teacherId, classId, semester])
+  @@unique([studentId, teacherId, classId, semester, schoolYearId])
   @@index([studentId])
   @@index([teacherId])
   @@index([classId])
   @@index([semester])
+  @@index([schoolYearId])
 }
 
 model FinalGrade {
-  id        Int      @id @default(autoincrement())
-  studentId Int
-  classId   Int
-  semester  String   // 'first' or 'second'
-  grade     Float?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  student   Student  @relation(fields: [studentId], references: [id])
-  class     Class    @relation(fields: [classId], references: [id])
+  id           Int         @id @default(autoincrement())
+  studentId    Int
+  classId      Int
+  semester     String      // 'first' or 'second'
+  grade        Float?
+  schoolYearId Int
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  student      Student     @relation(fields: [studentId], references: [id])
+  class        Class       @relation(fields: [classId], references: [id])
+  schoolYear   SchoolYear  @relation(fields: [schoolYearId], references: [id])
 
-  @@unique([studentId, classId, semester])
+  @@unique([studentId, classId, semester, schoolYearId])
   @@index([studentId])
   @@index([classId])
   @@index([semester])
+  @@index([schoolYearId])
 }
 
 model NotenmanagementTransfer {
-  id        Int      @id @default(autoincrement())
-  classId   Int
-  semester  String   // 'first' or 'second'
-  lfId      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  class     Class    @relation(fields: [classId], references: [id])
+  id            Int         @id @default(autoincrement())
+  classId       Int
+  semester      String      // 'first' or 'second'
+  lfId          String
+  schoolYearId  Int
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  class         Class       @relation(fields: [classId], references: [id])
+  schoolYear    SchoolYear  @relation(fields: [schoolYearId], references: [id])
 
-  @@unique([classId, semester])
+  @@unique([classId, semester, schoolYearId])
   @@index([classId])
   @@index([semester])
+  @@index([schoolYearId])
 }

@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     const validModels = [
       'student', 'teacher', 'class', 'schedule', 'groupAssignment',
       'teacherAssignment', 'room', 'subject', 'learningContent',
-      'schoolHoliday', 'scheduleTime', 'breakTime', 'schedulePDF',
+      'schoolHoliday', 'schoolYear', 'scheduleTime', 'breakTime', 'schedulePDF',
       'teacherRotation', 'role', 'userRole', 'supportMessage'
     ]
 
@@ -216,6 +216,10 @@ async function getAllRecords(model: string) {
       return await prisma.schoolHoliday.findMany({
         orderBy: { startDate: 'asc' }
       })
+    case 'schoolYear':
+      return await prisma.schoolYear.findMany({
+        orderBy: { startDate: 'asc' }
+      })
     case 'scheduleTime':
       return await prisma.scheduleTime.findMany({
         include: { schedules: true },
@@ -324,6 +328,10 @@ async function getSingleRecord(model: string, id: number) {
       return await prisma.schoolHoliday.findUnique({
         where: { id }
       })
+    case 'schoolYear':
+      return await prisma.schoolYear.findUnique({
+        where: { id }
+      })
     case 'scheduleTime':
       return await prisma.scheduleTime.findUnique({
         where: { id },
@@ -386,6 +394,8 @@ async function createRecord(model: string, data: Record<string, unknown>) {
       return await prisma.learningContent.create({ data: createData as unknown as Parameters<typeof prisma.learningContent.create>[0]['data'] })
     case 'schoolHoliday':
       return await prisma.schoolHoliday.create({ data: createData as unknown as Parameters<typeof prisma.schoolHoliday.create>[0]['data'] })
+    case 'schoolYear':
+      return await prisma.schoolYear.create({ data: createData as unknown as Parameters<typeof prisma.schoolYear.create>[0]['data'] })
     case 'scheduleTime':
       return await prisma.scheduleTime.create({ data: createData as unknown as Parameters<typeof prisma.scheduleTime.create>[0]['data'] })
     case 'breakTime':
@@ -460,6 +470,11 @@ async function updateRecord(model: string, id: number, data: Record<string, unkn
         where: { id },
         data: updateData
       })
+    case 'schoolYear':
+      return await prisma.schoolYear.update({
+        where: { id },
+        data: updateData
+      })
     case 'scheduleTime':
       return await prisma.scheduleTime.update({
         where: { id },
@@ -522,6 +537,8 @@ async function deleteRecord(model: string, id: number) {
       return await prisma.learningContent.delete({ where: { id } })
     case 'schoolHoliday':
       return await prisma.schoolHoliday.delete({ where: { id } })
+    case 'schoolYear':
+      return await prisma.schoolYear.delete({ where: { id } })
     case 'scheduleTime':
       return await prisma.scheduleTime.delete({ where: { id } })
     case 'breakTime':

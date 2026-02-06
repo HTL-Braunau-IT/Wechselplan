@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSchoolYear } from '@/contexts/school-year-context'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -24,6 +25,7 @@ type ImportData = Record<string, ClassData>
 
 export default function ImportPage() {
   const { t } = useTranslation()
+  const { selectedYear } = useSchoolYear()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -118,7 +120,8 @@ export default function ImportPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          classes: selectedClassNames
+          classes: selectedClassNames,
+          ...(selectedYear?.id != null && { schoolYearId: selectedYear.id })
         })
       })
 

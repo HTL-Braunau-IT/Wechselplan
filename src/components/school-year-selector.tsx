@@ -1,8 +1,6 @@
 'use client'
 
 import { useSchoolYear } from '../contexts/school-year-context'
-import type { SchoolYear } from '../types/school-year'
-import { generateSchoolYearOptions } from '../types/school-year'
 import { useTranslation } from 'react-i18next'
 import {
   Select,
@@ -13,25 +11,32 @@ import {
 } from '@/components/ui/select'
 
 export function SchoolYearSelector() {
-  const { selectedYear, setSelectedYear } = useSchoolYear()
+  const { selectedYear, years, setSchoolYear, isLoading } = useSchoolYear()
   const { t } = useTranslation()
-  const options = generateSchoolYearOptions()
+
+  if (isLoading || years.length === 0) {
+    return null
+  }
 
   return (
     <Select
-      value={selectedYear}
-      onValueChange={(value: string) => setSelectedYear(value as SchoolYear)}
+      value={selectedYear ? String(selectedYear.id) : undefined}
+      onValueChange={(value) => {
+        const id = parseInt(value, 10)
+        const year = years.find((y) => y.id === id)
+        if (year) setSchoolYear(year)
+      }}
     >
-      <SelectTrigger className="w-[180px]">
+      <SelectTrigger className="w-[140px]">
         <SelectValue placeholder={t('common.selectSchoolYear')} />
       </SelectTrigger>
       <SelectContent>
-        {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {option.label}
+        {years.map((year) => (
+          <SelectItem key={year.id} value={String(year.id)}>
+            {year.label}
           </SelectItem>
         ))}
       </SelectContent>
     </Select>
   )
-} 
+}

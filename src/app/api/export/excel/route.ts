@@ -53,29 +53,48 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Class Name is required' }, { status: 400 })
         }
 
+        const schoolYearIdParam = searchParams.get('schoolYearId')
+        let schoolYearId: number | null = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : null
+        if (schoolYearId == null || Number.isNaN(schoolYearId)) {
+            const now = new Date()
+            const current = await prisma.schoolYear.findFirst({
+                where: { startDate: { lte: now }, endDate: { gte: now } },
+                select: { id: true }
+            })
+            schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id ?? null
+        }
+        if (schoolYearId == null) {
+            return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
+        }
+
         const class_response = await prisma.class.findUnique({
             where: { name: className },
-            include: {
-                classHead: true,
-                classLead: true,
-                students: {
-                    orderBy: [
-                        { groupId: 'asc' },
-                        { lastName: 'asc' },
-                        { firstName: 'asc' }
-                    ]
-                }
-            }
+            include: { classHead: true, classLead: true }
         })
 
         if (!class_response) {
             return NextResponse.json({ error: 'Class not found' }, { status: 404 })
         }
 
+        const membershipIds = await prisma.classMembership.findMany({
+            where: { classId: class_response.id, schoolYearId },
+            select: { studentId: true }
+        })
+        const studentIds = membershipIds.map((m) => m.studentId)
+        const studentsList =
+            studentIds.length > 0
+                ? await prisma.student.findMany({
+                      where: { id: { in: studentIds } },
+                      orderBy: [{ groupId: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }]
+                  })
+                : []
+        const classWithStudents = { ...class_response, students: studentsList }
+
         const schedule = await prisma.schedule.findFirst({
-            where: { 
+            where: {
                 classId: class_response.id,
-                selectedWeekday: weekday
+                selectedWeekday: weekday,
+                schoolYearId
             },
             orderBy: [{ createdAt: 'desc' }],
             include: {
@@ -99,9 +118,9 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Schedule not found' }, { status: 404 })
         }
 
-        // Fetch teacher assignments
+        // Fetch teacher assignments for this year
         const teacherAssignments = await prisma.teacherAssignment.findMany({
-            where: { classId: class_response.id },
+            where: { classId: class_response.id, schoolYearId },
             include: {
                 teacher: true
             }
@@ -118,7 +137,7 @@ export async function POST(request: Request) {
         let maxCol = 0
 
         // Get students grouped by their group ID
-        const studentsByGroup = class_response.students.reduce<Record<number, { name: string }[]>>((acc, student) => {
+        const studentsByGroup = classWithStudents.students.reduce<Record<number, { name: string }[]>>((acc, student) => {
             const groupId = student.groupId ?? 0
             acc[groupId] ??= []
             acc[groupId].push({
