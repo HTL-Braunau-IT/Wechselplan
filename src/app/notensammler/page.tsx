@@ -19,6 +19,7 @@ import { captureFrontendError } from '@/lib/frontend-error'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CheckCircle2, X, ChevronDownIcon, CheckIcon } from 'lucide-react'
 import { getStoredToken, storeToken, clearToken } from '@/lib/notenmanagement-token'
+import { normalizeUsername } from '@/lib/username'
 
 interface Student {
 	id: number
@@ -38,6 +39,7 @@ interface Class {
 	name: string
 	description: string | null
 	subjectName?: string
+	classLead?: string | null
 	students: Student[]
 	amTeachers: Teacher[]
 	pmTeachers: Teacher[]
@@ -208,11 +210,13 @@ function truncateSubject(subjectName: string): string {
 function GradeInput({
 	value,
 	onChange,
-	className
+	className,
+	compact
 }: {
 	value: number | null
 	onChange: (value: string) => void
 	className?: string
+	compact?: boolean
 }) {
 	const [isOpen, setIsOpen] = useState(false)
 	const [inputValue, setInputValue] = useState('')
@@ -306,24 +310,24 @@ function GradeInput({
 					onFocus={handleFocus}
 					onBlur={handleBlur}
 					placeholder="-"
-					className="w-32 h-8 pr-8"
+					className={compact ? 'w-16 h-7 pr-7 text-sm' : 'w-32 h-8 pr-8'}
 				/>
 				<Button
 					type="button"
 					variant="ghost"
 					size="sm"
-					className="absolute right-0 top-0 h-full px-2 py-0 hover:bg-transparent"
+					className={`absolute right-0 top-0 h-full hover:bg-transparent ${compact ? 'px-1' : 'px-2'} py-0`}
 					onClick={() => {
 						setIsOpen(!isOpen)
 						inputRef.current?.focus()
 					}}
 				>
-					<ChevronDownIcon className="h-4 w-4" />
+					<ChevronDownIcon className={compact ? 'h-3 w-3' : 'h-4 w-4'} />
 				</Button>
 			</div>
 
 			{isOpen && (
-				<div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-60 overflow-auto">
+				<div className={`absolute z-50 mt-1 bg-popover border border-border rounded-md shadow-lg max-h-60 overflow-auto ${compact ? 'w-36' : 'w-full'}`}>
 					<div className="p-1">
 						{gradeOptions.map((option) => (
 							<button
@@ -353,11 +357,13 @@ function GradeInput({
 function FinalGradeInput({
 	value,
 	onChange,
-	className
+	className,
+	compact
 }: {
 	value: number | null
 	onChange: (value: string) => void
 	className?: string
+	compact?: boolean
 }) {
 	const [isOpen, setIsOpen] = useState(false)
 	const [inputValue, setInputValue] = useState('')
@@ -436,23 +442,23 @@ function FinalGradeInput({
 					onFocus={handleFocus}
 					onBlur={handleBlur}
 					placeholder="-"
-					className="w-32 h-8 pr-8"
+					className={compact ? 'w-16 h-7 pr-7 text-sm' : 'w-32 h-8 pr-8'}
 				/>
 				<Button
 					type="button"
 					variant="ghost"
 					size="sm"
-					className="absolute right-0 top-0 h-full px-2 py-0 hover:bg-transparent"
+					className={`absolute right-0 top-0 h-full hover:bg-transparent ${compact ? 'px-1' : 'px-2'} py-0`}
 					onClick={() => {
 						setIsOpen(!isOpen)
 						inputRef.current?.focus()
 					}}
 				>
-					<ChevronDownIcon className="h-4 w-4" />
+					<ChevronDownIcon className={compact ? 'h-3 w-3' : 'h-4 w-4'} />
 				</Button>
 			</div>
 			{isOpen && (
-				<div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-60 overflow-auto">
+				<div className={`absolute z-50 mt-1 bg-popover border border-border rounded-md shadow-lg max-h-60 overflow-auto ${compact ? 'w-36' : 'w-full'}`}>
 					<div className="p-1">
 						{finalGradeOptions.map((option) => (
 							<button
@@ -499,6 +505,7 @@ export default function NotensammlerPage() {
 	const [showSecondSemester, setShowSecondSemester] = useState(true)
 	const [currentTeacherId, setCurrentTeacherId] = useState<number | null>(null)
 	const [downloadingPdf, setDownloadingPdf] = useState(false)
+	const [downloadingAllPdf, setDownloadingAllPdf] = useState(false)
 	const [savingAll, setSavingAll] = useState(false)
 
 	// Sorting state
@@ -1133,6 +1140,35 @@ export default function NotensammlerPage() {
 		}
 	}, [selectedClassId, classData])
 
+	// Handle PDF download for all teacher's classes
+	const handleDownloadAllClassesPDF = useCallback(async () => {
+		try {
+			setDownloadingAllPdf(true)
+			const response = await fetch('/api/notensammler/pdf/all')
+			if (!response.ok) {
+				throw new Error('Failed to generate PDF')
+			}
+			const blob = await response.blob()
+			const url = window.URL.createObjectURL(blob)
+			const a = document.createElement('a')
+			a.href = url
+			const today = new Date().toLocaleDateString('de-DE')
+			a.download = `notensammler-alle-klassen-${today}.pdf`
+			document.body.appendChild(a)
+			a.click()
+			window.URL.revokeObjectURL(url)
+			document.body.removeChild(a)
+		} catch (e) {
+			captureFrontendError(e, {
+				location: 'notensammler',
+				type: 'download-all-pdf'
+			})
+			setError(e instanceof Error ? e.message : 'Failed to download PDF')
+		} finally {
+			setDownloadingAllPdf(false)
+		}
+	}, [])
+
 	// Delete all grades for a teacher
 	const deleteTeacherGrades = useCallback(async () => {
 		if (!teacherToDelete || !classData || !selectedClassId) return
@@ -1202,9 +1238,9 @@ export default function NotensammlerPage() {
 			setPreviewLoading(true)
 			setError(null)
 
-			// Check for stored token first
+			// Check for stored token first (compare normalized usernames)
 			const storedToken = getStoredToken()
-			const useStoredToken = storedToken && storedToken.username === transferUsername
+			const useStoredToken = storedToken && normalizeUsername(storedToken.username) === normalizeUsername(transferUsername)
 
 			const res = await fetch('/api/notensammler/transfer/preview', {
 				method: 'POST',
@@ -1212,7 +1248,7 @@ export default function NotensammlerPage() {
 				body: JSON.stringify({
 					classId: classData.id,
 					semester,
-					username: transferUsername,
+					username: normalizeUsername(transferUsername) || transferUsername,
 					...(useStoredToken ? { token: storedToken.token } : { password: transferPassword })
 				})
 			})
@@ -1230,7 +1266,7 @@ export default function NotensammlerPage() {
 							body: JSON.stringify({
 								classId: classData.id,
 								semester,
-								username: transferUsername,
+								username: normalizeUsername(transferUsername) || transferUsername,
 								password: transferPassword
 							})
 						})
@@ -1296,9 +1332,9 @@ export default function NotensammlerPage() {
 				note: editedNotesNmOnly[nm.Matrikelnummer] ?? null
 			}))
 
-			// Check for stored token first
+			// Check for stored token first (compare normalized usernames)
 			const storedToken = getStoredToken()
-			const useStoredToken = storedToken && storedToken.username === transferUsername
+			const useStoredToken = storedToken && normalizeUsername(storedToken.username) === normalizeUsername(transferUsername)
 
 			const res = await fetch('/api/notensammler/transfer', {
 				method: 'POST',
@@ -1306,7 +1342,7 @@ export default function NotensammlerPage() {
 				body: JSON.stringify({
 					classId: classData.id,
 					semester: transferSemester,
-					username: transferUsername,
+					username: normalizeUsername(transferUsername) || transferUsername,
 					...(useStoredToken ? { token: storedToken.token } : { password: transferPassword }),
 					notes: notesPayload,
 					notesByMatrikelnummer
@@ -1324,7 +1360,7 @@ export default function NotensammlerPage() {
 						body: JSON.stringify({
 							classId: classData.id,
 							semester: transferSemester,
-							username: transferUsername,
+							username: normalizeUsername(transferUsername) || transferUsername,
 							password: transferPassword,
 							notes: notesPayload,
 							notesByMatrikelnummer
@@ -1437,14 +1473,14 @@ export default function NotensammlerPage() {
 	// Open LF view flow
 	const openLfView = useCallback((lfId: string) => {
 		setSelectedLfId(lfId)
-		const defaultUsername = session?.user?.name ?? ''
+		const defaultUsername = normalizeUsername(session?.user?.name ?? '')
 		setLfViewUsername(defaultUsername)
 		setLfViewPassword('')
 		setLfViewData(null)
 		
-		// Check if we have a valid token for the default username
+		// Check if we have a valid token for the default username (compare normalized)
 		const storedToken = getStoredToken()
-		if (storedToken && storedToken.username === defaultUsername) {
+		if (storedToken && normalizeUsername(storedToken.username) === defaultUsername) {
 			// Use stored token directly
 			void fetchLfDataWithToken(storedToken.token, defaultUsername, lfId)
 		} else {
@@ -1466,7 +1502,7 @@ export default function NotensammlerPage() {
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					lfId: selectedLfId,
-					username: lfViewUsername,
+					username: normalizeUsername(lfViewUsername) || lfViewUsername,
 					password: lfViewPassword
 				})
 			})
@@ -1524,21 +1560,40 @@ export default function NotensammlerPage() {
 					<p className="text-sm font-medium mb-2">
 						{t('notensammler.allClasses', 'Alle Klassen')}
 					</p>
-					<label className="block text-sm font-medium mb-2">
-						{t('notensammler.selectClass', 'Klasse auswählen')}
-					</label>
-					<Select value={selectedClassId} onValueChange={handleClassChange}>
-						<SelectTrigger className="w-[300px]">
-							<SelectValue placeholder={t('notensammler.selectClassPlaceholder', 'Bitte Klasse auswählen...')} />
-						</SelectTrigger>
-						<SelectContent>
-							{classes.map((cls) => (
-								<SelectItem key={cls.id} value={cls.id.toString()}>
-									{cls.name}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+					<div className="flex flex-wrap items-center gap-3">
+						<div>
+							<label className="block text-sm font-medium mb-2">
+								{t('notensammler.selectClass', 'Klasse auswählen')}
+							</label>
+							<Select value={selectedClassId} onValueChange={handleClassChange}>
+								<SelectTrigger className="w-[300px]">
+									<SelectValue placeholder={t('notensammler.selectClassPlaceholder', 'Bitte Klasse auswählen...')} />
+								</SelectTrigger>
+								<SelectContent>
+									{classes.map((cls) => (
+										<SelectItem key={cls.id} value={cls.id.toString()}>
+											{cls.name}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<Button
+							variant="outline"
+							onClick={handleDownloadAllClassesPDF}
+							disabled={downloadingAllPdf || teacherClasses.length === 0}
+							className="self-end bg-sky-100 text-sky-800 border-sky-200 hover:bg-sky-200 hover:border-sky-300"
+						>
+							{downloadingAllPdf ? (
+								<>
+									<Spinner size="sm" className="mr-2" />
+									{t('notensammler.downloadingAllClassesPdf', 'PDF wird erstellt...')}
+								</>
+							) : (
+								t('notensammler.downloadAllClassesPdf', 'Notenliste alle Klassen als PDF')
+							)}
+						</Button>
+					</div>
 				</div>
 				{teacherClasses.length > 0 && (
 					<Tabs
@@ -1686,9 +1741,15 @@ export default function NotensammlerPage() {
 				<Card>
 					<CardHeader>
 						<CardTitle>
-							{classData.subjectName 
+							{classData.subjectName
 								? `${classData.name} - ${truncateSubject(classData.subjectName)}`
 								: classData.name}
+							{classData.classLead && (
+								<>
+									{' · '}
+									{t('notensammler.classLead', 'Klassenleitung')}: {classData.classLead}
+								</>
+							)}
 						</CardTitle>
 						<div className="flex items-center gap-2 mt-2">
 							<label className="text-sm font-medium">
@@ -1728,9 +1789,9 @@ export default function NotensammlerPage() {
 								<TableHeader>
 									{/* Period labels row */}
 									<TableRow>
-										<TableHead rowSpan={2} className="sticky left-0 bg-background z-10 w-16">{t('notensammler.id', 'ID')}</TableHead>
-										<TableHead rowSpan={2} className="sticky left-16 bg-background z-10 w-20">{t('notensammler.group', 'Gruppe')}</TableHead>
-										<TableHead rowSpan={2} className="sticky left-36 bg-background z-10 min-w-[200px]">{t('notensammler.student', 'Schüler')}</TableHead>
+										<TableHead rowSpan={2} className="sticky left-0 bg-background z-10 w-14">{t('notensammler.id', 'ID')}</TableHead>
+										<TableHead rowSpan={2} className="sticky left-14 bg-background z-10 w-16">{t('notensammler.group', 'Gruppe')}</TableHead>
+										<TableHead rowSpan={2} className="sticky left-[7.5rem] bg-background z-10 w-[200px]">{t('notensammler.student', 'Schüler')}</TableHead>
 										{/* First Semester - Period labels */}
 										{showFirstSemester && classData.amTeachers.length > 0 && (
 											<TableHead colSpan={classData.amTeachers.length} className="text-center border-b">
@@ -1746,8 +1807,16 @@ export default function NotensammlerPage() {
 												{t('notensammler.nachmittag', 'Nachmittag')}
 											</TableHead>
 										)}
-										<TableHead rowSpan={2} className="bg-muted">{t('notensammler.average', 'Durchschnitt')} ({t('notensammler.firstSemester', '1. Semester')})</TableHead>
-										<TableHead rowSpan={2} className="bg-primary/10">{t('notensammler.endnoteFirstSemester', 'Endnote (1. Semester)')}</TableHead>
+										<TableHead rowSpan={2} className="w-14 min-w-14 p-1 text-center bg-muted">
+											<span className="[writing-mode:vertical-rl] [text-orientation:mixed] whitespace-nowrap text-sm">
+												{t('notensammler.average', 'Durchschnitt')} ({t('notensammler.firstSemester', '1. Semester')})
+											</span>
+										</TableHead>
+										<TableHead rowSpan={2} className="w-14 min-w-14 p-1 text-center bg-primary/10">
+											<span className="[writing-mode:vertical-rl] [text-orientation:mixed] whitespace-nowrap text-sm">
+												{t('notensammler.endnoteFirstSemester', 'Endnote (1. Semester)')}
+											</span>
+										</TableHead>
 										{/* Second Semester - Period labels */}
 										{showSecondSemester && classData.amTeachers.length > 0 && (
 											<TableHead colSpan={classData.amTeachers.length} className="text-center border-b">
@@ -1763,23 +1832,33 @@ export default function NotensammlerPage() {
 												{t('notensammler.nachmittag', 'Nachmittag')}
 											</TableHead>
 										)}
-										<TableHead rowSpan={2} className="bg-muted">{t('notensammler.average', 'Durchschnitt')} ({t('notensammler.secondSemester', '2. Semester')})</TableHead>
-										<TableHead rowSpan={2} className="bg-primary/10">{t('notensammler.endnoteSecondSemester', 'Endnote (2. Semester)')}</TableHead>
+										<TableHead rowSpan={2} className="w-14 min-w-14 p-1 text-center bg-muted">
+											<span className="[writing-mode:vertical-rl] [text-orientation:mixed] whitespace-nowrap text-sm">
+												{t('notensammler.average', 'Durchschnitt')} ({t('notensammler.secondSemester', '2. Semester')})
+											</span>
+										</TableHead>
+										<TableHead rowSpan={2} className="w-14 min-w-14 p-1 text-center bg-primary/10">
+											<span className="[writing-mode:vertical-rl] [text-orientation:mixed] whitespace-nowrap text-sm">
+												{t('notensammler.endnoteSecondSemester', 'Endnote (2. Semester)')}
+											</span>
+										</TableHead>
 									</TableRow>
 									{/* Teacher names row */}
 									<TableRow>
 										{/* First Semester - AM Teachers */}
 										{showFirstSemester && classData.amTeachers.map((teacher) => (
-											<TableHead 
+											<TableHead
 												key={`first-am-${teacher.id}`}
-												className={currentTeacherId === teacher.id ? 'bg-primary/20 font-semibold' : ''}
+												className={`w-16 min-w-16 p-1 text-center ${currentTeacherId === teacher.id ? 'bg-primary/20 font-semibold' : ''}`}
 											>
-												<div className="flex items-center justify-between gap-2">
-													<span>{teacher.firstName} {teacher.lastName}</span>
+												<div className="flex flex-col items-center gap-0.5">
+													<span className="[writing-mode:vertical-rl] [text-orientation:mixed] whitespace-nowrap text-sm">
+														{teacher.firstName} {teacher.lastName}
+													</span>
 													<Button
 														variant="ghost"
 														size="icon"
-														className="h-5 w-5 opacity-60 hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+														className="h-4 w-4 opacity-60 hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
 														onClick={(e) => {
 															e.stopPropagation()
 															setTeacherToDelete(teacher)
@@ -1794,16 +1873,18 @@ export default function NotensammlerPage() {
 										))}
 										{/* First Semester - PM Teachers */}
 										{showFirstSemester && classData.pmTeachers.map((teacher) => (
-											<TableHead 
+											<TableHead
 												key={`first-pm-${teacher.id}`}
-												className={currentTeacherId === teacher.id ? 'bg-primary/20 font-semibold' : ''}
+												className={`w-16 min-w-16 p-1 text-center ${currentTeacherId === teacher.id ? 'bg-primary/20 font-semibold' : ''}`}
 											>
-												<div className="flex items-center justify-between gap-2">
-													<span>{teacher.firstName} {teacher.lastName}</span>
+												<div className="flex flex-col items-center gap-0.5">
+													<span className="[writing-mode:vertical-rl] [text-orientation:mixed] whitespace-nowrap text-sm">
+														{teacher.firstName} {teacher.lastName}
+													</span>
 													<Button
 														variant="ghost"
 														size="icon"
-														className="h-5 w-5 opacity-60 hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+														className="h-4 w-4 opacity-60 hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
 														onClick={(e) => {
 															e.stopPropagation()
 															setTeacherToDelete(teacher)
@@ -1818,16 +1899,18 @@ export default function NotensammlerPage() {
 										))}
 										{/* Second Semester - AM Teachers */}
 										{showSecondSemester && classData.amTeachers.map((teacher) => (
-											<TableHead 
+											<TableHead
 												key={`second-am-${teacher.id}`}
-												className={currentTeacherId === teacher.id ? 'bg-primary/20 font-semibold' : ''}
+												className={`w-16 min-w-16 p-1 text-center ${currentTeacherId === teacher.id ? 'bg-primary/20 font-semibold' : ''}`}
 											>
-												<div className="flex items-center justify-between gap-2">
-													<span>{teacher.firstName} {teacher.lastName}</span>
+												<div className="flex flex-col items-center gap-0.5">
+													<span className="[writing-mode:vertical-rl] [text-orientation:mixed] whitespace-nowrap text-sm">
+														{teacher.firstName} {teacher.lastName}
+													</span>
 													<Button
 														variant="ghost"
 														size="icon"
-														className="h-5 w-5 opacity-60 hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+														className="h-4 w-4 opacity-60 hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
 														onClick={(e) => {
 															e.stopPropagation()
 															setTeacherToDelete(teacher)
@@ -1842,16 +1925,18 @@ export default function NotensammlerPage() {
 										))}
 										{/* Second Semester - PM Teachers */}
 										{showSecondSemester && classData.pmTeachers.map((teacher) => (
-											<TableHead 
+											<TableHead
 												key={`second-pm-${teacher.id}`}
-												className={currentTeacherId === teacher.id ? 'bg-primary/20 font-semibold' : ''}
+												className={`w-16 min-w-16 p-1 text-center ${currentTeacherId === teacher.id ? 'bg-primary/20 font-semibold' : ''}`}
 											>
-												<div className="flex items-center justify-between gap-2">
-													<span>{teacher.firstName} {teacher.lastName}</span>
+												<div className="flex flex-col items-center gap-0.5">
+													<span className="[writing-mode:vertical-rl] [text-orientation:mixed] whitespace-nowrap text-sm">
+														{teacher.firstName} {teacher.lastName}
+													</span>
 													<Button
 														variant="ghost"
 														size="icon"
-														className="h-5 w-5 opacity-60 hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+														className="h-4 w-4 opacity-60 hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
 														onClick={(e) => {
 															e.stopPropagation()
 															setTeacherToDelete(teacher)
@@ -1872,13 +1957,13 @@ export default function NotensammlerPage() {
 										const secondAvg = calculateAverage(student.id, 'second')
 										return (
 											<TableRow key={student.id}>
-												<TableCell className="sticky left-0 bg-background z-10 font-medium w-16">
+												<TableCell className="sticky left-0 bg-background z-10 font-medium w-14">
 													{index + 1}
 												</TableCell>
-												<TableCell className="sticky left-16 bg-background z-10 w-20">
+												<TableCell className="sticky left-14 bg-background z-10 w-16">
 													{student.groupId ?? '-'}
 												</TableCell>
-												<TableCell className="sticky left-36 bg-background z-10 font-medium min-w-[200px]">
+												<TableCell className="sticky left-[7.5rem] bg-background z-10 font-medium w-[200px] max-w-[200px] truncate">
 													{student.lastName}, {student.firstName}
 												</TableCell>
 												{/* First semester - AM teacher columns */}
@@ -1886,11 +1971,12 @@ export default function NotensammlerPage() {
 													const grade = getGrade(student.id, teacher.id, 'first')
 													const isCurrentTeacher = currentTeacherId === teacher.id
 													return (
-														<TableCell 
+														<TableCell
 															key={`first-am-${student.id}-${teacher.id}`}
-															className={isCurrentTeacher ? 'bg-primary/10' : ''}
+															className={`w-16 min-w-16 p-1 ${isCurrentTeacher ? 'bg-primary/10' : ''}`}
 														>
 															<GradeInput
+																compact
 																value={grade}
 																onChange={(value) => handleGradeChange(student.id, teacher.id, 'first', value)}
 															/>
@@ -1906,11 +1992,12 @@ export default function NotensammlerPage() {
 													const grade = getGrade(student.id, teacher.id, 'first')
 													const isCurrentTeacher = currentTeacherId === teacher.id
 													return (
-														<TableCell 
+														<TableCell
 															key={`first-pm-${student.id}-${teacher.id}`}
-															className={isCurrentTeacher ? 'bg-primary/10' : ''}
+															className={`w-16 min-w-16 p-1 ${isCurrentTeacher ? 'bg-primary/10' : ''}`}
 														>
 															<GradeInput
+																compact
 																value={grade}
 																onChange={(value) => handleGradeChange(student.id, teacher.id, 'first', value)}
 															/>
@@ -1918,12 +2005,13 @@ export default function NotensammlerPage() {
 													)
 												})}
 												{/* First semester average */}
-												<TableCell className="bg-muted font-medium">
+												<TableCell className="w-14 min-w-14 p-1 text-center bg-muted font-medium">
 													{firstAvg === null ? '-' : typeof firstAvg === 'string' ? firstAvg : firstAvg.toFixed(1)}
 												</TableCell>
 												{/* First semester Endnote */}
-												<TableCell className="bg-primary/10">
+												<TableCell className="w-14 min-w-14 p-1 bg-primary/10">
 													<FinalGradeInput
+														compact
 														value={getFinalGradeDisplay(student.id, 'first')}
 														onChange={(value) => handleFinalGradeChange(student.id, 'first', value)}
 													/>
@@ -1933,11 +2021,12 @@ export default function NotensammlerPage() {
 													const grade = getGrade(student.id, teacher.id, 'second')
 													const isCurrentTeacher = currentTeacherId === teacher.id
 													return (
-														<TableCell 
+														<TableCell
 															key={`second-am-${student.id}-${teacher.id}`}
-															className={isCurrentTeacher ? 'bg-primary/10' : ''}
+															className={`w-16 min-w-16 p-1 ${isCurrentTeacher ? 'bg-primary/10' : ''}`}
 														>
 															<GradeInput
+																compact
 																value={grade}
 																onChange={(value) => handleGradeChange(student.id, teacher.id, 'second', value)}
 															/>
@@ -1953,11 +2042,12 @@ export default function NotensammlerPage() {
 													const grade = getGrade(student.id, teacher.id, 'second')
 													const isCurrentTeacher = currentTeacherId === teacher.id
 													return (
-														<TableCell 
+														<TableCell
 															key={`second-pm-${student.id}-${teacher.id}`}
-															className={isCurrentTeacher ? 'bg-primary/10' : ''}
+															className={`w-16 min-w-16 p-1 ${isCurrentTeacher ? 'bg-primary/10' : ''}`}
 														>
 															<GradeInput
+																compact
 																value={grade}
 																onChange={(value) => handleGradeChange(student.id, teacher.id, 'second', value)}
 															/>
@@ -1965,12 +2055,13 @@ export default function NotensammlerPage() {
 													)
 												})}
 												{/* Second semester average */}
-												<TableCell className="bg-muted font-medium">
+												<TableCell className="w-14 min-w-14 p-1 text-center bg-muted font-medium">
 													{secondAvg === null ? '-' : typeof secondAvg === 'string' ? secondAvg : secondAvg.toFixed(1)}
 												</TableCell>
 												{/* Second semester Endnote */}
-												<TableCell className="bg-primary/10">
+												<TableCell className="w-14 min-w-14 p-1 bg-primary/10">
 													<FinalGradeInput
+														compact
 														value={getFinalGradeDisplay(student.id, 'second')}
 														onChange={(value) => handleFinalGradeChange(student.id, 'second', value)}
 													/>

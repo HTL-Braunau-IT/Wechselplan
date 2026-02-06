@@ -329,6 +329,11 @@
     "sortDescending": "Absteigend",
     "nmStudentsWithoutGradeOrMatch": "Schüler in Notenmanagement ohne Zuordnung oder Note",
     "keineNote": "Keine Note",
-    "class": "Klasse"
+    "class": "Klasse",
+    "classLead": "Klassenleitung",
+    "downloadPdf": "PDF herunterladen",
+    "downloadingPdf": "PDF wird erstellt...",
+    "downloadAllClassesPdf": "Notenliste alle Klassen als PDF",
+    "downloadingAllClassesPdf": "PDF wird erstellt..."
   }
 } 

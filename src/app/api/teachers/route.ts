@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { normalizeUsername } from '@/lib/username'
 import { z } from 'zod'
 
 const teacherSchema = z.object({
@@ -77,10 +78,17 @@ export async function POST(request: Request) {
 		}
 
 		requestBody = validationResult.data
+		const username = normalizeUsername(requestBody.username)
+		if (!username) {
+			return NextResponse.json(
+				{ error: 'Username is required' },
+				{ status: 400 }
+			)
+		}
 
 		// Check for username uniqueness
 		const existingTeacher = await prisma.teacher.findUnique({
-			where: { username: requestBody.username }
+			where: { username }
 		})
 
 		if (existingTeacher) {
@@ -94,7 +102,7 @@ export async function POST(request: Request) {
 			data: {
 				firstName: requestBody.firstName,
 				lastName: requestBody.lastName,
-				username: requestBody.username,
+				username,
 				email: requestBody.email
 			}
 		})

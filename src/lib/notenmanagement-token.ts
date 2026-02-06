@@ -1,6 +1,7 @@
 /**
  * Utility functions for managing Notenmanagement API tokens in localStorage
  */
+import { normalizeUsername } from '@/lib/username'
 
 const TOKEN_STORAGE_KEY = 'notenmanagement_token'
 const TOKEN_EXPIRY_KEY = 'notenmanagement_token_expiry'
@@ -19,9 +20,10 @@ export function storeToken(token: string, expiresIn: number, username: string): 
   if (typeof window === 'undefined') return
 
   const expiresAt = Date.now() + expiresIn * 1000 // expiresIn is in seconds
+  const normalizedUsername = normalizeUsername(username)
   localStorage.setItem(TOKEN_STORAGE_KEY, token)
   localStorage.setItem(TOKEN_EXPIRY_KEY, String(expiresAt))
-  localStorage.setItem(TOKEN_USERNAME_KEY, username)
+  localStorage.setItem(TOKEN_USERNAME_KEY, normalizedUsername)
 }
 
 /**
@@ -71,7 +73,8 @@ export function clearToken(): void {
  */
 export function hasTokenForUsername(username: string): boolean {
   const tokenData = getStoredToken()
-  return tokenData !== null && tokenData.username === username
+  if (tokenData === null) return false
+  return normalizeUsername(tokenData.username) === normalizeUsername(username)
 }
 
 

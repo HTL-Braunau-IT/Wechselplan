@@ -95,6 +95,35 @@ export interface Holiday {
 
 export type TurnSchedule = Record<string, ScheduleTerm>
 
+/** Normalized turn (ScheduleTurn + weeks) as returned by API. Used by teacher overview. */
+export type NormalizedTurn = {
+	name: string
+	customLength?: number | null
+	weeks: Array<{
+		date: string
+		week: string
+		isHoliday: boolean
+	}>
+	holidays?: Array<{
+		holiday: {
+			id: number
+			name: string
+			startDate: Date | string
+			endDate: Date | string
+		}
+	}>
+}
+
+/** Schedule with required turns for teacher overview (no scheduleData). */
+export interface ScheduleWithTurns {
+	id: number
+	classId: number | null
+	breakTimes: BreakTime[]
+	scheduleTimes: ScheduleTime[]
+	additionalInfo?: string | null
+	turns: NormalizedTurn[]
+}
+
 export interface TeacherAssignmentResponse {
 	groupId: number
 	teacherId: number

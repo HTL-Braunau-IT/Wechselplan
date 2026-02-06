@@ -138,6 +138,8 @@ describe('Students Import Save API', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         description: null,
+        classHeadId: null,
+        classLeadId: null,
       });
 
       vi.mocked(prisma.student.deleteMany).mockResolvedValue({ count: 0 });

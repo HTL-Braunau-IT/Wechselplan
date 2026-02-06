@@ -3,6 +3,7 @@ import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { normalizeUsername } from '@/lib/username'
 
 /**
  * Handles GET requests to retrieve classes where the current teacher has an assignment,
@@ -20,11 +21,13 @@ export async function GET() {
 			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 		}
 
+		const username = normalizeUsername(session.user.name)
 		const teacher = await prisma.teacher.findUnique({
-			where: { username: session.user.name }
+			where: { username }
 		})
 
 		if (!teacher) {
+			console.warn('[username-match] Teacher not found (teacher-classes)', { sessionName: session.user.name, normalized: username })
 			return NextResponse.json({ classes: [] })
 		}
 

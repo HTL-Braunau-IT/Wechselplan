@@ -46,15 +46,15 @@ describe('Schedules API', () => {
           id: 1,
           name: 'Schedule 1',
           description: 'Test schedule',
-          startDate: '2024-01-01T00:00:00.000Z',
-          endDate: '2024-01-31T00:00:00.000Z',
+          startDate: new Date('2024-01-01T00:00:00.000Z'),
+          endDate: new Date('2024-01-31T00:00:00.000Z'),
           selectedWeekday: 1,
-          classId: '1',
+          classId: 1,
           scheduleData: null,
           additionalInfo: null,
           semesterPlanning: null,
-          createdAt: '2025-06-11T11:56:57.353Z',
-          updatedAt: '2025-06-11T11:56:57.353Z',
+          createdAt: new Date('2025-06-11T11:56:57.353Z'),
+          updatedAt: new Date('2025-06-11T11:56:57.353Z'),
           turns: []
         }
       ]
@@ -71,14 +71,19 @@ describe('Schedules API', () => {
       const text = await response.text()
       const data = text === 'Internal Error' ? null : JSON.parse(text)
 
-      // Verify the response
+      // Verify the response (API returns JSON so dates are serialized as strings)
       expect(response).toBeInstanceOf(NextResponse)
       expect(response.status).toBe(200)
-      // After migration, scheduleData is converted from turns, so it should be null for empty turns
-      expect(data).toEqual([{
-        ...mockSchedules[0],
-        scheduleData: null
-      }])
+      expect(data).toHaveLength(1)
+      expect(data[0]).toMatchObject({
+        id: 1,
+        name: 'Schedule 1',
+        classId: 1,
+        scheduleData: null,
+        turns: []
+      })
+      expect(typeof data[0].createdAt).toBe('string')
+      expect(typeof data[0].updatedAt).toBe('string')
 
       // Verify the database calls
       expect(prisma.class.findFirst).toHaveBeenCalledWith({
@@ -138,15 +143,15 @@ describe('Schedules API', () => {
         id: 1,
         name: 'New Schedule',
         description: 'Test schedule',
-        startDate: '2024-01-01T00:00:00.000Z',
-        endDate: '2024-01-31T00:00:00.000Z',
+        startDate: new Date('2024-01-01T00:00:00.000Z'),
+        endDate: new Date('2024-01-31T00:00:00.000Z'),
         selectedWeekday: 1,
         classId: 1,
         scheduleData: {},
         additionalInfo: null,
         semesterPlanning: null,
-        createdAt: '2025-06-11T11:56:57.353Z',
-        updatedAt: '2025-06-11T11:56:57.353Z'
+        createdAt: new Date('2025-06-11T11:56:57.353Z'),
+        updatedAt: new Date('2025-06-11T11:56:57.353Z')
       }
 
       // Mock the database responses
@@ -179,10 +184,23 @@ describe('Schedules API', () => {
       const data = text === 'Internal Error' ? null : JSON.parse(text)
 
 
-      // Verify the response
+      // Verify the response (API returns JSON so dates are strings)
       expect(response).toBeInstanceOf(NextResponse)
       expect(response.status).toBe(200)
-      expect(data).toEqual(mockSchedule)
+      expect(data).toMatchObject({
+        id: 1,
+        name: 'New Schedule',
+        description: 'Test schedule',
+        classId: 1,
+        selectedWeekday: 1,
+        scheduleData: {},
+        additionalInfo: null,
+        semesterPlanning: null,
+      })
+      expect(typeof data.createdAt).toBe('string')
+      expect(typeof data.updatedAt).toBe('string')
+      expect(typeof data.startDate).toBe('string')
+      expect(typeof data.endDate).toBe('string')
 
       // Verify the database calls
       expect(prisma.schedule.findFirst).toHaveBeenCalledWith({
@@ -297,15 +315,15 @@ describe('Schedules API', () => {
         id: 1,
         name: 'First Semester Schedule',
         description: 'Test first semester schedule',
-        startDate: '2024-01-01T00:00:00.000Z',
-        endDate: '2024-01-31T00:00:00.000Z',
+        startDate: new Date('2024-01-01T00:00:00.000Z'),
+        endDate: new Date('2024-01-31T00:00:00.000Z'),
         selectedWeekday: 1,
         classId: 1,
         scheduleData: {},
         additionalInfo: null,
         semesterPlanning: 'first',
-        createdAt: '2025-06-11T11:56:57.353Z',
-        updatedAt: '2025-06-11T11:56:57.353Z'
+        createdAt: new Date('2025-06-11T11:56:57.353Z'),
+        updatedAt: new Date('2025-06-11T11:56:57.353Z')
       }
 
       // Mock the database responses
@@ -336,10 +354,21 @@ describe('Schedules API', () => {
       const text = await response.text()
       const data = text === 'Internal Error' ? null : JSON.parse(text)
 
-      // Verify the response
+      // Verify the response (API returns JSON so dates are strings)
       expect(response).toBeInstanceOf(NextResponse)
       expect(response.status).toBe(200)
-      expect(data).toEqual(mockSchedule)
+      expect(data).toMatchObject({
+        id: 1,
+        name: 'First Semester Schedule',
+        description: 'Test first semester schedule',
+        classId: 1,
+        selectedWeekday: 1,
+        scheduleData: {},
+        additionalInfo: null,
+        semesterPlanning: 'first',
+      })
+      expect(typeof data.createdAt).toBe('string')
+      expect(typeof data.updatedAt).toBe('string')
 
       // Verify the database call includes semesterPlanning
       expect(prisma.schedule.create).toHaveBeenCalledWith({

@@ -52,9 +52,10 @@ describe('Holidays API', () => {
         expectedData: (data: SchoolHoliday[]) => {
           expect(Array.isArray(data)).toBe(true);
           expect(data.length).toBe(1);
-          expect(data[0]).toHaveProperty('name', 'Summer Break');
-          expect(new Date(data[0].startDate)).toEqual(new Date('2024-07-01'));
-          expect(new Date(data[0].endDate)).toEqual(new Date('2024-09-01'));
+          const first = data[0]!;
+          expect(first).toHaveProperty('name', 'Summer Break');
+          expect(new Date(first.startDate)).toEqual(new Date('2024-07-01'));
+          expect(new Date(first.endDate)).toEqual(new Date('2024-09-01'));
         },
       },
       {

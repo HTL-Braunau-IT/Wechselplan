@@ -47,13 +47,14 @@ describe('Students API', () => {
       {
         name: 'should return 200 with students if found',
         setup: () => {
-          const mockStudents: Student[] = [
+          const mockStudents = [
             {
               id: 1,
               firstName: 'John',
               lastName: 'Doe',
               username: 'john.doe',
               classId: 1,
+              groupId: 1,
               createdAt: new Date(),
               updatedAt: new Date(),
             },
@@ -120,6 +121,7 @@ describe('Students API', () => {
             lastName: 'Doe',
             username: 'john.doe',
             classId: 1,
+            groupId: 1,
             createdAt: new Date(),
             updatedAt: new Date(),
           });
@@ -161,8 +163,11 @@ describe('Students API', () => {
           vi.mocked(prisma.class.findUnique).mockResolvedValue({
             id: 1,
             name: '1A',
+            description: null,
             createdAt: new Date(),
             updatedAt: new Date(),
+            classHeadId: null,
+            classLeadId: null,
           });
           vi.mocked(prisma.student.create).mockResolvedValue({
             id: 1,
@@ -170,6 +175,7 @@ describe('Students API', () => {
             lastName: 'Doe',
             username: 'john.doe',
             classId: 1,
+            groupId: 1,
             createdAt: new Date(),
             updatedAt: new Date(),
           });

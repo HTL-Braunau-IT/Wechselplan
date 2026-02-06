@@ -37,9 +37,9 @@ describe('Learning Contents API', () => {
   describe('GET /api/learning-contents', () => {
     test('should return learning contents sorted by name', async () => {
       const mockContents = [
-        { id: '1', name: 'Algebra' },
-        { id: '2', name: 'Biology' },
-        { id: '3', name: 'Chemistry' },
+        { id: 1, name: 'Algebra', description: null, isCustom: false, createdAt: new Date(), updatedAt: new Date() },
+        { id: 2, name: 'Biology', description: null, isCustom: false, createdAt: new Date(), updatedAt: new Date() },
+        { id: 3, name: 'Chemistry', description: null, isCustom: false, createdAt: new Date(), updatedAt: new Date() },
       ];
 
       const prisma = (await import('@/lib/prisma')).prisma;
@@ -49,7 +49,12 @@ describe('Learning Contents API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(data).toEqual({ learningContents: mockContents });
+      expect(data.learningContents).toHaveLength(3);
+      expect(data.learningContents.map((c: { id: number; name: string }) => ({ id: c.id, name: c.name }))).toEqual([
+        { id: 1, name: 'Algebra' },
+        { id: 2, name: 'Biology' },
+        { id: 3, name: 'Chemistry' },
+      ]);
       expect(prisma.learningContent.findMany).toHaveBeenCalledWith({
         select: {
           id: true,

@@ -67,12 +67,13 @@ describe('Students All API', () => {
         expectedData: (data: Student[]) => {
           expect(Array.isArray(data)).toBe(true);
           expect(data.length).toBe(2);
-          expect(data[0]).toHaveProperty('firstName', 'John');
-          expect(data[0]).toHaveProperty('lastName', 'Doe');
-          expect(data[1]).toHaveProperty('firstName', 'Jane');
-          expect(data[1]).toHaveProperty('lastName', 'Smith');
-          // Verify sorting by lastName, then firstName
-          expect(data[0].lastName.localeCompare(data[1].lastName)).toBeLessThan(0);
+          const first = data[0]!;
+          const second = data[1]!;
+          expect(first).toHaveProperty('firstName', 'John');
+          expect(first).toHaveProperty('lastName', 'Doe');
+          expect(second).toHaveProperty('firstName', 'Jane');
+          expect(second).toHaveProperty('lastName', 'Smith');
+          expect(first.lastName.localeCompare(second.lastName)).toBeLessThan(0);
         },
       },
       {

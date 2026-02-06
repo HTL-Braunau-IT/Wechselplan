@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { normalizeUsername } from '@/lib/username'
 
 /**
  * Retrieves all role assignments for a specified user.
@@ -11,14 +12,14 @@ import { captureError } from '@/lib/sentry'
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('userId')
-
-    if (!userId) {
+    const rawUserId = searchParams.get('userId')
+    if (!rawUserId) {
       return NextResponse.json(
         { error: 'User ID is required' },
         { status: 400 }
       )
     }
+    const userId = normalizeUsername(rawUserId)
 
     const userRoles = await prisma.userRole.findMany({
       where: {
@@ -76,12 +77,13 @@ export async function POST(request: Request) {
     }
 
     // Check if the user exists (either as a teacher or student)
+    const normalizedUserId = normalizeUsername(userId)
     const teacher = await prisma.teacher.findUnique({
-      where: { username: userId }
+      where: { username: normalizedUserId }
     })
 
     const student = await prisma.student.findUnique({
-      where: { username: userId }
+      where: { username: normalizedUserId }
     })
 
     if (!teacher && !student) {
@@ -91,10 +93,10 @@ export async function POST(request: Request) {
       )
     }
 
-    // Create the user role assignment
+    // Create the user role assignment (store normalized userId)
     const userRole = await prisma.userRole.create({
       data: {
-        userId,
+        userId: normalizedUserId,
         roleId: numericRoleId
       },
       include: {
@@ -127,15 +129,16 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('userId')
+    const rawUserId = searchParams.get('userId')
     const roleId = searchParams.get('roleId')
 
-    if (!userId || !roleId) {
+    if (!rawUserId || !roleId) {
       return NextResponse.json(
         { error: 'User ID and Role ID are required' },
         { status: 400 }
       )
     }
+    const userId = normalizeUsername(rawUserId)
 
     const numericRoleId = Number(roleId)
     if (Number.isNaN(numericRoleId)) {

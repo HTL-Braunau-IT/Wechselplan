@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { normalizeUsername } from '@/lib/username'
 
 /**
  * Handles HTTP GET requests to retrieve schedule, student, rotation, assignment, and class information for a specified teacher and weekday.
@@ -14,13 +15,17 @@ import { captureError } from '@/lib/sentry'
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     try {
-        const teacherUsername = searchParams.get('teacher')
+        const rawTeacherUsername = searchParams.get('teacher')
         const currentWeekday = searchParams.get('weekday') ?? '0'
 
+        if (!rawTeacherUsername) {
+            return NextResponse.json({ error: 'Teacher username is required' }, { status: 400 })
+        }
+        const teacherUsername = normalizeUsername(rawTeacherUsername)
         if (!teacherUsername) {
             return NextResponse.json({ error: 'Teacher username is required' }, { status: 400 })
         }
-        
+
         const teacher = await prisma.teacher.findUnique({
             where: {
                 username: teacherUsername
@@ -28,6 +33,7 @@ export async function GET(req: Request) {
         })
         
         if (!teacher) {
+            console.warn('[username-match] Teacher not found (schedules/data)', { raw: rawTeacherUsername, normalized: teacherUsername })
             return NextResponse.json({ error: 'Teacher not found' }, { status: 200 })
         }
 
@@ -100,7 +106,20 @@ export async function GET(req: Request) {
                 },
                 include: {
                     breakTimes: true,
-                    scheduleTimes: true
+                    scheduleTimes: true,
+                    turns: {
+                        include: {
+                            weeks: true,
+                            holidays: {
+                                include: {
+                                    holiday: true
+                                }
+                            }
+                        },
+                        orderBy: {
+                            order: 'asc'
+                        }
+                    }
                 }
             })
         

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '~/lib/sentry'
+import { normalizeUsername } from '@/lib/username'
 import * as ldap from 'ldapjs'
 
 interface ImportRequest {
@@ -257,13 +258,14 @@ export async function POST(request: Request) {
         }
       })
 
-      // Import new students for this class
+      // Import new students for this class (normalize username for storage)
       for (const student of classData.students) {
+        const username = normalizeUsername(student.username) || student.username
         await prisma.student.create({
           data: {
             firstName: student.firstName,
             lastName: student.lastName,
-            username: student.username,
+            username,
             classId: classRecord.id
           }
         })
