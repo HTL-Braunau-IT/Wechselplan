@@ -46,17 +46,20 @@ export async function GET() {
 			where: { id: { in: distinctClassIds } },
 			select: {
 				id: true,
-				name: true,
-				_count: { select: { students: true } }
+				name: true
 			},
 			orderBy: { name: 'asc' }
 		})
 
 		const result = await Promise.all(
 			classRecords.map(async (cls) => {
-				const studentCount = cls._count.students
-
-				const [firstCount, secondCount] = await Promise.all([
+				const [activeStudentCount, firstCount, secondCount] = await Promise.all([
+					prisma.student.count({
+						where: {
+							classId: cls.id,
+							groupId: { not: null }
+						}
+					}),
 					prisma.grade.count({
 						where: {
 							classId: cls.id,
@@ -75,8 +78,8 @@ export async function GET() {
 					})
 				])
 
-				const allGradesEnteredFirst = studentCount > 0 && firstCount === studentCount
-				const allGradesEnteredSecond = studentCount > 0 && secondCount === studentCount
+				const allGradesEnteredFirst = activeStudentCount > 0 && firstCount === activeStudentCount
+				const allGradesEnteredSecond = activeStudentCount > 0 && secondCount === activeStudentCount
 
 				return {
 					id: cls.id,

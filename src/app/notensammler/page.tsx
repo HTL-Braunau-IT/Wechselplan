@@ -56,6 +56,30 @@ type GradesData = Record<number, Record<number, {
 
 type FinalGradesData = Record<number, { first: number | null; second: number | null }>
 
+/** Normalize grades object to use numeric keys (API returns string keys from JSON). */
+function normalizeGradesKeys(data: Record<string, unknown> | GradesData): GradesData {
+	const result: GradesData = {}
+	for (const studentKey of Object.keys(data)) {
+		const studentId = Number(studentKey)
+		if (Number.isNaN(studentId)) continue
+		const byStudent = data[studentKey as keyof typeof data]
+		if (byStudent == null || typeof byStudent !== 'object') continue
+		const teacherMap = byStudent as Record<string, unknown>
+		result[studentId] = {} as Record<number, { first: number | null; second: number | null }>
+		for (const teacherKey of Object.keys(teacherMap)) {
+			const teacherId = Number(teacherKey)
+			if (Number.isNaN(teacherId)) continue
+			const cell = teacherMap[teacherKey] as { first?: number | null; second?: number | null } | undefined
+			if (cell == null || typeof cell !== 'object') continue
+			result[studentId][teacherId] = {
+				first: cell.first ?? null,
+				second: cell.second ?? null
+			}
+		}
+	}
+	return result
+}
+
 const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7]
 
 // Endnote: integer only (no .5)
@@ -689,11 +713,11 @@ export default function NotensammlerPage() {
 
 				const classDataResult = await classResponse.json() as Class
 				const gradesPayload = await gradesResponse.json() as { grades: GradesData; finalGrades: FinalGradesData }
-				const gradesResult = gradesPayload.grades ?? gradesPayload as unknown as GradesData
+				const gradesResult = gradesPayload.grades ?? gradesPayload as unknown as Record<string, unknown>
 				const finalGradesResult = gradesPayload.finalGrades ?? {}
 
 				setClassData(classDataResult)
-				setGrades(gradesResult)
+				setGrades(normalizeGradesKeys(gradesResult))
 				setFinalGrades(finalGradesResult)
 			} catch (e) {
 				captureFrontendError(e, {
@@ -862,7 +886,7 @@ export default function NotensammlerPage() {
 		return Math.round((sum / gradeValues.length) * 10) / 10 // Round to 1 decimal place
 	}, [grades, classData])
 
-	// Get grade value
+	// Get grade value (grades keys are normalized to numbers when loaded from API)
 	const getGrade = useCallback((studentId: number, teacherId: number, semester: 'first' | 'second'): number | null => {
 		return grades[studentId]?.[teacherId]?.[semester] ?? null
 	}, [grades])
@@ -961,14 +985,54 @@ export default function NotensammlerPage() {
 		[saveFinalGrade, finalGrades]
 	)
 
-	// Sorted students with sequential IDs (only those assigned to a group)
+	// Only apply "missing grade" UX when the current teacher teaches this class (otherwise we'd mark everyone red).
+	const currentTeacherTeachesClass =
+		classData != null &&
+		currentTeacherId != null &&
+		(classData.amTeachers.some((t) => t.id === currentTeacherId) || classData.pmTeachers.some((t) => t.id === currentTeacherId))
+
+	// Use the same teacher id as the table columns (from class's teacher list) for grade lookups.
+	const currentTeacherIdInClass: number | null =
+		currentTeacherTeachesClass && classData != null && currentTeacherId != null
+			? (classData.amTeachers.find((t) => t.id === currentTeacherId) ?? classData.pmTeachers.find((t) => t.id === currentTeacherId))?.id ?? null
+			: null
+
+	// Active students (with group) - used for "has any grades" check.
+	const activeStudentList = useMemo(() => {
+		if (!classData) return []
+		return classData.students.filter((s) => s.groupId != null)
+	}, [classData])
+
+	// Only show missing highlight/sort when the current teacher has entered at least one grade in this class (so we have real data).
+	const currentTeacherHasAnyGrades = useMemo(() => {
+		if (!currentTeacherTeachesClass || currentTeacherIdInClass == null || activeStudentList.length === 0) return false
+		return activeStudentList.some((s) => {
+			const first = getGrade(s.id, currentTeacherIdInClass, 'first')
+			const second = getGrade(s.id, currentTeacherIdInClass, 'second')
+			return (showFirstSemester && first !== null) || (showSecondSemester && second !== null)
+		})
+	}, [currentTeacherTeachesClass, currentTeacherIdInClass, activeStudentList, getGrade, showFirstSemester, showSecondSemester])
+
+	// Sorted students with sequential IDs (only those assigned to a group).
+	// Students missing a grade from the current teacher (for visible semesters) are sorted to the top.
 	const sortedStudents = useMemo(() => {
 		if (!classData) return []
+		const hasMissingGrade = (student: Student): boolean => {
+			if (!currentTeacherTeachesClass || currentTeacherIdInClass == null) return false
+			if (!currentTeacherHasAnyGrades) return false // no grades from this teacher: don't highlight anyone
+			const firstMissing = showFirstSemester && getGrade(student.id, currentTeacherIdInClass, 'first') === null
+			const secondMissing = showSecondSemester && getGrade(student.id, currentTeacherIdInClass, 'second') === null
+			return firstMissing || secondMissing
+		}
 		const students = [...classData.students]
 			.filter(student => student.groupId !== null && student.groupId !== undefined)
 			.sort((a, b) => {
+				// Primary: missing grade from current teacher first
+				const aMissing = hasMissingGrade(a) ? 0 : 1
+				const bMissing = hasMissingGrade(b) ? 0 : 1
+				if (aMissing !== bMissing) return aMissing - bMissing
+
 				let primaryCompare = 0
-				
 				if (sortField === 'lastName') {
 					// Sort by last name
 					primaryCompare = a.lastName.localeCompare(b.lastName)
@@ -990,7 +1054,7 @@ export default function NotensammlerPage() {
 					} else {
 						primaryCompare = a.groupId - b.groupId
 					}
-					
+
 					if (primaryCompare !== 0) {
 						return sortDirection === 'asc' ? primaryCompare : -primaryCompare
 					}
@@ -1005,7 +1069,7 @@ export default function NotensammlerPage() {
 				}
 			})
 		return students
-	}, [classData, sortField, sortDirection])
+	}, [classData, sortField, sortDirection, getGrade, currentTeacherIdInClass, showFirstSemester, showSecondSemester, currentTeacherTeachesClass, currentTeacherHasAnyGrades])
 
 	// Save all grades function
 	const saveAllGrades = useCallback(async () => {
@@ -1957,23 +2021,24 @@ export default function NotensammlerPage() {
 										const secondAvg = calculateAverage(student.id, 'second')
 										return (
 											<TableRow key={student.id}>
-												<TableCell className="sticky left-0 bg-background z-10 font-medium w-14">
+												<TableCell className="sticky left-0 z-10 font-medium w-14 bg-background">
 													{index + 1}
 												</TableCell>
-												<TableCell className="sticky left-14 bg-background z-10 w-16">
+												<TableCell className="sticky left-14 z-10 w-16 bg-background">
 													{student.groupId ?? '-'}
 												</TableCell>
-												<TableCell className="sticky left-[7.5rem] bg-background z-10 font-medium w-[200px] max-w-[200px] truncate">
+												<TableCell className="sticky left-[7.5rem] z-10 font-medium w-[200px] max-w-[200px] truncate bg-background">
 													{student.lastName}, {student.firstName}
 												</TableCell>
 												{/* First semester - AM teacher columns */}
 												{showFirstSemester && classData.amTeachers.map((teacher) => {
 													const grade = getGrade(student.id, teacher.id, 'first')
 													const isCurrentTeacher = currentTeacherId === teacher.id
+													const isMissingCell = currentTeacherTeachesClass && teacher.id === currentTeacherIdInClass && grade === null
 													return (
 														<TableCell
 															key={`first-am-${student.id}-${teacher.id}`}
-															className={`w-16 min-w-16 p-1 ${isCurrentTeacher ? 'bg-primary/10' : ''}`}
+															className={`w-16 min-w-16 p-1 ${isCurrentTeacher ? 'bg-primary/10' : ''} ${isMissingCell ? 'bg-red-50 dark:bg-red-950/20' : ''}`}
 														>
 															<GradeInput
 																compact
@@ -1991,10 +2056,11 @@ export default function NotensammlerPage() {
 												{showFirstSemester && classData.pmTeachers.map((teacher) => {
 													const grade = getGrade(student.id, teacher.id, 'first')
 													const isCurrentTeacher = currentTeacherId === teacher.id
+													const isMissingCell = currentTeacherTeachesClass && teacher.id === currentTeacherIdInClass && grade === null
 													return (
 														<TableCell
 															key={`first-pm-${student.id}-${teacher.id}`}
-															className={`w-16 min-w-16 p-1 ${isCurrentTeacher ? 'bg-primary/10' : ''}`}
+															className={`w-16 min-w-16 p-1 ${isCurrentTeacher ? 'bg-primary/10' : ''} ${isMissingCell ? 'bg-red-50 dark:bg-red-950/20' : ''}`}
 														>
 															<GradeInput
 																compact
@@ -2020,10 +2086,11 @@ export default function NotensammlerPage() {
 												{showSecondSemester && classData.amTeachers.map((teacher) => {
 													const grade = getGrade(student.id, teacher.id, 'second')
 													const isCurrentTeacher = currentTeacherId === teacher.id
+													const isMissingCell = currentTeacherTeachesClass && teacher.id === currentTeacherIdInClass && grade === null
 													return (
 														<TableCell
 															key={`second-am-${student.id}-${teacher.id}`}
-															className={`w-16 min-w-16 p-1 ${isCurrentTeacher ? 'bg-primary/10' : ''}`}
+															className={`w-16 min-w-16 p-1 ${isCurrentTeacher ? 'bg-primary/10' : ''} ${isMissingCell ? 'bg-red-50 dark:bg-red-950/20' : ''}`}
 														>
 															<GradeInput
 																compact
@@ -2041,10 +2108,11 @@ export default function NotensammlerPage() {
 												{showSecondSemester && classData.pmTeachers.map((teacher) => {
 													const grade = getGrade(student.id, teacher.id, 'second')
 													const isCurrentTeacher = currentTeacherId === teacher.id
+													const isMissingCell = currentTeacherTeachesClass && teacher.id === currentTeacherIdInClass && grade === null
 													return (
 														<TableCell
 															key={`second-pm-${student.id}-${teacher.id}`}
-															className={`w-16 min-w-16 p-1 ${isCurrentTeacher ? 'bg-primary/10' : ''}`}
+															className={`w-16 min-w-16 p-1 ${isCurrentTeacher ? 'bg-primary/10' : ''} ${isMissingCell ? 'bg-red-50 dark:bg-red-950/20' : ''}`}
 														>
 															<GradeInput
 																compact
