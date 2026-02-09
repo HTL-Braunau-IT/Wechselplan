@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSchoolYear } from '@/contexts/school-year-context'
 import { DataTable } from './data-table'
 import type { Column } from './data-table'
 
@@ -21,6 +22,8 @@ interface Schedule {
 }
 
 export function ScheduleTab() {
+  const { selectedYear } = useSchoolYear()
+  const schoolYearId = selectedYear?.id
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [classes, setClasses] = useState<{ id: number; name: string }[]>([])
@@ -46,7 +49,8 @@ export function ScheduleTab() {
   const fetchSchedules = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch('/api/admin/data?model=schedule')
+      const yearQ = schoolYearId != null ? `&schoolYearId=${schoolYearId}` : ''
+      const response = await fetch(`/api/admin/data?model=schedule${yearQ}`)
       if (response.ok) {
         const data = await response.json() as Schedule[]
         setSchedules(data)
@@ -76,13 +80,14 @@ export function ScheduleTab() {
   useEffect(() => {
     void fetchSchedules()
     void fetchClasses()
-  }, [])
+  }, [schoolYearId])
 
   const handleCreate = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
+    const payload = { ...data, ...(schoolYearId != null && { schoolYearId }) }
     const response = await fetch('/api/admin/data?model=schedule', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+      body: JSON.stringify(payload)
     })
     
     if (!response.ok) {

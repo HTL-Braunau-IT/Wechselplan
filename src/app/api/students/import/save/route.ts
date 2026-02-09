@@ -219,7 +219,24 @@ async function fetchLDAPData(): Promise<ImportData> {
  */
 export async function POST(request: Request) {
   try {
-    const data = await request.json() as ImportRequest
+    const data = await request.json() as ImportRequest & { schoolYearId?: number }
+    const { classes: classNames, schoolYearId: bodySchoolYearId } = data
+    let schoolYearId = bodySchoolYearId
+    if (schoolYearId == null) {
+      const now = new Date()
+      const current = await prisma.schoolYear.findFirst({
+        where: { startDate: { lte: now }, endDate: { gte: now } },
+        select: { id: true }
+      })
+      schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
+    }
+    if (schoolYearId == null) {
+      return NextResponse.json(
+        { error: 'No school year found. Create a school year in Admin / Data / School Years first.' },
+        { status: 400 }
+      )
+    }
+
     let importedCount = 0
     let updatedCount = 0
 
@@ -227,7 +244,7 @@ export async function POST(request: Request) {
     const importData = await fetchLDAPData()
 
     // Import each selected class
-    for (const className of data.classes) {
+    for (const className of classNames) {
       const classData = importData.classes.find((c: { name: string }) => c.name === className)
       if (!classData) continue
 
@@ -258,16 +275,30 @@ export async function POST(request: Request) {
         }
       })
 
-      // Import new students for this class (normalize username for storage)
+      // Import new students for this class (normalize username for storage) and ClassMembership for the year
       for (const student of classData.students) {
         const username = normalizeUsername(student.username) || student.username
-        await prisma.student.create({
+        const newStudent = await prisma.student.create({
           data: {
             firstName: student.firstName,
             lastName: student.lastName,
             username,
             classId: classRecord.id
           }
+        })
+        await prisma.classMembership.upsert({
+          where: {
+            studentId_schoolYearId: {
+              studentId: newStudent.id,
+              schoolYearId
+            }
+          },
+          create: {
+            studentId: newStudent.id,
+            classId: classRecord.id,
+            schoolYearId
+          },
+          update: { classId: classRecord.id }
         })
         importedCount++
       }

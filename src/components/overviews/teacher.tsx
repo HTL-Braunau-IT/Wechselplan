@@ -5,6 +5,7 @@ import type { TeacherScheduleData, NormalizedTurn, BreakTime, ScheduleTime } fro
 import { parse, isValid, isWithinInterval, addWeeks } from "date-fns"
 import { useTranslation } from "react-i18next"
 import { AlertTriangle } from "lucide-react"
+import { StudentPhoto } from "@/components/student-photo"
 
 /**
  * Renders a weekly schedule overview for the logged-in teacher with weekday navigation tabs.
@@ -277,15 +278,29 @@ export function TeacherOverview() {
                                             <>
                                                 <div className="space-y-2">
                                                     {leftColumnStudents.map((student, index) => (
-                                                        <div key={student.id} className="p-2 bg-gray-50 dark:bg-gray-700 rounded">
-                                                            <p className="font-medium dark:text-white">{index + 1}. {student.lastName} {student.firstName} </p>
+                                                        <div key={student.id} className="p-2 bg-gray-50 dark:bg-gray-700 rounded flex items-center gap-2">
+                                                            <span className="text-muted-foreground text-xs shrink-0">{index + 1}.</span>
+                                                            <StudentPhoto
+                                                                studentId={student.id}
+                                                                firstName={student.firstName}
+                                                                lastName={student.lastName}
+                                                                size={28}
+                                                                nameFormat="firstLast"
+                                                            />
                                                         </div>
                                                     ))}
                                                 </div>
                                                 <div className="space-y-2">
                                                     {rightColumnStudents.map((student, index) => (
-                                                        <div key={student.id} className="p-2 bg-gray-50 dark:bg-gray-700 rounded">
-                                                            <p className="font-medium dark:text-white">{index + 7}. {student.lastName} {student.firstName} </p>
+                                                        <div key={student.id} className="p-2 bg-gray-50 dark:bg-gray-700 rounded flex items-center gap-2">
+                                                            <span className="text-muted-foreground text-xs shrink-0">{index + 7}.</span>
+                                                            <StudentPhoto
+                                                                studentId={student.id}
+                                                                firstName={student.firstName}
+                                                                lastName={student.lastName}
+                                                                size={28}
+                                                                nameFormat="firstLast"
+                                                            />
                                                         </div>
                                                     ))}
                                                 </div>

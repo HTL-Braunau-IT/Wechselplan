@@ -11,11 +11,26 @@ import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
  *
  * @returns A PDF file as a response if successful, or a JSON error response with status 400 or 500 if an error occurs.
  */
+async function resolveSchoolYearId(param: string | null): Promise<number | null> {
+    const parsed = param ? parseInt(param, 10) : undefined
+    if (parsed != null && !Number.isNaN(parsed)) return parsed
+    const now = new Date()
+    const current = await prisma.schoolYear.findFirst({
+        where: { startDate: { lte: now }, endDate: { gte: now } },
+        select: { id: true }
+    })
+    return current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id ?? null
+}
+
 export async function POST(request: Request) {
     try {
         const { searchParams } = new URL(request.url)
         const className = searchParams.get('className')
-       
+        const schoolYearId = await resolveSchoolYearId(searchParams.get('schoolYearId'))
+        if (schoolYearId == null) {
+            return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
+        }
+
         if (!className) {
             const error = new Error('Class Name is required')
             captureError(error, {
@@ -52,14 +67,19 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Class not found' }, { status: 400 })
         }
 
-        // Get students with groupId
-        const students = await prisma.student.findMany({
-            where: {
-                classId: class_response.id,
-                groupId: { not: null }
-            },
-            orderBy: [{ groupId: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }]
+        // Get students with groupId for this year (via ClassMembership)
+        const membershipIds = await prisma.classMembership.findMany({
+            where: { classId: class_response.id, schoolYearId },
+            select: { studentId: true }
         })
+        const studentIds = membershipIds.map((m) => m.studentId)
+        const students =
+            studentIds.length > 0
+                ? await prisma.student.findMany({
+                      where: { id: { in: studentIds }, groupId: { not: null } },
+                      orderBy: [{ groupId: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }]
+                  })
+                : []
 
         // Get all groups for this class
         const groupIds = Array.from(new Set(students.map(s => s.groupId))).filter((id) => id !== null) as number[];
@@ -67,9 +87,9 @@ export async function POST(request: Request) {
             id: groupId,
             students: students.filter(s => s.groupId === groupId)
         }));
-        // Get teacher assignments (AM/PM) with relations (no weekday filter - each class has one schedule)
+        // Get teacher assignments (AM/PM) for this year
         const teacherAssignments = await prisma.teacherAssignment.findMany({
-            where: { classId: class_response.id },
+            where: { classId: class_response.id, schoolYearId },
             orderBy: [{ period: 'asc' }, { groupId: 'asc' }],
             include: {
                 teacher: true,
@@ -79,9 +99,9 @@ export async function POST(request: Request) {
             }
         })
         
-        // Get the schedule
+        // Get the schedule for this year
         const schedule = await prisma.schedule.findFirst({
-            where: { classId: class_response.id },
+            where: { classId: class_response.id, schoolYearId },
             orderBy: [{ createdAt: 'desc' }],
             include: {
                 scheduleTimes: true,

@@ -30,6 +30,7 @@ export async function GET(request: Request) {
 
 		const { searchParams } = new URL(request.url)
 		const classIdParam = searchParams.get('classId')
+		const schoolYearIdParam = searchParams.get('schoolYearId')
 
 		if (!classIdParam) {
 			return NextResponse.json(
@@ -46,6 +47,23 @@ export async function GET(request: Request) {
 			)
 		}
 
+		// Resolve school year: from query or current
+		let schoolYearId: number | undefined = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
+		if (schoolYearId == null || Number.isNaN(schoolYearId)) {
+			const now = new Date()
+			const current = await prisma.schoolYear.findFirst({
+				where: { startDate: { lte: now }, endDate: { gte: now } },
+				select: { id: true }
+			})
+			schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
+		}
+		if (schoolYearId == null) {
+			return NextResponse.json(
+				{ error: 'No school year found.' },
+				{ status: 400 }
+			)
+		}
+
 		// Verify class exists
 		const classRecord = await prisma.class.findUnique({
 			where: { id: classId }
@@ -58,9 +76,9 @@ export async function GET(request: Request) {
 			)
 		}
 
-		// Fetch all grades for this class
+		// Fetch all grades for this class and school year
 		const grades = await prisma.grade.findMany({
-			where: { classId },
+			where: { classId, schoolYearId },
 			select: {
 				studentId: true,
 				teacherId: true,
@@ -89,9 +107,9 @@ export async function GET(request: Request) {
 			}
 		}
 
-		// Fetch final grades for this class
+		// Fetch final grades for this class and school year
 		const finalGradeRecords = await prisma.finalGrade.findMany({
-			where: { classId },
+			where: { classId, schoolYearId },
 			select: { studentId: true, semester: true, grade: true }
 		})
 
@@ -138,9 +156,26 @@ export async function POST(request: Request) {
 			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 		}
 
-		const body = await request.json() as { studentId: unknown; teacherId: unknown; classId: unknown; semester: unknown; grade: unknown }
+		const body = await request.json() as { studentId: unknown; teacherId: unknown; classId: unknown; semester: unknown; grade: unknown; schoolYearId?: number }
 		requestData = body
-		const { studentId, teacherId, classId, semester, grade } = body
+		const { studentId, teacherId, classId, semester, grade, schoolYearId: bodySchoolYearId } = body
+
+		// Resolve school year: from body or current
+		let schoolYearId = bodySchoolYearId
+		if (schoolYearId == null) {
+			const now = new Date()
+			const current = await prisma.schoolYear.findFirst({
+				where: { startDate: { lte: now }, endDate: { gte: now } },
+				select: { id: true }
+			})
+			schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
+		}
+		if (schoolYearId == null) {
+			return NextResponse.json(
+				{ error: 'No school year found. Create a school year in Admin / Data / School Years first.' },
+				{ status: 400 }
+			)
+		}
 
 		// Validate required fields
 		if (studentId === undefined || teacherId === undefined || classId === undefined || semester === undefined) {
@@ -237,11 +272,12 @@ export async function POST(request: Request) {
 
 		const result = await prisma.grade.upsert({
 			where: {
-				studentId_teacherId_classId_semester: {
+				studentId_teacherId_classId_semester_schoolYearId: {
 					studentId: studentIdNum,
 					teacherId: teacherIdNum,
 					classId: classIdNum,
-					semester: semester as 'first' | 'second'
+					semester: semester as 'first' | 'second',
+					schoolYearId
 				}
 			},
 			update: {
@@ -252,6 +288,7 @@ export async function POST(request: Request) {
 				teacherId: teacherIdNum,
 				classId: classIdNum,
 				semester: semester as 'first' | 'second',
+				schoolYearId,
 				grade: gradeValue
 			}
 		})
@@ -269,11 +306,12 @@ export async function POST(request: Request) {
 		// Verify the grade was actually saved by reading it back
 		const verifyGrade = await prisma.grade.findUnique({
 			where: {
-				studentId_teacherId_classId_semester: {
+				studentId_teacherId_classId_semester_schoolYearId: {
 					studentId: studentIdNum,
 					teacherId: teacherIdNum,
 					classId: classIdNum,
-					semester: semester as 'first' | 'second'
+					semester: semester as 'first' | 'second',
+					schoolYearId
 				}
 			}
 		})

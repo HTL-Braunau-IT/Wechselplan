@@ -1,0 +1,142 @@
+'use client'
+
+import { useState, useRef, useEffect } from 'react'
+import { cn } from '@/lib/utils'
+
+const PHOTO_SIZE_SMALL = 36
+const PHOTO_SIZE_LARGE = 120
+
+export interface StudentPhotoProps {
+  studentId: number
+  firstName?: string
+  lastName?: string
+  /** Display size in pixels for the small avatar. Default 36 */
+  size?: number
+  /** Optional class for the trigger wrapper (avatar + name) */
+  className?: string
+  /** If true, show only the avatar (no name text next to it). */
+  avatarOnly?: boolean
+  /** Name display: "lastName, firstName" when true, else "firstName lastName" or just initials. */
+  nameFormat?: 'lastFirst' | 'firstLast'
+  /** Content to show next to the avatar (e.g. name). If not provided, uses lastName, firstName. */
+  children?: React.ReactNode
+}
+
+/**
+ * Renders a small student photo (or initials fallback) and shows a larger photo + name in a hover popover.
+ */
+export function StudentPhoto({
+  studentId,
+  firstName = '',
+  lastName = '',
+  size = PHOTO_SIZE_SMALL,
+  className,
+  avatarOnly = false,
+  nameFormat = 'lastFirst',
+  children
+}: StudentPhotoProps) {
+  const [open, setOpen] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+  const [error, setError] = useState(false)
+  const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const photoUrl = `/api/students/photo?studentId=${studentId}`
+
+  const displayName =
+    lastName && firstName
+      ? nameFormat === 'lastFirst'
+        ? `${lastName}, ${firstName}`
+        : `${firstName} ${lastName}`
+      : ''
+  const initials =
+    [firstName, lastName]
+      .filter(Boolean)
+      .map((s) => s!.charAt(0))
+      .join('')
+      .toUpperCase()
+      .slice(0, 2) || '?'
+
+  const clearLeaveTimer = () => {
+    if (leaveTimerRef.current) {
+      clearTimeout(leaveTimerRef.current)
+      leaveTimerRef.current = null
+    }
+  }
+
+  const handleMouseEnter = () => {
+    clearLeaveTimer()
+    setOpen(true)
+  }
+
+  const handleMouseLeave = () => {
+    leaveTimerRef.current = setTimeout(() => setOpen(false), 150)
+  }
+
+  useEffect(() => {
+    return () => clearLeaveTimer()
+  }, [])
+
+  return (
+    <div
+      className={cn('relative inline-flex items-center gap-2', className)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      <div className="flex items-center gap-2 shrink-0 cursor-default">
+        <span
+          className="inline-flex shrink-0 overflow-hidden rounded-full bg-muted align-middle"
+          style={{ width: size, height: size }}
+        >
+          <img
+            src={photoUrl}
+            alt=""
+            width={size}
+            height={size}
+            className={cn('h-full w-full object-cover', (error || !loaded) && 'hidden')}
+            onLoad={() => {
+              setLoaded(true)
+              setError(false)
+            }}
+            onError={() => setError(true)}
+          />
+          {(!loaded || error) && (
+            <span
+              className="inline-flex h-full w-full items-center justify-center text-xs font-medium text-muted-foreground"
+              style={{ fontSize: size * 0.4 }}
+            >
+              {initials}
+            </span>
+          )}
+        </span>
+        {!avatarOnly && (children ?? (displayName ? <span className="truncate">{displayName}</span> : null))}
+      </div>
+
+      {open && (
+        <div
+          className="absolute left-0 top-full z-50 mt-1 flex flex-col items-center rounded-lg border bg-background p-3 shadow-md"
+          style={{ minWidth: PHOTO_SIZE_LARGE + 32 }}
+        >
+          <span
+            className="inline-flex overflow-hidden rounded-full bg-muted"
+            style={{ width: PHOTO_SIZE_LARGE, height: PHOTO_SIZE_LARGE }}
+          >
+            <img
+              src={photoUrl}
+              alt=""
+              width={PHOTO_SIZE_LARGE}
+              height={PHOTO_SIZE_LARGE}
+              className={cn('h-full w-full object-cover', error && 'hidden')}
+            />
+            {error && (
+              <span className="flex h-full w-full items-center justify-center text-2xl font-medium text-muted-foreground">
+                {initials}
+              </span>
+            )}
+          </span>
+          {displayName && (
+            <p className="mt-2 text-center text-sm font-medium text-foreground">{displayName}</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}

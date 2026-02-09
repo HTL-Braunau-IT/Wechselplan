@@ -20,6 +20,8 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CheckCircle2, X, ChevronDownIcon, CheckIcon } from 'lucide-react'
 import { getStoredToken, storeToken, clearToken } from '@/lib/notenmanagement-token'
 import { normalizeUsername } from '@/lib/username'
+import { useSchoolYear } from '@/contexts/school-year-context'
+import { StudentPhoto } from '@/components/student-photo'
 
 interface Student {
 	id: number
@@ -584,11 +586,24 @@ export default function NotensammlerPage() {
 	const saveTimerRef = useRef<NodeJS.Timeout | null>(null)
 	const saveFinalGradeTimerRef = useRef<NodeJS.Timeout | null>(null)
 
-	// Fetch all classes on mount
+	const { selectedYear, currentSemester } = useSchoolYear()
+	const schoolYearId = selectedYear?.id
+
+	// When school year changes, clear class selection so we show the new year's class list
+	const prevSchoolYearIdRef = useRef<number | undefined>(undefined)
 	useEffect(() => {
+		if (prevSchoolYearIdRef.current !== undefined && prevSchoolYearIdRef.current !== schoolYearId) {
+			setSelectedClassId('')
+		}
+		prevSchoolYearIdRef.current = schoolYearId
+	}, [schoolYearId])
+
+	// Fetch all classes on mount (filtered by selected school year)
+	useEffect(() => {
+		if (schoolYearId == null) return
 		const fetchClasses = async () => {
 			try {
-				const response = await fetch('/api/classes')
+				const response = await fetch(`/api/classes?schoolYearId=${schoolYearId}`, { cache: 'no-store' })
 				if (!response.ok) throw new Error('Failed to fetch classes')
 				const data = await response.json() as Array<{ id: number; name: string }>
 				setClasses(data)
@@ -601,7 +616,7 @@ export default function NotensammlerPage() {
 			}
 		}
 		void fetchClasses()
-	}, [])
+	}, [schoolYearId])
 
 	// Preselect class from query parameter when classes are loaded
 	useEffect(() => {
@@ -671,13 +686,13 @@ export default function NotensammlerPage() {
 
 	// Fetch teacher's classes (for tab bar with per-semester completion)
 	useEffect(() => {
-		if (!session?.user?.name) {
+		if (!session?.user?.name || schoolYearId == null) {
 			setTeacherClasses([])
 			return
 		}
 		const fetchTeacherClasses = async () => {
 			try {
-				const response = await fetch('/api/notensammler/teacher-classes')
+				const response = await fetch(`/api/notensammler/teacher-classes?schoolYearId=${schoolYearId}`, { cache: 'no-store' })
 				if (!response.ok) return
 				const data = await response.json() as { classes: Array<{ id: number; name: string; allGradesEnteredFirst: boolean; allGradesEnteredSecond: boolean }> }
 				setTeacherClasses(data.classes ?? [])
@@ -687,11 +702,11 @@ export default function NotensammlerPage() {
 			}
 		}
 		void fetchTeacherClasses()
-	}, [session?.user?.name])
+	}, [session?.user?.name, schoolYearId])
 
 	// Fetch class data and grades when class is selected
 	useEffect(() => {
-		if (!selectedClassId) {
+		if (!selectedClassId || schoolYearId == null) {
 			setClassData(null)
 			setGrades({})
 			setFinalGrades({})
@@ -704,8 +719,8 @@ export default function NotensammlerPage() {
 				setError(null)
 
 				const [classResponse, gradesResponse] = await Promise.all([
-					fetch(`/api/notensammler/class/${selectedClassId}`),
-					fetch(`/api/notensammler/grades?classId=${selectedClassId}`)
+					fetch(`/api/notensammler/class/${selectedClassId}?schoolYearId=${schoolYearId}`, { cache: 'no-store' }),
+					fetch(`/api/notensammler/grades?classId=${selectedClassId}&schoolYearId=${schoolYearId}`, { cache: 'no-store' })
 				])
 
 				if (!classResponse.ok) throw new Error('Failed to fetch class data')
@@ -731,7 +746,7 @@ export default function NotensammlerPage() {
 		}
 
 		void fetchClassData()
-	}, [selectedClassId])
+	}, [selectedClassId, schoolYearId])
 
 	// Save grade function
 	const saveGrade = useCallback(async (
@@ -758,7 +773,8 @@ export default function NotensammlerPage() {
 					teacherId,
 					classId: classData.id,
 					semester,
-					grade
+					grade,
+					...(schoolYearId != null && { schoolYearId })
 				})
 			})
 
@@ -922,7 +938,8 @@ export default function NotensammlerPage() {
 						studentId,
 						classId: classData.id,
 						semester,
-						grade
+						grade,
+						...(schoolYearId != null && { schoolYearId })
 					})
 				})
 				if (!response.ok) {
@@ -1152,7 +1169,7 @@ export default function NotensammlerPage() {
 
 			// Refetch teacher classes so tab icons (1. Sem / 2. Sem check/cross) update
 			try {
-				const tcRes = await fetch('/api/notensammler/teacher-classes')
+				const tcRes = schoolYearId != null ? await fetch(`/api/notensammler/teacher-classes?schoolYearId=${schoolYearId}`) : await fetch('/api/notensammler/teacher-classes')
 				if (tcRes.ok) {
 					const tcData = await tcRes.json() as { classes: Array<{ id: number; name: string; allGradesEnteredFirst: boolean; allGradesEnteredSecond: boolean }> }
 					setTeacherClasses(tcData.classes ?? [])
@@ -1177,21 +1194,22 @@ export default function NotensammlerPage() {
 
 		try {
 			setDownloadingPdf(true)
-			const response = await fetch(`/api/notensammler/pdf?classId=${selectedClassId}`)
+			const url = schoolYearId != null ? `/api/notensammler/pdf?classId=${selectedClassId}&schoolYearId=${schoolYearId}` : `/api/notensammler/pdf?classId=${selectedClassId}`
+			const response = await fetch(url)
 			
 			if (!response.ok) {
 				throw new Error('Failed to generate PDF')
 			}
 
 			const blob = await response.blob()
-			const url = window.URL.createObjectURL(blob)
+			const blobUrl = window.URL.createObjectURL(blob)
 			const a = document.createElement('a')
-			a.href = url
+			a.href = blobUrl
 			const today = new Date().toLocaleDateString('de-DE')
 			a.download = `notensammler-${classData.name}-${today}.pdf`
 			document.body.appendChild(a)
 			a.click()
-			window.URL.revokeObjectURL(url)
+			window.URL.revokeObjectURL(blobUrl)
 			document.body.removeChild(a)
 		} catch (e) {
 			captureFrontendError(e, {
@@ -1202,25 +1220,26 @@ export default function NotensammlerPage() {
 		} finally {
 			setDownloadingPdf(false)
 		}
-	}, [selectedClassId, classData])
+	}, [selectedClassId, classData, schoolYearId])
 
 	// Handle PDF download for all teacher's classes
 	const handleDownloadAllClassesPDF = useCallback(async () => {
 		try {
 			setDownloadingAllPdf(true)
-			const response = await fetch('/api/notensammler/pdf/all')
+			const url = schoolYearId != null ? `/api/notensammler/pdf/all?schoolYearId=${schoolYearId}` : '/api/notensammler/pdf/all'
+			const response = await fetch(url)
 			if (!response.ok) {
 				throw new Error('Failed to generate PDF')
 			}
 			const blob = await response.blob()
-			const url = window.URL.createObjectURL(blob)
+			const blobUrl = window.URL.createObjectURL(blob)
 			const a = document.createElement('a')
-			a.href = url
+			a.href = blobUrl
 			const today = new Date().toLocaleDateString('de-DE')
 			a.download = `notensammler-alle-klassen-${today}.pdf`
 			document.body.appendChild(a)
 			a.click()
-			window.URL.revokeObjectURL(url)
+			window.URL.revokeObjectURL(blobUrl)
 			document.body.removeChild(a)
 		} catch (e) {
 			captureFrontendError(e, {
@@ -1231,7 +1250,7 @@ export default function NotensammlerPage() {
 		} finally {
 			setDownloadingAllPdf(false)
 		}
-	}, [])
+	}, [schoolYearId])
 
 	// Delete all grades for a teacher
 	const deleteTeacherGrades = useCallback(async () => {
@@ -1241,8 +1260,9 @@ export default function NotensammlerPage() {
 			setDeleting(true)
 			setError(null)
 
+			const q = schoolYearId != null ? `&schoolYearId=${schoolYearId}` : ''
 			const response = await fetch(
-				`/api/notensammler/grades?teacherId=${teacherToDelete.id}&classId=${classData.id}`,
+				`/api/notensammler/grades?teacherId=${teacherToDelete.id}&classId=${classData.id}${q}`,
 				{
 					method: 'DELETE'
 				}
@@ -1312,6 +1332,7 @@ export default function NotensammlerPage() {
 				body: JSON.stringify({
 					classId: classData.id,
 					semester,
+					...(schoolYearId != null && { schoolYearId }),
 					username: normalizeUsername(transferUsername) || transferUsername,
 					...(useStoredToken ? { token: storedToken.token } : { password: transferPassword })
 				})
@@ -1330,6 +1351,7 @@ export default function NotensammlerPage() {
 							body: JSON.stringify({
 								classId: classData.id,
 								semester,
+								...(schoolYearId != null && { schoolYearId }),
 								username: normalizeUsername(transferUsername) || transferUsername,
 								password: transferPassword
 							})
@@ -1406,6 +1428,7 @@ export default function NotensammlerPage() {
 				body: JSON.stringify({
 					classId: classData.id,
 					semester: transferSemester,
+					...(schoolYearId != null && { schoolYearId }),
 					username: normalizeUsername(transferUsername) || transferUsername,
 					...(useStoredToken ? { token: storedToken.token } : { password: transferPassword }),
 					notes: notesPayload,
@@ -1424,6 +1447,7 @@ export default function NotensammlerPage() {
 						body: JSON.stringify({
 							classId: classData.id,
 							semester: transferSemester,
+							...(schoolYearId != null && { schoolYearId }),
 							username: normalizeUsername(transferUsername) || transferUsername,
 							password: transferPassword,
 							notes: notesPayload,
@@ -1460,9 +1484,9 @@ export default function NotensammlerPage() {
 			setShowResultDialog(true)
 			
 			// Refetch class data to update transfer status
-			if (selectedClassId) {
+			if (selectedClassId && schoolYearId != null) {
 				try {
-					const classRes = await fetch(`/api/notensammler/class/${selectedClassId}`)
+					const classRes = await fetch(`/api/notensammler/class/${selectedClassId}?schoolYearId=${schoolYearId}`)
 					if (classRes.ok) {
 						const updatedClassData = await classRes.json() as Class
 						setClassData(updatedClassData)
@@ -1698,6 +1722,11 @@ export default function NotensammlerPage() {
 				)}
 				{classData && (
 					<div className="flex items-center gap-6 mb-4">
+						{currentSemester != null && (
+							<span className="text-sm text-muted-foreground">
+								{t('notensammler.currentSemester', 'Aktuell')}: {currentSemester === 'first' ? t('notensammler.firstSemester', '1. Semester') : t('notensammler.secondSemester', '2. Semester')}
+							</span>
+						)}
 						<div className="flex items-center space-x-2">
 							<Checkbox
 								id="show-first-semester"
@@ -2027,8 +2056,14 @@ export default function NotensammlerPage() {
 												<TableCell className="sticky left-14 z-10 w-16 bg-background">
 													{student.groupId ?? '-'}
 												</TableCell>
-												<TableCell className="sticky left-[7.5rem] z-10 font-medium w-[200px] max-w-[200px] truncate bg-background">
-													{student.lastName}, {student.firstName}
+												<TableCell className="sticky left-[7.5rem] z-10 font-medium w-[200px] max-w-[200px] bg-background">
+													<StudentPhoto
+														studentId={student.id}
+														firstName={student.firstName}
+														lastName={student.lastName}
+														size={32}
+														nameFormat="lastFirst"
+													/>
 												</TableCell>
 												{/* First semester - AM teacher columns */}
 												{showFirstSemester && classData.amTeachers.map((teacher) => {

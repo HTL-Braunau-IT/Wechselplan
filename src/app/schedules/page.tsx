@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
+import { useSchoolYear } from '@/contexts/school-year-context'
 import {
   Select,
   SelectContent,
@@ -63,7 +64,7 @@ interface TeacherAssignmentsResponse {
  *
  * @param className - The name of the class for which to display the schedule overview.
  */
-function ClassScheduleOverview({ className }: { className: string }) {
+function ClassScheduleOverview({ className, schoolYearId }: { className: string; schoolYearId: number | undefined }) {
   const {
     groups,
     amAssignments,
@@ -77,7 +78,7 @@ function ClassScheduleOverview({ className }: { className: string }) {
     weekday,
     loading: overviewLoading,
     error: overviewError
-  } = useScheduleOverview(className)
+  } = useScheduleOverview(className, schoolYearId)
 
   if (overviewLoading) {
     return (
@@ -133,6 +134,8 @@ function ClassScheduleOverview({ className }: { className: string }) {
  * Allows users to select a class or view all classes, displays schedule availability, and provides detailed schedule overviews. Export options for PDF and Excel are available when a specific class with a schedule is selected; Excel export is restricted to teachers assigned to the class. Handles loading and error states, and supports collapsible panels for browsing all class schedules.
  */
 export default function SchedulesPage() {
+  const { selectedYear } = useSchoolYear()
+  const schoolYearId = selectedYear?.id
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [classes, setClasses] = useState<Class[]>([])
   const [selectedClass, setSelectedClass] = useState<string>('all')
@@ -155,7 +158,7 @@ export default function SchedulesPage() {
     weekday,
     loading: overviewLoading,
     error: overviewError
-  } = useScheduleOverview(selectedClass !== 'all' ? selectedClass : null)
+  } = useScheduleOverview(selectedClass !== 'all' ? selectedClass : null, schoolYearId)
 
   // Create a Map of class names to their schedule status
   const classScheduleMap = useMemo(() => {
@@ -219,8 +222,9 @@ export default function SchedulesPage() {
         }
         const classData = await classRes.json() as { id: number }
         
-        // Then get the teacher assignments for the class
-        const response = await fetch(`/api/schedules/teacher-assignments?classId=${classData.id}`)
+        // Then get the teacher assignments for the class (for selected school year)
+        const yearQ = schoolYearId != null ? `&schoolYearId=${schoolYearId}` : ''
+        const response = await fetch(`/api/schedules/teacher-assignments?classId=${classData.id}${yearQ}`)
         if (!response.ok) {
           setIsTeacherForClass(false)
           setIsTeacherForAM(false)
@@ -260,11 +264,11 @@ export default function SchedulesPage() {
     }
 
     void checkTeacherAssignment()
-  }, [selectedClass, session?.user?.name])
+  }, [selectedClass, session?.user?.name, schoolYearId])
 
   useEffect(() => {
     void fetchData()
-  }, [])
+  }, [schoolYearId])
 
   useEffect(() => {
     const classParam = searchParams.get('class')
@@ -280,14 +284,14 @@ export default function SchedulesPage() {
       setLoading(true)
       setError(null)
 
-      // Fetch all schedules
-      const schedulesRes = await fetch('/api/schedules/all')
+      const yearQ = schoolYearId != null ? `?schoolYearId=${schoolYearId}` : ''
+      // Fetch schedules and classes for the selected school year (when no year, APIs return all)
+      const schedulesRes = await fetch(`/api/schedules/all${yearQ}`, { cache: 'no-store' })
       if (!schedulesRes.ok) throw new Error('Failed to fetch schedules')
       const schedulesData = await schedulesRes.json() as Schedule[]
       setSchedules(schedulesData)
 
-      // Fetch all classes
-      const classesRes = await fetch('/api/classes')
+      const classesRes = await fetch(`/api/classes${yearQ}`, { cache: 'no-store' })
       if (!classesRes.ok) throw new Error('Failed to fetch classes')
       const classesData = await classesRes.json() as Class[]
       setClasses(classesData)
@@ -488,7 +492,7 @@ export default function SchedulesPage() {
                   <CollapsibleContent>
                     {hasScheduleForClass ? (
                       <div className="p-4 pt-0">
-                        <ClassScheduleOverview className={cls.name} />
+                        <ClassScheduleOverview className={cls.name} schoolYearId={schoolYearId} />
                       </div>
                     ) : (
                       <Card className="m-4 border-destructive">
@@ -514,7 +518,7 @@ export default function SchedulesPage() {
 
         {/* Show single schedule when a specific class is selected */}
         {selectedClass !== 'all' && hasSchedule(selectedClass) && !overviewError && (
-          <ClassScheduleOverview className={selectedClass} />
+          <ClassScheduleOverview className={selectedClass} schoolYearId={schoolYearId} />
         )}
       </div>
     </div>

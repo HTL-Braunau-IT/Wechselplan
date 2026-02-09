@@ -16,6 +16,8 @@ export interface Column {
   required?: boolean
   readonly?: boolean
   sortable?: boolean
+  /** When set, this cell is rendered with render(item) instead of the default formatter. Column is omitted from create/edit forms. */
+  render?: (item: Record<string, unknown>) => React.ReactNode
 }
 
 interface DataTableProps {
@@ -282,7 +284,7 @@ export function DataTable({
               <DialogTitle>Create {model}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              {columns.map(column => (
+              {columns.filter((c) => !c.render).map(column => (
                 <div key={column.key} className="space-y-2">
                   <label className="text-sm font-medium">
                     {column.label}
@@ -326,9 +328,9 @@ export function DataTable({
           <TableBody>
             {filteredAndSortedData.map((item, index) => (
               <TableRow key={(item.id as number) ?? index}>
-                {columns.map(column => (
-                  <TableCell key={column.key}>
-                    {formatValue(item[column.key], column)}
+              {columns.map(column => (
+                <TableCell key={column.key}>
+                    {column.render ? column.render(item) : formatValue(item[column.key], column)}
                   </TableCell>
                 ))}
                 <TableCell>
@@ -360,24 +362,24 @@ export function DataTable({
           <DialogHeader>
             <DialogTitle>Edit {model}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            {columns.map(column => (
-              <div key={column.key} className="space-y-2">
-                <label className="text-sm font-medium">
-                  {column.label}
-                  {column.required && <span className="text-red-500 ml-1">*</span>}
-                </label>
-                {renderFormField(column)}
-              </div>
-            ))}
+            <div className="space-y-4">
+              {columns.filter((c) => !c.render).map(column => (
+                <div key={column.key} className="space-y-2">
+                  <label className="text-sm font-medium">
+                    {column.label}
+                    {column.required && <span className="text-red-500 ml-1">*</span>}
+                  </label>
+                  {renderFormField(column)}
+                </div>
+              ))}
             <div className="flex justify-end space-x-2">
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleSave}>
-                Save Changes
-              </Button>
-            </div>
+                <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSave}>
+                  Save Changes
+                </Button>
+              </div>
           </div>
         </DialogContent>
       </Dialog>

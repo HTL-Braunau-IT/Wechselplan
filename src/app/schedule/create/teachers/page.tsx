@@ -14,6 +14,7 @@ import { TeacherSelect } from '@/components/schedule/teacher-select'
 import { SubjectSelect } from '@/components/schedule/subject-select'
 import { LearningContentSelect } from '@/components/schedule/learning-content-select'
 import { RoomSelect } from '@/components/schedule/room-select'
+import { useSchoolYear } from '@/contexts/school-year-context'
 
 interface Student {
 	id: number
@@ -86,6 +87,8 @@ export default function TeacherAssignmentPage() {
 	const router = useRouter()
 	const searchParams = useSearchParams()
 	const { t } = useTranslation('schedule')
+	const { selectedYear } = useSchoolYear()
+	const schoolYearId = selectedYear?.id
 	const selectedClass = searchParams.get('class')
 	const [selectedClassId, setSelectedClassId] = useState<number | null>(null)
 	const [selectedWeekday, setSelectedWeekday] = useState<number | null>(null)
@@ -167,8 +170,11 @@ export default function TeacherAssignmentPage() {
 					students: assignment.students
 				})))
 
-				// Fetch existing teacher assignments
-				const teacherAssignmentsRes = await fetch(`/api/schedules/teacher-assignments?classId=${selectedClassId}`)
+				// Fetch existing teacher assignments for selected school year
+				const teacherAssignmentsUrl = schoolYearId != null
+					? `/api/schedules/teacher-assignments?classId=${selectedClassId}&schoolYearId=${schoolYearId}`
+					: `/api/schedules/teacher-assignments?classId=${selectedClassId}`
+				const teacherAssignmentsRes = await fetch(teacherAssignmentsUrl)
 				if (teacherAssignmentsRes.ok) {
 					const teacherAssignmentsData = await teacherAssignmentsRes.json() as TeacherAssignmentsResponse
 					const hasExistingAmAssignments = teacherAssignmentsData.amAssignments.some(a => a.teacherId !== 0)
@@ -253,7 +259,7 @@ export default function TeacherAssignmentPage() {
 			}
 		}
 		void fetchData()
-	}, [selectedClass, selectedClassId, isLoadingCachedData, subjects, learningContents, rooms])
+	}, [selectedClass, selectedClassId, schoolYearId, isLoadingCachedData, subjects, learningContents, rooms])
 
 	function handleAssignmentChange(
 		period: 'am' | 'pm',
@@ -470,6 +476,7 @@ export default function TeacherAssignmentPage() {
 				},
 				body: JSON.stringify({
 					classId: selectedClassId,
+					...(schoolYearId != null && { schoolYearId }),
 					amAssignments: mapAssignments(validAmAssignments),
 					pmAssignments: mapAssignments(validPmAssignments),
 					updateExisting: true,
@@ -535,6 +542,7 @@ export default function TeacherAssignmentPage() {
 				},
 				body: JSON.stringify({
 					classId: selectedClassId,
+					...(schoolYearId != null && { schoolYearId }),
 					amAssignments: mapAssignments(pendingAssignments.amAssignments),
 					pmAssignments: mapAssignments(pendingAssignments.pmAssignments),
 					updateExisting: true,

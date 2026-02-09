@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSchoolYear } from '@/contexts/school-year-context'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -24,6 +25,7 @@ interface ImportData {
 
 export default function ImportPage() {
   const { t } = useTranslation()
+  const { selectedYear } = useSchoolYear()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -205,6 +207,11 @@ export default function ImportPage() {
 
   return (
     <div className="container mx-auto p-4">
+      {selectedYear != null && (
+        <p className="text-sm text-muted-foreground mb-4">
+          {t('admin.teachers.import.schoolYearContext', { year: selectedYear.label })}
+        </p>
+      )}
       <Card>
         <CardHeader>
           <CardTitle>{t('admin.teachers.import.title')}</CardTitle>

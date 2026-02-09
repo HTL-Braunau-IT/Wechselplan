@@ -35,8 +35,28 @@ export async function POST(request: Request) {
 			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 		}
 
-		const body = JSON.parse(rawBody) as ImportRequest
-		const { data } = body
+		const body = JSON.parse(rawBody) as ImportRequest & { schoolYearId?: number }
+		const { data, schoolYearId: bodySchoolYearId } = body
+
+		// Resolve school year: from body or current (today between start and end)
+		let schoolYearId = bodySchoolYearId
+		if (schoolYearId == null) {
+			const now = new Date()
+			const current = await prisma.schoolYear.findFirst({
+				where: {
+					startDate: { lte: now },
+					endDate: { gte: now }
+				},
+				select: { id: true }
+			})
+			schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
+		}
+		if (schoolYearId == null) {
+			return NextResponse.json(
+				{ error: 'No school year found. Create a school year in Admin / Data / School Years first.' },
+				{ status: 400 }
+			)
+		}
 
 		// Parse CSV data
 		const records = parse(data, {
@@ -97,6 +117,7 @@ export async function POST(request: Request) {
 			classId: number
 			semester: 'first' | 'second'
 			grade: number | null
+			schoolYearId: number
 		}> = []
 
 		for (let i = 0; i < records.length; i++) {
@@ -156,7 +177,8 @@ export async function POST(request: Request) {
 				teacherId,
 				classId,
 				semester: record.semester as 'first' | 'second',
-				grade
+				grade,
+				schoolYearId
 			})
 		}
 
@@ -175,11 +197,12 @@ export async function POST(request: Request) {
 			try {
 				await prisma.grade.upsert({
 					where: {
-						studentId_teacherId_classId_semester: {
+						studentId_teacherId_classId_semester_schoolYearId: {
 							studentId: gradeData.studentId,
 							teacherId: gradeData.teacherId,
 							classId: gradeData.classId,
-							semester: gradeData.semester
+							semester: gradeData.semester,
+							schoolYearId: gradeData.schoolYearId
 						}
 					},
 					update: {
@@ -190,6 +213,7 @@ export async function POST(request: Request) {
 						teacherId: gradeData.teacherId,
 						classId: gradeData.classId,
 						semester: gradeData.semester,
+						schoolYearId: gradeData.schoolYearId,
 						grade: gradeData.grade
 					}
 				})
