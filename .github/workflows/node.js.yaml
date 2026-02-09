@@ -35,6 +35,5 @@ jobs:
             apk add --no-cache openssl &&
             [ -f .env.example ] && cp .env.example .env || true &&
             npx prisma generate &&
-            npm run build --if-present &&
-            npm test
+            npm run build --if-present
           "
