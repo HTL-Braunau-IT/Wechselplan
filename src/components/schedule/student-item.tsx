@@ -1,6 +1,7 @@
 'use client'
 
 import { useDraggable } from '@dnd-kit/core'
+import { StudentPhoto } from '@/components/student-photo'
 
 interface Student {
 	id: number
@@ -42,9 +43,15 @@ export function StudentItem({ student, index, onRemove, t }: StudentItemProps) {
 			className="text-sm p-3 bg-card border border-border rounded-lg cursor-move hover:bg-accent transition-all duration-200 flex items-start justify-between group min-h-[60px]"
 		>
 			<div className="flex-1 min-w-0 pr-2">
-				<div className="flex items-center mb-1">
-					<span className="text-muted-foreground mr-2 text-xs font-medium">{index + 1}.</span>
-					<span className="font-medium truncate">{`${student.lastName}, ${student.firstName}`}</span>
+				<div className="flex items-center gap-2 mb-1">
+					<span className="text-muted-foreground text-xs font-medium shrink-0">{index + 1}.</span>
+					<StudentPhoto
+						studentId={student.id}
+						firstName={student.firstName}
+						lastName={student.lastName}
+						size={32}
+						nameFormat="lastFirst"
+					/>
 				</div>
 				{student.originalClass && (
 					<div className="text-xs text-muted-foreground ml-4 bg-muted/50 px-2 py-1 rounded-md inline-block">

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useSchoolYear } from '@/contexts/school-year-context'
-import { Database, Users, GraduationCap, Building, Calendar, Clock, BookOpen, Home, FileText, RotateCcw, Shield, MessageSquare } from 'lucide-react'
+import { Database, Users, GraduationCap, Building, Calendar, Clock, BookOpen, Home, FileText, RotateCcw, Shield, MessageSquare, Image } from 'lucide-react'
 
 // Import individual model components
 import { StudentTab } from './_components/student-tab'
@@ -25,6 +25,7 @@ import { TeacherRotationTab } from './_components/teacher-rotation-tab'
 import { RoleTab } from './_components/role-tab'
 import { UserRoleTab } from './_components/user-role-tab'
 import { SupportMessageTab } from './_components/support-message-tab'
+import { StudentPhotosUpload } from './_components/student-photos-upload'
 
 const modelTabs = [
   {
@@ -134,6 +135,12 @@ const modelTabs = [
     label: 'Support Messages',
     icon: MessageSquare,
     description: 'Manage support messages and feedback'
+  },
+  {
+    value: 'studentPhotos',
+    label: 'Student Photos',
+    icon: Image,
+    description: 'Upload student photos by class (LastName_FirstName.jpg)'
   }
 ]
 
@@ -241,6 +248,8 @@ function renderTabContent(tabValue: string) {
       return <UserRoleTab />
     case 'supportMessages':
       return <SupportMessageTab />
+    case 'studentPhotos':
+      return <StudentPhotosUpload />
     default:
       return <div>Tab content not implemented yet</div>
   }

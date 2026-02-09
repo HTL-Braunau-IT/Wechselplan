@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useSchoolYear } from '@/contexts/school-year-context'
 import { captureFrontendError } from '@/lib/frontend-error'
 import { Spinner } from '@/components/ui/spinner'
+import { StudentPhoto } from '@/components/student-photo'
 
 interface Student {
   id: number
@@ -130,11 +131,12 @@ export default function StudentsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {groupStudents.map((student) => (
                       <Card key={student.id} className="p-4">
-                        <div className="flex flex-col">
-                          <span className="font-medium">
-                            {student.lastName}, {student.firstName}
-                          </span>
-                        </div>
+                        <StudentPhoto
+                          studentId={student.id}
+                          firstName={student.firstName}
+                          lastName={student.lastName}
+                          nameFormat="lastFirst"
+                        />
                       </Card>
                     ))}
                   </div>
