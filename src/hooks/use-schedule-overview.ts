@@ -24,9 +24,10 @@ interface UseScheduleOverviewResult {
  * Retrieves student groups, teacher assignments, schedule times, break times, rotation schedules, class head and lead names, additional schedule information, and the selected weekday for the given class ID. Returns the collected data along with loading and error states.
  *
  * @param classId - The identifier of the class to retrieve scheduling data for. If null or falsy, sets an error and does not fetch data.
+ * @param schoolYearId - Optional school year id; when provided, schedule and assignment data are filtered by this year.
  * @returns An object containing groups, teacher assignments, schedule times, break times, rotation schedule, class head and lead names, additional info, selected weekday, loading status, and error message.
  */
-export function useScheduleOverview(classId: string | null): UseScheduleOverviewResult {
+export function useScheduleOverview(classId: string | null, schoolYearId?: number): UseScheduleOverviewResult {
   const [groups, setGroups] = useState<Group[]>([])
   const [amAssignments, setAmAssignments] = useState<TeacherAssignmentResponse[]>([])
   const [pmAssignments, setPmAssignments] = useState<TeacherAssignmentResponse[]>([])
@@ -65,6 +66,8 @@ export function useScheduleOverview(classId: string | null): UseScheduleOverview
     void resolveClassId()
   }, [classId])
 
+  const yearQ = schoolYearId != null ? `&schoolYearId=${schoolYearId}` : ''
+
   useEffect(() => {
     if (!classId || !resolvedClassId) {
       return
@@ -75,13 +78,13 @@ export function useScheduleOverview(classId: string | null): UseScheduleOverview
         setLoading(true)
         setError(null)
 
-        // Fetch all students for the class
-        const studentsRes = await fetch(`/api/students?class=${classId}`)
+        // Fetch all students for the class (optionally for school year)
+        const studentsRes = await fetch(`/api/students?class=${classId}${yearQ}`, { cache: 'no-store' })
         if (!studentsRes.ok) throw new Error('Failed to fetch students')
         const students: Student[] = await studentsRes.json()
 
         // Fetch group assignments
-        const groupRes = await fetch(`/api/schedules/assignments?classId=${resolvedClassId}`)
+        const groupRes = await fetch(`/api/schedules/assignments?classId=${resolvedClassId}${yearQ}`, { cache: 'no-store' })
         if (!groupRes.ok) throw new Error('Failed to fetch group assignments')
         const groupData: { assignments: { groupId: number; studentIds: number[] }[] } = await groupRes.json()
         setGroups(
@@ -109,8 +112,8 @@ export function useScheduleOverview(classId: string | null): UseScheduleOverview
           setBreakTimes([])
         }
 
-        // Fetch rotation/turn schedule
-        const schedulesRes = await fetch(`/api/schedules?classId=${classId}`)
+        // Fetch rotation/turn schedule (filtered by school year when provided)
+        const schedulesRes = await fetch(`/api/schedules?classId=${classId}${yearQ}`, { cache: 'no-store' })
         let latestSchedule: ScheduleResponse | undefined
         let selectedWeekday = 6
         
@@ -144,7 +147,7 @@ export function useScheduleOverview(classId: string | null): UseScheduleOverview
 
         // Fetch teacher assignments (no weekday filter needed - each class has one schedule)
         try {
-          const teacherRes = await fetch(`/api/schedules/teacher-assignments?classId=${resolvedClassId}`)
+          const teacherRes = await fetch(`/api/schedules/teacher-assignments?classId=${resolvedClassId}${yearQ}`, { cache: 'no-store' })
           if (teacherRes.ok) {
             const teacherData: TeacherAssignmentsResponse = await teacherRes.json()
             setAmAssignments(teacherData.amAssignments)
@@ -184,7 +187,7 @@ export function useScheduleOverview(classId: string | null): UseScheduleOverview
     }
 
     void fetchData()
-  }, [classId, resolvedClassId])
+  }, [classId, resolvedClassId, yearQ])
 
   return {
     groups,

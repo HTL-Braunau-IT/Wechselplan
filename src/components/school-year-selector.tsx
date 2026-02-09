@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/select'
 
 export function SchoolYearSelector() {
-  const { selectedYear, years, setSchoolYear, isLoading } = useSchoolYear()
+  const { selectedYear, years, setSchoolYear, refetchYears, isLoading } = useSchoolYear()
   const { t } = useTranslation()
 
   if (isLoading || years.length === 0) {
@@ -20,7 +20,11 @@ export function SchoolYearSelector() {
 
   return (
     <Select
+      key={selectedYear?.id ?? 'none'}
       value={selectedYear ? String(selectedYear.id) : undefined}
+      onOpenChange={(open) => {
+        if (open) void refetchYears()
+      }}
       onValueChange={(value) => {
         const id = parseInt(value, 10)
         const year = years.find((y) => y.id === id)

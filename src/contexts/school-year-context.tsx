@@ -19,6 +19,8 @@ interface SchoolYearContextType {
   currentSemester: 'first' | 'second' | null
   /** Set selected year by id; persists to localStorage */
   setSchoolYear: (year: SchoolYearFromApi | { id: number }) => void
+  /** Refetch years list from API (e.g. after creating a new year); keeps current selection if still in list */
+  refetchYears: () => Promise<void>
   isLoading: boolean
 }
 
@@ -29,9 +31,9 @@ export function SchoolYearProvider({ children }: { children: ReactNode }) {
   const [selectedYear, setSelectedYearState] = useState<SchoolYearFromApi | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  const fetchYears = useCallback(async () => {
+  const fetchYears = useCallback(async (isInitialLoad = true) => {
     try {
-      setIsLoading(true)
+      if (isInitialLoad) setIsLoading(true)
       const res = await fetch('/api/school-years')
       if (!res.ok) return
       const data = (await res.json()) as SchoolYearFromApi[]
@@ -40,23 +42,35 @@ export function SchoolYearProvider({ children }: { children: ReactNode }) {
         setSelectedYearState(null)
         return
       }
-      const currentFromDb = getCurrentSchoolYearFromList(data)
-      const storedId = getStoredSchoolYearId()
-      const byStored = storedId ? data.find((y) => y.id === storedId) : null
-      const initial = byStored ?? currentFromDb ?? data[data.length - 1] ?? data[0]!
-      setSelectedYearState(initial)
-      if (!byStored && storedId === null) {
-        setStoredSchoolYearId(initial.id)
+      if (isInitialLoad) {
+        const currentFromDb = getCurrentSchoolYearFromList(data)
+        const storedId = getStoredSchoolYearId()
+        const byStored = storedId ? data.find((y) => y.id === storedId) : null
+        const initial = byStored ?? currentFromDb ?? data[data.length - 1] ?? data[0]!
+        setSelectedYearState(initial)
+        if (!byStored && storedId === null) {
+          setStoredSchoolYearId(initial.id)
+        }
+      } else {
+        setSelectedYearState((prev) => {
+          if (!prev) return data[data.length - 1] ?? data[0]!
+          const stillInList = data.find((y) => y.id === prev.id)
+          return stillInList ?? prev
+        })
       }
     } catch (e) {
       console.error('Failed to fetch school years', e)
     } finally {
-      setIsLoading(false)
+      if (isInitialLoad) setIsLoading(false)
     }
   }, [])
 
+  const refetchYears = useCallback(async () => {
+    await fetchYears(false)
+  }, [fetchYears])
+
   useEffect(() => {
-    void fetchYears()
+    void fetchYears(true)
   }, [fetchYears])
 
   const setSchoolYear = useCallback((year: SchoolYearFromApi | { id: number }) => {
@@ -80,6 +94,7 @@ export function SchoolYearProvider({ children }: { children: ReactNode }) {
         years,
         currentSemester,
         setSchoolYear,
+        refetchYears,
         isLoading,
       }}
     >

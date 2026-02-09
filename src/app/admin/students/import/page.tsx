@@ -164,6 +164,17 @@ export default function ImportPage() {
 
   return (
     <div className="container mx-auto p-4">
+      {selectedYear != null ? (
+        <p className="text-sm text-muted-foreground mb-4">
+          {t('admin.students.import.schoolYearContext', { year: selectedYear.label })}
+        </p>
+      ) : (
+        <Alert variant="default" className="mb-4">
+          <AlertDescription>
+            {t('admin.students.import.selectSchoolYear', 'Select a school year in the header to import students for that year.')}
+          </AlertDescription>
+        </Alert>
+      )}
       <Card>
         <CardHeader>
           <CardTitle>{t('admin.students.import.title')}</CardTitle>

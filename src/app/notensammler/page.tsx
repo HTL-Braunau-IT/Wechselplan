@@ -588,12 +588,21 @@ export default function NotensammlerPage() {
 	const { selectedYear, currentSemester } = useSchoolYear()
 	const schoolYearId = selectedYear?.id
 
+	// When school year changes, clear class selection so we show the new year's class list
+	const prevSchoolYearIdRef = useRef<number | undefined>(undefined)
+	useEffect(() => {
+		if (prevSchoolYearIdRef.current !== undefined && prevSchoolYearIdRef.current !== schoolYearId) {
+			setSelectedClassId('')
+		}
+		prevSchoolYearIdRef.current = schoolYearId
+	}, [schoolYearId])
+
 	// Fetch all classes on mount (filtered by selected school year)
 	useEffect(() => {
 		if (schoolYearId == null) return
 		const fetchClasses = async () => {
 			try {
-				const response = await fetch(`/api/classes?schoolYearId=${schoolYearId}`)
+				const response = await fetch(`/api/classes?schoolYearId=${schoolYearId}`, { cache: 'no-store' })
 				if (!response.ok) throw new Error('Failed to fetch classes')
 				const data = await response.json() as Array<{ id: number; name: string }>
 				setClasses(data)
@@ -682,7 +691,7 @@ export default function NotensammlerPage() {
 		}
 		const fetchTeacherClasses = async () => {
 			try {
-				const response = await fetch(`/api/notensammler/teacher-classes?schoolYearId=${schoolYearId}`)
+				const response = await fetch(`/api/notensammler/teacher-classes?schoolYearId=${schoolYearId}`, { cache: 'no-store' })
 				if (!response.ok) return
 				const data = await response.json() as { classes: Array<{ id: number; name: string; allGradesEnteredFirst: boolean; allGradesEnteredSecond: boolean }> }
 				setTeacherClasses(data.classes ?? [])
@@ -709,8 +718,8 @@ export default function NotensammlerPage() {
 				setError(null)
 
 				const [classResponse, gradesResponse] = await Promise.all([
-					fetch(`/api/notensammler/class/${selectedClassId}?schoolYearId=${schoolYearId}`),
-					fetch(`/api/notensammler/grades?classId=${selectedClassId}&schoolYearId=${schoolYearId}`)
+					fetch(`/api/notensammler/class/${selectedClassId}?schoolYearId=${schoolYearId}`, { cache: 'no-store' }),
+					fetch(`/api/notensammler/grades?classId=${selectedClassId}&schoolYearId=${schoolYearId}`, { cache: 'no-store' })
 				])
 
 				if (!classResponse.ok) throw new Error('Failed to fetch class data')

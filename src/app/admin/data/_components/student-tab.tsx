@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSchoolYear } from '@/contexts/school-year-context'
 import { DataTable } from './data-table'
 import type { Column } from './data-table'
 
@@ -21,6 +22,8 @@ interface Student {
 }
 
 export function StudentTab() {
+  const { selectedYear } = useSchoolYear()
+  const schoolYearId = selectedYear?.id
   const [students, setStudents] = useState<Student[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [classes, setClasses] = useState<{ id: number; name: string }[]>([])
@@ -45,10 +48,18 @@ export function StudentTab() {
   const fetchStudents = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch('/api/admin/data?model=student')
-      if (response.ok) {
-        const data = await response.json() as unknown as Student[]
-        setStudents(data)
+      if (schoolYearId != null) {
+        const response = await fetch(`/api/students/all?schoolYearId=${schoolYearId}`, { cache: 'no-store' })
+        if (response.ok) {
+          const data = await response.json() as unknown as Student[]
+          setStudents(data)
+        }
+      } else {
+        const response = await fetch('/api/admin/data?model=student')
+        if (response.ok) {
+          const data = await response.json() as unknown as Student[]
+          setStudents(data)
+        }
       }
     } catch (error) {
       console.error('Error fetching students:', error)
@@ -59,9 +70,10 @@ export function StudentTab() {
 
   const fetchClasses = async () => {
     try {
-      const response = await fetch('/api/admin/data?model=class')
+      const url = schoolYearId != null ? `/api/classes?schoolYearId=${schoolYearId}` : '/api/admin/data?model=class'
+      const response = await fetch(url, schoolYearId != null ? { cache: 'no-store' } : undefined)
       if (response.ok) {
-        const data = await response.json() as Record<string, unknown>[] as Array<{ id: number; name: string }>
+        const data = await response.json() as Array<{ id: number; name: string }>
         setClasses(data.map(c => ({ id: c.id, name: c.name })))
       }
     } catch (error) {
@@ -72,7 +84,7 @@ export function StudentTab() {
   useEffect(() => {
     void fetchStudents()
     void fetchClasses()
-  }, [])
+  }, [schoolYearId])
 
   const handleCreate = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
     const response = await fetch('/api/admin/data?model=student', {
