@@ -15,6 +15,7 @@ export async function GET(request: Request) {
 		const { searchParams } = new URL(request.url)
 		const classIdParam = searchParams.get('classId')
 		const selectedWeekdayParam = searchParams.get('selectedWeekday')
+		const schoolYearIdParam = searchParams.get('schoolYearId')
 
 		if (!classIdParam) {
 			return NextResponse.json(
@@ -50,9 +51,27 @@ export async function GET(request: Request) {
 			)
 		}
 
+		// Resolve school year: from query or current
+		let schoolYearId: number | undefined = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
+		if (schoolYearId == null || Number.isNaN(schoolYearId)) {
+			const now = new Date()
+			const current = await prisma.schoolYear.findFirst({
+				where: { startDate: { lte: now }, endDate: { gte: now } },
+				select: { id: true }
+			})
+			schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
+		}
+		if (schoolYearId == null) {
+			return NextResponse.json(
+				{ error: 'No school year found.' },
+				{ status: 400 }
+			)
+		}
+
 		// Build where clause with optional weekday filter
-		const whereClause: { classId: number; selectedWeekday?: number } = {
-			classId: classRecord.id
+		const whereClause: { classId: number; schoolYearId: number; selectedWeekday?: number } = {
+			classId: classRecord.id,
+			schoolYearId
 		}
 		if (selectedWeekdayParam) {
 			const weekday = parseInt(selectedWeekdayParam, 10)
@@ -61,7 +80,7 @@ export async function GET(request: Request) {
 			}
 		}
 
-		// Fetch existing assignments for this class, optionally filtered by weekday
+		// Fetch existing assignments for this class and school year, optionally filtered by weekday
 		const assignments = await prisma.teacherAssignment.findMany({
 			where: whereClause,
 			orderBy: [
@@ -135,7 +154,7 @@ export async function POST(request: Request) {
 	let requestData;
 	try {
 		requestData = await request.json()
-		const { classId, amAssignments, pmAssignments, updateExisting, selectedWeekday } = requestData
+		const { classId, amAssignments, pmAssignments, updateExisting, selectedWeekday, schoolYearId: bodySchoolYearId } = requestData
 
 		if (!classId || typeof classId !== 'number') {
 			captureError(new Error('Class ID parameter is required'), {
@@ -170,9 +189,26 @@ export async function POST(request: Request) {
 			)
 		}
 
-		// Check for existing assignments for this class
+		// Resolve school year: from body or current
+		let schoolYearId = typeof bodySchoolYearId === 'number' ? bodySchoolYearId : undefined
+		if (schoolYearId == null) {
+			const now = new Date()
+			const current = await prisma.schoolYear.findFirst({
+				where: { startDate: { lte: now }, endDate: { gte: now } },
+				select: { id: true }
+			})
+			schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
+		}
+		if (schoolYearId == null) {
+			return NextResponse.json(
+				{ error: 'No school year found. Create a school year in Admin / Data / School Years first.' },
+				{ status: 400 }
+			)
+		}
+
+		// Check for existing assignments for this class and year
 		const existingAssignments = await prisma.teacherAssignment.findMany({
-			where: { classId: classRecord.id }
+			where: { classId: classRecord.id, schoolYearId }
 		})
 
 		if (existingAssignments.length > 0 && !updateExisting) {
@@ -182,10 +218,10 @@ export async function POST(request: Request) {
 			)
 		}
 
-		// Delete existing assignments if updating
+		// Delete existing assignments for this class and year if updating
 		if (updateExisting) {
 			await prisma.teacherAssignment.deleteMany({
-				where: { classId: classRecord.id }
+				where: { classId: classRecord.id, schoolYearId }
 			})
 		}
 
@@ -227,6 +263,7 @@ export async function POST(request: Request) {
 			await prisma.teacherAssignment.create({
 				data: {
 					classId: classRecord.id,
+					schoolYearId,
 					period: 'AM',
 					groupId: assignment.groupId === 0 ? null : assignment.groupId,
 					teacherId: assignment.teacherId,
@@ -276,6 +313,7 @@ export async function POST(request: Request) {
 			await prisma.teacherAssignment.create({
 				data: {
 					classId: classRecord.id,
+					schoolYearId,
 					period: 'PM',
 					groupId: assignment.groupId === 0 ? null : assignment.groupId,
 					teacherId: assignment.teacherId,

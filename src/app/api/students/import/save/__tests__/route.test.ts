@@ -15,6 +15,12 @@ vi.mock('@/lib/prisma', () => ({
     groupAssignment: {
       deleteMany: vi.fn(),
     },
+    schoolYear: {
+      findFirst: vi.fn(),
+    },
+    classMembership: {
+      upsert: vi.fn(),
+    },
   },
 }));
 
@@ -132,6 +138,8 @@ describe('Students Import Save API', () => {
 
     test('should save selected classes and their students', async () => {
       // Mock prisma responses
+      vi.mocked(prisma.schoolYear.findFirst).mockResolvedValue({ id: 1 });
+
       vi.mocked(prisma.class.upsert).mockResolvedValue({
         id: 1,
         name: '1A',
@@ -146,16 +154,29 @@ describe('Students Import Save API', () => {
 
       vi.mocked(prisma.groupAssignment.deleteMany).mockResolvedValue({ count: 0 });
 
-      vi.mocked(prisma.student.create).mockResolvedValue({
-        id: 1,
-        firstName: 'John',
-        lastName: 'Doe',
-        username: 'john.doe',
-        classId: 1,
-        groupId: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
+      vi.mocked(prisma.student.create)
+        .mockResolvedValueOnce({
+          id: 10,
+          firstName: 'John',
+          lastName: 'Doe',
+          username: 'john.doe',
+          classId: 1,
+          groupId: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .mockResolvedValueOnce({
+          id: 11,
+          firstName: 'Jane',
+          lastName: 'Smith',
+          username: 'jane.smith',
+          classId: 1,
+          groupId: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+
+      vi.mocked(prisma.classMembership.upsert).mockResolvedValue({} as any);
 
       const request = new Request('http://localhost:3000/api/students/import/save', {
         method: 'POST',
@@ -196,6 +217,12 @@ describe('Students Import Save API', () => {
           username: 'john.doe',
           classId: 1,
         },
+      });
+      expect(prisma.classMembership.upsert).toHaveBeenCalledTimes(2);
+      expect(prisma.classMembership.upsert).toHaveBeenCalledWith({
+        where: { studentId_schoolYearId: { studentId: 10, schoolYearId: 1 } },
+        create: { studentId: 10, classId: 1, schoolYearId: 1 },
+        update: { classId: 1 },
       });
     });
 

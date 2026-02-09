@@ -26,13 +26,13 @@ export async function GET(request: Request) {
         )
     }
 
+    const schoolYearIdParam = searchParams.get('schoolYearId')
+    const schoolYearId = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
+
     try {
-        // Find the student by username
         const student = await prisma.student.findUnique({
             where: { username },
-            include: {
-                class: true
-            }
+            include: { class: true }
         })
 
         if (!student) {
@@ -41,6 +41,19 @@ export async function GET(request: Request) {
                 { error: 'Student not found' },
                 { status: 404 }
             )
+        }
+
+        if (schoolYearId != null && !Number.isNaN(schoolYearId)) {
+            const membership = await prisma.classMembership.findUnique({
+                where: { studentId_schoolYearId: { studentId: student.id, schoolYearId } },
+                include: { class: true }
+            })
+            if (membership?.class) {
+                return NextResponse.json({
+                    class: membership.class.name,
+                    groupId: student.groupId
+                })
+            }
         }
 
         if (!student.class) {

@@ -18,6 +18,7 @@ import { AddStudentDialog } from '@/components/schedule/add-student-dialog'
 import { CombineClassesDialog } from '@/components/schedule/combine-classes-dialog'
 import { useClassDataByName } from '@/hooks/use-class-data'
 import { useGroupAssignments } from '@/hooks/use-group-assignments'
+import { useSchoolYear } from '@/contexts/school-year-context'
 
 
 interface Student {
@@ -207,14 +208,19 @@ export default function ScheduleClassSelectPage() {
 		})
 	)
 
-	// Fetch classes using React Query
+	const { selectedYear } = useSchoolYear()
+	const schoolYearId = selectedYear?.id
+
+	// Fetch classes using React Query (filtered by selected school year)
 	const { data: classesData, isLoading: isLoadingClassesData } = useQuery<Class[]>({
-		queryKey: ['classes'],
+		queryKey: ['classes', schoolYearId],
 		queryFn: async () => {
-			const res = await fetch('/api/classes')
+			const url = schoolYearId != null ? `/api/classes?schoolYearId=${schoolYearId}` : '/api/classes'
+			const res = await fetch(url)
 			if (!res.ok) throw new Error('Failed to fetch classes')
 			return res.json() as Promise<Class[]>
 		},
+		enabled: schoolYearId != null,
 		staleTime: 1000 * 60 * 5, // 5 minutes
 	})
 
@@ -819,7 +825,8 @@ export default function ScheduleClassSelectPage() {
 			setShowCombineClassesDialog(false)
 
 			// Refresh classes list
-			const classesRes = await fetch('/api/classes')
+			const url = schoolYearId != null ? `/api/classes?schoolYearId=${schoolYearId}` : '/api/classes'
+			const classesRes = await fetch(url)
 			if (classesRes.ok) {
 				const classesData = await classesRes.json() as Class[]
 				setClasses(classesData)

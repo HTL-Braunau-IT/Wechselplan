@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     const validModels = [
       'student', 'teacher', 'class', 'schedule', 'groupAssignment',
       'teacherAssignment', 'room', 'subject', 'learningContent',
-      'schoolHoliday', 'scheduleTime', 'breakTime', 'schedulePDF',
+      'schoolHoliday', 'schoolYear', 'scheduleTime', 'breakTime', 'schedulePDF',
       'teacherRotation', 'role', 'userRole', 'supportMessage'
     ]
 
@@ -31,14 +31,18 @@ export async function GET(request: Request) {
       )
     }
 
+    const schoolYearIdParam = searchParams.get('schoolYearId')
+    const schoolYearId = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
+    const yearFilter = schoolYearId != null && !Number.isNaN(schoolYearId) ? schoolYearId : undefined
+
     // Get model data with appropriate includes
     let data
     if (id) {
       // Get single record
       data = await getSingleRecord(model, parseInt(id))
     } else {
-      // Get all records
-      data = await getAllRecords(model)
+      // Get all records (optionally filtered by school year for schedule/teacherAssignment)
+      data = await getAllRecords(model, yearFilter)
     }
 
     return NextResponse.json(data)
@@ -145,7 +149,7 @@ export async function DELETE(request: Request) {
 }
 
 // Helper functions for different models
-async function getAllRecords(model: string) {
+async function getAllRecords(model: string, schoolYearId?: number) {
   switch (model) {
     case 'student':
       return await prisma.student.findMany({
@@ -175,7 +179,8 @@ async function getAllRecords(model: string) {
       })
     case 'schedule':
       return await prisma.schedule.findMany({
-        include: { 
+        where: schoolYearId != null ? { schoolYearId } : undefined,
+        include: {
           class: true,
           breakTimes: true,
           scheduleTimes: true
@@ -188,6 +193,7 @@ async function getAllRecords(model: string) {
       })
     case 'teacherAssignment':
       return await prisma.teacherAssignment.findMany({
+        where: schoolYearId != null ? { schoolYearId } : undefined,
         include: {
           teacher: true,
           class: true,
@@ -214,6 +220,10 @@ async function getAllRecords(model: string) {
       })
     case 'schoolHoliday':
       return await prisma.schoolHoliday.findMany({
+        orderBy: { startDate: 'asc' }
+      })
+    case 'schoolYear':
+      return await prisma.schoolYear.findMany({
         orderBy: { startDate: 'asc' }
       })
     case 'scheduleTime':
@@ -324,6 +334,10 @@ async function getSingleRecord(model: string, id: number) {
       return await prisma.schoolHoliday.findUnique({
         where: { id }
       })
+    case 'schoolYear':
+      return await prisma.schoolYear.findUnique({
+        where: { id }
+      })
     case 'scheduleTime':
       return await prisma.scheduleTime.findUnique({
         where: { id },
@@ -362,8 +376,9 @@ async function getSingleRecord(model: string, id: number) {
 }
 
 async function createRecord(model: string, data: Record<string, unknown>) {
-  // Remove id and timestamps from data
-  const {  ...createData } = data as Record<string, unknown>
+  // Remove id and timestamps so Prisma uses defaults
+  const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...rest } = data as Record<string, unknown>
+  const createData = { ...rest }
 
   switch (model) {
     case 'student':
@@ -386,6 +401,14 @@ async function createRecord(model: string, data: Record<string, unknown>) {
       return await prisma.learningContent.create({ data: createData as unknown as Parameters<typeof prisma.learningContent.create>[0]['data'] })
     case 'schoolHoliday':
       return await prisma.schoolHoliday.create({ data: createData as unknown as Parameters<typeof prisma.schoolHoliday.create>[0]['data'] })
+    case 'schoolYear': {
+      const schoolYearData = createData as Record<string, unknown>
+      // Prisma Boolean? expects true/false/null, not empty string
+      if (schoolYearData.isCurrent === '' || schoolYearData.isCurrent === undefined) {
+        delete schoolYearData.isCurrent
+      }
+      return await prisma.schoolYear.create({ data: schoolYearData as Parameters<typeof prisma.schoolYear.create>[0]['data'] })
+    }
     case 'scheduleTime':
       return await prisma.scheduleTime.create({ data: createData as unknown as Parameters<typeof prisma.scheduleTime.create>[0]['data'] })
     case 'breakTime':
@@ -406,8 +429,9 @@ async function createRecord(model: string, data: Record<string, unknown>) {
 }
 
 async function updateRecord(model: string, id: number, data: Record<string, unknown>) {
-  // Remove id and timestamps from data
-  const { ...updateData } = data as Record<string, unknown>
+  // Don't allow overriding id or updatedAt (Prisma sets updatedAt)
+  const { id: _id, updatedAt: _updatedAt, ...rest } = data as Record<string, unknown>
+  const updateData = { ...rest }
 
   switch (model) {
     case 'student':
@@ -460,6 +484,16 @@ async function updateRecord(model: string, id: number, data: Record<string, unkn
         where: { id },
         data: updateData
       })
+    case 'schoolYear': {
+      const schoolYearUpdate = { ...updateData } as Record<string, unknown>
+      if (schoolYearUpdate.isCurrent === '' || schoolYearUpdate.isCurrent === undefined) {
+        delete schoolYearUpdate.isCurrent
+      }
+      return await prisma.schoolYear.update({
+        where: { id },
+        data: schoolYearUpdate
+      })
+    }
     case 'scheduleTime':
       return await prisma.scheduleTime.update({
         where: { id },
@@ -522,6 +556,8 @@ async function deleteRecord(model: string, id: number) {
       return await prisma.learningContent.delete({ where: { id } })
     case 'schoolHoliday':
       return await prisma.schoolHoliday.delete({ where: { id } })
+    case 'schoolYear':
+      return await prisma.schoolYear.delete({ where: { id } })
     case 'scheduleTime':
       return await prisma.scheduleTime.delete({ where: { id } })
     case 'breakTime':

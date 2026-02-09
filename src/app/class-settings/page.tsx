@@ -8,6 +8,7 @@ import type {Teacher, Class} from '@/types/types.ts'
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Spinner } from '@/components/ui/spinner'
+import { useSchoolYear } from '@/contexts/school-year-context'
 
 const NONE_VALUE = 'none'
 
@@ -35,6 +36,8 @@ function LoadingScreen() {
  */
 export default function ClassSettingsPage() {
     const { t } = useTranslation()
+    const { selectedYear } = useSchoolYear()
+    const schoolYearId = selectedYear?.id
     const [classes, setClasses] = useState<Class[]>([])
     const [teachers, setTeachers] = useState<Teacher[]>([])
     const [loading, setLoading] = useState(true)
@@ -45,8 +48,9 @@ export default function ClassSettingsPage() {
         const fetchData = async () => {
             try {
                 // Start both requests simultaneously
+                const classesUrl = schoolYearId != null ? `/api/classes?schoolYearId=${schoolYearId}` : '/api/classes'
                 const [classesPromise, teachersPromise] = [
-                    fetch('/api/classes'),
+                    fetch(classesUrl),
                     fetch('/api/teachers')
                 ]
 
@@ -80,7 +84,7 @@ export default function ClassSettingsPage() {
         }
 
         void fetchData()
-    }, [t])
+    }, [t, schoolYearId])
 
     const handleTeacherChange = async (classId: number, teacherId: number | null, type: 'head' | 'lead') => {
         if (updatingClassId !== null) {

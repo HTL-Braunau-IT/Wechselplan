@@ -3,15 +3,18 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 import { RotationScheduleEditor } from '@/components/schedule/rotation-schedule-editor'
 import type { Schedule } from '@/components/schedule/rotation-schedule-editor'
+import { useSchoolYear } from '@/contexts/school-year-context'
 
 /**
  * Page component for creating and editing rotation schedules.
- * 
+ *
  * Wraps the RotationScheduleEditor component and handles navigation after save.
  */
 export default function RotationPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { selectedYear } = useSchoolYear()
+  const schoolYearId = selectedYear?.id
   const className = searchParams.get('class')
   const weekdayParam = searchParams.get('weekday')
 
@@ -39,13 +42,14 @@ export default function RotationPage() {
         body: JSON.stringify({
           name: 'Rotation Schedule',
           description: `Rotation schedule for class ${className}`,
-        startDate: new Date().toISOString(),
-        endDate: new Date().toISOString(),
-        selectedWeekday: selectedWeekday,
+          startDate: new Date().toISOString(),
+          endDate: new Date().toISOString(),
+          selectedWeekday: selectedWeekday,
           scheduleData: schedule,
           additionalInfo,
           classId: classData.id.toString(),
-        semesterPlanning
+          ...(schoolYearId != null && { schoolYearId }),
+          semesterPlanning
         }),
       })
 

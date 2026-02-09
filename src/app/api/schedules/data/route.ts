@@ -17,6 +17,7 @@ export async function GET(req: Request) {
     try {
         const rawTeacherUsername = searchParams.get('teacher')
         const currentWeekday = searchParams.get('weekday') ?? '0'
+        const schoolYearIdParam = searchParams.get('schoolYearId')
 
         if (!rawTeacherUsername) {
             return NextResponse.json({ error: 'Teacher username is required' }, { status: 400 })
@@ -31,16 +32,27 @@ export async function GET(req: Request) {
                 username: teacherUsername
             }
         })
-        
+
         if (!teacher) {
             console.warn('[username-match] Teacher not found (schedules/data)', { raw: rawTeacherUsername, normalized: teacherUsername })
             return NextResponse.json({ error: 'Teacher not found' }, { status: 200 })
         }
 
+        let schoolYearId: number | undefined = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
+        if (schoolYearId == null || Number.isNaN(schoolYearId)) {
+            const now = new Date()
+            const current = await prisma.schoolYear.findFirst({
+                where: { startDate: { lte: now }, endDate: { gte: now } },
+                select: { id: true }
+            })
+            schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
+        }
+
+        const assignmentsWhere = schoolYearId != null
+            ? { teacherId: teacher.id, schoolYearId }
+            : { teacherId: teacher.id }
         const assignments = await prisma.teacherAssignment.findMany({
-            where: {
-                teacherId: teacher.id
-            }
+            where: assignmentsWhere
         })
 
         if (!assignments || assignments.length === 0) {
@@ -95,11 +107,13 @@ export async function GET(req: Request) {
         }
 
         // Then fetch schedules and students for each class
+        const weekdayNum = parseInt(currentWeekday)
         for (const classId of classIds) {
             const schedule = await prisma.schedule.findFirst({
                 where: {
-                    classId: classId,
-                    selectedWeekday: parseInt(currentWeekday)
+                    classId,
+                    selectedWeekday: weekdayNum,
+                    ...(schoolYearId != null ? { schoolYearId } : {})
                 },
                 orderBy: {
                     createdAt: 'desc'
@@ -132,14 +146,22 @@ export async function GET(req: Request) {
                 schedules.push([])
             }
             
-            // Always fetch students for each class, regardless of schedule
-            const student = await prisma.student.findMany({
-                where: {
-                    classId: classId
-                }
-            })
-            if (student) {
-                students.push(student)
+            // Fetch students for this class: by ClassMembership when schoolYearId set, else by Student.classId
+            let studentList: Awaited<ReturnType<typeof prisma.student.findMany>>
+            if (schoolYearId != null) {
+                const memberships = await prisma.classMembership.findMany({
+                    where: { classId, schoolYearId },
+                    select: { studentId: true }
+                })
+                const ids = memberships.map((m) => m.studentId)
+                studentList = ids.length > 0 ? await prisma.student.findMany({ where: { id: { in: ids } } }) : []
+            } else {
+                studentList = await prisma.student.findMany({
+                    where: { classId }
+                })
+            }
+            if (studentList) {
+                students.push(studentList)
             }
         }
 

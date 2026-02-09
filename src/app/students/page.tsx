@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useSchoolYear } from '@/contexts/school-year-context'
 import { captureFrontendError } from '@/lib/frontend-error'
 import { Spinner } from '@/components/ui/spinner'
 
@@ -27,6 +28,8 @@ interface Class {
  * Fetches student and class data from the backend, handles loading and error states, and renders students organized by class and group. Students are sorted alphabetically within each group, and classes are sorted alphabetically with unassigned students shown last.
  */
 export default function StudentsPage() {
+  const { selectedYear } = useSchoolYear()
+  const schoolYearId = selectedYear?.id
   const [students, setStudents] = useState<Student[]>([])
   const [classes, setClasses] = useState<Class[]>([])
   const [loading, setLoading] = useState(true)
@@ -34,21 +37,20 @@ export default function StudentsPage() {
 
   useEffect(() => {
     void fetchData()
-  }, [])
+  }, [schoolYearId])
 
   const fetchData = async () => {
     try {
       setLoading(true)
       setError(null)
 
-      // Fetch all students
-      const studentsRes = await fetch('/api/students/all')
+      const yearQ = schoolYearId != null ? `?schoolYearId=${schoolYearId}` : ''
+      const studentsRes = await fetch(`/api/students/all${yearQ}`, { cache: 'no-store' })
       if (!studentsRes.ok) throw new Error('Failed to fetch students')
       const studentsData = await studentsRes.json() as Student[]
       setStudents(studentsData)
 
-      // Fetch all classes
-      const classesRes = await fetch('/api/classes')
+      const classesRes = await fetch(`/api/classes${yearQ}`, { cache: 'no-store' })
       if (!classesRes.ok) throw new Error('Failed to fetch classes')
       const classesData = await classesRes.json() as Class[]
       setClasses(classesData)

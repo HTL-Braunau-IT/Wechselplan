@@ -8,11 +8,11 @@ import { normalizeUsername } from '@/lib/username'
 import type { NotensammlerAllClassesClassData } from '@/lib/pdf-generator'
 
 /**
- * Handles GET requests to generate a PDF of the current teacher's grades for all classes they are assigned to.
+ * Handles GET requests to generate a PDF of the current teacher's grades for all classes they are assigned to in the given school year.
  *
  * @returns A PDF file as response, or JSON error with status 400/404/500.
  */
-export async function GET() {
+export async function GET(request: Request) {
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {
@@ -20,6 +20,21 @@ export async function GET() {
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
 			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+		}
+
+		const { searchParams } = new URL(request.url)
+		const schoolYearIdParam = searchParams.get('schoolYearId')
+		let schoolYearId: number | undefined = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
+		if (schoolYearId == null || Number.isNaN(schoolYearId)) {
+			const now = new Date()
+			const current = await prisma.schoolYear.findFirst({
+				where: { startDate: { lte: now }, endDate: { gte: now } },
+				select: { id: true }
+			})
+			schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
+		}
+		if (schoolYearId == null) {
+			return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
 		}
 
 		const username = normalizeUsername(session.user.name)
@@ -36,7 +51,7 @@ export async function GET() {
 		}
 
 		const assignments = await prisma.teacherAssignment.findMany({
-			where: { teacherId: teacher.id },
+			where: { teacherId: teacher.id, schoolYearId },
 			select: { classId: true }
 		})
 		const distinctClassIds = Array.from(new Set(assignments.map((a) => a.classId)))
@@ -50,20 +65,28 @@ export async function GET() {
 
 		const classRecords = await prisma.class.findMany({
 			where: { id: { in: distinctClassIds } },
-			include: {
-				students: {
-					orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
-					select: { id: true, firstName: true, lastName: true, groupId: true }
-				}
-			},
 			orderBy: { name: 'asc' }
 		})
 
 		const classesPayload: NotensammlerAllClassesClassData[] = []
 
 		for (const classRecord of classRecords) {
+			const memberships = await prisma.classMembership.findMany({
+				where: { classId: classRecord.id, schoolYearId },
+				select: { studentId: true }
+			})
+			const studentIds = memberships.map((m) => m.studentId)
+			const studentsList =
+				studentIds.length > 0
+					? await prisma.student.findMany({
+							where: { id: { in: studentIds } },
+							orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+							select: { id: true, firstName: true, lastName: true, groupId: true }
+						})
+					: []
+
 			const assignmentsForClass = await prisma.teacherAssignment.findMany({
-				where: { classId: classRecord.id },
+				where: { classId: classRecord.id, schoolYearId },
 				include: {
 					subject: { select: { name: true } }
 				}
@@ -84,7 +107,7 @@ export async function GET() {
 			}
 
 			const grades = await prisma.grade.findMany({
-				where: { classId: classRecord.id, teacherId: teacher.id },
+				where: { classId: classRecord.id, teacherId: teacher.id, schoolYearId },
 				select: { studentId: true, semester: true, grade: true }
 			})
 			const gradesForTeacher: Record<number, { first: number | null; second: number | null }> = {}
@@ -95,7 +118,7 @@ export async function GET() {
 			}
 
 			const finalGradeRecords = await prisma.finalGrade.findMany({
-				where: { classId: classRecord.id },
+				where: { classId: classRecord.id, schoolYearId },
 				select: { studentId: true, semester: true, grade: true }
 			})
 			const finalGrades: Record<number, { first: number | null; second: number | null }> = {}
@@ -108,7 +131,7 @@ export async function GET() {
 			classesPayload.push({
 				className: classRecord.name,
 				subjectName,
-				students: classRecord.students,
+				students: studentsList,
 				grades: gradesForTeacher,
 				finalGrades
 			})

@@ -6,6 +6,7 @@ import { Menu, LogIn, LogOut, User } from 'lucide-react'
 import { LanguageSwitcher } from '../language-switcher'
 import { useTranslation } from 'react-i18next'
 import { ThemeToggle } from '~/components/theme-toggle'
+import { SchoolYearSelector } from '~/components/school-year-selector'
 import { useSession, signIn, signOut } from 'next-auth/react'
 import { Button } from '~/components/ui/button'
 import { SupportDialog } from '~/components/support-dialog'
@@ -80,6 +81,9 @@ export function Header() {
 					<Link href="/" className="text-xl font-bold">
 						{t('common.appName')}
 					</Link>
+
+					{/* School year dropdown */}
+					<SchoolYearSelector />
 
 					<div className="flex items-center space-x-4">
 						{/* Support Dialog */}

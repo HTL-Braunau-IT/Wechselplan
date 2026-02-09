@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSchoolYear } from '@/contexts/school-year-context'
 import { DataTable } from './data-table'
 import type { Column } from './data-table'
 
@@ -24,6 +25,8 @@ interface TeacherAssignment {
 }
 
 export function TeacherAssignmentTab() {
+  const { selectedYear } = useSchoolYear()
+  const schoolYearId = selectedYear?.id
   const [teacherAssignments, setTeacherAssignments] = useState<TeacherAssignment[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [teachers, setTeachers] = useState<{ id: number; firstName: string; lastName: string }[]>([])
@@ -79,7 +82,8 @@ export function TeacherAssignmentTab() {
   const fetchTeacherAssignments = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch('/api/admin/data?model=teacherAssignment')
+      const yearQ = schoolYearId != null ? `&schoolYearId=${schoolYearId}` : ''
+      const response = await fetch(`/api/admin/data?model=teacherAssignment${yearQ}`)
       if (response.ok) {
         const data = await response.json() as TeacherAssignment[]
         setTeacherAssignments(data)
@@ -145,13 +149,14 @@ export function TeacherAssignmentTab() {
   useEffect(() => {
     void fetchTeacherAssignments()
     void fetchRelatedData()
-  }, [])
+  }, [schoolYearId])
 
   const handleCreate = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
+    const payload = { ...data, ...(schoolYearId != null && { schoolYearId }) }
     const response = await fetch('/api/admin/data?model=teacherAssignment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+      body: JSON.stringify(payload)
     })
     
     if (!response.ok) {

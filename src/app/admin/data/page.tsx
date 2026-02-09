@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useSchoolYear } from '@/contexts/school-year-context'
 import { Database, Users, GraduationCap, Building, Calendar, Clock, BookOpen, Home, FileText, RotateCcw, Shield, MessageSquare } from 'lucide-react'
 
 // Import individual model components
@@ -16,6 +17,7 @@ import { RoomTab } from './_components/room-tab'
 import { SubjectTab } from './_components/subject-tab'
 import { LearningContentTab } from './_components/learning-content-tab'
 import { SchoolHolidayTab } from './_components/school-holiday-tab'
+import { SchoolYearTab } from './_components/school-year-tab'
 import { ScheduleTimeTab } from './_components/schedule-time-tab'
 import { BreakTimeTab } from './_components/break-time-tab'
 import { SchedulePDFTab } from './_components/schedule-pdf-tab'
@@ -86,6 +88,12 @@ const modelTabs = [
     description: 'Manage school holiday periods'
   },
   {
+    value: 'schoolYears',
+    label: 'School Years',
+    icon: Calendar,
+    description: 'Manage school years and semester dates'
+  },
+  {
     value: 'scheduleTimes',
     label: 'Schedule Times',
     icon: Clock,
@@ -131,17 +139,25 @@ const modelTabs = [
 
 export default function AdminDataPage() {
   const [activeTab, setActiveTab] = useState('students')
+  const { selectedYear } = useSchoolYear()
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center space-x-2">
-        <Database className="h-8 w-8" />
-        <div>
-          <h1 className="text-3xl font-bold">Data Management</h1>
-          <p className="text-muted-foreground">
-            Manage all data in your application database
-          </p>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center space-x-2">
+          <Database className="h-8 w-8" />
+          <div>
+            <h1 className="text-3xl font-bold">Data Management</h1>
+            <p className="text-muted-foreground">
+              Manage all data in your application database
+            </p>
+          </div>
         </div>
+        {selectedYear != null && (
+          <p className="text-sm text-muted-foreground">
+            School year: <span className="font-medium text-foreground">{selectedYear.label}</span>
+          </p>
+        )}
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -209,6 +225,8 @@ function renderTabContent(tabValue: string) {
       return <LearningContentTab />
     case 'schoolHolidays':
       return <SchoolHolidayTab />
+    case 'schoolYears':
+      return <SchoolYearTab />
     case 'scheduleTimes':
       return <ScheduleTimeTab />
     case 'breakTimes':

@@ -17,6 +17,7 @@ const scheduleSchema = z.object({
   selectedWeekday: z.number().int().min(0).max(6),
   scheduleData: z.any(), // Using any for now since the exact structure isn't clear
   classId: z.string().optional(),
+  schoolYearId: z.number().int().positive().optional(),
   additionalInfo: z.any().optional(),
   semesterPlanning: z.enum(['first', 'second']).nullable().optional()
 })
@@ -41,13 +42,31 @@ export async function POST(req: Request) {
       )
     }
 
-    const { name, description, startDate, endDate, selectedWeekday, scheduleData, classId, additionalInfo, semesterPlanning } = validationResult.data
+    const { name, description, startDate, endDate, selectedWeekday, scheduleData, classId, schoolYearId: bodySchoolYearId, additionalInfo, semesterPlanning } = validationResult.data
 
-    // Find existing schedule for this class and weekday
+    // Resolve school year: from body or current
+    let schoolYearId = bodySchoolYearId
+    if (schoolYearId == null) {
+      const now = new Date()
+      const current = await prisma.schoolYear.findFirst({
+        where: { startDate: { lte: now }, endDate: { gte: now } },
+        select: { id: true }
+      })
+      schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
+    }
+    if (schoolYearId == null) {
+      return NextResponse.json(
+        { error: 'No school year found. Create a school year in Admin / Data / School Years first.' },
+        { status: 400 }
+      )
+    }
+
+    // Find existing schedule for this class, weekday, and school year
     const existingSchedule = await prisma.schedule.findFirst({
       where: {
         classId: classId ? parseInt(classId) : null,
-        selectedWeekday
+        selectedWeekday,
+        schoolYearId
       },
       include: {
         scheduleTimes: true,
@@ -70,6 +89,7 @@ export async function POST(req: Request) {
           description,
           startDate: new Date(startDate),
           endDate: new Date(endDate),
+          schoolYearId,
           scheduleData: Prisma.JsonNull, // No longer storing JSON - using normalized turns instead
           additionalInfo,
           semesterPlanning,
@@ -109,6 +129,7 @@ export async function POST(req: Request) {
           startDate: new Date(startDate),
           endDate: new Date(endDate),
           selectedWeekday,
+          schoolYearId,
           classId: classId ? parseInt(classId) : null,
           scheduleData: Prisma.JsonNull, // No longer storing JSON - using normalized turns instead
           additionalInfo,
@@ -164,6 +185,16 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const className = searchParams.get('classId')
     const weekday = searchParams.get('weekday')
+    const schoolYearIdParam = searchParams.get('schoolYearId')
+    let schoolYearId: number | undefined = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
+    if (schoolYearId == null || Number.isNaN(schoolYearId)) {
+      const now = new Date()
+      const current = await prisma.schoolYear.findFirst({
+        where: { startDate: { lte: now }, endDate: { gte: now } },
+        select: { id: true }
+      })
+      schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
+    }
 
     if (!className) {
       return NextResponse.json({ error: 'Class ID is required' }, { status: 400 })
@@ -182,6 +213,7 @@ export async function GET(req: Request) {
     const schedules = await prisma.schedule.findMany({
       where: {
         classId: classRecord.id,
+        ...(schoolYearId != null ? { schoolYearId } : {}),
         ...(weekday ? { selectedWeekday: parseInt(weekday) } : {})
       },
       include: {

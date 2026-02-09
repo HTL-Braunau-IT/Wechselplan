@@ -6,12 +6,12 @@ import { authOptions } from '@/lib/auth'
 import { normalizeUsername } from '@/lib/username'
 
 /**
- * Handles GET requests to retrieve classes where the current teacher has an assignment,
+ * Handles GET requests to retrieve classes where the current teacher has an assignment for the given school year,
  * with per-semester grade completion status (allGradesEnteredFirst, allGradesEnteredSecond).
  *
  * @returns A JSON response containing classes array with id, name, allGradesEnteredFirst, allGradesEnteredSecond.
  */
-export async function GET() {
+export async function GET(request: Request) {
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {
@@ -19,6 +19,21 @@ export async function GET() {
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
 			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+		}
+
+		const { searchParams } = new URL(request.url)
+		const schoolYearIdParam = searchParams.get('schoolYearId')
+		let schoolYearId: number | undefined = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
+		if (schoolYearId == null || Number.isNaN(schoolYearId)) {
+			const now = new Date()
+			const current = await prisma.schoolYear.findFirst({
+				where: { startDate: { lte: now }, endDate: { gte: now } },
+				select: { id: true }
+			})
+			schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
+		}
+		if (schoolYearId == null) {
+			return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
 		}
 
 		const username = normalizeUsername(session.user.name)
@@ -32,7 +47,7 @@ export async function GET() {
 		}
 
 		const assignments = await prisma.teacherAssignment.findMany({
-			where: { teacherId: teacher.id },
+			where: { teacherId: teacher.id, schoolYearId },
 			select: { classId: true }
 		})
 
@@ -54,16 +69,18 @@ export async function GET() {
 		const result = await Promise.all(
 			classRecords.map(async (cls) => {
 				const [activeStudentCount, firstCount, secondCount] = await Promise.all([
-					prisma.student.count({
+					prisma.classMembership.count({
 						where: {
 							classId: cls.id,
-							groupId: { not: null }
+							schoolYearId,
+							student: { groupId: { not: null } }
 						}
 					}),
 					prisma.grade.count({
 						where: {
 							classId: cls.id,
 							teacherId: teacher.id,
+							schoolYearId,
 							semester: 'first',
 							grade: { not: null }
 						}
@@ -72,6 +89,7 @@ export async function GET() {
 						where: {
 							classId: cls.id,
 							teacherId: teacher.id,
+							schoolYearId,
 							semester: 'second',
 							grade: { not: null }
 						}

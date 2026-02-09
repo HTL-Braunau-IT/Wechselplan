@@ -103,6 +103,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       classId?: unknown
       semester?: unknown
+      schoolYearId?: number
       username?: unknown
       password?: unknown
       token?: unknown
@@ -113,6 +114,23 @@ export async function POST(request: Request) {
 
     const classId = typeof body.classId === 'number' ? body.classId : parseInt(String(body.classId))
     const semester = body.semester === 'first' || body.semester === 'second' ? (body.semester as Semester) : null
+
+    // Resolve school year: from body or current
+    let schoolYearId = body.schoolYearId
+    if (schoolYearId == null) {
+      const now = new Date()
+      const current = await prisma.schoolYear.findFirst({
+        where: { startDate: { lte: now }, endDate: { gte: now } },
+        select: { id: true }
+      })
+      schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
+    }
+    if (schoolYearId == null) {
+      return NextResponse.json(
+        { error: 'No school year found. Create a school year in Admin / Data / School Years first.' },
+        { status: 400 }
+      )
+    }
     const nmUsername = typeof body.username === 'string' ? body.username : null
     const password = typeof body.password === 'string' ? body.password : null
     const providedToken = typeof body.token === 'string' ? body.token : null
@@ -299,9 +317,10 @@ export async function POST(request: Request) {
     // Check for existing transfer
     const existingTransfer = await prisma.notenmanagementTransfer.findUnique({
       where: {
-        classId_semester: {
+        classId_semester_schoolYearId: {
           classId,
           semester,
+          schoolYearId,
         },
       },
     })
@@ -407,9 +426,10 @@ export async function POST(request: Request) {
     // Upsert transfer record
     await prisma.notenmanagementTransfer.upsert({
       where: {
-        classId_semester: {
+        classId_semester_schoolYearId: {
           classId,
           semester,
+          schoolYearId,
         },
       },
       update: {
@@ -418,6 +438,7 @@ export async function POST(request: Request) {
       create: {
         classId,
         semester,
+        schoolYearId,
         lfId: lfIdStr,
       },
     })
