@@ -21,6 +21,7 @@ import { CheckCircle2, X, ChevronDownIcon, CheckIcon } from 'lucide-react'
 import { getStoredToken, storeToken, clearToken } from '@/lib/notenmanagement-token'
 import { normalizeUsername } from '@/lib/username'
 import { useSchoolYear } from '@/contexts/school-year-context'
+import { StudentPhoto } from '@/components/student-photo'
 
 interface Student {
 	id: number
@@ -2055,8 +2056,14 @@ export default function NotensammlerPage() {
 												<TableCell className="sticky left-14 z-10 w-16 bg-background">
 													{student.groupId ?? '-'}
 												</TableCell>
-												<TableCell className="sticky left-[7.5rem] z-10 font-medium w-[200px] max-w-[200px] truncate bg-background">
-													{student.lastName}, {student.firstName}
+												<TableCell className="sticky left-[7.5rem] z-10 font-medium w-[200px] max-w-[200px] bg-background">
+													<StudentPhoto
+														studentId={student.id}
+														firstName={student.firstName}
+														lastName={student.lastName}
+														size={32}
+														nameFormat="lastFirst"
+													/>
 												</TableCell>
 												{/* First semester - AM teacher columns */}
 												{showFirstSemester && classData.amTeachers.map((teacher) => {

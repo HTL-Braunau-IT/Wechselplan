@@ -44,6 +44,9 @@ yarn-error.log*
 
 # idea files
 .idea
+
+# student photos and other runtime data
+/data
 # Sentry Config File
 .env.sentry-build-plugin
 
