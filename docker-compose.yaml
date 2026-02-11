@@ -1,6 +1,8 @@
 services:
   web:
     image: ghcr.io/michelroegl-brunner/wechselplan-app:latest
+    volumes:
+      - student_photos_data:/app/data
     ports:
       - "3000:3000"
     environment:
@@ -46,3 +48,4 @@ networks:
 
 volumes:
   postgres_data:
+  student_photos_data:
