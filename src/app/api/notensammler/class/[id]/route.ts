@@ -132,30 +132,39 @@ export async function GET(
 		const amTeachers = sortTeachers(Array.from(amTeachersMap.values()))
 		const pmTeachers = sortTeachers(Array.from(pmTeachersMap.values()))
 
-		// Determine subject to display (most common subject from assignments)
-		let subjectName: string | undefined = undefined
-		if (assignments.length > 0) {
-			// Count occurrences of each subject
+		// Helper: most common subject name from a subset of assignments
+		const mostCommonSubjectFrom = (list: typeof assignments): string | undefined => {
 			const subjectCounts = new Map<string, number>()
-			for (const assignment of assignments) {
-				if (assignment.subject?.name) {
-					const currentCount = subjectCounts.get(assignment.subject.name) ?? 0
-					subjectCounts.set(assignment.subject.name, currentCount + 1)
+			for (const a of list) {
+				if (a.subject?.name) {
+					subjectCounts.set(a.subject.name, (subjectCounts.get(a.subject.name) ?? 0) + 1)
 				}
 			}
-
-			// Find the most common subject
 			let maxCount = 0
-			let mostCommonSubject: string | undefined = undefined
+			let name: string | undefined = undefined
 			for (const [subject, count] of subjectCounts.entries()) {
 				if (count > maxCount) {
 					maxCount = count
-					mostCommonSubject = subject
+					name = subject
 				}
 			}
+			return name
+		}
 
-		subjectName = mostCommonSubject
-	}
+		const amAssignments = assignments.filter((a) => a.period === 'AM')
+		const pmAssignments = assignments.filter((a) => a.period === 'PM')
+		const subjectNameAm = amAssignments.length > 0 ? mostCommonSubjectFrom(amAssignments) : undefined
+		const subjectNamePm = pmAssignments.length > 0 ? mostCommonSubjectFrom(pmAssignments) : undefined
+		const hasSeparateAmPmSubjects =
+			subjectNameAm != null &&
+			subjectNamePm != null &&
+			subjectNameAm !== subjectNamePm
+
+		// Single subject for display when not split (most common across all)
+		let subjectName: string | undefined = undefined
+		if (assignments.length > 0) {
+			subjectName = mostCommonSubjectFrom(assignments)
+		}
 
 	// Fetch transfer status for this class and year
 	const transfers = await prisma.notenmanagementTransfer.findMany({
@@ -179,6 +188,8 @@ export async function GET(
 		name: classRecord.name,
 		description: classRecord.description,
 		subjectName,
+		hasSeparateAmPmSubjects,
+		...(hasSeparateAmPmSubjects && { subjectNameAm, subjectNamePm }),
 		classLead: classRecord.classLead
 			? `${classRecord.classLead.firstName} ${classRecord.classLead.lastName}`
 			: null,

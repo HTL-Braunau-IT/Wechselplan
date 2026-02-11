@@ -41,6 +41,9 @@ interface Class {
 	name: string
 	description: string | null
 	subjectName?: string
+	hasSeparateAmPmSubjects?: boolean
+	subjectNameAm?: string
+	subjectNamePm?: string
 	classLead?: string | null
 	students: Student[]
 	amTeachers: Teacher[]
@@ -56,7 +59,24 @@ type GradesData = Record<number, Record<number, {
 	second: number | null
 }>>
 
-type FinalGradesData = Record<number, { first: number | null; second: number | null }>
+type FinalGradesData = Record<number, {
+	first: number | null
+	second: number | null
+	conductWishFirst: string | null
+	conductWishSecond: string | null
+}>
+
+// Betragensnote (Wunsch) dropdown options (first is the default when nothing is stored)
+const CONDUCT_NOTE_WISH_OPTIONS = [
+	'Sehr zufriedenstellend',
+	'Zufriedenstellend',
+	'Wenig Zufriedenstellend',
+	'Nicht zufriedenstellend'
+] as const
+
+const CONDUCT_NOTE_WISH_DEFAULT = CONDUCT_NOTE_WISH_OPTIONS[0]
+// Sentinel for "clear" option (Radix Select does not allow value="")
+const CONDUCT_NOTE_WISH_NONE = '__none__'
 
 /** Normalize grades object to use numeric keys (API returns string keys from JSON). */
 function normalizeGradesKeys(data: Record<string, unknown> | GradesData): GradesData {
@@ -538,6 +558,9 @@ export default function NotensammlerPage() {
 	const [sortField, setSortField] = useState<'lastName' | 'groupId'>('lastName')
 	const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
+	// When class has separate AM/PM subjects, which period tab is active
+	const [periodTab, setPeriodTab] = useState<'AM' | 'PM'>('AM')
+
 	// Notenmanagement transfer flow state
 	const [showPasswordDialog, setShowPasswordDialog] = useState(false)
 	const [showSemesterDialog, setShowSemesterDialog] = useState(false)
@@ -585,6 +608,7 @@ export default function NotensammlerPage() {
 	// Debounce timer for auto-save
 	const saveTimerRef = useRef<NodeJS.Timeout | null>(null)
 	const saveFinalGradeTimerRef = useRef<NodeJS.Timeout | null>(null)
+	const saveConductWishTimerRef = useRef<NodeJS.Timeout | null>(null)
 
 	const { selectedYear, currentSemester } = useSchoolYear()
 	const schoolYearId = selectedYear?.id
@@ -656,6 +680,7 @@ export default function NotensammlerPage() {
 		return () => {
 			if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
 			if (saveFinalGradeTimerRef.current) clearTimeout(saveFinalGradeTimerRef.current)
+			if (saveConductWishTimerRef.current) clearTimeout(saveConductWishTimerRef.current)
 		}
 	}, [])
 
@@ -727,9 +752,23 @@ export default function NotensammlerPage() {
 				if (!gradesResponse.ok) throw new Error('Failed to fetch grades')
 
 				const classDataResult = await classResponse.json() as Class
-				const gradesPayload = await gradesResponse.json() as { grades: GradesData; finalGrades: FinalGradesData }
+				const gradesPayload = await gradesResponse.json() as { grades: GradesData; finalGrades: Record<number, { first?: number | null; second?: number | null; conductWishFirst?: string | null; conductWishSecond?: string | null }> }
 				const gradesResult = gradesPayload.grades ?? gradesPayload as unknown as Record<string, unknown>
-				const finalGradesResult = gradesPayload.finalGrades ?? {}
+				const rawFinal = gradesPayload.finalGrades ?? {}
+				// Normalize finalGrades so every entry has conductWishFirst/Second (for backwards compatibility)
+				const finalGradesResult: FinalGradesData = {}
+				for (const studentKey of Object.keys(rawFinal)) {
+					const studentId = Number(studentKey)
+					if (Number.isNaN(studentId)) continue
+					const entry = rawFinal[studentId as keyof typeof rawFinal]
+					if (!entry) continue
+					finalGradesResult[studentId] = {
+						first: entry.first ?? null,
+						second: entry.second ?? null,
+						conductWishFirst: entry.conductWishFirst ?? null,
+						conductWishSecond: entry.conductWishSecond ?? null
+					}
+				}
 
 				setClassData(classDataResult)
 				setGrades(normalizeGradesKeys(gradesResult))
@@ -861,46 +900,57 @@ export default function NotensammlerPage() {
 		}
 	}, [saveGrade, saveTimerRef, grades])
 
-	// Calculate average for a student in a semester
+	// Calculate average for a student in a semester, optionally only for one period (AM/PM).
 	// Returns: number (average), "nicht beurteilt", "gestunden", or null
-	const calculateAverage = useCallback((studentId: number, semester: 'first' | 'second'): number | string | null => {
-		if (!classData) return null
+	const calculateAverage = useCallback(
+		(studentId: number, semester: 'first' | 'second', period?: 'AM' | 'PM'): number | string | null => {
+			if (!classData) return null
 
-		const studentGrades = grades[studentId]
-		if (!studentGrades) return null
+			const studentGrades = grades[studentId]
+			if (!studentGrades) return null
 
-		// First check if any grade is "nicht beurteilt" (6) or "gestunden" (7)
-		for (const teacherId in studentGrades) {
-			const teacherGrades = studentGrades[parseInt(teacherId)]
-			if (teacherGrades) {
-				const grade = teacherGrades[semester]
-				if (grade === NICHT_BEURTEILT) {
-					return 'nicht beurteilt'
-				}
-				if (grade === GESTUNDEN) {
-					return 'gestunden'
-				}
-			}
-		}
+			const teacherIdsForPeriod =
+				period === 'AM'
+					? new Set(classData.amTeachers.map((t) => t.id))
+					: period === 'PM'
+						? new Set(classData.pmTeachers.map((t) => t.id))
+						: null
 
-		// If no special grades, calculate normal average
-		const gradeValues: number[] = []
-		for (const teacherId in studentGrades) {
-			const teacherGrades = studentGrades[parseInt(teacherId)]
-			if (teacherGrades) {
-				const grade = teacherGrades[semester]
-				// Only include grades that should be counted in averages (exclude 6 and 7)
-				if (grade !== null && grade !== undefined && isGradeIncludedInAverage(grade)) {
-					gradeValues.push(grade)
+			const considerTeacher = (teacherId: number): boolean =>
+				teacherIdsForPeriod === null || teacherIdsForPeriod.has(teacherId)
+
+			// First check if any grade is "nicht beurteilt" (6) or "gestunden" (7)
+			for (const teacherId in studentGrades) {
+				const tid = parseInt(teacherId)
+				if (!considerTeacher(tid)) continue
+				const teacherGrades = studentGrades[tid]
+				if (teacherGrades) {
+					const grade = teacherGrades[semester]
+					if (grade === NICHT_BEURTEILT) return 'nicht beurteilt'
+					if (grade === GESTUNDEN) return 'gestunden'
 				}
 			}
-		}
 
-		if (gradeValues.length === 0) return null
+			// If no special grades, calculate normal average
+			const gradeValues: number[] = []
+			for (const teacherId in studentGrades) {
+				const tid = parseInt(teacherId)
+				if (!considerTeacher(tid)) continue
+				const teacherGrades = studentGrades[tid]
+				if (teacherGrades) {
+					const grade = teacherGrades[semester]
+					if (grade !== null && grade !== undefined && isGradeIncludedInAverage(grade)) {
+						gradeValues.push(grade)
+					}
+				}
+			}
 
-		const sum = gradeValues.reduce((acc, val) => acc + val, 0)
-		return Math.round((sum / gradeValues.length) * 10) / 10 // Round to 1 decimal place
-	}, [grades, classData])
+			if (gradeValues.length === 0) return null
+			const sum = gradeValues.reduce((acc, val) => acc + val, 0)
+			return Math.round((sum / gradeValues.length) * 10) / 10
+		},
+		[grades, classData]
+	)
 
 	// Get grade value (grades keys are normalized to numbers when loaded from API)
 	const getGrade = useCallback((studentId: number, teacherId: number, semester: 'first' | 'second'): number | null => {
@@ -920,27 +970,30 @@ export default function NotensammlerPage() {
 		[finalGrades, calculateAverage]
 	)
 
-	// Save final grade function
+	// Save final grade function (optionally with Betragensnote Wunsch)
 	const saveFinalGrade = useCallback(
 		async (
 			studentId: number,
 			semester: 'first' | 'second',
 			grade: number | null,
-			silent = false
+			silent = false,
+			conductNoteWish?: string | null
 		) => {
 			if (!classData) return
 			try {
 				if (!silent) setSaving(true)
+				const body: { studentId: number; classId: number; semester: 'first' | 'second'; grade: number | null; schoolYearId?: number; conductNoteWish?: string | null } = {
+					studentId,
+					classId: classData.id,
+					semester,
+					grade
+				}
+				if (schoolYearId != null) body.schoolYearId = schoolYearId
+				if (conductNoteWish !== undefined) body.conductNoteWish = conductNoteWish === '' ? null : conductNoteWish
 				const response = await fetch('/api/notensammler/final-grades', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						studentId,
-						classId: classData.id,
-						semester,
-						grade,
-						...(schoolYearId != null && { schoolYearId })
-					})
+					body: JSON.stringify(body)
 				})
 				if (!response.ok) {
 					const errorData = (await response.json()) as { error?: string }
@@ -949,8 +1002,12 @@ export default function NotensammlerPage() {
 				if (!silent) {
 					setFinalGrades(prev => {
 						const next = { ...prev }
-						next[studentId] ??= { first: null, second: null }
+						next[studentId] ??= { first: null, second: null, conductWishFirst: null, conductWishSecond: null }
 						next[studentId]![semester] = grade
+						if (conductNoteWish !== undefined) {
+							if (semester === 'first') next[studentId]!.conductWishFirst = conductNoteWish === '' ? null : conductNoteWish
+							else next[studentId]!.conductWishSecond = conductNoteWish === '' ? null : conductNoteWish
+						}
 						return next
 					})
 				}
@@ -961,7 +1018,7 @@ export default function NotensammlerPage() {
 				if (!silent) setSaving(false)
 			}
 		},
-		[classData]
+		[classData, schoolYearId]
 	)
 
 	// Handle final grade input change
@@ -970,7 +1027,7 @@ export default function NotensammlerPage() {
 			const gradeValue = parseFinalGradeInput(value)
 			setFinalGrades(prev => {
 				const next = { ...prev }
-				next[studentId] ??= { first: null, second: null }
+				next[studentId] ??= { first: null, second: null, conductWishFirst: null, conductWishSecond: null }
 				next[studentId]![semester] = gradeValue
 				return next
 			})
@@ -980,14 +1037,15 @@ export default function NotensammlerPage() {
 					saveFinalGradeTimerRef.current = null
 				}
 				const previousValue = finalGrades[studentId]?.[semester] ?? null
+				const conductWish = semester === 'first' ? (finalGrades[studentId]?.conductWishFirst ?? null) : (finalGrades[studentId]?.conductWishSecond ?? null)
 				saveFinalGradeTimerRef.current = setTimeout(() => {
 					void (async () => {
 						try {
-							await saveFinalGrade(studentId, semester, gradeValue)
+							await saveFinalGrade(studentId, semester, gradeValue, false, conductWish)
 						} catch {
 							setFinalGrades(prev => {
 								const next = { ...prev }
-								next[studentId] ??= { first: null, second: null }
+								next[studentId] ??= { first: null, second: null, conductWishFirst: null, conductWishSecond: null }
 								next[studentId]![semester] = previousValue
 								return next
 							})
@@ -1002,91 +1060,133 @@ export default function NotensammlerPage() {
 		[saveFinalGrade, finalGrades]
 	)
 
-	// Only apply "missing grade" UX when the current teacher teaches this class (otherwise we'd mark everyone red).
+	// Handle Betragensnote (Wunsch) dropdown change
+	const handleConductWishChange = useCallback(
+		(studentId: number, semester: 'first' | 'second', value: string) => {
+			// Store sentinel in state for "-" so Select shows it; send null to API
+			const conductValue = (value === '' || value === CONDUCT_NOTE_WISH_NONE) ? null : value
+			const stateValue = value === '' ? null : value
+			setFinalGrades(prev => {
+				const next = { ...prev }
+				next[studentId] ??= { first: null, second: null, conductWishFirst: null, conductWishSecond: null }
+				if (semester === 'first') next[studentId]!.conductWishFirst = stateValue
+				else next[studentId]!.conductWishSecond = stateValue
+				return next
+			})
+			if (saveConductWishTimerRef.current) {
+				clearTimeout(saveConductWishTimerRef.current)
+				saveConductWishTimerRef.current = null
+			}
+			const previousConduct = semester === 'first' ? (finalGrades[studentId]?.conductWishFirst ?? null) : (finalGrades[studentId]?.conductWishSecond ?? null)
+			const gradeToSend = getFinalGradeDisplay(studentId, semester)
+			saveConductWishTimerRef.current = setTimeout(() => {
+				void (async () => {
+					try {
+						await saveFinalGrade(studentId, semester, gradeToSend, false, conductValue)
+					} catch {
+						setFinalGrades(prev => {
+							const next = { ...prev }
+							next[studentId] ??= { first: null, second: null, conductWishFirst: null, conductWishSecond: null }
+							if (semester === 'first') next[studentId]!.conductWishFirst = previousConduct
+							else next[studentId]!.conductWishSecond = previousConduct
+							return next
+						})
+						setError('Failed to save Betragensnote (Wunsch). Please try again.')
+					} finally {
+						saveConductWishTimerRef.current = null
+					}
+				})()
+			}, 500)
+		},
+		[saveFinalGrade, finalGrades, getFinalGradeDisplay]
+	)
+
+	// Current teacher highlight: which column gets bg-primary/10 (no longer used for missing logic).
 	const currentTeacherTeachesClass =
 		classData != null &&
 		currentTeacherId != null &&
 		(classData.amTeachers.some((t) => t.id === currentTeacherId) || classData.pmTeachers.some((t) => t.id === currentTeacherId))
 
-	// Use the same teacher id as the table columns (from class's teacher list) for grade lookups.
 	const currentTeacherIdInClass: number | null =
 		currentTeacherTeachesClass && classData != null && currentTeacherId != null
 			? (classData.amTeachers.find((t) => t.id === currentTeacherId) ?? classData.pmTeachers.find((t) => t.id === currentTeacherId))?.id ?? null
 			: null
 
-	// Active students (with group) - used for "has any grades" check.
-	const activeStudentList = useMemo(() => {
-		if (!classData) return []
-		return classData.students.filter((s) => s.groupId != null)
-	}, [classData])
+	// Missing in current semester only (any teacher). Used for row highlight and sort.
+	const hasMissingInCurrentSemester = useCallback((studentId: number): boolean => {
+		if (currentSemester === null || !classData) return false
+		const allTeachers = [...classData.amTeachers, ...classData.pmTeachers]
+		if (currentSemester === 'first') {
+			return allTeachers.some((t) => getGrade(studentId, t.id, 'first') === null)
+		}
+		return allTeachers.some((t) => getGrade(studentId, t.id, 'second') === null)
+	}, [currentSemester, classData, getGrade])
 
-	// Only show missing highlight/sort when the current teacher has entered at least one grade in this class (so we have real data).
-	const currentTeacherHasAnyGrades = useMemo(() => {
-		if (!currentTeacherTeachesClass || currentTeacherIdInClass == null || activeStudentList.length === 0) return false
-		return activeStudentList.some((s) => {
-			const first = getGrade(s.id, currentTeacherIdInClass, 'first')
-			const second = getGrade(s.id, currentTeacherIdInClass, 'second')
-			return (showFirstSemester && first !== null) || (showSecondSemester && second !== null)
-		})
-	}, [currentTeacherTeachesClass, currentTeacherIdInClass, activeStudentList, getGrade, showFirstSemester, showSecondSemester])
-
-	// Sorted students with sequential IDs (only those assigned to a group).
-	// Students missing a grade from the current teacher (for visible semesters) are sorted to the top.
+	// Sorted students: when currentSemester is set, students with missing grade in that semester first; then name/group sort.
 	const sortedStudents = useMemo(() => {
 		if (!classData) return []
-		const hasMissingGrade = (student: Student): boolean => {
-			if (!currentTeacherTeachesClass || currentTeacherIdInClass == null) return false
-			if (!currentTeacherHasAnyGrades) return false // no grades from this teacher: don't highlight anyone
-			const firstMissing = showFirstSemester && getGrade(student.id, currentTeacherIdInClass, 'first') === null
-			const secondMissing = showSecondSemester && getGrade(student.id, currentTeacherIdInClass, 'second') === null
-			return firstMissing || secondMissing
-		}
 		const students = [...classData.students]
 			.filter(student => student.groupId !== null && student.groupId !== undefined)
 			.sort((a, b) => {
-				// Primary: missing grade from current teacher first
-				const aMissing = hasMissingGrade(a) ? 0 : 1
-				const bMissing = hasMissingGrade(b) ? 0 : 1
-				if (aMissing !== bMissing) return aMissing - bMissing
+				// Primary (only when currentSemester set): missing in current semester first
+				if (currentSemester != null) {
+					const aMissing = hasMissingInCurrentSemester(a.id) ? 0 : 1
+					const bMissing = hasMissingInCurrentSemester(b.id) ? 0 : 1
+					if (aMissing !== bMissing) return aMissing - bMissing
+				}
 
 				let primaryCompare = 0
 				if (sortField === 'lastName') {
-					// Sort by last name
 					primaryCompare = a.lastName.localeCompare(b.lastName)
 					if (primaryCompare !== 0) {
 						return sortDirection === 'asc' ? primaryCompare : -primaryCompare
 					}
-					// Secondary sort by first name
 					const firstNameCompare = a.firstName.localeCompare(b.firstName)
 					return sortDirection === 'asc' ? firstNameCompare : -firstNameCompare
 				} else {
-					// Sort by group ID
-					// Handle null values - put them at the end
 					if (a.groupId === null && b.groupId === null) {
 						primaryCompare = 0
 					} else if (a.groupId === null) {
-						primaryCompare = 1 // a goes after b
+						primaryCompare = 1
 					} else if (b.groupId === null) {
-						primaryCompare = -1 // a goes before b
+						primaryCompare = -1
 					} else {
 						primaryCompare = a.groupId - b.groupId
 					}
-
 					if (primaryCompare !== 0) {
 						return sortDirection === 'asc' ? primaryCompare : -primaryCompare
 					}
-					// Secondary sort by last name
 					const lastNameCompare = a.lastName.localeCompare(b.lastName)
 					if (lastNameCompare !== 0) {
 						return sortDirection === 'asc' ? lastNameCompare : -lastNameCompare
 					}
-					// Tertiary sort by first name
 					const firstNameCompare = a.firstName.localeCompare(b.firstName)
 					return sortDirection === 'asc' ? firstNameCompare : -firstNameCompare
 				}
 			})
 		return students
-	}, [classData, sortField, sortDirection, getGrade, currentTeacherIdInClass, showFirstSemester, showSecondSemester, currentTeacherTeachesClass, currentTeacherHasAnyGrades])
+	}, [classData, sortField, sortDirection, currentSemester, hasMissingInCurrentSemester])
+
+	// When class has separate AM/PM subjects, table shows only the active period; otherwise both
+	const tablePeriod: 'AM' | 'PM' | undefined = classData?.hasSeparateAmPmSubjects ? periodTab : undefined
+
+	// Per-period grade completion (for AM/PM tabs: check/cross like class tabs)
+	const periodCompletion = useMemo(() => {
+		if (!classData?.hasSeparateAmPmSubjects || !sortedStudents.length) {
+			return { amFirst: false, amSecond: false, pmFirst: false, pmSecond: false }
+		}
+		const allEntered = (teachers: Teacher[], semester: 'first' | 'second') =>
+			teachers.length === 0 ||
+			sortedStudents.every((s) =>
+				teachers.every((t) => grades[s.id]?.[t.id]?.[semester] != null)
+			)
+		return {
+			amFirst: allEntered(classData.amTeachers, 'first'),
+			amSecond: allEntered(classData.amTeachers, 'second'),
+			pmFirst: allEntered(classData.pmTeachers, 'first'),
+			pmSecond: allEntered(classData.pmTeachers, 'second')
+		}
+	}, [classData, sortedStudents, grades])
 
 	// Save all grades function
 	const saveAllGrades = useCallback(async () => {
@@ -1105,66 +1205,81 @@ export default function NotensammlerPage() {
 				clearTimeout(saveFinalGradeTimerRef.current)
 				saveFinalGradeTimerRef.current = null
 			}
+			if (saveConductWishTimerRef.current) {
+				clearTimeout(saveConductWishTimerRef.current)
+				saveConductWishTimerRef.current = null
+			}
 
-			// Collect all grades to save
-			const savePromises: Promise<void>[] = []
-
+			// Build batch payloads (one request for grades, one for final grades)
+			const gradesPayload: Array<{ studentId: number; teacherId: number; semester: 'first' | 'second'; grade: number | null }> = []
 			for (const studentId in grades) {
 				const studentGrades = grades[parseInt(studentId)]
 				if (!studentGrades) continue
-
 				for (const teacherId in studentGrades) {
 					const teacherGrades = studentGrades[parseInt(teacherId)]
 					if (!teacherGrades) continue
-
-					// Save first semester grade (silent mode to avoid state conflicts)
-					savePromises.push(
-						saveGrade(parseInt(studentId), parseInt(teacherId), 'first', teacherGrades.first ?? null, true)
-							.catch((e) => {
-								console.error(`Failed to save grade for student ${studentId}, teacher ${teacherId}, first semester:`, e)
-								throw e
-							})
-					)
-
-					// Save second semester grade (silent mode to avoid state conflicts)
-					savePromises.push(
-						saveGrade(parseInt(studentId), parseInt(teacherId), 'second', teacherGrades.second ?? null, true)
-							.catch((e) => {
-								console.error(`Failed to save grade for student ${studentId}, teacher ${teacherId}, second semester:`, e)
-								throw e
-							})
+					gradesPayload.push(
+						{ studentId: parseInt(studentId), teacherId: parseInt(teacherId), semester: 'first', grade: teacherGrades.first ?? null },
+						{ studentId: parseInt(studentId), teacherId: parseInt(teacherId), semester: 'second', grade: teacherGrades.second ?? null }
 					)
 				}
 			}
 
-			// Save final grades (Endnote) for each student/semester with a display value (including pre-populated)
+			const finalGradesPayload: Array<{ studentId: number; semester: 'first' | 'second'; grade: number | null; conductNoteWish: string | null }> = []
 			for (const studentId in grades) {
 				const sid = parseInt(studentId)
 				const firstVal = getFinalGradeDisplay(sid, 'first')
-				if (firstVal != null) {
-					savePromises.push(
-						saveFinalGrade(sid, 'first', firstVal, true).catch((e) => {
-							console.error(`Failed to save final grade for student ${studentId}, first semester:`, e)
-							throw e
-						})
-					)
-				}
 				const secondVal = getFinalGradeDisplay(sid, 'second')
-				if (secondVal != null) {
-					savePromises.push(
-						saveFinalGrade(sid, 'second', secondVal, true).catch((e) => {
-							console.error(`Failed to save final grade for student ${studentId}, second semester:`, e)
-							throw e
-						})
-					)
+				const conductFirst = finalGrades[sid]?.conductWishFirst ?? null
+				const conductSecond = finalGrades[sid]?.conductWishSecond ?? null
+				const conductFirstForApi = (conductFirst === CONDUCT_NOTE_WISH_NONE || conductFirst === '') ? null : conductFirst
+				const conductSecondForApi = (conductSecond === CONDUCT_NOTE_WISH_NONE || conductSecond === '') ? null : conductSecond
+				if (firstVal != null || conductFirst != null) {
+					finalGradesPayload.push({
+						studentId: sid,
+						semester: 'first',
+						grade: firstVal ?? null,
+						conductNoteWish: conductFirstForApi
+					})
+				}
+				if (secondVal != null || conductSecond != null) {
+					finalGradesPayload.push({
+						studentId: sid,
+						semester: 'second',
+						grade: secondVal ?? null,
+						conductNoteWish: conductSecondForApi
+					})
 				}
 			}
 
-			// Save all grades in parallel (but limit concurrency to avoid overwhelming the server)
-			const BATCH_SIZE = 10
-			for (let i = 0; i < savePromises.length; i += BATCH_SIZE) {
-				const batch = savePromises.slice(i, i + BATCH_SIZE)
-				await Promise.all(batch)
+			const batchBody = {
+				classId: classData.id,
+				...(schoolYearId != null && { schoolYearId })
+			}
+			const [gradesRes, finalGradesRes] = await Promise.all([
+				gradesPayload.length > 0
+					? fetch('/api/notensammler/grades/batch', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ ...batchBody, grades: gradesPayload })
+						})
+					: Promise.resolve(new Response(JSON.stringify({ success: true, count: 0 }), { status: 200 })),
+				finalGradesPayload.length > 0
+					? fetch('/api/notensammler/final-grades/batch', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ ...batchBody, finalGrades: finalGradesPayload })
+						})
+					: Promise.resolve(new Response(JSON.stringify({ success: true, count: 0 }), { status: 200 }))
+			])
+
+			if (!gradesRes.ok) {
+				const err = (await gradesRes.json()) as { error?: string }
+				throw new Error(err.error ?? 'Failed to save grades')
+			}
+			if (!finalGradesRes.ok) {
+				const err = (await finalGradesRes.json()) as { error?: string }
+				throw new Error(err.error ?? 'Failed to save final grades')
 			}
 
 			// Refetch teacher classes so tab icons (1. Sem / 2. Sem check/cross) update
@@ -1186,7 +1301,7 @@ export default function NotensammlerPage() {
 		} finally {
 			setSavingAll(false)
 		}
-	}, [classData, selectedClassId, grades, saveGrade, saveFinalGrade, getFinalGradeDisplay])
+	}, [classData, selectedClassId, grades, finalGrades, getFinalGradeDisplay, schoolYearId])
 
 	// Handle PDF download
 	const handleDownloadPDF = useCallback(async () => {
@@ -1645,9 +1760,6 @@ export default function NotensammlerPage() {
 					</div>
 				)}
 				<div className="mb-4">
-					<p className="text-sm font-medium mb-2">
-						{t('notensammler.allClasses', 'Alle Klassen')}
-					</p>
 					<div className="flex flex-wrap items-center gap-3">
 						<div>
 							<label className="block text-sm font-medium mb-2">
@@ -1667,10 +1779,11 @@ export default function NotensammlerPage() {
 							</Select>
 						</div>
 						<Button
-							variant="outline"
+							variant="secondary"
 							onClick={handleDownloadAllClassesPDF}
 							disabled={downloadingAllPdf || teacherClasses.length === 0}
-							className="self-end bg-sky-100 text-sky-800 border-sky-200 hover:bg-sky-200 hover:border-sky-300"
+							className="self-end"
+							title={t('notensammler.tooltipAllClassesPdf', 'Lädt eine Datei mit allen eigenen Noten herunter.')}
 						>
 							{downloadingAllPdf ? (
 								<>
@@ -1678,9 +1791,30 @@ export default function NotensammlerPage() {
 									{t('notensammler.downloadingAllClassesPdf', 'PDF wird erstellt...')}
 								</>
 							) : (
-								t('notensammler.downloadAllClassesPdf', 'Notenliste alle Klassen als PDF')
+								t('notensammler.downloadAllClassesPdf', 'Notenliste alle eigenen Klassen als PDF')
 							)}
 						</Button>
+					</div>
+					<div className="mt-3 rounded-md border bg-muted/50 px-3 py-2.5">
+						<p className="text-sm font-medium text-muted-foreground mb-1.5">
+							{t('notensammler.infoTitle', 'Hinweise')}
+						</p>
+						<div className="text-sm text-muted-foreground space-y-1">
+							{(t('notensammler.infoText', 'Betragensnote: Hier kann jeder Lehrer seinen Wunsch eintragen.\nNotenliste alle Klassen als PDF: Lädt eine Datei mit allen eigenen Noten herunter.\nPDF Herunterladen: Lädt die gesamte Notenliste der ausgewählten Klasse herunter.\nAn Notenmanagement übertragen: Überträgt die Noten an das Notenmanagement.') as string)
+								.split('\n')
+								.filter(Boolean)
+								.map((line, i) => {
+									const idx = line.indexOf(': ')
+									const label = idx >= 0 ? line.slice(0, idx) : line
+									const desc = idx >= 0 ? line.slice(idx + 2) : ''
+									return (
+										<p key={i}>
+											<strong className="font-semibold text-foreground">{label}</strong>
+											{desc ? `: ${desc}` : ''}
+										</p>
+									)
+								})}
+						</div>
 					</div>
 				</div>
 				{teacherClasses.length > 0 && (
@@ -1803,6 +1937,7 @@ export default function NotensammlerPage() {
 						<Button
 							onClick={handleDownloadPDF}
 							disabled={downloadingPdf || !selectedClassId}
+							title={t('notensammler.tooltipDownloadPdf', 'Lädt die gesamte Notenliste der ausgewählten Klasse herunter.')}
 						>
 							{downloadingPdf ? (
 								<>
@@ -1817,6 +1952,7 @@ export default function NotensammlerPage() {
 							variant="secondary"
 							onClick={openTransferFlow}
 							disabled={!selectedClassId}
+							title={t('notensammler.tooltipTransfer', 'Überträgt die Noten an das Notenmanagement.')}
 						>
 							{t('notensammler.transferToNotenmanagement', 'An Notenmanagement übertragen')}
 						</Button>
@@ -1834,9 +1970,11 @@ export default function NotensammlerPage() {
 				<Card>
 					<CardHeader>
 						<CardTitle>
-							{classData.subjectName
-								? `${classData.name} - ${truncateSubject(classData.subjectName)}`
-								: classData.name}
+							{classData.hasSeparateAmPmSubjects
+								? classData.name
+								: classData.subjectName
+									? `${classData.name} - ${truncateSubject(classData.subjectName)}`
+									: classData.name}
 							{classData.classLead && (
 								<>
 									{' · '}
@@ -1877,25 +2015,91 @@ export default function NotensammlerPage() {
 						</div>
 					</CardHeader>
 					<CardContent>
+						{classData.hasSeparateAmPmSubjects && (
+							<Tabs value={periodTab} onValueChange={(v) => setPeriodTab(v as 'AM' | 'PM')}>
+								<TabsList className="mb-2 flex flex-wrap gap-2 h-auto p-0 bg-transparent text-foreground justify-start">
+									<TabsTrigger
+										value="AM"
+										className="group flex items-center gap-3 rounded-lg border-2 border-transparent px-4 py-2.5 text-sm font-medium transition-all hover:bg-muted/60 data-[state=active]:border-primary data-[state=active]:bg-muted/60 data-[state=active]:shadow-none"
+									>
+										<span className="font-semibold">{t('notensammler.vormittag', 'Vormittag')} – {classData.subjectNameAm ? truncateSubject(classData.subjectNameAm) : ''}</span>
+										{currentTeacherTeachesClass && (
+											<span className="flex items-center gap-2 text-xs font-normal opacity-90">
+												<span className="flex items-center gap-1 rounded-md bg-muted/80 px-2 py-0.5">
+													{t('notensammler.firstSemesterShort', '1. Sem')}
+													{periodCompletion.amFirst ? (
+														<CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0 dark:text-green-400" aria-hidden />
+													) : (
+														<X className="h-3.5 w-3.5 text-destructive shrink-0" aria-hidden />
+													)}
+												</span>
+												<span className="flex items-center gap-1 rounded-md bg-muted/80 px-2 py-0.5">
+													{t('notensammler.secondSemesterShort', '2. Sem')}
+													{periodCompletion.amSecond ? (
+														<CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0 dark:text-green-400" aria-hidden />
+													) : (
+														<X className="h-3.5 w-3.5 text-destructive shrink-0" aria-hidden />
+													)}
+												</span>
+											</span>
+										)}
+									</TabsTrigger>
+									<TabsTrigger
+										value="PM"
+										className="group flex items-center gap-3 rounded-lg border-2 border-transparent px-4 py-2.5 text-sm font-medium transition-all hover:bg-muted/60 data-[state=active]:border-primary data-[state=active]:bg-muted/60 data-[state=active]:shadow-none"
+									>
+										<span className="font-semibold">{t('notensammler.nachmittag', 'Nachmittag')} – {classData.subjectNamePm ? truncateSubject(classData.subjectNamePm) : ''}</span>
+										{currentTeacherTeachesClass && (
+											<span className="flex items-center gap-2 text-xs font-normal opacity-90">
+												<span className="flex items-center gap-1 rounded-md bg-muted/80 px-2 py-0.5">
+													{t('notensammler.firstSemesterShort', '1. Sem')}
+													{periodCompletion.pmFirst ? (
+														<CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0 dark:text-green-400" aria-hidden />
+													) : (
+														<X className="h-3.5 w-3.5 text-destructive shrink-0" aria-hidden />
+													)}
+												</span>
+												<span className="flex items-center gap-1 rounded-md bg-muted/80 px-2 py-0.5">
+													{t('notensammler.secondSemesterShort', '2. Sem')}
+													{periodCompletion.pmSecond ? (
+														<CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0 dark:text-green-400" aria-hidden />
+													) : (
+														<X className="h-3.5 w-3.5 text-destructive shrink-0" aria-hidden />
+													)}
+												</span>
+											</span>
+										)}
+									</TabsTrigger>
+								</TabsList>
+							</Tabs>
+						)}
 						<div className="overflow-x-auto">
 							<Table className="border-collapse">
 								<TableHeader>
 									{/* Period labels row */}
 									<TableRow>
-										<TableHead rowSpan={2} className="sticky left-0 bg-background z-10 w-14">{t('notensammler.id', 'ID')}</TableHead>
-										<TableHead rowSpan={2} className="sticky left-14 bg-background z-10 w-16">{t('notensammler.group', 'Gruppe')}</TableHead>
-										<TableHead rowSpan={2} className="sticky left-[7.5rem] bg-background z-10 w-[200px]">{t('notensammler.student', 'Schüler')}</TableHead>
-										{/* First Semester - Period labels */}
-										{showFirstSemester && classData.amTeachers.length > 0 && (
+										<TableHead rowSpan={2} className="sticky left-0 bg-background z-10 w-10 min-w-10 p-1 text-center">
+											<span className="[writing-mode:vertical-rl] [text-orientation:mixed] whitespace-nowrap text-sm">
+												{t('notensammler.id', 'ID')}
+											</span>
+										</TableHead>
+										<TableHead rowSpan={2} className="sticky left-10 bg-background z-10 w-10 min-w-10 p-1 text-center">
+											<span className="[writing-mode:vertical-rl] [text-orientation:mixed] whitespace-nowrap text-sm">
+												{t('notensammler.group', 'Gruppe')}
+											</span>
+										</TableHead>
+										<TableHead rowSpan={2} className="sticky left-[5rem] bg-background z-10 w-[200px]">{t('notensammler.student', 'Schüler')}</TableHead>
+										{/* First Semester - Period labels (AM only when tablePeriod is AM or unset; PM only when PM or unset) */}
+										{showFirstSemester && (!tablePeriod || tablePeriod === 'AM') && classData.amTeachers.length > 0 && (
 											<TableHead colSpan={classData.amTeachers.length} className="text-center border-b">
 												{t('notensammler.vormittag', 'Vormittag')}
 											</TableHead>
 										)}
-										{/* Separator between AM and PM */}
-										{showFirstSemester && classData.amTeachers.length > 0 && classData.pmTeachers.length > 0 && (
+										{/* Separator between AM and PM (only in combined view) */}
+										{showFirstSemester && !tablePeriod && classData.amTeachers.length > 0 && classData.pmTeachers.length > 0 && (
 											<TableHead rowSpan={2} className="border-l-2 border-muted-foreground/30 w-1 p-0"></TableHead>
 										)}
-										{showFirstSemester && classData.pmTeachers.length > 0 && (
+										{showFirstSemester && (!tablePeriod || tablePeriod === 'PM') && classData.pmTeachers.length > 0 && (
 											<TableHead colSpan={classData.pmTeachers.length} className="text-center border-b">
 												{t('notensammler.nachmittag', 'Nachmittag')}
 											</TableHead>
@@ -1910,17 +2114,21 @@ export default function NotensammlerPage() {
 												{t('notensammler.endnoteFirstSemester', 'Endnote (1. Semester)')}
 											</span>
 										</TableHead>
+										<TableHead rowSpan={2} className="min-w-[90px] w-[105px] max-w-[105px] p-1 text-center bg-primary/5 border-r-4 border-muted-foreground/60">
+											<span className="[writing-mode:vertical-rl] [text-orientation:mixed] whitespace-nowrap text-sm">
+												{t('notensammler.conductNoteWish', 'Betragensnote (Wunsch)')}
+											</span>
+										</TableHead>
 										{/* Second Semester - Period labels */}
-										{showSecondSemester && classData.amTeachers.length > 0 && (
+										{showSecondSemester && (!tablePeriod || tablePeriod === 'AM') && classData.amTeachers.length > 0 && (
 											<TableHead colSpan={classData.amTeachers.length} className="text-center border-b">
 												{t('notensammler.vormittag', 'Vormittag')}
 											</TableHead>
 										)}
-										{/* Separator between AM and PM */}
-										{showSecondSemester && classData.amTeachers.length > 0 && classData.pmTeachers.length > 0 && (
+										{showSecondSemester && !tablePeriod && classData.amTeachers.length > 0 && classData.pmTeachers.length > 0 && (
 											<TableHead rowSpan={2} className="border-l-2 border-muted-foreground/30 w-1 p-0"></TableHead>
 										)}
-										{showSecondSemester && classData.pmTeachers.length > 0 && (
+										{showSecondSemester && (!tablePeriod || tablePeriod === 'PM') && classData.pmTeachers.length > 0 && (
 											<TableHead colSpan={classData.pmTeachers.length} className="text-center border-b">
 												{t('notensammler.nachmittag', 'Nachmittag')}
 											</TableHead>
@@ -1935,11 +2143,16 @@ export default function NotensammlerPage() {
 												{t('notensammler.endnoteSecondSemester', 'Endnote (2. Semester)')}
 											</span>
 										</TableHead>
+										<TableHead rowSpan={2} className="min-w-[90px] w-[105px] max-w-[105px] p-1 text-center bg-primary/5">
+											<span className="[writing-mode:vertical-rl] [text-orientation:mixed] whitespace-nowrap text-sm">
+												{t('notensammler.conductNoteWish', 'Betragensnote (Wunsch)')}
+											</span>
+										</TableHead>
 									</TableRow>
 									{/* Teacher names row */}
 									<TableRow>
 										{/* First Semester - AM Teachers */}
-										{showFirstSemester && classData.amTeachers.map((teacher) => (
+										{showFirstSemester && (!tablePeriod || tablePeriod === 'AM') && classData.amTeachers.map((teacher) => (
 											<TableHead
 												key={`first-am-${teacher.id}`}
 												className={`w-16 min-w-16 p-1 text-center ${currentTeacherId === teacher.id ? 'bg-primary/20 font-semibold' : ''}`}
@@ -1965,7 +2178,7 @@ export default function NotensammlerPage() {
 											</TableHead>
 										))}
 										{/* First Semester - PM Teachers */}
-										{showFirstSemester && classData.pmTeachers.map((teacher) => (
+										{showFirstSemester && (!tablePeriod || tablePeriod === 'PM') && classData.pmTeachers.map((teacher) => (
 											<TableHead
 												key={`first-pm-${teacher.id}`}
 												className={`w-16 min-w-16 p-1 text-center ${currentTeacherId === teacher.id ? 'bg-primary/20 font-semibold' : ''}`}
@@ -1991,7 +2204,7 @@ export default function NotensammlerPage() {
 											</TableHead>
 										))}
 										{/* Second Semester - AM Teachers */}
-										{showSecondSemester && classData.amTeachers.map((teacher) => (
+										{showSecondSemester && (!tablePeriod || tablePeriod === 'AM') && classData.amTeachers.map((teacher) => (
 											<TableHead
 												key={`second-am-${teacher.id}`}
 												className={`w-16 min-w-16 p-1 text-center ${currentTeacherId === teacher.id ? 'bg-primary/20 font-semibold' : ''}`}
@@ -2017,7 +2230,7 @@ export default function NotensammlerPage() {
 											</TableHead>
 										))}
 										{/* Second Semester - PM Teachers */}
-										{showSecondSemester && classData.pmTeachers.map((teacher) => (
+										{showSecondSemester && (!tablePeriod || tablePeriod === 'PM') && classData.pmTeachers.map((teacher) => (
 											<TableHead
 												key={`second-pm-${teacher.id}`}
 												className={`w-16 min-w-16 p-1 text-center ${currentTeacherId === teacher.id ? 'bg-primary/20 font-semibold' : ''}`}
@@ -2046,17 +2259,21 @@ export default function NotensammlerPage() {
 								</TableHeader>
 								<TableBody>
 									{sortedStudents.map((student, index) => {
-										const firstAvg = calculateAverage(student.id, 'first')
-										const secondAvg = calculateAverage(student.id, 'second')
+										const firstAvg = calculateAverage(student.id, 'first', tablePeriod)
+										const secondAvg = calculateAverage(student.id, 'second', tablePeriod)
+										// Only highlight missing grades when the logged-in user is a teacher in this class
+										const missingFirstBlock = currentTeacherTeachesClass && currentSemester === 'first' && hasMissingInCurrentSemester(student.id)
+										const missingSecondBlock = currentTeacherTeachesClass && currentSemester === 'second' && hasMissingInCurrentSemester(student.id)
+										const missingCellClass = 'bg-red-50 dark:bg-red-950/20'
 										return (
 											<TableRow key={student.id}>
-												<TableCell className="sticky left-0 z-10 font-medium w-14 bg-background">
+												<TableCell className="sticky left-0 z-10 font-medium w-10 min-w-10 p-1 text-center bg-background">
 													{index + 1}
 												</TableCell>
-												<TableCell className="sticky left-14 z-10 w-16 bg-background">
+												<TableCell className="sticky left-10 z-10 w-10 min-w-10 p-1 text-center bg-background">
 													{student.groupId ?? '-'}
 												</TableCell>
-												<TableCell className="sticky left-[7.5rem] z-10 font-medium w-[200px] max-w-[200px] bg-background">
+												<TableCell className="sticky left-[5rem] z-10 font-medium w-[200px] max-w-[200px] bg-background">
 													<StudentPhoto
 														studentId={student.id}
 														firstName={student.firstName}
@@ -2066,14 +2283,13 @@ export default function NotensammlerPage() {
 													/>
 												</TableCell>
 												{/* First semester - AM teacher columns */}
-												{showFirstSemester && classData.amTeachers.map((teacher) => {
+												{showFirstSemester && (!tablePeriod || tablePeriod === 'AM') && classData.amTeachers.map((teacher) => {
 													const grade = getGrade(student.id, teacher.id, 'first')
 													const isCurrentTeacher = currentTeacherId === teacher.id
-													const isMissingCell = currentTeacherTeachesClass && teacher.id === currentTeacherIdInClass && grade === null
 													return (
 														<TableCell
 															key={`first-am-${student.id}-${teacher.id}`}
-															className={`w-16 min-w-16 p-1 ${isCurrentTeacher ? 'bg-primary/10' : ''} ${isMissingCell ? 'bg-red-50 dark:bg-red-950/20' : ''}`}
+															className={`w-16 min-w-16 p-1 ${isCurrentTeacher ? 'bg-primary/10' : ''} ${missingFirstBlock ? missingCellClass : ''}`}
 														>
 															<GradeInput
 																compact
@@ -2084,18 +2300,17 @@ export default function NotensammlerPage() {
 													)
 												})}
 												{/* Separator between AM and PM */}
-												{showFirstSemester && classData.amTeachers.length > 0 && classData.pmTeachers.length > 0 && (
-													<TableCell className="border-l-2 border-muted-foreground/30 p-0"></TableCell>
+												{showFirstSemester && !tablePeriod && classData.amTeachers.length > 0 && classData.pmTeachers.length > 0 && (
+													<TableCell className={`border-l-2 border-muted-foreground/30 p-0 ${missingFirstBlock ? missingCellClass : ''}`}></TableCell>
 												)}
 												{/* First semester - PM teacher columns */}
-												{showFirstSemester && classData.pmTeachers.map((teacher) => {
+												{showFirstSemester && (!tablePeriod || tablePeriod === 'PM') && classData.pmTeachers.map((teacher) => {
 													const grade = getGrade(student.id, teacher.id, 'first')
 													const isCurrentTeacher = currentTeacherId === teacher.id
-													const isMissingCell = currentTeacherTeachesClass && teacher.id === currentTeacherIdInClass && grade === null
 													return (
 														<TableCell
 															key={`first-pm-${student.id}-${teacher.id}`}
-															className={`w-16 min-w-16 p-1 ${isCurrentTeacher ? 'bg-primary/10' : ''} ${isMissingCell ? 'bg-red-50 dark:bg-red-950/20' : ''}`}
+															className={`w-16 min-w-16 p-1 ${isCurrentTeacher ? 'bg-primary/10' : ''} ${missingFirstBlock ? missingCellClass : ''}`}
 														>
 															<GradeInput
 																compact
@@ -2106,26 +2321,42 @@ export default function NotensammlerPage() {
 													)
 												})}
 												{/* First semester average */}
-												<TableCell className="w-14 min-w-14 p-1 text-center bg-muted font-medium">
+												<TableCell className={`w-14 min-w-14 p-1 text-center font-medium ${missingFirstBlock ? missingCellClass : 'bg-muted'}`}>
 													{firstAvg === null ? '-' : typeof firstAvg === 'string' ? firstAvg : firstAvg.toFixed(1)}
 												</TableCell>
 												{/* First semester Endnote */}
-												<TableCell className="w-14 min-w-14 p-1 bg-primary/10">
+												<TableCell className={`w-14 min-w-14 p-1 bg-primary/10 ${missingFirstBlock ? missingCellClass : ''}`} title={getFinalGradeDisplay(student.id, 'first') != null ? getGradeDisplayText(getFinalGradeDisplay(student.id, 'first')!) : '-'}>
 													<FinalGradeInput
 														compact
 														value={getFinalGradeDisplay(student.id, 'first')}
 														onChange={(value) => handleFinalGradeChange(student.id, 'first', value)}
 													/>
 												</TableCell>
+												{/* First semester Betragensnote (Wunsch) */}
+												<TableCell className={`min-w-[90px] w-[105px] max-w-[105px] p-1 bg-primary/5 border-r-4 border-muted-foreground/60 ${missingFirstBlock ? missingCellClass : ''}`} title={(finalGrades[student.id]?.conductWishFirst ?? CONDUCT_NOTE_WISH_DEFAULT) === CONDUCT_NOTE_WISH_NONE ? '-' : (finalGrades[student.id]?.conductWishFirst ?? CONDUCT_NOTE_WISH_DEFAULT)}>
+													<Select
+														value={finalGrades[student.id]?.conductWishFirst ?? CONDUCT_NOTE_WISH_DEFAULT}
+														onValueChange={(value) => handleConductWishChange(student.id, 'first', value)}
+													>
+														<SelectTrigger className="h-8 text-sm w-full min-w-0 max-w-full truncate">
+															<SelectValue placeholder="-" />
+														</SelectTrigger>
+														<SelectContent>
+															<SelectItem value={CONDUCT_NOTE_WISH_NONE}>-</SelectItem>
+															{CONDUCT_NOTE_WISH_OPTIONS.map((opt) => (
+																<SelectItem key={opt} value={opt}>{opt}</SelectItem>
+															))}
+														</SelectContent>
+													</Select>
+												</TableCell>
 												{/* Second semester - AM teacher columns */}
-												{showSecondSemester && classData.amTeachers.map((teacher) => {
+												{showSecondSemester && (!tablePeriod || tablePeriod === 'AM') && classData.amTeachers.map((teacher) => {
 													const grade = getGrade(student.id, teacher.id, 'second')
 													const isCurrentTeacher = currentTeacherId === teacher.id
-													const isMissingCell = currentTeacherTeachesClass && teacher.id === currentTeacherIdInClass && grade === null
 													return (
 														<TableCell
 															key={`second-am-${student.id}-${teacher.id}`}
-															className={`w-16 min-w-16 p-1 ${isCurrentTeacher ? 'bg-primary/10' : ''} ${isMissingCell ? 'bg-red-50 dark:bg-red-950/20' : ''}`}
+															className={`w-16 min-w-16 p-1 ${isCurrentTeacher ? 'bg-primary/10' : ''} ${missingSecondBlock ? missingCellClass : ''}`}
 														>
 															<GradeInput
 																compact
@@ -2136,18 +2367,17 @@ export default function NotensammlerPage() {
 													)
 												})}
 												{/* Separator between AM and PM */}
-												{showSecondSemester && classData.amTeachers.length > 0 && classData.pmTeachers.length > 0 && (
-													<TableCell className="border-l-2 border-muted-foreground/30 p-0"></TableCell>
+												{showSecondSemester && !tablePeriod && classData.amTeachers.length > 0 && classData.pmTeachers.length > 0 && (
+													<TableCell className={`border-l-2 border-muted-foreground/30 p-0 ${missingSecondBlock ? missingCellClass : ''}`}></TableCell>
 												)}
 												{/* Second semester - PM teacher columns */}
-												{showSecondSemester && classData.pmTeachers.map((teacher) => {
+												{showSecondSemester && (!tablePeriod || tablePeriod === 'PM') && classData.pmTeachers.map((teacher) => {
 													const grade = getGrade(student.id, teacher.id, 'second')
 													const isCurrentTeacher = currentTeacherId === teacher.id
-													const isMissingCell = currentTeacherTeachesClass && teacher.id === currentTeacherIdInClass && grade === null
 													return (
 														<TableCell
 															key={`second-pm-${student.id}-${teacher.id}`}
-															className={`w-16 min-w-16 p-1 ${isCurrentTeacher ? 'bg-primary/10' : ''} ${isMissingCell ? 'bg-red-50 dark:bg-red-950/20' : ''}`}
+															className={`w-16 min-w-16 p-1 ${isCurrentTeacher ? 'bg-primary/10' : ''} ${missingSecondBlock ? missingCellClass : ''}`}
 														>
 															<GradeInput
 																compact
@@ -2158,16 +2388,33 @@ export default function NotensammlerPage() {
 													)
 												})}
 												{/* Second semester average */}
-												<TableCell className="w-14 min-w-14 p-1 text-center bg-muted font-medium">
+												<TableCell className={`w-14 min-w-14 p-1 text-center font-medium ${missingSecondBlock ? missingCellClass : 'bg-muted'}`}>
 													{secondAvg === null ? '-' : typeof secondAvg === 'string' ? secondAvg : secondAvg.toFixed(1)}
 												</TableCell>
 												{/* Second semester Endnote */}
-												<TableCell className="w-14 min-w-14 p-1 bg-primary/10">
+												<TableCell className={`w-14 min-w-14 p-1 bg-primary/10 ${missingSecondBlock ? missingCellClass : ''}`} title={getFinalGradeDisplay(student.id, 'second') != null ? getGradeDisplayText(getFinalGradeDisplay(student.id, 'second')!) : '-'}>
 													<FinalGradeInput
 														compact
 														value={getFinalGradeDisplay(student.id, 'second')}
 														onChange={(value) => handleFinalGradeChange(student.id, 'second', value)}
 													/>
+												</TableCell>
+												{/* Second semester Betragensnote (Wunsch) */}
+												<TableCell className={`min-w-[90px] w-[105px] max-w-[105px] p-1 bg-primary/5 ${missingSecondBlock ? missingCellClass : ''}`} title={(finalGrades[student.id]?.conductWishSecond ?? CONDUCT_NOTE_WISH_DEFAULT) === CONDUCT_NOTE_WISH_NONE ? '-' : (finalGrades[student.id]?.conductWishSecond ?? CONDUCT_NOTE_WISH_DEFAULT)}>
+													<Select
+														value={finalGrades[student.id]?.conductWishSecond ?? CONDUCT_NOTE_WISH_DEFAULT}
+														onValueChange={(value) => handleConductWishChange(student.id, 'second', value)}
+													>
+														<SelectTrigger className="h-8 text-sm w-full min-w-0 max-w-full truncate">
+															<SelectValue placeholder="-" />
+														</SelectTrigger>
+														<SelectContent>
+															<SelectItem value={CONDUCT_NOTE_WISH_NONE}>-</SelectItem>
+															{CONDUCT_NOTE_WISH_OPTIONS.map((opt) => (
+																<SelectItem key={opt} value={opt}>{opt}</SelectItem>
+															))}
+														</SelectContent>
+													</Select>
 												</TableCell>
 											</TableRow>
 										)
