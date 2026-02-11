@@ -182,18 +182,20 @@ export async function GET(request: Request) {
 			}
 		}
 
-		// Fetch final grades for this class and year
+		// Fetch final grades for this class and year (including Betragensnote Wunsch)
 		const finalGradeRecords = await prisma.finalGrade.findMany({
 			where: { classId, schoolYearId },
-			select: { studentId: true, semester: true, grade: true }
+			select: { studentId: true, semester: true, grade: true, conductNoteWish: true }
 		})
-		const finalGrades: Record<number, { first: number | null; second: number | null }> = {}
+		const finalGrades: Record<number, { first: number | null; second: number | null; conductWishFirst: string | null; conductWishSecond: string | null }> = {}
 		for (const fg of finalGradeRecords) {
-			finalGrades[fg.studentId] ??= { first: null, second: null }
+			finalGrades[fg.studentId] ??= { first: null, second: null, conductWishFirst: null, conductWishSecond: null }
 			if (fg.semester === 'first') {
 				finalGrades[fg.studentId]!.first = fg.grade
+				finalGrades[fg.studentId]!.conductWishFirst = fg.conductNoteWish ?? null
 			} else if (fg.semester === 'second') {
 				finalGrades[fg.studentId]!.second = fg.grade
+				finalGrades[fg.studentId]!.conductWishSecond = fg.conductNoteWish ?? null
 			}
 		}
 

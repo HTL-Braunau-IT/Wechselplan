@@ -360,14 +360,15 @@ model Grade {
 }
 
 model FinalGrade {
-  id           Int         @id @default(autoincrement())
-  studentId    Int
-  classId      Int
-  semester     String      // 'first' or 'second'
-  grade        Float?
-  schoolYearId Int
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  id               Int         @id @default(autoincrement())
+  studentId        Int
+  classId          Int
+  semester         String      // 'first' or 'second'
+  grade            Float?
+  conductNoteWish  String?     // Betragensnote (Wunsch): Sehr zufriedenstellend, etc.
+  schoolYearId     Int
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
   student      Student     @relation(fields: [studentId], references: [id])
   class        Class       @relation(fields: [classId], references: [id])
   schoolYear   SchoolYear  @relation(fields: [schoolYearId], references: [id])
