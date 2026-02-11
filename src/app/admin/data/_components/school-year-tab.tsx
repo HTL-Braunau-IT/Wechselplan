@@ -65,7 +65,11 @@ export function SchoolYearTab() {
   }
 
   const handleEdit = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
-    const response = await fetch('/api/admin/data?model=schoolYear', {
+    const id = data.id != null ? Number(data.id) : undefined
+    if (id == null || Number.isNaN(id)) {
+      throw new Error('Cannot update school year: missing or invalid id')
+    }
+    const response = await fetch(`/api/admin/data?model=schoolYear&id=${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)

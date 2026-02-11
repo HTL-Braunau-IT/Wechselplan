@@ -11,6 +11,14 @@ export const revalidate = 0
 // Endnote: integer grades only (no .5) plus 6 = nicht beurteilt, 7 = gestundet
 const ALLOWED_FINAL_GRADES = [1, 2, 3, 4, 5, 6, 7]
 
+// Betragensnote (Wunsch) allowed values
+const ALLOWED_CONDUCT_NOTE_WISH = [
+	'Sehr zufriedenstellend',
+	'Zufriedenstellend',
+	'Wenig Zufriedenstellend',
+	'Nicht zufriedenstellend'
+] as const
+
 /**
  * Handles POST requests to save or update a final grade (Endnote).
  *
@@ -35,10 +43,11 @@ export async function POST(request: Request) {
 			classId: unknown
 			semester: unknown
 			grade: unknown
+			conductNoteWish?: string | null
 			schoolYearId?: number
 		}
 		requestData = body
-		const { studentId, classId, semester, grade, schoolYearId: bodySchoolYearId } = body
+		const { studentId, classId, semester, grade, conductNoteWish, schoolYearId: bodySchoolYearId } = body
 
 		// Resolve school year: from body or current (today between start and end)
 		let schoolYearId = bodySchoolYearId
@@ -144,6 +153,23 @@ export async function POST(request: Request) {
 						? parseInt(grade, 10)
 						: null
 
+		// Validate conductNoteWish (Betragensnote Wunsch) if provided
+		let conductNoteWishValue: string | null = null
+		if (conductNoteWish !== undefined && conductNoteWish !== null) {
+			if (conductNoteWish === '') {
+				conductNoteWishValue = null
+			} else if (typeof conductNoteWish === 'string' && ALLOWED_CONDUCT_NOTE_WISH.includes(conductNoteWish as typeof ALLOWED_CONDUCT_NOTE_WISH[number])) {
+				conductNoteWishValue = conductNoteWish
+			} else {
+				return NextResponse.json(
+					{
+						error: `conductNoteWish must be one of: ${ALLOWED_CONDUCT_NOTE_WISH.join(', ')} or null`
+					},
+					{ status: 400 }
+				)
+			}
+		}
+
 		const result = await prisma.finalGrade.upsert({
 			where: {
 				studentId_classId_semester_schoolYearId: {
@@ -153,13 +179,17 @@ export async function POST(request: Request) {
 					schoolYearId
 				}
 			},
-			update: { grade: gradeValue },
+			update: {
+				...(grade !== undefined && { grade: gradeValue }),
+				...(conductNoteWish !== undefined && { conductNoteWish: conductNoteWishValue })
+			},
 			create: {
 				studentId: studentIdNum,
 				classId: classIdNum,
 				semester: semester as 'first' | 'second',
 				schoolYearId,
-				grade: gradeValue
+				grade: gradeValue,
+				conductNoteWish: conductNoteWishValue
 			}
 		})
 
