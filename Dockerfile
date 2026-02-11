@@ -66,3 +66,5 @@ RUN echo '#!/bin/sh' > /app/start.sh && \
     chmod +x /app/start.sh
 
 CMD ["/app/start.sh"] 
+# Persist student photos (mount a volume at /app/data in production)
+VOLUME ["/data"]
