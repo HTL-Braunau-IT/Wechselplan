@@ -12,6 +12,7 @@ import { Button } from '~/components/ui/button'
 import { SupportDialog } from '~/components/support-dialog'
 import { ChangelogDialog } from '~/components/changelog-dialog'
 import { useGitHubVersion } from '~/hooks/use-github-version'
+import { useEntitlements } from '~/contexts/entitlements-context'
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -35,6 +36,7 @@ export function Header() {
 	const { data: session } = useSession()
 	const hasOpenedOnLoad = useRef(false)
 
+	const { isFeatureEnabled } = useEntitlements()
 	const { version, release, allReleases, loading } = useGitHubVersion((newRelease) => {
 		// Auto-open modal when version changes
 		if (newRelease) {
@@ -222,15 +224,17 @@ export function Header() {
 											{t('navigation.classSettings')}
 										</Link>
 									</li>
-									<li>
-										<Link
-											href="/notensammler"
-											className="block py-2 hover:text-primary"
-											onClick={() => setIsMenuOpen(false)}
-										>
-											{t('navigation.notensammler')}
-										</Link>
-									</li>
+									{isFeatureEnabled('notensammler') && (
+										<li>
+											<Link
+												href="/notensammler"
+												className="block py-2 hover:text-primary"
+												onClick={() => setIsMenuOpen(false)}
+											>
+												{t('navigation.notensammler')}
+											</Link>
+										</li>
+									)}
 									{session?.user?.role === 'teacher' && (
 										<li>
 											<Link

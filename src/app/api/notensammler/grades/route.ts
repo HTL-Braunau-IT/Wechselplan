@@ -3,6 +3,7 @@ import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { isFeatureEnabled } from '@/lib/entitlements'
 
 // Force dynamic rendering - no caching
 export const dynamic = 'force-dynamic'
@@ -26,6 +27,9 @@ export async function GET(request: Request) {
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
 			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+		}
+		if (!(await isFeatureEnabled('notensammler'))) {
+			return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
 		}
 
 		const { searchParams } = new URL(request.url)
@@ -166,6 +170,9 @@ export async function POST(request: Request) {
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
 			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+		}
+		if (!(await isFeatureEnabled('notensammler'))) {
+			return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
 		}
 
 		const body = await request.json() as { studentId: unknown; teacherId: unknown; classId: unknown; semester: unknown; grade: unknown; schoolYearId?: number }
@@ -372,6 +379,9 @@ export async function DELETE(request: Request) {
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
 			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+		}
+		if (!(await isFeatureEnabled('notensammler'))) {
+			return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
 		}
 
 		const { searchParams } = new URL(request.url)

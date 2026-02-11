@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { generateNotensammlerPDF } from '@/lib/pdf-generator'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { isFeatureEnabled } from '@/lib/entitlements'
 
 /**
  * Handles GET requests to generate and return a PDF of notensammler (grade collector) data for a specific class.
@@ -18,6 +19,9 @@ export async function GET(request: Request) {
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
 			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+		}
+		if (!(await isFeatureEnabled('notensammler'))) {
+			return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
 		}
 
 		const { searchParams } = new URL(request.url)

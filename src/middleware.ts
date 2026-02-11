@@ -58,6 +58,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // Entitlements for /notensammler are enforced in the Notensammler layout and API routes, not here (Edge runtime cannot call the license server).
   if (pathname.startsWith('/notensammler')) {
     const token = await getToken({ req: request })
     

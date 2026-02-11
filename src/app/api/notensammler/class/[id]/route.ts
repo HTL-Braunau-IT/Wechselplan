@@ -3,6 +3,7 @@ import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { isFeatureEnabled } from '@/lib/entitlements'
 
 /**
  * Handles GET requests to retrieve class data with students and unique teachers.
@@ -24,6 +25,9 @@ export async function GET(
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
 			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+		}
+		if (!(await isFeatureEnabled('notensammler'))) {
+			return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
 		}
 
 		const id = context?.params?.id
