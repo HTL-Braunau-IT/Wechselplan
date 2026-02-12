@@ -20,7 +20,13 @@ import {
 } from '@/components/ui/dialog'
 import { Upload, CheckCircle, XCircle, FolderOpen, Loader2 } from 'lucide-react'
 
-type UploadResultItem = { filename: string; success: boolean; studentId?: number; error?: string }
+type UploadResultItem = {
+  filename: string
+  success: boolean
+  studentId?: number
+  studentIds?: number[]
+  error?: string
+}
 
 function parseFileNameToStudentName(filename: string): string {
   const base = filename.replace(/\.[^.]+$/, '').trim()
@@ -206,9 +212,9 @@ export function StudentPhotosUpload() {
       <div className="space-y-4 border-t pt-4">
         <h4 className="text-sm font-medium">Import for all classes at once</h4>
         <p className="text-sm text-muted-foreground">
-          Select a folder or multiple files; each image is matched to a student by name across all
-          classes. If exactly one student has that first and last name, the photo is saved. If none
-          or several match, the file is skipped and reported.
+          Select a folder or multiple files; each image is matched to students by name across all
+          classes. If one or more students have that first and last name, the same photo is saved for
+          all of them. If none match, the file is skipped and reported.
         </p>
         <div className="flex flex-wrap items-end gap-4">
           <div className="space-y-2">
@@ -268,9 +274,11 @@ export function StudentPhotosUpload() {
                   <XCircle className="h-4 w-4 shrink-0 text-destructive" />
                 )}
                 <span className="truncate">{r.filename}</span>
-                {r.success && r.studentId != null && (
+                {r.success && (r.studentIds?.length ? (
+                  <span className="text-muted-foreground">(IDs {r.studentIds.join(', ')})</span>
+                ) : r.studentId != null ? (
                   <span className="text-muted-foreground">(ID {r.studentId})</span>
-                )}
+                ) : null)}
                 {!r.success && r.error && (
                   <span className="text-destructive">{r.error}</span>
                 )}

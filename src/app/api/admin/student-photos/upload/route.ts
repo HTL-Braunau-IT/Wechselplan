@@ -15,7 +15,13 @@ const EXT_BY_MIME: Record<string, string> = {
   'image/png': '.png'
 }
 
-export type UploadResultItem = { filename: string; success: boolean; studentId?: number; error?: string }
+export type UploadResultItem = {
+  filename: string
+  success: boolean
+  studentId?: number
+  studentIds?: number[]
+  error?: string
+}
 
 /**
  * POST /api/admin/student-photos/upload
@@ -99,20 +105,19 @@ export async function POST(request: Request) {
     const allClasses = formData.get('mode') === 'all' || classIdParam == null || classIdParam.trim() === ''
 
     const normalize = (s: string) => s.trim().toLowerCase()
-    let students: { id: number; firstName: string; lastName: string }[]
-    let findStudent: (lastName: string, firstName: string) => { id: number; firstName: string; lastName: string } | undefined
+    type StudentMatch = { id: number; firstName: string; lastName: string }
+    let students: StudentMatch[]
+    let findStudents: (lastName: string, firstName: string) => StudentMatch[]
 
     if (allClasses) {
       students = await prisma.student.findMany({
         select: { id: true, firstName: true, lastName: true }
       })
-      findStudent = (lastName: string, firstName: string) => {
-        const matches = students.filter(
+      findStudents = (lastName: string, firstName: string) =>
+        students.filter(
           (s) =>
             normalize(s.lastName) === normalize(lastName) && normalize(s.firstName) === normalize(firstName)
         )
-        return matches.length === 1 ? matches[0]! : undefined
-      }
     } else {
       const classId = parseInt(classIdParam, 10)
       const isNumericClassId = !Number.isNaN(classId)
@@ -140,8 +145,8 @@ export async function POST(request: Request) {
           { status: 400 }
         )
       }
-      findStudent = (lastName: string, firstName: string) =>
-        students.find(
+      findStudents = (lastName: string, firstName: string) =>
+        students.filter(
           (s) =>
             normalize(s.lastName) === normalize(lastName) && normalize(s.firstName) === normalize(firstName)
         )
@@ -175,13 +180,13 @@ export async function POST(request: Request) {
       }
       const lastName = parts[0]!.trim()
       const firstName = parts.slice(1).join('_').trim()
-      const student = findStudent(lastName, firstName)
-      if (!student) {
+      const matchedStudents = findStudents(lastName, firstName)
+      if (matchedStudents.length === 0) {
         results.push({
           filename: rawName,
           success: false,
           error: allClasses
-            ? `No unique student match for ${lastName}_${firstName} (none or multiple in DB)`
+            ? `No student match for ${lastName}_${firstName}`
             : `No student match for ${lastName}_${firstName} in this class`
         })
         return
@@ -196,21 +201,35 @@ export async function POST(request: Request) {
         return
       }
       const outExt = EXT_BY_MIME[mime] ?? '.jpg'
-      const outPath = path.join(PHOTO_DIR, `${student.id}${outExt}`)
-      if (!path.resolve(outPath).startsWith(path.resolve(PHOTO_DIR))) {
-        results.push({ filename: rawName, success: false, error: 'Invalid path' })
-        return
+      const uniqueStudents = Array.from(
+        new Map(matchedStudents.map((s) => [s.id, s])).values()
+      )
+      for (const s of uniqueStudents) {
+        const outPath = path.join(PHOTO_DIR, `${s.id}${outExt}`)
+        if (!path.resolve(outPath).startsWith(path.resolve(PHOTO_DIR))) {
+          results.push({ filename: rawName, success: false, error: 'Invalid path' })
+          return
+        }
       }
       try {
         fs.mkdirSync(PHOTO_DIR, { recursive: true })
         const buffer = Buffer.from(await file.arrayBuffer())
-        fs.writeFileSync(outPath, buffer)
-        results.push({ filename: rawName, success: true, studentId: student.id })
+        for (const s of uniqueStudents) {
+          const outPath = path.join(PHOTO_DIR, `${s.id}${outExt}`)
+          fs.writeFileSync(outPath, buffer)
+        }
+        const studentIds = uniqueStudents.map((s) => s.id)
+        results.push({
+          filename: rawName,
+          success: true,
+          studentId: studentIds[0],
+          studentIds
+        })
       } catch (err) {
         captureError(err, {
           location: 'api/admin/student-photos/upload',
           type: 'write-photo',
-          extra: { studentId: student.id, filename: rawName }
+          extra: { studentIds: uniqueStudents.map((s) => s.id), filename: rawName }
         })
         results.push({ filename: rawName, success: false, error: 'Failed to save file' })
       }
