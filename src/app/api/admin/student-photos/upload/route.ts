@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import path from 'path'
 import fs from 'fs'
 import { authOptions, hasRole } from '@/lib/auth'
+import { isFeatureEnabled } from '@/lib/entitlements'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 
@@ -31,6 +32,9 @@ export async function POST(request: Request) {
     const isTeacher = session.user?.role === 'teacher' || (await hasRole(session.user.name, 'teacher'))
     if (!isAdmin && !isTeacher) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    if (!(await isFeatureEnabled('student_photos'))) {
+      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
     }
 
     const formData = await request.formData()

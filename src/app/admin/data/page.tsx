@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useSchoolYear } from '@/contexts/school-year-context'
+import { useEntitlements } from '@/contexts/entitlements-context'
 import { Database, Users, GraduationCap, Building, Calendar, Clock, BookOpen, Home, FileText, RotateCcw, Shield, MessageSquare, Image } from 'lucide-react'
 
 // Import individual model components
@@ -147,6 +148,12 @@ const modelTabs = [
 export default function AdminDataPage() {
   const [activeTab, setActiveTab] = useState('students')
   const { selectedYear } = useSchoolYear()
+  const { isFeatureEnabled } = useEntitlements()
+  const visibleTabs = modelTabs.filter(
+    (tab) => tab.value !== 'studentPhotos' || isFeatureEnabled('student_photos')
+  )
+  const activeTabVisible = visibleTabs.some((t) => t.value === activeTab)
+  const effectiveActiveTab = activeTabVisible ? activeTab : (visibleTabs[0]?.value ?? 'students')
 
   return (
     <div className="space-y-6">
@@ -167,10 +174,10 @@ export default function AdminDataPage() {
         )}
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      <Tabs value={effectiveActiveTab} onValueChange={setActiveTab} className="space-y-6">
         <div className="space-y-4">
           <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-1 h-auto p-1">
-            {modelTabs.map((tab) => {
+            {visibleTabs.map((tab) => {
               const Icon = tab.icon
               return (
                 <TabsTrigger 
@@ -186,7 +193,7 @@ export default function AdminDataPage() {
           </TabsList>
         </div>
 
-        {modelTabs.map((tab) => {
+        {visibleTabs.map((tab) => {
           const Icon = tab.icon
           return (
             <TabsContent key={tab.value} value={tab.value} className="space-y-4 mt-6">

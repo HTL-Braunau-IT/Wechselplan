@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { cn } from '@/lib/utils'
+import { useEntitlements } from '@/contexts/entitlements-context'
 
 const PHOTO_SIZE_SMALL = 36
 const PHOTO_SIZE_LARGE = 120
@@ -39,7 +40,9 @@ export function StudentPhoto({
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState(false)
   const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const photoUrl = `/api/students/photo?studentId=${studentId}`
+  const { isFeatureEnabled } = useEntitlements()
+  const photoEnabled = isFeatureEnabled('student_photos')
+  const photoUrl = photoEnabled ? `/api/students/photo?studentId=${studentId}` : undefined
 
   const displayName =
     lastName && firstName
@@ -86,19 +89,30 @@ export function StudentPhoto({
           className="inline-flex shrink-0 overflow-hidden rounded-full bg-muted align-middle"
           style={{ width: size, height: size }}
         >
-          <img
-            src={photoUrl}
-            alt=""
-            width={size}
-            height={size}
-            className={cn('h-full w-full object-cover', (error || !loaded) && 'hidden')}
-            onLoad={() => {
-              setLoaded(true)
-              setError(false)
-            }}
-            onError={() => setError(true)}
-          />
-          {(!loaded || error) && (
+          {photoUrl ? (
+            <>
+              <img
+                src={photoUrl}
+                alt=""
+                width={size}
+                height={size}
+                className={cn('h-full w-full object-cover', (error || !loaded) && 'hidden')}
+                onLoad={() => {
+                  setLoaded(true)
+                  setError(false)
+                }}
+                onError={() => setError(true)}
+              />
+              {(!loaded || error) && (
+                <span
+                  className="inline-flex h-full w-full items-center justify-center text-xs font-medium text-muted-foreground"
+                  style={{ fontSize: size * 0.4 }}
+                >
+                  {initials}
+                </span>
+              )}
+            </>
+          ) : (
             <span
               className="inline-flex h-full w-full items-center justify-center text-xs font-medium text-muted-foreground"
               style={{ fontSize: size * 0.4 }}
@@ -119,14 +133,22 @@ export function StudentPhoto({
             className="inline-flex overflow-hidden rounded-full bg-muted"
             style={{ width: PHOTO_SIZE_LARGE, height: PHOTO_SIZE_LARGE }}
           >
-            <img
-              src={photoUrl}
-              alt=""
-              width={PHOTO_SIZE_LARGE}
-              height={PHOTO_SIZE_LARGE}
-              className={cn('h-full w-full object-cover', error && 'hidden')}
-            />
-            {error && (
+            {photoUrl ? (
+              <>
+                <img
+                  src={photoUrl}
+                  alt=""
+                  width={PHOTO_SIZE_LARGE}
+                  height={PHOTO_SIZE_LARGE}
+                  className={cn('h-full w-full object-cover', error && 'hidden')}
+                />
+                {error && (
+                  <span className="flex h-full w-full items-center justify-center text-2xl font-medium text-muted-foreground">
+                    {initials}
+                  </span>
+                )}
+              </>
+            ) : (
               <span className="flex h-full w-full items-center justify-center text-2xl font-medium text-muted-foreground">
                 {initials}
               </span>
