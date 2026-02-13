@@ -197,6 +197,17 @@ export function Header() {
 											{t('navigation.schedules')}
 										</Link>
 									</li>
+									{isFeatureEnabled('noten') && (
+										<li>
+											<Link
+												href="/noten"
+												className="block py-2 hover:text-primary"
+												onClick={() => setIsMenuOpen(false)}
+											>
+												{t('navigation.notenliste')}
+											</Link>
+										</li>
+									)}
 									<li>
 										<Link
 											href="/students"

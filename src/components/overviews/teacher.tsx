@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
+import Link from "next/link"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Button } from "@/components/ui/button"
 import type { TeacherScheduleData, NormalizedTurn, BreakTime, ScheduleTime } from "@/types/types"
 import { parse, isValid, isWithinInterval, addWeeks } from "date-fns"
 import { useTranslation } from "react-i18next"
@@ -137,6 +139,19 @@ export function TeacherOverview() {
             const turns = getTurnsForClass(assignment.classId)
             if (!turns) return assignment.groupId ?? null
 
+            const currentWeek = getCurrentWeek(turns)
+            if (currentWeek && scheduleData.teacherRotation?.length) {
+                const turnName = currentWeek.turn.name
+                const rotation = scheduleData.teacherRotation.find(
+                    (r: { teacherId: number | string; classId: number; period: string; turnId: string }) =>
+                        Number(r.teacherId) === Number(assignment.teacherId) &&
+                        r.classId === assignment.classId &&
+                        r.period === assignment.period &&
+                        r.turnId === turnName
+                )
+                if (rotation) return (rotation as { groupId: number }).groupId
+            }
+
             const classStudents = scheduleData.students.find(students =>
                 students.some(student => student.classId === assignment.classId)
             )
@@ -209,6 +224,13 @@ export function TeacherOverview() {
 
                     return (
                         <div key={assignment.id} className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
+                            <div className="flex justify-start mb-4">
+                                <Link href="/noten">
+                                    <Button size="sm">
+                                        Notenliste
+                                    </Button>
+                                </Link>
+                            </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <p className="text-sm text-gray-500 dark:text-gray-400">{t('overview.teacher.currentClass')}</p>

@@ -6,6 +6,7 @@ import { env } from '~/env'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
+import { truncateSubject } from '@/lib/subject-utils'
 
 type Semester = 'first' | 'second'
 
@@ -29,23 +30,6 @@ type NotenmanagementStudent = {
 
 function normalizeNamePart(v: string): string {
   return v.trim().toLocaleLowerCase('de-DE')
-}
-
-function truncateSubject(subjectName: string): string {
-  const parts = subjectName.split('-')
-  const prefix = (parts[0] ?? subjectName).trim()
-
-  const regex = /^(.+?)(\d+)$/
-  const match = regex.exec(prefix)
-  if (match?.[1] && match?.[2]) {
-    return `${match[1]}_${match[2]}`
-  }
-
-  if (prefix === 'ELWP' || prefix === 'NWWP') {
-    return `${prefix}_4`
-  }
-
-  return prefix
 }
 
 async function getNotenmanagementAccessToken(

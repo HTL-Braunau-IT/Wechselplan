@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
+import { getSubjectKey } from '@/lib/subject-utils'
 
 /**
  * Handles GET requests to retrieve class data with students and unique teachers.
@@ -162,7 +163,7 @@ export async function GET(
 		const hasSeparateAmPmSubjects =
 			subjectNameAm != null &&
 			subjectNamePm != null &&
-			subjectNameAm !== subjectNamePm
+			getSubjectKey(subjectNameAm) !== getSubjectKey(subjectNamePm)
 
 		// Single subject for display when not split (most common across all)
 		let subjectName: string | undefined = undefined

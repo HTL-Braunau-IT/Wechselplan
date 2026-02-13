@@ -58,11 +58,19 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Entitlements for /notensammler are enforced in the Notensammler layout and API routes, not here (Edge runtime cannot call the license server).
+  // Entitlements for /notensammler and /noten are enforced in their layouts and API routes, not here (Edge runtime cannot call the license server).
   if (pathname.startsWith('/notensammler')) {
     const token = await getToken({ req: request })
     
     // If no token or not a teacher, redirect to home
+    if (!token || token.role !== 'teacher') {
+      return NextResponse.redirect(new URL('/', request.url))
+    }
+  }
+
+  if (pathname.startsWith('/noten')) {
+    const token = await getToken({ req: request })
+    
     if (!token || token.role !== 'teacher') {
       return NextResponse.redirect(new URL('/', request.url))
     }

@@ -5,6 +5,8 @@ import { env } from '~/env'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
+import { truncateSubject } from '@/lib/subject-utils'
+import { normalizeUsername } from '@/lib/username'
 
 type Semester = 'first' | 'second'
 
@@ -23,23 +25,6 @@ type NotenmanagementStudent = {
 
 function normalizeNamePart(v: string): string {
   return v.trim().toLocaleLowerCase('de-DE')
-}
-
-function truncateSubject(subjectName: string): string {
-  const parts = subjectName.split('-')
-  const prefix = (parts[0] ?? subjectName).trim()
-
-  const regex = /^(.+?)(\d+)$/
-  const match = regex.exec(prefix)
-  if (match?.[1] && match?.[2]) {
-    return `${match[1]}_${match[2]}`
-  }
-
-  if (prefix === 'ELWP' || prefix === 'NWWP') {
-    return `${prefix}_4`
-  }
-
-  return prefix
 }
 
 async function getNotenmanagementAccessToken(
@@ -100,12 +85,9 @@ export async function POST(request: Request) {
     if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    if (!(await isFeatureEnabled('notensammler'))) {
-      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
-    }
-
     const body = (await request.json()) as {
       classId?: unknown
+      groupId?: unknown
       semester?: unknown
       schoolYearId?: number
       username?: unknown
@@ -115,6 +97,24 @@ export async function POST(request: Request) {
       notesByMatrikelnummer?: unknown
     }
     requestData = body
+
+    const groupIdParam =
+      body.groupId !== undefined && body.groupId !== null
+        ? typeof body.groupId === 'number'
+          ? body.groupId
+          : typeof body.groupId === 'string'
+            ? parseInt(body.groupId, 10)
+            : Number.NaN
+        : null
+    const groupId =
+      groupIdParam !== null && !Number.isNaN(groupIdParam) ? groupIdParam : null
+
+    if (groupId !== null && !(await isFeatureEnabled('notenmgmt_htl'))) {
+      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+    }
+    if (groupId === null && !(await isFeatureEnabled('notensammler'))) {
+      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+    }
 
     const classId = typeof body.classId === 'number' ? body.classId : parseInt(String(body.classId))
     const semester = body.semester === 'first' || body.semester === 'second' ? (body.semester as Semester) : null
@@ -182,6 +182,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }
 
+    // For group transfer (Notenstand): filter students to this group only
+    const classStudents =
+      groupId !== null
+        ? classRecord.students.filter((st) => st.groupId === groupId)
+        : classRecord.students
+
     const assignments = await prisma.teacherAssignment.findMany({
       where: { classId },
       include: {
@@ -223,6 +229,20 @@ export async function POST(request: Request) {
       }
     }
 
+    // For group transfer: resolve current teacher name for Kommentar
+    let teacherFirstName = ''
+    let teacherLastName = ''
+    if (groupId !== null) {
+      const currentTeacher = await prisma.teacher.findUnique({
+        where: { username: normalizeUsername(username) },
+        select: { firstName: true, lastName: true },
+      })
+      if (currentTeacher) {
+        teacherFirstName = currentTeacher.firstName
+        teacherLastName = currentTeacher.lastName
+      }
+    }
+
     // Use provided token or get new one with password
     let accessToken: string
     let tokenExpiresIn: number | undefined
@@ -248,15 +268,18 @@ export async function POST(request: Request) {
       nmIndex.set(`${normalizeNamePart(klasse)}|${normalizeNamePart(nach)}|${normalizeNamePart(vor)}`, matr)
     }
 
-    // All students with all teacher grades (including "nicht beurteilt" 6 or "gestunden" 7), same as preview
-    const completeStudents = classRecord.students
-      .filter((st: (typeof classRecord.students)[number]) => st.groupId !== null && st.groupId !== undefined)
-      .filter((st: (typeof classRecord.students)[number]): st is (typeof classRecord.students)[number] => {
-        return teacherIds.every((tid) => {
-          const g = gradeByStudentTeacher.get(`${st.id}:${tid}`)
-          return typeof g === 'number'
-        })
-      })
+    // Group transfer: use only group students (notes from payload). Class transfer: all students with all teacher grades.
+    const completeStudents =
+      groupId !== null
+        ? classStudents
+        : classRecord.students
+            .filter((st: (typeof classRecord.students)[number]) => st.groupId !== null && st.groupId !== undefined)
+            .filter((st: (typeof classRecord.students)[number]): st is (typeof classRecord.students)[number] => {
+              return teacherIds.every((tid) => {
+                const g = gradeByStudentTeacher.get(`${st.id}:${tid}`)
+                return typeof g === 'number'
+              })
+            })
 
     type NotenEntry = { Matrikelnummer: number; Note: number | null; Punkte: number; Kommentar: string }
 
@@ -318,11 +341,13 @@ export async function POST(request: Request) {
       )
     }
 
-    // Check for existing transfer
+    // Check for existing transfer (unique: classId, groupId, semester, schoolYearId)
+    // Schema has groupId as Int?; Prisma's compound unique input type can require number
     const existingTransfer = await prisma.notenmanagementTransfer.findUnique({
       where: {
-        classId_semester_schoolYearId: {
+        classId_groupId_semester_schoolYearId: {
           classId,
+          groupId: groupId!,
           semester,
           schoolYearId,
         },
@@ -330,7 +355,12 @@ export async function POST(request: Request) {
     })
 
     const semesterLabel = semester === 'first' ? '1. Semester' : '2. Semester'
-    const typ = semester === 'first' ? 'Semesternote' : 'Jahresnote'
+    const semesterN = semester === 'first' ? '1' : '2'
+    const typ = groupId !== null ? 'Notenstand' : semester === 'first' ? 'Semesternote' : 'Jahresnote'
+    const kommentar =
+      groupId !== null
+        ? `Notenstand Semester ${semesterN} Gruppe ${groupId} ${teacherFirstName} ${teacherLastName}`
+        : `Übertrag aus Wechselplan APP, ${semesterLabel}`
     const payload = {
       LF: {
         Datum: toLfDate(new Date()),
@@ -338,7 +368,7 @@ export async function POST(request: Request) {
         Fach: subjectTruncated,
         Typ: typ,
         MaxPunkte: 0.0,
-        Kommentar: `Übertrag aus Wechselplan APP, ${semesterLabel}`,
+        Kommentar: kommentar,
       },
       Noten: noten,
     }
@@ -430,8 +460,9 @@ export async function POST(request: Request) {
     // Upsert transfer record
     await prisma.notenmanagementTransfer.upsert({
       where: {
-        classId_semester_schoolYearId: {
+        classId_groupId_semester_schoolYearId: {
           classId,
+          groupId: groupId!,
           semester,
           schoolYearId,
         },
@@ -441,6 +472,7 @@ export async function POST(request: Request) {
       },
       create: {
         classId,
+        groupId,
         semester,
         schoolYearId,
         lfId: lfIdStr,
