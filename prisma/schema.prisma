@@ -383,6 +383,7 @@ model FinalGrade {
 model NotenmanagementTransfer {
   id            Int         @id @default(autoincrement())
   classId       Int
+  groupId       Int?        // null = class-level transfer, set = group-level (Notenstand)
   semester      String      // 'first' or 'second'
   lfId          String
   schoolYearId  Int
@@ -391,8 +392,76 @@ model NotenmanagementTransfer {
   class         Class       @relation(fields: [classId], references: [id])
   schoolYear    SchoolYear  @relation(fields: [schoolYearId], references: [id])
 
-  @@unique([classId, semester, schoolYearId])
+  @@unique([classId, groupId, semester, schoolYearId])
   @@index([classId])
   @@index([semester])
   @@index([schoolYearId])
+}
+
+// Noten (daily grades) feature: weights, Lehrstoff per day, and per-student-per-day entries
+model NotenWeightConfig {
+  id                    Int   @id @default(autoincrement())
+  teacherId             Int
+  classId               Int
+  groupId              Int
+  schoolYearId          Int
+  weightWiederholung    Int   @default(25) // percentage, sum with others = 100
+  weightBericht         Int   @default(25)
+  weightMitarbeit       Int   @default(25)
+  weightPraktischeArbeit Int  @default(25)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([teacherId, classId, groupId, schoolYearId])
+  @@index([teacherId])
+  @@index([classId])
+  @@index([schoolYearId])
+}
+
+model LehrstoffPerDay {
+  id           Int      @id @default(autoincrement())
+  teacherId    Int
+  classId      Int
+  groupId      Int
+  schoolYearId Int
+  date         DateTime @db.Date
+  period       String   // 'AM' | 'PM'
+  lehrstoff    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([teacherId, classId, groupId, schoolYearId, date, period])
+  @@index([teacherId])
+  @@index([classId])
+  @@index([schoolYearId])
+}
+
+model NotenEntry {
+  id                 Int      @id @default(autoincrement())
+  studentId          Int
+  teacherId          Int
+  classId            Int
+  groupId            Int
+  schoolYearId       Int
+  date               DateTime @db.Date
+  period             String   // 'AM' | 'PM'
+  attendance         String?  // Anwesend | Krank | Entschuldigt | Unentschuldigt
+  wiederholung1      Float?
+  wiederholung2      Float?
+  bericht1           Float?
+  bericht2           Float?
+  mitarbeit1         Float?
+  mitarbeit2         Float?
+  praktischeArbeit1  Float?
+  praktischeArbeit2  Float?
+  notizen            String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([studentId, teacherId, classId, groupId, schoolYearId, date, period])
+  @@index([studentId])
+  @@index([teacherId])
+  @@index([classId])
+  @@index([schoolYearId])
+  @@index([date])
 }

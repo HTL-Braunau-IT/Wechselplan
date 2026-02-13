@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
+import Link from "next/link"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Button } from "@/components/ui/button"
 import type { TeacherScheduleData, NormalizedTurn, BreakTime, ScheduleTime } from "@/types/types"
 import { parse, isValid, isWithinInterval, addWeeks } from "date-fns"
 import { useTranslation } from "react-i18next"
@@ -136,6 +138,19 @@ export function TeacherOverview() {
         const getActualGroupForAssignment = (assignment: typeof assignments[0]): number | null => {
             const turns = getTurnsForClass(assignment.classId)
             if (!turns) return assignment.groupId ?? null
+
+            const currentWeek = getCurrentWeek(turns)
+            if (currentWeek && scheduleData.teacherRotation?.length) {
+                const turnName = currentWeek.turn.name
+                const rotation = scheduleData.teacherRotation.find(
+                    (r: { teacherId: number | string; classId: number; period: string; turnId: string }) =>
+                        Number(r.teacherId) === Number(assignment.teacherId) &&
+                        r.classId === assignment.classId &&
+                        r.period === assignment.period &&
+                        r.turnId === turnName
+                )
+                if (rotation) return (rotation as { groupId: number }).groupId
+            }
 
             const classStudents = scheduleData.students.find(students =>
                 students.some(student => student.classId === assignment.classId)
@@ -308,6 +323,13 @@ export function TeacherOverview() {
                                         )
                                     })()}
                                 </div>
+                            </div>
+                            <div className="border-t dark:border-gray-700 pt-4 mt-4">
+                                <Link href="/noten">
+                                    <Button variant="outline" size="sm">
+                                        Notenliste
+                                    </Button>
+                                </Link>
                             </div>
                         </div>
                     )

@@ -7,6 +7,7 @@ import {
   getSchoolYear, 
   formatDateGerman 
 } from './pdf-helpers';
+import { truncateSubject } from './subject-utils';
 
 // Group colors matching the screenshot
 const GROUP_COLORS = {
@@ -746,37 +747,6 @@ interface NotensammlerPDFData {
     conductWishFirst?: string | null;
     conductWishSecond?: string | null;
   }>;
-}
-
-/**
- * Truncates subject name according to the pattern:
- * - "PBE4-Verbindungstechnik 1" → "PBE_4"
- * - "PBE4-Mech. Grundausbildung" → "PBE_4"
- * - "COPR-Elektrotechnik" → "COPR"
- * - "COPR-Elektronische Grundschaltungen" → "COPR"
- * - "ELWP-Elektrotechnik" → "ELWP_4"
- * - "NWWP-Naturwissenschaften" → "NWWP_4"
- */
-function truncateSubject(subjectName: string): string {
-  // Extract prefix before hyphen
-  const parts = subjectName.split('-');
-  const prefix = (parts[0] ?? subjectName).trim();
-  
-  // Check if prefix ends with digits
-  const regex = /^(.+?)(\d+)$/;
-  const match = regex.exec(prefix);
-  if (match?.[1] && match?.[2]) {
-    // Add underscore before digits: "PBE4" → "PBE_4"
-    return `${match[1]}_${match[2]}`;
-  }
-  
-  // Special case: ELWP and NWWP get "_4" appended
-  if (prefix === 'ELWP' || prefix === 'NWWP') {
-    return `${prefix}_4`;
-  }
-  
-  // No trailing digits, return as-is: "COPR" → "COPR"
-  return prefix;
 }
 
 /**
