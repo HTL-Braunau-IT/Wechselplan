@@ -224,6 +224,13 @@ export function TeacherOverview() {
 
                     return (
                         <div key={assignment.id} className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
+                            <div className="flex justify-start mb-4">
+                                <Link href="/noten">
+                                    <Button size="sm">
+                                        Notenliste
+                                    </Button>
+                                </Link>
+                            </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <p className="text-sm text-gray-500 dark:text-gray-400">{t('overview.teacher.currentClass')}</p>
@@ -323,13 +330,6 @@ export function TeacherOverview() {
                                         )
                                     })()}
                                 </div>
-                            </div>
-                            <div className="border-t dark:border-gray-700 pt-4 mt-4">
-                                <Link href="/noten">
-                                    <Button variant="outline" size="sm">
-                                        Notenliste
-                                    </Button>
-                                </Link>
                             </div>
                         </div>
                     )

@@ -102,7 +102,9 @@ export async function POST(request: Request) {
       body.groupId !== undefined && body.groupId !== null
         ? typeof body.groupId === 'number'
           ? body.groupId
-          : parseInt(String(body.groupId))
+          : typeof body.groupId === 'string'
+            ? parseInt(body.groupId, 10)
+            : Number.NaN
         : null
     const groupId =
       groupIdParam !== null && !Number.isNaN(groupIdParam) ? groupIdParam : null
@@ -340,11 +342,12 @@ export async function POST(request: Request) {
     }
 
     // Check for existing transfer (unique: classId, groupId, semester, schoolYearId)
+    // Schema has groupId as Int?; Prisma's compound unique input type can require number
     const existingTransfer = await prisma.notenmanagementTransfer.findUnique({
       where: {
         classId_groupId_semester_schoolYearId: {
           classId,
-          groupId,
+          groupId: groupId!,
           semester,
           schoolYearId,
         },
@@ -459,7 +462,7 @@ export async function POST(request: Request) {
       where: {
         classId_groupId_semester_schoolYearId: {
           classId,
-          groupId,
+          groupId: groupId!,
           semester,
           schoolYearId,
         },

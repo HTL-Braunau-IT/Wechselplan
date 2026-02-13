@@ -20,7 +20,10 @@ function parseDateString(d: string): Date | null {
 
 /** Parse YYYY-MM-DD as local date at noon (for comparisons). */
 function parseLocalDate(ymd: string): Date {
-	const [y, m, d] = ymd.split('-').map(Number)
+	const parts = ymd.split('-').map(Number)
+	const y = parts[0] ?? Number.NaN
+	const m = parts[1] ?? Number.NaN
+	const d = parts[2] ?? Number.NaN
 	if (Number.isNaN(y) || Number.isNaN(m) || Number.isNaN(d)) return new Date(0)
 	return new Date(y, m - 1, d, 12, 0, 0)
 }
@@ -73,6 +76,7 @@ export async function GET(request: Request) {
 		const schoolYearIdParam = searchParams.get('schoolYearId')
 		const dateParam = searchParams.get('date')
 		const periodParam = searchParams.get('period')
+		const classIdParam = searchParams.get('classId')
 		const now = new Date()
 		let schoolYearId: number | undefined = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
 		if (schoolYearId == null || Number.isNaN(schoolYearId)) {
@@ -101,6 +105,59 @@ export async function GET(request: Request) {
 			dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
 				? new Date(dateParam + 'T12:00:00').getDay()
 				: now.getDay()
+
+		// When classId is provided: return groupId for that class's current turn (week-based), regardless of today's weekday
+		const requestedClassId = classIdParam != null ? parseInt(classIdParam, 10) : NaN
+		if (!Number.isNaN(requestedClassId)) {
+			const classAssignments = await prisma.teacherAssignment.findMany({
+				where: { teacherId: teacher.id, schoolYearId, classId: requestedClassId },
+				select: { classId: true, groupId: true, selectedWeekday: true, period: true }
+			})
+			if (classAssignments.length === 0) {
+				return NextResponse.json({ classId: requestedClassId, groupId: null })
+			}
+			const firstAssignment = classAssignments[0]
+			if (!firstAssignment) {
+				return NextResponse.json({ classId: requestedClassId, groupId: null })
+			}
+			const schedule = await prisma.schedule.findFirst({
+				where: {
+					classId: requestedClassId,
+					schoolYearId,
+					selectedWeekday: firstAssignment.selectedWeekday
+				},
+				orderBy: { createdAt: 'desc' },
+				include: {
+					turns: { include: { weeks: true }, orderBy: { order: 'asc' } }
+				}
+			})
+			const rotations = await prisma.teacherRotation.findMany({
+				where: { teacherId: teacher.id }
+			})
+			if (schedule?.turns?.length) {
+				const turnsForCurrentTurn = schedule.turns.map((t) => ({
+					name: t.name,
+					weeks: t.weeks.map((w) => ({ date: w.date, isHoliday: w.isHoliday }))
+				}))
+				const currentTurnName = getCurrentTurnName(turnsForCurrentTurn, todayLocal)
+				if (currentTurnName) {
+					const rot = rotations.find(
+						(r) =>
+							r.classId === requestedClassId &&
+							r.period === firstAssignment.period &&
+							r.turnId === currentTurnName &&
+							r.teacherId === teacher.id
+					)
+					if (rot && classAssignments.some((a) => a.groupId === rot.groupId)) {
+						return NextResponse.json({ classId: requestedClassId, groupId: rot.groupId })
+					}
+				}
+			}
+			return NextResponse.json({
+				classId: requestedClassId,
+				groupId: firstAssignment.groupId
+			})
+		}
 
 		const assignments = await prisma.teacherAssignment.findMany({
 			where: { teacherId: teacher.id, schoolYearId },

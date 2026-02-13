@@ -125,6 +125,8 @@ export default function NotenPage() {
 	})()
 	const todayColumnRef = useRef<HTMLTableCellElement | null>(null)
 	const hasScrolledToTodayRef = useRef(false)
+	const selectedClassIdRef = useRef<number | null>(null)
+	selectedClassIdRef.current = selectedClassId
 
 	const TODAY_BG = 'bg-blue-50 dark:bg-blue-950/30'
 	const firstTodayIndex = teachingDays.findIndex((d) => d.date === todayYmd)
@@ -718,11 +720,32 @@ export default function NotenPage() {
 					value={selectedClassId?.toString() ?? ''}
 					onValueChange={(v) => {
 						const id = parseInt(v, 10)
-						if (!Number.isNaN(id)) {
-							setSelectedClassId(id)
-							const cls = classes.find((c) => c.id === id)
-							setSelectedGroupId(cls?.groupIds?.[0] ?? null)
-						}
+						if (Number.isNaN(id)) return
+						const cls = classes.find((c) => c.id === id)
+						selectedClassIdRef.current = id
+						setSelectedClassId(id)
+						const fallbackGroupId = cls?.groupIds?.[0] ?? null
+						setSelectedGroupId(fallbackGroupId)
+						if (!schoolYearId || !cls) return
+						void (async () => {
+							try {
+								const res = await fetch(
+									`/api/noten/auto-select?schoolYearId=${schoolYearId}&classId=${id}`
+								)
+								if (!res.ok) {
+									if (selectedClassIdRef.current === id) setSelectedGroupId(cls.groupIds[0] ?? null)
+									return
+								}
+								const data = (await res.json()) as { classId: number | null; groupId: number | null }
+								const groupId =
+									data.groupId != null && cls.groupIds.includes(data.groupId)
+										? data.groupId
+										: cls.groupIds[0] ?? null
+								if (selectedClassIdRef.current === id) setSelectedGroupId(groupId)
+							} catch {
+								if (selectedClassIdRef.current === id) setSelectedGroupId(cls.groupIds[0] ?? null)
+							}
+						})()
 					}}
 				>
 					<TabsList className="flex flex-wrap gap-2 h-auto p-0 bg-transparent text-foreground">
