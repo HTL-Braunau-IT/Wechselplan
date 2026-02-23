@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import React, { useEffect, useState, useCallback, useMemo, useRef, forwardRef, useImperativeHandle } from 'react'
 import { useTranslation } from 'react-i18next'
 import { parse, isValid, isWithinInterval, addWeeks } from 'date-fns'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -60,6 +60,23 @@ const BETRAGEN_OPTIONS = [
 	'Nicht zufriedenstellend'
 ] as const
 
+const GRADE_BOX_CLASSES: Record<number, string> = {
+	1: 'bg-green-100 dark:bg-green-900/40 border-green-200/70 dark:border-green-800/50',
+	1.5: 'bg-emerald-100 dark:bg-emerald-900/35 border-emerald-200/70 dark:border-emerald-800/50',
+	2: 'bg-lime-100 dark:bg-lime-900/35 border-lime-200/70 dark:border-lime-800/50',
+	2.5: 'bg-yellow-100 dark:bg-yellow-900/35 border-yellow-200/70 dark:border-yellow-800/50',
+	3: 'bg-yellow-100 dark:bg-yellow-900/35 border-yellow-300/70 dark:border-yellow-700/50',
+	3.5: 'bg-amber-100 dark:bg-amber-900/35 border-amber-200/70 dark:border-amber-800/50',
+	4: 'bg-orange-100 dark:bg-orange-900/35 border-orange-200/70 dark:border-orange-800/50',
+	4.5: 'bg-orange-200 dark:bg-orange-800/40 border-orange-300/70 dark:border-orange-700/50',
+	5: 'bg-red-100 dark:bg-red-900/35 border-red-200/70 dark:border-red-800/50'
+}
+
+function getGradeBoxClass(grade: number | null): string {
+	if (grade == null) return ''
+	return GRADE_BOX_CLASSES[grade] ?? ''
+}
+
 type FinalGradePerStudent = {
 	first: { grade: number | null; conductNoteWish: string | null }
 	second: { grade: number | null; conductNoteWish: string | null }
@@ -75,6 +92,24 @@ function isSemester2(dateStr: string, semesterChangeDate: string | undefined): b
 	const change = semesterChangeDate.slice(0, 10)
 	return dateStr >= change
 }
+
+export type TextModalContentRef = { getValue(): string }
+
+const TextModalContent = forwardRef<TextModalContentRef, { initialValue: string; placeholder: string }>(
+	function TextModalContent({ initialValue, placeholder }, ref) {
+		const [value, setValue] = useState(initialValue)
+		useImperativeHandle(ref, () => ({ getValue: () => value }), [value])
+		return (
+			<Textarea
+				value={value}
+				onChange={(ev) => setValue(ev.target.value)}
+				className="min-h-[240px] flex-1 w-full resize-y"
+				placeholder={placeholder}
+				autoFocus
+			/>
+		)
+	}
+)
 
 export default function NotenPage() {
 	const { t } = useTranslation('common')
@@ -103,7 +138,7 @@ export default function NotenPage() {
 		| { type: 'lehrstoff'; date: string; period: string }
 		| null
 	>(null)
-	const [modalValue, setModalValue] = useState('')
+	const textModalContentRef = useRef<TextModalContentRef | null>(null)
 
 	// Notenmanagement Eintrag Gruppe (group transfer) flow
 	const [nmGroupStep, setNmGroupStep] = useState<'semester' | 'list' | null>(null)
@@ -544,21 +579,18 @@ export default function NotenPage() {
 
 	const openNotizenModal = useCallback(
 		(studentId: number, date: string, period: string) => {
-			const e = entries[entryKey(studentId, date, period)]
-			setModalValue(e?.notizen ?? '')
 			setTextModal({ type: 'notizen', studentId, date, period })
 		},
-		[entries]
+		[]
 	)
 
 	const openLehrstoffModal = useCallback((date: string, period: string) => {
-		const key = `${date}-${period}`
-		setModalValue(lehrstoffByDay[key] ?? '')
 		setTextModal({ type: 'lehrstoff', date, period })
-	}, [lehrstoffByDay])
+	}, [])
 
 	const closeTextModal = useCallback(() => {
 		if (!textModal) return
+		const modalValue = textModalContentRef.current?.getValue() ?? ''
 		if (textModal.type === 'notizen') {
 			const e = entries[entryKey(textModal.studentId, textModal.date, textModal.period)] ?? {
 				studentId: textModal.studentId,
@@ -583,7 +615,7 @@ export default function NotenPage() {
 			void saveLehrstoff(textModal.date, textModal.period, modalValue)
 		}
 		setTextModal(null)
-	}, [textModal, modalValue, entries, updateEntry, saveEntries, saveLehrstoff])
+	}, [textModal, entries, updateEntry, saveEntries, saveLehrstoff])
 
 	const defaultWeights = useMemo(
 		() =>
@@ -1097,7 +1129,7 @@ export default function NotenPage() {
 																						updateEntry(student.id, day.date, day.period, { [key1]: v ? parseFloat(v) : null })
 																					}
 																				>
-																					<SelectTrigger className="h-7 min-w-[4.5rem] w-20">
+																					<SelectTrigger className={`h-7 min-w-[4.5rem] w-20 ${getGradeBoxClass(val1)}`}>
 																						<SelectValue placeholder="-" />
 																					</SelectTrigger>
 																					<SelectContent>
@@ -1114,7 +1146,7 @@ export default function NotenPage() {
 																						updateEntry(student.id, day.date, day.period, { [key2]: v ? parseFloat(v) : null })
 																					}
 																				>
-																					<SelectTrigger className="h-7 min-w-[4.5rem] w-20">
+																					<SelectTrigger className={`h-7 min-w-[4.5rem] w-20 ${getGradeBoxClass(val2)}`}>
 																						<SelectValue placeholder="-" />
 																					</SelectTrigger>
 																					<SelectContent>
@@ -1175,13 +1207,13 @@ export default function NotenPage() {
 																						'praktischeArbeit2'
 																					)}
 																				</TableCell>
-																				<TableCell className={`p-1 border-r-2 border-border max-w-[200px] min-w-0 overflow-hidden${todayCellBg}`}>
+																				<TableCell className={`p-1 border-r-2 border-border min-w-0 overflow-hidden align-top${todayCellBg}`}>
 																					<button
 																						type="button"
 																						onClick={() => openNotizenModal(student.id, day.date, day.period)}
-																						className="h-7 min-w-[80px] w-full max-w-full rounded-md border border-input bg-transparent px-2 text-left text-sm text-foreground shadow-xs hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-ring overflow-hidden"
+																						className="h-full min-h-[4.5rem] w-full rounded-md border border-input bg-transparent px-2 py-1.5 text-left text-sm text-foreground shadow-xs hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-ring overflow-hidden flex items-start"
 																					>
-																						<span className="block truncate">
+																						<span className="block truncate w-full text-left">
 																							{(e.notizen ?? '').trim() || '–'}
 																						</span>
 																					</button>
@@ -1300,9 +1332,9 @@ export default function NotenPage() {
 																			<button
 																				type="button"
 																				onClick={() => openLehrstoffModal(day.date, day.period)}
-																				className="h-8 w-full max-w-[320px] rounded-md border border-input bg-transparent px-2 text-left text-sm text-foreground shadow-xs hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-ring overflow-hidden"
+																				className="h-full min-h-[4.5rem] w-full rounded-md border border-input bg-transparent px-2 py-1.5 text-left text-sm text-foreground shadow-xs hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-ring overflow-hidden flex items-start"
 																			>
-																				<span className="block truncate">
+																				<span className="block truncate w-full text-left">
 																					{(lehrstoffByDay[key] ?? '').trim() || '–'}
 																				</span>
 																			</button>
@@ -1330,7 +1362,7 @@ export default function NotenPage() {
 					if (!open) closeTextModal()
 				}}
 			>
-				<DialogContent className="max-w-md">
+				<DialogContent className="max-w-md flex flex-col max-h-[85vh]">
 					<DialogHeader>
 						<DialogTitle>
 							{textModal?.type === 'notizen'
@@ -1338,18 +1370,17 @@ export default function NotenPage() {
 								: t('noten.lehrstoff', { defaultValue: 'Lehrstoff' })}
 						</DialogTitle>
 					</DialogHeader>
-					<Textarea
-						value={modalValue}
-						onChange={(ev) => setModalValue(ev.target.value)}
-						className="min-h-[120px]"
-						placeholder={
-							textModal?.type === 'notizen'
-								? t('noten.notizen', { defaultValue: 'Notizen' })
-								: t('noten.lehrstoff', { defaultValue: 'Lehrstoff' })
-						}
-						autoFocus
-					/>
-					<div className="flex justify-end gap-2 pt-2">
+					{textModal && (
+						<div className="flex flex-1 min-h-0 flex-col pt-1 min-h-[200px]">
+							<TextModalContent
+								ref={textModalContentRef}
+								key={textModal.type === 'notizen' ? `notizen-${textModal.studentId}-${textModal.date}-${textModal.period}` : `lehrstoff-${textModal.date}-${textModal.period}`}
+								initialValue={textModal.type === 'notizen' ? (entries[entryKey(textModal.studentId, textModal.date, textModal.period)]?.notizen ?? '') : (lehrstoffByDay[`${textModal.date}-${textModal.period}`] ?? '')}
+								placeholder={textModal.type === 'notizen' ? t('noten.notizen', { defaultValue: 'Notizen' }) : t('noten.lehrstoff', { defaultValue: 'Lehrstoff' })}
+							/>
+						</div>
+					)}
+					<div className="flex justify-end gap-2 pt-2 shrink-0">
 						<Button variant="outline" size="sm" onClick={() => closeTextModal()}>
 							{t('common.save', { defaultValue: 'Speichern' })}
 						</Button>
