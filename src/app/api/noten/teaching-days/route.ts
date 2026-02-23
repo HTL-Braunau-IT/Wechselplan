@@ -133,7 +133,15 @@ export async function GET(request: Request) {
 			return a.period === 'AM' && b.period === 'PM' ? -1 : a.period === 'PM' && b.period === 'AM' ? 1 : 0
 		})
 
-		return NextResponse.json({ teachingDays })
+		// When same date has both AM and PM (same group), keep only one day per date (prefer AM)
+		const seenDates = new Set<string>()
+		const teachingDaysOnePerDate = teachingDays.filter((day) => {
+			if (seenDates.has(day.date)) return false
+			seenDates.add(day.date)
+			return true
+		})
+
+		return NextResponse.json({ teachingDays: teachingDaysOnePerDate })
 	} catch (error) {
 		captureError(error, {
 			location: 'api/noten/teaching-days',
