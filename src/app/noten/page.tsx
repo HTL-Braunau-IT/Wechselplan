@@ -52,6 +52,7 @@ type NotenEntryRow = {
 
 const ATTENDANCE_OPTIONS = ['Anwesend', 'Krank', 'Entschuldigt', 'Unentschuldigt'] as const
 const GRADE_OPTIONS = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
+const GRADE_CLEAR_VALUE = '__clear__'
 const FINAL_GRADE_OPTIONS = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7]
 const BETRAGEN_OPTIONS = [
 	'Sehr zufriedenstellend',
@@ -1125,14 +1126,16 @@ export default function NotenPage() {
 																			<div className="flex flex-col gap-1">
 																				<Select
 																					value={val1?.toString() ?? ''}
-																					onValueChange={(v) =>
-																						updateEntry(student.id, day.date, day.period, { [key1]: v ? parseFloat(v) : null })
-																					}
+																					onValueChange={(v) => {
+																						const newVal = (v === GRADE_CLEAR_VALUE || v === '') ? null : parseFloat(v)
+																						updateEntry(student.id, day.date, day.period, { [key1]: newVal })
+																					}}
 																				>
 																					<SelectTrigger className={`h-7 min-w-[4.5rem] w-20 ${getGradeBoxClass(val1)}`}>
 																						<SelectValue placeholder="-" />
 																					</SelectTrigger>
 																					<SelectContent>
+																						<SelectItem value={GRADE_CLEAR_VALUE}>–</SelectItem>
 																						{GRADE_OPTIONS.map((g) => (
 																							<SelectItem key={g} value={g.toString()}>
 																								{g}
@@ -1142,14 +1145,16 @@ export default function NotenPage() {
 																				</Select>
 																				<Select
 																					value={val2?.toString() ?? ''}
-																					onValueChange={(v) =>
-																						updateEntry(student.id, day.date, day.period, { [key2]: v ? parseFloat(v) : null })
-																					}
+																					onValueChange={(v) => {
+																						const newVal = (v === GRADE_CLEAR_VALUE || v === '') ? null : parseFloat(v)
+																						updateEntry(student.id, day.date, day.period, { [key2]: newVal })
+																					}}
 																				>
 																					<SelectTrigger className={`h-7 min-w-[4.5rem] w-20 ${getGradeBoxClass(val2)}`}>
 																						<SelectValue placeholder="-" />
 																					</SelectTrigger>
 																					<SelectContent>
+																						<SelectItem value={GRADE_CLEAR_VALUE}>–</SelectItem>
 																						{GRADE_OPTIONS.map((g) => (
 																							<SelectItem key={g} value={g.toString()}>
 																								{g}
@@ -1255,11 +1260,12 @@ export default function NotenPage() {
 																				<TableCell className="p-1 border-r border-border w-10 min-w-[2.5rem]">
 																					<Select
 																						value={fg.first.grade != null ? String(fg.first.grade) : ''}
-																						onValueChange={(v) => setFinalGrade(student.id, 'first', 'grade', v ? parseFloat(v) : null)}
+																						onValueChange={(v) => setFinalGrade(student.id, 'first', 'grade', (v === GRADE_CLEAR_VALUE || v === '') ? null : parseFloat(v))}
 																						onOpenChange={(open) => { if (!open) saveOneStudent() }}
 																					>
 																						<SelectTrigger className="h-8 w-full min-w-0"><SelectValue placeholder="–" /></SelectTrigger>
 																						<SelectContent>
+																							<SelectItem value={GRADE_CLEAR_VALUE}>–</SelectItem>
 																							{FINAL_GRADE_OPTIONS.map((g) => (
 																								<SelectItem key={g} value={String(g)}>{endGradeLabel(g)}</SelectItem>
 																							))}
@@ -1283,11 +1289,12 @@ export default function NotenPage() {
 																				<TableCell className="p-1 border-r border-border w-10 min-w-[2.5rem]">
 																					<Select
 																						value={fg.second.grade != null ? String(fg.second.grade) : ''}
-																						onValueChange={(v) => setFinalGrade(student.id, 'second', 'grade', v ? parseFloat(v) : null)}
+																						onValueChange={(v) => setFinalGrade(student.id, 'second', 'grade', (v === GRADE_CLEAR_VALUE || v === '') ? null : parseFloat(v))}
 																						onOpenChange={(open) => { if (!open) saveOneStudent() }}
 																					>
 																						<SelectTrigger className="h-8 w-full min-w-0"><SelectValue placeholder="–" /></SelectTrigger>
 																						<SelectContent>
+																							<SelectItem value={GRADE_CLEAR_VALUE}>–</SelectItem>
 																							{FINAL_GRADE_OPTIONS.map((g) => (
 																								<SelectItem key={g} value={String(g)}>{endGradeLabel(g)}</SelectItem>
 																							))}
@@ -1499,7 +1506,7 @@ export default function NotenPage() {
 													onValueChange={(v) =>
 														setNmGroupGrades((prev) => ({
 															...prev,
-															[s.id]: v ? parseFloat(v) : null
+															[s.id]: (v === GRADE_CLEAR_VALUE || v === '') ? null : parseFloat(v)
 														}))
 													}
 												>
@@ -1507,6 +1514,7 @@ export default function NotenPage() {
 														<SelectValue placeholder={t('noten.uebertragMissing', { defaultValue: '–' })} />
 													</SelectTrigger>
 													<SelectContent>
+														<SelectItem value={GRADE_CLEAR_VALUE}>–</SelectItem>
 														{FINAL_GRADE_OPTIONS.filter((g) => g >= 1 && g <= 5).map((g) => (
 															<SelectItem key={g} value={String(g)}>{g}</SelectItem>
 														))}
