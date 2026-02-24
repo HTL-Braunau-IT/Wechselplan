@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { Menu, LogIn, LogOut, User } from 'lucide-react'
 import { LanguageSwitcher } from '../language-switcher'
@@ -34,28 +34,9 @@ export function Header() {
 	const [isChangelogOpen, setIsChangelogOpen] = useState(false)
 	const { t } = useTranslation()
 	const { data: session } = useSession()
-	const hasOpenedOnLoad = useRef(false)
 
 	const { isFeatureEnabled } = useEntitlements()
-	const { version, release, allReleases, loading } = useGitHubVersion((newRelease) => {
-		// Auto-open modal when version changes
-		if (newRelease) {
-			setIsChangelogOpen(true)
-		}
-	})
-
-	// Open changelog automatically on first page load (once per page load)
-	useEffect(() => {
-		if (session && !loading && release && !hasOpenedOnLoad.current) {
-			// Check if we've already opened it in this session (to avoid duplicate opens from page)
-			const hasOpened = sessionStorage.getItem('changelog_opened_on_load')
-			if (!hasOpened) {
-				setIsChangelogOpen(true)
-				hasOpenedOnLoad.current = true
-				sessionStorage.setItem('changelog_opened_on_load', 'true')
-			}
-		}
-	}, [session, loading, release])
+	const { version, release, allReleases, loading } = useGitHubVersion()
 
 	const toggleMenu = () => {
 		setIsMenuOpen(!isMenuOpen)

@@ -22,6 +22,7 @@ import { StudentPhoto } from '@/components/student-photo'
 import { useSchoolYear } from '@/contexts/school-year-context'
 import { useEntitlements } from '@/contexts/entitlements-context'
 import { useSession } from 'next-auth/react'
+import { useSearchParams } from 'next/navigation'
 import { getStoredToken, storeToken, clearToken } from '@/lib/notenmanagement-token'
 import { normalizeUsername } from '@/lib/username'
 
@@ -117,6 +118,7 @@ export default function NotenPage() {
 	const { selectedYear } = useSchoolYear()
 	const { isFeatureEnabled } = useEntitlements()
 	const { data: session } = useSession()
+	const searchParams = useSearchParams()
 	const [classes, setClasses] = useState<ClassItem[]>([])
 	const [selectedClassId, setSelectedClassId] = useState<number | null>(null)
 	const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
@@ -163,6 +165,7 @@ export default function NotenPage() {
 	const hasScrolledToTodayRef = useRef(false)
 	const selectedClassIdRef = useRef<number | null>(null)
 	selectedClassIdRef.current = selectedClassId
+	const urlParamsAppliedRef = useRef(false)
 
 	const TODAY_BG = 'bg-blue-50 dark:bg-blue-950/30'
 	const firstTodayIndex = teachingDays.findIndex((d) => d.date === todayYmd)
@@ -207,8 +210,29 @@ export default function NotenPage() {
 		void fetchClasses()
 	}, [fetchClasses])
 
+	// Apply classId/groupId from URL when classes are loaded (e.g. link from teacher overview)
+	useEffect(() => {
+		if (urlParamsAppliedRef.current || classes.length === 0) return
+		const classIdParam = searchParams.get('classId')
+		if (!classIdParam) return
+		urlParamsAppliedRef.current = true
+		const classId = Number(classIdParam)
+		if (!Number.isFinite(classId)) return
+		const cls = classes.find((c) => c.id === classId)
+		if (!cls) return
+		const groupIdParam = searchParams.get('groupId')
+		const groupId = groupIdParam != null && groupIdParam !== '' ? Number(groupIdParam) : null
+		const validGroupId =
+			groupId != null && Number.isFinite(groupId) && cls.groupIds.includes(groupId)
+				? groupId
+				: cls.groupIds[0] ?? null
+		setSelectedClassId(cls.id)
+		setSelectedGroupId(validGroupId)
+	}, [classes, searchParams])
+
 	// Auto-select current class/group using same API and logic as teacher overview (so result always matches)
 	useEffect(() => {
+		if (searchParams.get('classId')) return
 		const teacherName = session?.user?.name
 		if (!schoolYearId || classes.length === 0 || !teacherName) return
 		let cancelled = false
@@ -283,17 +307,18 @@ export default function NotenPage() {
 			}
 		})()
 		return () => { cancelled = true }
-	}, [schoolYearId, classes.length, session?.user?.name ?? null])
+	}, [schoolYearId, classes.length, session?.user?.name ?? null, searchParams])
 
 	// When no selection yet, select first class and first group
 	useEffect(() => {
+		if (searchParams.get('classId')) return
 		if (selectedClassId !== null || classes.length === 0) return
 		const first = classes[0]
 		if (first) {
 			setSelectedClassId(first.id)
 			setSelectedGroupId(first.groupIds[0] ?? null)
 		}
-	}, [classes, selectedClassId])
+	}, [classes, selectedClassId, searchParams])
 
 	// Fetch teaching days, students, and data when class+group selected
 	useEffect(() => {
@@ -1129,6 +1154,7 @@ export default function NotenPage() {
 																					onValueChange={(v) => {
 																						const newVal = (v === GRADE_CLEAR_VALUE || v === '') ? null : parseFloat(v)
 																						updateEntry(student.id, day.date, day.period, { [key1]: newVal })
+																						void saveEntries([{ ...e, [key1]: newVal }], { skipSaving: true })
 																					}}
 																				>
 																					<SelectTrigger className={`h-7 min-w-[4.5rem] w-20 ${getGradeBoxClass(val1)}`}>
@@ -1148,6 +1174,7 @@ export default function NotenPage() {
 																					onValueChange={(v) => {
 																						const newVal = (v === GRADE_CLEAR_VALUE || v === '') ? null : parseFloat(v)
 																						updateEntry(student.id, day.date, day.period, { [key2]: newVal })
+																						void saveEntries([{ ...e, [key2]: newVal }], { skipSaving: true })
 																					}}
 																				>
 																					<SelectTrigger className={`h-7 min-w-[4.5rem] w-20 ${getGradeBoxClass(val2)}`}>
