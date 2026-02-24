@@ -77,7 +77,7 @@ export async function GET(request: Request) {
 				id: { in: studentIds },
 				...(groupId !== null ? { groupId } : {})
 			},
-			select: { id: true, firstName: true, lastName: true, groupId: true },
+			select: { id: true, firstName: true, lastName: true, groupId: true, sitzplatz: true },
 			orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }]
 		})
 
