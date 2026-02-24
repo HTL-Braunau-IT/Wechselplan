@@ -27,7 +27,7 @@ import { getStoredToken, storeToken, clearToken } from '@/lib/notenmanagement-to
 import { normalizeUsername } from '@/lib/username'
 
 type TeachingDay = { date: string; period: string }
-type Student = { id: number; firstName: string; lastName: string; groupId: number | null }
+type Student = { id: number; firstName: string; lastName: string; groupId: number | null; sitzplatz?: string | null }
 type ClassItem = { id: number; name: string; groupIds: number[] }
 type WeightConfig = {
 	weightWiederholung: number
@@ -162,10 +162,20 @@ export default function NotenPage() {
 		return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
 	})()
 	const todayColumnRef = useRef<HTMLTableCellElement | null>(null)
+	const nameColumnRef = useRef<HTMLTableCellElement | null>(null)
+	const sitzplatzCellsRef = useRef<HTMLTableCellElement[]>([])
 	const hasScrolledToTodayRef = useRef(false)
 	const selectedClassIdRef = useRef<number | null>(null)
 	selectedClassIdRef.current = selectedClassId
 	const urlParamsAppliedRef = useRef(false)
+
+	// Update sitzplatz column position dynamically based on name column width
+	const [sitzplatzLeft, setSitzplatzLeft] = useState<string>('0px')
+	useEffect(() => {
+		if (!nameColumnRef.current) return
+		const nameWidth = nameColumnRef.current.offsetWidth
+		setSitzplatzLeft(`${nameWidth}px`)
+	}, [students, teachingDays])
 
 	const TODAY_BG = 'bg-blue-50 dark:bg-blue-950/30'
 	const firstTodayIndex = teachingDays.findIndex((d) => d.date === todayYmd)
@@ -995,9 +1005,10 @@ export default function NotenPage() {
 													<table className="w-full caption-bottom text-sm border-collapse">
 														<TableHeader>
 															<TableRow className="[&>th]:border-r [&>th]:border-border">
-																<TableHead className="sticky left-0 z-10 min-w-[180px] bg-background py-1.5 px-2 border-r border-border h-auto shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+																<TableHead ref={nameColumnRef} className="sticky left-0 z-20 min-w-[180px] bg-background py-1.5 px-2">
 																	{t('noten.name')}
 																</TableHead>
+																<TableHead ref={(el) => { if (el) sitzplatzCellsRef.current[0] = el }} style={{ left: sitzplatzLeft }} className="sticky z-18 min-w-[3rem] bg-background py-1.5 px-2 border-l border-r border-border h-auto" />
 																{teachingDays.map((day, dayIndex) => {
 																	const key = `${day.date}-${day.period}`
 																	const isCollapsed = collapsedDays.has(key)
@@ -1050,7 +1061,10 @@ export default function NotenPage() {
 																<TableHead colSpan={9} className="min-w-0 w-[9rem] max-w-[9rem] bg-muted/30 align-top py-1.5 px-0 border-r-2 border-border" />
 															</TableRow>
 															<TableRow className="border-0 hover:bg-transparent [&>th]:border-r [&>th]:border-border">
-																<TableHead className="sticky left-0 z-10 bg-background p-0 min-w-[180px] border-r border-border shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]" />
+																<TableHead className="sticky left-0 z-20 bg-background p-0 min-w-[180px]" />
+																<TableHead ref={(el) => { if (el) sitzplatzCellsRef.current[1] = el }} style={{ left: sitzplatzLeft }} className="sticky z-18 bg-background p-0.5 text-[10px] font-medium min-w-[3rem] w-[3rem] h-24 align-bottom [writing-mode:vertical-rl] [text-orientation:mixed] border-l border-r border-border">
+																	Sitzplatz
+																</TableHead>
 																{teachingDays.map((day) => {
 																	const key = `${day.date}-${day.period}`
 																	const isToday = day.date === todayYmd
@@ -1113,12 +1127,39 @@ export default function NotenPage() {
 														<TableBody>
 															{students.map((student) => (
 																<TableRow key={student.id}>
-																	<TableCell className="sticky left-0 z-10 bg-background border-r align-top shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+																	<TableCell className="sticky left-0 z-20 bg-background align-top">
 																		<StudentPhoto
 																			studentId={student.id}
 																			firstName={student.firstName}
 																			lastName={student.lastName}
 																			nameFormat="lastFirst"
+																		/>
+																	</TableCell>
+																	<TableCell ref={(el) => { if (el && !sitzplatzCellsRef.current.includes(el)) sitzplatzCellsRef.current.push(el) }} style={{ left: sitzplatzLeft }} className="sticky z-18 bg-background border-l border-r align-top p-1 min-w-[3rem] w-[3rem]">
+																		<Input
+																			type="text"
+																			value={student.sitzplatz ?? ''}
+																			onChange={(e) => {
+																				void (async () => {
+																					try {
+																						const res = await fetch('/api/noten/student-sitzplatz', {
+																							method: 'PATCH',
+																							headers: { 'Content-Type': 'application/json' },
+																							body: JSON.stringify({ studentId: student.id, sitzplatz: e.target.value || null })
+																						})
+																						if (!res.ok) {
+																							const error = await res.json()
+																							console.error('Failed to update sitzplatz:', error)
+																						}
+																					} catch (error) {
+																						console.error('Error updating sitzplatz:', error)
+																					}
+																				})()
+																				// Update local state immediately for UX
+																				setStudents(students.map(s => s.id === student.id ? { ...s, sitzplatz: e.target.value || null } : s))
+																			}}
+																			placeholder="Platz"
+																			className="h-7 w-full text-xs"
 																		/>
 																	</TableCell>
 																	{teachingDays.map((day) => {
