@@ -225,7 +225,7 @@ export function TeacherOverview() {
                     return (
                         <div key={assignment.id} className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
                             <div className="flex justify-start mb-4">
-                                <Link href="/noten">
+                                <Link href={actualGroupId != null ? `/noten?classId=${assignment.classId}&groupId=${actualGroupId}` : `/noten?classId=${assignment.classId}`}>
                                     <Button size="sm">
                                         Notenliste
                                     </Button>
