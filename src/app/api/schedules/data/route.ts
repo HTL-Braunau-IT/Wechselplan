@@ -48,27 +48,14 @@ export async function GET(req: Request) {
             schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
         }
 
-        const assignmentsWhere = schoolYearId != null
+        const ownAssignmentsWhere = schoolYearId != null
             ? { teacherId: teacher.id, schoolYearId }
             : { teacherId: teacher.id }
-        const assignments = await prisma.teacherAssignment.findMany({
-            where: assignmentsWhere,
-            include: {
-                teacher: {
-                    select: {
-                        firstName: true,
-                        lastName: true
-                    }
-                },
-                room: {
-                    select: {
-                        name: true
-                    }
-                }
-            }
+        const ownAssignments = await prisma.teacherAssignment.findMany({
+            where: ownAssignmentsWhere
         })
 
-        if (!assignments || assignments.length === 0) {
+        if (!ownAssignments || ownAssignments.length === 0) {
             return NextResponse.json({ error: 'No classes assigned to teacher' }, { status: 200 })
         }
 
@@ -82,7 +69,7 @@ export async function GET(req: Request) {
             return NextResponse.json({ error: 'No teacher rotation found' }, { status: 200 })
         }
 
-        const classIds = [...new Set(assignments.map(assignment => assignment.classId))]
+        const classIds = [...new Set(ownAssignments.map(assignment => assignment.classId))]
         const schedules = []
         const students = []
         const classdata: { id: number; name: string; classHead: string | null; classLead: string | null }[] = []
@@ -179,7 +166,28 @@ export async function GET(req: Request) {
         }
 
         // Filter assignments to only include those with valid schedules for this weekday
-        const filteredAssignments = assignments
+        const allClassAssignments = await prisma.teacherAssignment.findMany({
+            where: {
+                classId: { in: [...validClassIds] },
+                ...(schoolYearId != null ? { schoolYearId } : {}),
+                selectedWeekday: weekdayNum
+            },
+            include: {
+                teacher: {
+                    select: {
+                        firstName: true,
+                        lastName: true
+                    }
+                },
+                room: {
+                    select: {
+                        name: true
+                    }
+                }
+            }
+        })
+
+        const filteredAssignments = allClassAssignments
             .filter(assignment => validClassIds.has(assignment.classId))
             .map(assignment => ({
                 id: assignment.id,
