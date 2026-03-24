@@ -181,7 +181,7 @@ export function TeacherOverview() {
             return rotatedGroups[teacherIndex] ?? assignment.groupId ?? null
         }
 
-        const getTeacherDisplayName = (assignment: typeof assignments[0]): string => {
+        const getTeacherDisplayName = (assignment: Assignment): string => {
             const firstName = assignment.teacherFirstName?.trim()
             const lastName = assignment.teacherLastName?.trim()
             const fullName = [firstName, lastName].filter(Boolean).join(' ')
