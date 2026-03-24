@@ -3,7 +3,7 @@ import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
-import type { TeacherScheduleData, NormalizedTurn, BreakTime, ScheduleTime } from "@/types/types"
+import type { TeacherScheduleData, NormalizedTurn, BreakTime, ScheduleTime, Assignment } from "@/types/types"
 import { parse, isValid, isWithinInterval, addWeeks } from "date-fns"
 import { useTranslation } from "react-i18next"
 import { AlertTriangle } from "lucide-react"
@@ -70,6 +70,7 @@ export function TeacherOverview() {
     const renderScheduleInfo = () => {
         if (!scheduleData?.schedules) return null
         const currentDate = new Date()
+        const classAssignments = scheduleData.classAssignments ?? scheduleData.assignments
 
         // Get all assignments for the teacher
         const assignments = scheduleData.assignments.map(assignment => {
@@ -135,7 +136,7 @@ export function TeacherOverview() {
             return currentWeek?.turnIndex ?? 0
         }
 
-        const getActualGroupForAssignment = (assignment: typeof assignments[0]): number | null => {
+        const getActualGroupForAssignment = (assignment: Assignment): number | null => {
             const turns = getTurnsForClass(assignment.classId)
             if (!turns) return assignment.groupId ?? null
 
@@ -164,7 +165,7 @@ export function TeacherOverview() {
 
             if (groupIds.length === 0) return assignment.groupId ?? null
 
-            const periodAssignments = scheduleData.assignments.filter(a =>
+            const periodAssignments = classAssignments.filter(a =>
                 a.classId === assignment.classId &&
                 a.period === assignment.period
             )
@@ -188,7 +189,7 @@ export function TeacherOverview() {
         }
 
         const getOtherGroupAssignments = (assignment: typeof assignments[0], currentGroupId: number | null) => {
-            return assignments
+            return classAssignments
                 .filter(candidate =>
                     candidate.classId === assignment.classId &&
                     candidate.period === assignment.period

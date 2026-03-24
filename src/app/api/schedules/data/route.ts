@@ -187,6 +187,16 @@ export async function GET(req: Request) {
             }
         })
 
+        const filteredOwnAssignments = ownAssignments
+            .filter(assignment => validClassIds.has(assignment.classId))
+            .map(assignment => ({
+                id: assignment.id,
+                teacherId: assignment.teacherId,
+                classId: assignment.classId,
+                period: assignment.period,
+                groupId: assignment.groupId
+            }))
+
         const filteredAssignments = allClassAssignments
             .filter(assignment => validClassIds.has(assignment.classId))
             .map(assignment => ({
@@ -220,7 +230,8 @@ export async function GET(req: Request) {
             schedules,
             students,
             teacherRotation,
-            assignments: filteredAssignments,
+            assignments: filteredOwnAssignments,
+            classAssignments: filteredAssignments,
             classdata: classdata
         }, { status: 200 })
     } catch (error) {

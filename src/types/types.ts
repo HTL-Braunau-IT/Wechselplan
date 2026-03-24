@@ -89,6 +89,7 @@ export type TeacherScheduleData = {
     students: Student[][]
     teacherRotation: TeacherRotation[]
     assignments: Assignment[]
+    classAssignments?: Assignment[]
     classdata: ClassData[]
 }
 
