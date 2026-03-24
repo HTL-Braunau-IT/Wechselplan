@@ -180,6 +180,30 @@ export function TeacherOverview() {
             return rotatedGroups[teacherIndex] ?? assignment.groupId ?? null
         }
 
+        const getTeacherDisplayName = (assignment: typeof assignments[0]): string => {
+            const firstName = assignment.teacherFirstName?.trim()
+            const lastName = assignment.teacherLastName?.trim()
+            const fullName = [firstName, lastName].filter(Boolean).join(' ')
+            return fullName || t('overview.teacher.unknownTeacher')
+        }
+
+        const getOtherGroupAssignments = (assignment: typeof assignments[0], currentGroupId: number | null) => {
+            return assignments
+                .filter(candidate =>
+                    candidate.classId === assignment.classId &&
+                    candidate.period === assignment.period
+                )
+                .map(candidate => ({
+                    ...candidate,
+                    actualGroupId: getActualGroupForAssignment(candidate)
+                }))
+                .filter(candidate =>
+                    candidate.actualGroupId != null &&
+                    candidate.actualGroupId !== currentGroupId
+                )
+                .sort((a, b) => (a.actualGroupId ?? 0) - (b.actualGroupId ?? 0))
+        }
+
         const getStudentsForGroup = (groupId: number | undefined, classId: number | undefined) => {
             if (!groupId || !classId) return []
             // Find the array of students for this class
@@ -221,6 +245,7 @@ export function TeacherOverview() {
 
                     const scheduleTime = getScheduleTimes(assignment.classId, assignment.period)
                     const breakTimes = getBreakTimes(assignment.classId, assignment.period)
+                    const otherGroups = getOtherGroupAssignments(assignment, actualGroupId)
 
                     return (
                         <div key={assignment.id} className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
@@ -284,6 +309,23 @@ export function TeacherOverview() {
                                         .find(sList => sList.some(s => Number(s.classId) === assignment.classId))
                                         ?.at(0)?.additionalInfo ?? '—'}
                                 </p>
+                            </div>
+
+                            <div className="border-t dark:border-gray-700 pt-4 mt-4">
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{t('overview.teacher.otherGroups')}</p>
+                                {otherGroups.length === 0 ? (
+                                    <p className="font-semibold text-lg dark:text-white">—</p>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {otherGroups.map(other => (
+                                            <div key={other.id} className="p-2 bg-gray-50 dark:bg-gray-700 rounded grid grid-cols-3 gap-2 text-sm dark:text-white">
+                                                <span>{t('overview.teacher.groupWithNumber', { group: other.actualGroupId })}</span>
+                                                <span>{getTeacherDisplayName(other)}</span>
+                                                <span>{other.roomName ?? '—'}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                             
                             <div className="border-t dark:border-gray-700 pt-4 mt-4">

@@ -69,7 +69,10 @@ export type Assignment = {
     teacherId: number
     classId: number
     period: string
-    groupId: number
+    groupId: number | null
+    teacherFirstName?: string | null
+    teacherLastName?: string | null
+    roomName?: string | null
 }
 
 export type ScheduleData = {

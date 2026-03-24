@@ -12,6 +12,8 @@ vi.mock('@/lib/prisma', () => ({
     teacherRotation: { findMany: vi.fn() },
     class: { findUnique: vi.fn() },
     schedule: { findFirst: vi.fn() },
+    schoolYear: { findFirst: vi.fn() },
+    classMembership: { findMany: vi.fn() },
     student: { findMany: vi.fn() },
   },
 }));
@@ -20,6 +22,8 @@ vi.mock('@/lib/sentry', () => ({ captureError: vi.fn() }));
 describe('Schedule Data API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(prisma.schoolYear.findFirst).mockResolvedValue({ id: 1 });
+    vi.mocked(prisma.classMembership.findMany).mockResolvedValue([]);
   });
 
   test('should return 400 if teacher username is missing', async () => {
@@ -224,6 +228,9 @@ describe('Schedule Data API', () => {
       scheduleTimes: [],
       turns: [],
     } as Awaited<ReturnType<typeof prisma.schedule.findFirst>>);
+    vi.mocked(prisma.classMembership.findMany).mockResolvedValue([
+      { studentId: 1 },
+    ]);
     vi.mocked(prisma.student.findMany).mockResolvedValue([
       {
         id: 1,

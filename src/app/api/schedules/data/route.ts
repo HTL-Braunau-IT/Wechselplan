@@ -52,7 +52,20 @@ export async function GET(req: Request) {
             ? { teacherId: teacher.id, schoolYearId }
             : { teacherId: teacher.id }
         const assignments = await prisma.teacherAssignment.findMany({
-            where: assignmentsWhere
+            where: assignmentsWhere,
+            include: {
+                teacher: {
+                    select: {
+                        firstName: true,
+                        lastName: true
+                    }
+                },
+                room: {
+                    select: {
+                        name: true
+                    }
+                }
+            }
         })
 
         if (!assignments || assignments.length === 0) {
@@ -166,9 +179,18 @@ export async function GET(req: Request) {
         }
 
         // Filter assignments to only include those with valid schedules for this weekday
-        const filteredAssignments = assignments.filter(assignment => 
-            validClassIds.has(assignment.classId)
-        )
+        const filteredAssignments = assignments
+            .filter(assignment => validClassIds.has(assignment.classId))
+            .map(assignment => ({
+                id: assignment.id,
+                teacherId: assignment.teacherId,
+                classId: assignment.classId,
+                period: assignment.period,
+                groupId: assignment.groupId,
+                teacherFirstName: assignment.teacher?.firstName ?? null,
+                teacherLastName: assignment.teacher?.lastName ?? null,
+                roomName: assignment.room?.name ?? null
+            }))
 
         // If no valid schedules found for this weekday, return empty data structure
         if (validClassIds.size === 0) {
