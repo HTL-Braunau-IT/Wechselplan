@@ -85,5 +85,20 @@
   "combinedClassNameRequired": "Combined class name is required",
   "originallyFrom": "Originally from",
   "tooManyStudentsToCombine": "Cannot combine classes: The combined class would have {{total}} students, but the maximum allowed is {{max}} students. Please reduce the number of students in one or both classes before combining.",
-  "studentCountDetails": "Class 1: {{class1}} students, Class 2: {{class2}} students, Total: {{total}} students"
+  "studentCountDetails": "Class 1: {{class1}} students, Class 2: {{class2}} students, Total: {{total}} students",
+  "transferStudent": "Transfer student to another class",
+  "transferStudentTitle": "Transfer student to another class",
+  "transferStudentDescription": "Transfer {{name}} to another class. Existing grades will remain attached to the current class.",
+  "transferStudentDescriptionGeneric": "Transfer the student to another class. Existing grades will remain attached to the current class.",
+  "targetClass": "Target class",
+  "targetGroup": "Target group",
+  "unassignedGroup": "Unassigned",
+  "groupNumber": "Group {{number}}",
+  "loadingGroups": "Loading groups...",
+  "transfer": "Transfer",
+  "transferring": "Transferring...",
+  "transferError": "Failed to transfer student.",
+  "transferLoadGroupsError": "Failed to load groups for the target class.",
+  "transferSelectClassError": "Please select a target class.",
+  "removeStudent": "Remove student"
 } 

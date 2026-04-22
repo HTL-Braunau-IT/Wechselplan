@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import { useTranslation } from 'next-i18next'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
@@ -16,6 +16,7 @@ import { StudentItem } from '@/components/schedule/student-item'
 import { GroupContainer } from '@/components/schedule/group-container'
 import { AddStudentDialog } from '@/components/schedule/add-student-dialog'
 import { CombineClassesDialog } from '@/components/schedule/combine-classes-dialog'
+import { TransferStudentDialog } from '@/components/schedule/transfer-student-dialog'
 import { useClassDataByName } from '@/hooks/use-class-data'
 import { useGroupAssignments } from '@/hooks/use-group-assignments'
 import { useSchoolYear } from '@/contexts/school-year-context'
@@ -148,6 +149,10 @@ export default function ScheduleClassSelectPage() {
 	})
 	const [combiningClasses, setCombiningClasses] = useState(false)
 	const [isManualGroupChange, setIsManualGroupChange] = useState(false)
+	const [showTransferDialog, setShowTransferDialog] = useState(false)
+	const [transferTargetStudent, setTransferTargetStudent] = useState<Student | null>(null)
+	const [transferring, setTransferring] = useState(false)
+	const queryClient = useQueryClient()
 
 	/**
 	 * Determines whether all groups, except the unassigned group, do not exceed the maximum allowed size.
@@ -307,11 +312,9 @@ export default function ScheduleClassSelectPage() {
 					// Then add only regular (non-empty, non-unassigned) groups
 					...regularAssignments.map(assignment => ({
 						id: assignment.groupId,
-						students: assignment.studentIds.map(id => {
-							const student = studentsData.find(s => s.id === id)
-							if (!student) throw new Error(`Student with id ${id} not found`)
-							return student
-						})
+						students: assignment.studentIds
+							.map(id => studentsData.find(s => s.id === id))
+							.filter((s): s is Student => s !== undefined)
 					}))
 				]
 				setGroups(existingGroups)
@@ -856,6 +859,70 @@ export default function ScheduleClassSelectPage() {
 		}
 	}
 
+	function handleOpenTransferDialog(student: Student) {
+		setTransferTargetStudent(student)
+		setShowTransferDialog(true)
+	}
+
+	async function handleTransferStudent(targetClassId: number, targetGroupId: number | null) {
+		if (!transferTargetStudent) return
+		if (!schoolYearId) {
+			setError(t('transferError'))
+			throw new Error('School year not selected')
+		}
+
+		setTransferring(true)
+		try {
+			const response = await fetch(`/api/students/${transferTargetStudent.id}/transfer`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					targetClassId,
+					targetGroupId,
+					schoolYearId
+				})
+			})
+
+			if (!response.ok) {
+				const err = await response.json().catch(() => ({})) as { error?: string }
+				throw new Error(err.error ?? 'Failed to transfer student')
+			}
+
+			const transferredId = transferTargetStudent.id
+
+			setStudents(prev => prev.filter(s => s.id !== transferredId))
+			setGroups(prev => prev.map(group => ({
+				...group,
+				students: group.students.filter(s => s.id !== transferredId)
+			})))
+
+			await Promise.all([
+				queryClient.invalidateQueries({ queryKey: ['students', selectedClass] }),
+				queryClient.invalidateQueries({ queryKey: ['group-assignments', selectedClassId] }),
+				queryClient.invalidateQueries({ queryKey: ['group-assignments', targetClassId] })
+			])
+
+			setShowTransferDialog(false)
+			setTransferTargetStudent(null)
+		} catch (err) {
+			console.error('Error transferring student:', err)
+			captureFrontendError(err, {
+				location: 'schedule/create',
+				type: 'transfer-student',
+				extra: {
+					studentId: transferTargetStudent.id,
+					targetClassId,
+					targetGroupId,
+					schoolYearId
+				}
+			})
+			setError(err instanceof Error ? err.message : t('transferError'))
+			throw err
+		} finally {
+			setTransferring(false)
+		}
+	}
+
 	return (
 		<div className="container mx-auto p-4">
 			<Card>
@@ -986,6 +1053,7 @@ export default function ScheduleClassSelectPage() {
 																	student={student} 
 																	index={index}
 																	onRemove={handleStudentRemoval}
+																	onTransfer={handleOpenTransferDialog}
 																	t={t}
 																/>
 															))}
@@ -1081,6 +1149,21 @@ export default function ScheduleClassSelectPage() {
 				newStudent={newStudent}
 				onStudentChange={setNewStudent}
 				onAdd={handleAddStudent}
+				t={t}
+			/>
+
+			{/* Transfer Student Dialog */}
+			<TransferStudentDialog
+				open={showTransferDialog}
+				onOpenChange={(open) => {
+					setShowTransferDialog(open)
+					if (!open) setTransferTargetStudent(null)
+				}}
+				student={transferTargetStudent}
+				currentClassId={selectedClassId}
+				classes={classes}
+				onConfirm={handleTransferStudent}
+				transferring={transferring}
 				t={t}
 			/>
 
