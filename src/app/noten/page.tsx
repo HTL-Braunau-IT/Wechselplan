@@ -17,6 +17,7 @@ import {
 	DialogTitle,
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Spinner } from '@/components/ui/spinner'
 import { StudentPhoto } from '@/components/student-photo'
 import { useSchoolYear } from '@/contexts/school-year-context'
@@ -776,6 +777,7 @@ export default function NotenPage() {
 	}
 
 	return (
+		<TooltipProvider delayDuration={200}>
 		<div className="container mx-auto p-4 space-y-4">
 			<h1 className="text-2xl font-bold">{t('navigation.noten')}</h1>
 
@@ -1280,16 +1282,28 @@ export default function NotenPage() {
 																						'praktischeArbeit2'
 																					)}
 																				</TableCell>
-																				<TableCell className={`p-1 border-r-2 border-border min-w-0 overflow-hidden align-top${todayCellBg}`}>
-																					<button
-																						type="button"
-																						onClick={() => openNotizenModal(student.id, day.date, day.period)}
-																						className="h-full min-h-[4.5rem] w-full rounded-md border border-input bg-transparent px-2 py-1.5 text-left text-sm text-foreground shadow-xs hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-ring overflow-hidden flex items-start"
-																					>
-																						<span className="block truncate w-full text-left">
-																							{(e.notizen ?? '').trim() || '–'}
-																						</span>
-																					</button>
+																				<TableCell className={`p-1 border-r-2 border-border w-[4.5rem] min-w-[4.5rem] max-w-[4.5rem] overflow-hidden align-top${todayCellBg}`}>
+																					{(() => {
+																						const notizenValue = (e.notizen ?? '').trim()
+																						const notizenBtn = (
+																							<button
+																								type="button"
+																								onClick={() => openNotizenModal(student.id, day.date, day.period)}
+																								className="block h-full min-h-[4.5rem] w-full max-w-full rounded-md border border-input bg-transparent px-2 py-1.5 text-left text-sm text-foreground shadow-xs hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-ring overflow-hidden"
+																							>
+																								<span className="block truncate min-w-0 w-full text-left">
+																									{notizenValue || '–'}
+																								</span>
+																							</button>
+																						)
+																						if (!notizenValue) return notizenBtn
+																						return (
+																							<Tooltip delayDuration={200}>
+																								<TooltipTrigger asChild>{notizenBtn}</TooltipTrigger>
+																								<TooltipContent side="top">{notizenValue}</TooltipContent>
+																							</Tooltip>
+																						)
+																					})()}
 																				</TableCell>
 																			</React.Fragment>
 																		)
@@ -1392,6 +1406,7 @@ export default function NotenPage() {
 																<TableCell className="sticky left-0 z-10 font-medium bg-muted/30 bg-background border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
 																	{t('noten.lehrstoff')}
 																</TableCell>
+																<TableCell className="p-1 border-r border-border w-[3rem] min-w-[3rem] max-w-[3rem] bg-muted/20" />
 																{teachingDays.map((day) => {
 																	const key = `${day.date}-${day.period}`
 																	const isToday = day.date === todayYmd
@@ -1403,16 +1418,28 @@ export default function NotenPage() {
 																			/>
 																		)
 																	return (
-																		<TableCell key={key} colSpan={6} className={`p-1 border-r-2 border-border ${isToday ? TODAY_BG : ''}`}>
-																			<button
-																				type="button"
-																				onClick={() => openLehrstoffModal(day.date, day.period)}
-																				className="h-full min-h-[4.5rem] w-full rounded-md border border-input bg-transparent px-2 py-1.5 text-left text-sm text-foreground shadow-xs hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-ring overflow-hidden flex items-start"
-																			>
-																				<span className="block truncate w-full text-left">
-																					{(lehrstoffByDay[key] ?? '').trim() || '–'}
-																				</span>
-																			</button>
+																		<TableCell key={key} colSpan={6} className={`p-1 border-r-2 border-border w-[28rem] min-w-[28rem] max-w-[28rem] overflow-hidden ${isToday ? TODAY_BG : ''}`}>
+																			{(() => {
+																				const lehrstoffValue = (lehrstoffByDay[key] ?? '').trim()
+																				const lehrstoffBtn = (
+																					<button
+																						type="button"
+																						onClick={() => openLehrstoffModal(day.date, day.period)}
+																						className="block h-full min-h-[4.5rem] w-full max-w-full rounded-md border border-input bg-transparent px-2 py-1.5 text-left text-sm text-foreground shadow-xs hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-ring overflow-hidden"
+																					>
+																						<span className="block truncate min-w-0 w-full text-left">
+																							{lehrstoffValue || '–'}
+																						</span>
+																					</button>
+																				)
+																				if (!lehrstoffValue) return lehrstoffBtn
+																				return (
+																					<Tooltip delayDuration={200}>
+																						<TooltipTrigger asChild>{lehrstoffBtn}</TooltipTrigger>
+																						<TooltipContent side="top">{lehrstoffValue}</TooltipContent>
+																					</Tooltip>
+																				)
+																			})()}
 																		</TableCell>
 																	)
 																})}
@@ -1752,5 +1779,6 @@ export default function NotenPage() {
 				</DialogContent>
 			</Dialog>
 		</div>
+		</TooltipProvider>
 	)
 }
