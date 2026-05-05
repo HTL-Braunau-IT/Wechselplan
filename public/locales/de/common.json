@@ -68,7 +68,20 @@
     "notenmanagementUsernameRequired": "Notenmanagement-Benutzername erforderlich.",
     "notenmanagementPasswordRequired": "Passwort erforderlich.",
     "username": "Benutzername",
-    "password": "Passwort"
+    "password": "Passwort",
+    "searchTitle": "Suche",
+    "searchHelp": "Suche nach Name (wechselt zur Klasse/Gruppe) oder nach Datum (zeigt alle Klassen/Gruppen dieses Tages).",
+    "searchNamePlaceholder": "Name suchen ...",
+    "searchNameAction": "Name suchen",
+    "searchDateAction": "Datum suchen",
+    "searchNextMatch": "Nächster Treffer",
+    "searchError": "Suche fehlgeschlagen.",
+    "searchNoNameResult": "Kein passender Schüler gefunden.",
+    "searchNoDateResult": "An diesem Datum wurden keine Gruppen gefunden.",
+    "searchDateResultCount": "{{count}} Klassen/Gruppen an diesem Datum gefunden.",
+    "searchDateSectionsTitle": "Klassen/Gruppen am gewählten Datum",
+    "searchOpenGroup": "In Tabelle öffnen",
+    "searchNoStudentsInGroup": "Keine Schülerdaten für diese Gruppe gefunden."
   },
   "theme": {
     "light": "Hell",

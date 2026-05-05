@@ -69,7 +69,20 @@
     "notenmanagementUsernameRequired": "Notenmanagement username required.",
     "notenmanagementPasswordRequired": "Password required.",
     "username": "Username",
-    "password": "Password"
+    "password": "Password",
+    "searchTitle": "Search",
+    "searchHelp": "Search by name (switches class/group) or by date (shows all classes/groups on that day).",
+    "searchNamePlaceholder": "Search name ...",
+    "searchNameAction": "Search name",
+    "searchDateAction": "Search date",
+    "searchNextMatch": "Next match",
+    "searchError": "Search failed.",
+    "searchNoNameResult": "No matching student found.",
+    "searchNoDateResult": "No groups were found on this date.",
+    "searchDateResultCount": "{{count}} classes/groups found on this date.",
+    "searchDateSectionsTitle": "Classes/groups on selected date",
+    "searchOpenGroup": "Open in table",
+    "searchNoStudentsInGroup": "No students found for this group."
   },
   "theme": {
     "light": "Light",

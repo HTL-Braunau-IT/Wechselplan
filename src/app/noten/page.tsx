@@ -51,6 +51,20 @@ type NotenEntryRow = {
 	praktischeArbeit2: number | null
 	notizen: string | null
 }
+type SearchByNameMatch = {
+	classId: number
+	className: string
+	groupId: number
+	studentId: number
+	firstName: string
+	lastName: string
+}
+type SearchByDateMatch = {
+	classId: number
+	className: string
+	groupId: number
+	period: string
+}
 
 const ATTENDANCE_OPTIONS = ['Anwesend', 'Krank', 'Entschuldigt', 'Unentschuldigt'] as const
 const GRADE_OPTIONS = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
@@ -138,6 +152,15 @@ export default function NotenPage() {
 	const finalGradesRef = React.useRef<Record<number, FinalGradePerStudent>>({})
 	finalGradesRef.current = finalGrades
 	const [teacherId, setTeacherId] = useState<number | null>(null)
+	const [searchText, setSearchText] = useState('')
+	const [searchDate, setSearchDate] = useState('')
+	const [searchMessage, setSearchMessage] = useState<string | null>(null)
+	const [nameMatches, setNameMatches] = useState<SearchByNameMatch[]>([])
+	const [activeNameMatchIndex, setActiveNameMatchIndex] = useState(0)
+	const [highlightedStudentId, setHighlightedStudentId] = useState<number | null>(null)
+	const [focusDateYmd, setFocusDateYmd] = useState<string | null>(null)
+	const [dateMatches, setDateMatches] = useState<SearchByDateMatch[]>([])
+	const [dateSearchStudentsByGroup, setDateSearchStudentsByGroup] = useState<Record<string, Student[]>>({})
 	const [textModal, setTextModal] = useState<
 		| { type: 'notizen'; studentId: number; date: string; period: string }
 		| { type: 'lehrstoff'; date: string; period: string }
@@ -164,7 +187,9 @@ export default function NotenPage() {
 		return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
 	})()
 	const todayColumnRef = useRef<HTMLTableCellElement | null>(null)
+	const dayColumnRefs = useRef<Record<string, HTMLTableCellElement | null>>({})
 	const nameColumnRef = useRef<HTMLTableCellElement | null>(null)
+	const studentRowRefs = useRef<Record<number, HTMLTableRowElement | null>>({})
 	const sitzplatzCellsRef = useRef<HTMLTableCellElement[]>([])
 	const hasScrolledToTodayRef = useRef(false)
 	const selectedClassIdRef = useRef<number | null>(null)
@@ -182,6 +207,11 @@ export default function NotenPage() {
 
 	const TODAY_BG = 'bg-blue-50 dark:bg-blue-950/30'
 	const firstTodayIndex = teachingDays.findIndex((d) => d.date === todayYmd)
+	const focusColumnKey = useMemo(() => {
+		const targetDate = focusDateYmd ?? todayYmd
+		const day = teachingDays.find((d) => d.date === targetDate)
+		return day ? `${day.date}-${day.period}` : null
+	}, [teachingDays, focusDateYmd, todayYmd])
 
 	const { semester1DayKeys, semester2DayKeys } = useMemo(() => {
 		const change = semesterChangeDate?.slice(0, 10)
@@ -604,18 +634,25 @@ export default function NotenPage() {
 		setCollapsedDays((prev) => new Set([...prev, ...semester1DayKeys]))
 	}, [teachingDays, semesterChangeDate, semester1DayKeys])
 
-	// Auto-scroll to today column once when it exists and is in view
 	useEffect(() => {
-		if (!teachingDays.some((d) => d.date === todayYmd) || hasScrolledToTodayRef.current) return
+		hasScrolledToTodayRef.current = false
+	}, [selectedClassId, selectedGroupId, focusDateYmd])
+
+	// Auto-scroll to today/focus date column once when it exists and is in view
+	useEffect(() => {
+		if (!focusColumnKey || hasScrolledToTodayRef.current) return
 		const raf = requestAnimationFrame(() => {
 			if (hasScrolledToTodayRef.current) return
-			if (todayColumnRef.current) {
-				todayColumnRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+			const columnEl =
+				dayColumnRefs.current[focusColumnKey] ??
+				(focusDateYmd == null ? todayColumnRef.current : null)
+			if (columnEl) {
+				columnEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
 				hasScrolledToTodayRef.current = true
 			}
 		})
 		return () => cancelAnimationFrame(raf)
-	}, [teachingDays, todayYmd])
+	}, [focusColumnKey, focusDateYmd])
 
 	const allDaysCollapsed =
 		teachingDays.length > 0 &&
@@ -787,6 +824,94 @@ export default function NotenPage() {
 		saveWeights
 	])
 
+	const gotoNameMatch = useCallback((match: SearchByNameMatch) => {
+		setFocusDateYmd(null)
+		setSelectedClassId(match.classId)
+		setSelectedGroupId(match.groupId)
+		setHighlightedStudentId(match.studentId)
+		setSearchMessage(
+			`${match.lastName} ${match.firstName} – ${match.className}, ${t('noten.gruppe')} ${match.groupId}`
+		)
+	}, [t])
+
+	const performNameSearch = useCallback(async () => {
+		const query = searchText.trim()
+		if (!query || !schoolYearId) return
+		setDateMatches([])
+		setDateSearchStudentsByGroup({})
+		const res = await fetch(
+			`/api/noten/search?schoolYearId=${schoolYearId}&nameQuery=${encodeURIComponent(query)}`
+		)
+		if (!res.ok) {
+			setSearchMessage(t('noten.searchError', { defaultValue: 'Suche fehlgeschlagen.' }))
+			return
+		}
+		const data = (await res.json()) as { byName?: SearchByNameMatch[] }
+		const matches = data.byName ?? []
+		setNameMatches(matches)
+		setActiveNameMatchIndex(0)
+		if (matches.length === 0) {
+			setHighlightedStudentId(null)
+			setSearchMessage(t('noten.searchNoNameResult', { defaultValue: 'Kein passender Schüler gefunden.' }))
+			return
+		}
+		gotoNameMatch(matches[0]!)
+	}, [searchText, schoolYearId, t, gotoNameMatch])
+
+	const gotoNextNameMatch = useCallback(() => {
+		if (nameMatches.length === 0) return
+		const nextIndex = (activeNameMatchIndex + 1) % nameMatches.length
+		setActiveNameMatchIndex(nextIndex)
+		gotoNameMatch(nameMatches[nextIndex]!)
+	}, [nameMatches, activeNameMatchIndex, gotoNameMatch])
+
+	const performDateSearch = useCallback(async () => {
+		if (!searchDate || !schoolYearId) return
+		setNameMatches([])
+		setHighlightedStudentId(null)
+		const res = await fetch(
+			`/api/noten/search?schoolYearId=${schoolYearId}&dateQuery=${encodeURIComponent(searchDate)}`
+		)
+		if (!res.ok) {
+			setSearchMessage(t('noten.searchError', { defaultValue: 'Suche fehlgeschlagen.' }))
+			return
+		}
+		const data = (await res.json()) as { byDate?: SearchByDateMatch[] }
+		const matches = data.byDate ?? []
+		setDateMatches(matches)
+		setFocusDateYmd(searchDate)
+		if (matches.length === 0) {
+			setSearchMessage(t('noten.searchNoDateResult', { defaultValue: 'An diesem Datum wurden keine Gruppen gefunden.' }))
+			setDateSearchStudentsByGroup({})
+			return
+		}
+		setSearchMessage(
+			t('noten.searchDateResultCount', {
+				defaultValue: '{{count}} Klassen/Gruppen an diesem Datum gefunden.',
+				count: matches.length
+			})
+		)
+
+		const studentsEntries = await Promise.all(
+			matches.map(async (match) => {
+				const key = `${match.classId}-${match.groupId}`
+				const studentsRes = await fetch(
+					`/api/noten/students?classId=${match.classId}&groupId=${match.groupId}&schoolYearId=${schoolYearId}`
+				)
+				if (!studentsRes.ok) return [key, []] as const
+				const studentsData = (await studentsRes.json()) as { students?: Student[] }
+				return [key, studentsData.students ?? []] as const
+			})
+		)
+		setDateSearchStudentsByGroup(Object.fromEntries(studentsEntries))
+	}, [searchDate, schoolYearId, t])
+
+	useEffect(() => {
+		if (!highlightedStudentId) return
+		const row = studentRowRefs.current[highlightedStudentId]
+		if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+	}, [highlightedStudentId, students, selectedClassId, selectedGroupId])
+
 	if (!isFeatureEnabled('noten')) {
 		return null
 	}
@@ -874,13 +999,89 @@ export default function NotenPage() {
 								{cls.groupIds.map((gid) => (
 									<TabsContent key={gid} value={gid.toString()} className="mt-2">
 										<h2 className="text-base font-semibold text-foreground mb-4 pb-2 border-b border-border">
-											{t('noten.gruppe')} {gid}
+											{cls.name} - {t('noten.gruppe')} {gid}
 										</h2>
 
 										{loadingGroup ? (
 											<Spinner />
 										) : (
 											<>
+												<div className="mb-4 rounded-md border p-3 space-y-2">
+													<p className="text-sm font-medium">
+														{t('noten.searchTitle', { defaultValue: 'Suche' })}
+													</p>
+													<p className="text-xs text-muted-foreground">
+														{t('noten.searchHelp', { defaultValue: 'Suche nach Name (wechselt zur Klasse/Gruppe) oder nach Datum (zeigt alle Klassen/Gruppen dieses Tages).' })}
+													</p>
+													<div className="flex flex-wrap gap-2">
+														<Input
+															value={searchText}
+															onChange={(e) => setSearchText(e.target.value)}
+															placeholder={t('noten.searchNamePlaceholder', { defaultValue: 'Name suchen …' })}
+															className="w-full max-w-xs"
+														/>
+														<Button variant="outline" size="sm" onClick={() => void performNameSearch()}>
+															{t('noten.searchNameAction', { defaultValue: 'Name suchen' })}
+														</Button>
+														{nameMatches.length > 1 && (
+															<Button variant="outline" size="sm" onClick={gotoNextNameMatch}>
+																{t('noten.searchNextMatch', { defaultValue: 'Nächster Treffer' })} ({activeNameMatchIndex + 1}/{nameMatches.length})
+															</Button>
+														)}
+													</div>
+													<div className="flex flex-wrap gap-2">
+														<Input
+															type="date"
+															value={searchDate}
+															onChange={(e) => setSearchDate(e.target.value)}
+															className="w-full max-w-xs"
+														/>
+														<Button variant="outline" size="sm" onClick={() => void performDateSearch()}>
+															{t('noten.searchDateAction', { defaultValue: 'Datum suchen' })}
+														</Button>
+													</div>
+													{searchMessage && <p className="text-sm text-muted-foreground">{searchMessage}</p>}
+												</div>
+												{dateMatches.length > 0 && (
+													<div className="mb-4 rounded-md border p-3 space-y-3">
+														<p className="text-sm font-medium">
+															{t('noten.searchDateSectionsTitle', { defaultValue: 'Klassen/Gruppen am gewählten Datum' })}
+														</p>
+														{dateMatches.map((match) => {
+															const key = `${match.classId}-${match.groupId}`
+															const sectionStudents = dateSearchStudentsByGroup[key] ?? []
+															return (
+																<div key={`${key}-${match.period}`} className="rounded border p-2">
+																	<div className="flex items-center justify-between gap-2">
+																		<p className="text-sm font-medium">
+																			{match.className} - {t('noten.gruppe')} {match.groupId} ({match.period})
+																		</p>
+																		<Button
+																			variant="outline"
+																			size="sm"
+																			onClick={() => {
+																				setSelectedClassId(match.classId)
+																				setSelectedGroupId(match.groupId)
+																			}}
+																		>
+																			{t('noten.searchOpenGroup', { defaultValue: 'In Tabelle öffnen' })}
+																		</Button>
+																	</div>
+																	{sectionStudents.length === 0 ? (
+																		<p className="text-xs text-muted-foreground mt-2">
+																			{t('noten.searchNoStudentsInGroup', { defaultValue: 'Keine Schülerdaten für diese Gruppe gefunden.' })}
+																		</p>
+																	) : (
+																		<div className="mt-2 text-xs text-muted-foreground">
+																			{sectionStudents.map((s) => `${s.lastName} ${s.firstName}`).join(', ')}
+																		</div>
+																	)}
+																</div>
+															)
+														})}
+													</div>
+												)}
+
 												{/* Weights */}
 												<div className="flex flex-wrap items-center gap-4 mb-4 p-2 rounded-lg border">
 													<span className="text-sm font-medium">{t('noten.weights')}</span>
@@ -1039,7 +1240,7 @@ export default function NotenPage() {
 														<TableHeader>
 															<TableRow className="[&>th]:border-r [&>th]:border-border">
 																<TableHead className="sticky left-0 z-30 min-w-[2.5rem] w-[2.5rem] bg-background py-1.5 px-2 text-center">
-																	{t('noten.notenSichtbar', { defaultValue: 'Sichtbar' })}
+																	
 																</TableHead>
 																<TableHead
 																	ref={nameColumnRef}
@@ -1052,12 +1253,15 @@ export default function NotenPage() {
 																{teachingDays.map((day, dayIndex) => {
 																	const key = `${day.date}-${day.period}`
 																	const isCollapsed = collapsedDays.has(key)
-																	const isToday = day.date === todayYmd
+																	const isToday = day.date === (focusDateYmd ?? todayYmd)
 																	const todayBg = isToday ? ` ${TODAY_BG}` : ''
 																	return (
 																		<TableHead
 																			key={key}
-																			ref={dayIndex === firstTodayIndex ? todayColumnRef : undefined}
+																			ref={(el) => {
+																				dayColumnRefs.current[key] = el
+																				if (dayIndex === firstTodayIndex) todayColumnRef.current = el
+																			}}
 																			colSpan={isCollapsed ? 1 : 6}
 																			className={
 																				isCollapsed
@@ -1108,7 +1312,7 @@ export default function NotenPage() {
 																</TableHead>
 																{teachingDays.map((day) => {
 																	const key = `${day.date}-${day.period}`
-																	const isToday = day.date === todayYmd
+																	const isToday = day.date === (focusDateYmd ?? todayYmd)
 																	if (collapsedDays.has(key))
 																		return (
 																			<TableHead key={key} className={`p-0 w-12 min-w-0 max-w-[3rem] border-r-2 border-border h-24 ${isToday ? TODAY_BG : 'bg-background'}`} />
@@ -1167,7 +1371,11 @@ export default function NotenPage() {
 														</TableHeader>
 														<TableBody>
 															{students.map((student) => (
-																<TableRow key={student.id}>
+																<TableRow
+																	key={student.id}
+																	ref={(el) => { studentRowRefs.current[student.id] = el }}
+																	className={highlightedStudentId === student.id ? 'bg-yellow-100/60 dark:bg-yellow-900/20' : ''}
+																>
 																	{(() => {
 																		const isGradesVisible = rowGradeVisibility[student.id] ?? true
 																		return (
@@ -1218,7 +1426,7 @@ export default function NotenPage() {
 																				</TableCell>
 																	{teachingDays.map((day) => {
 																		const key = `${day.date}-${day.period}`
-																		const isToday = day.date === todayYmd
+																		const isToday = day.date === (focusDateYmd ?? todayYmd)
 																		if (collapsedDays.has(key)) {
 																			return (
 																				<TableCell
@@ -1498,7 +1706,7 @@ export default function NotenPage() {
 																<TableCell className="p-1 border-r border-border w-[3rem] min-w-[3rem] max-w-[3rem] bg-muted/20" />
 																{teachingDays.map((day) => {
 																	const key = `${day.date}-${day.period}`
-																	const isToday = day.date === todayYmd
+																	const isToday = day.date === (focusDateYmd ?? todayYmd)
 																	if (collapsedDays.has(key))
 																		return (
 																			<TableCell
