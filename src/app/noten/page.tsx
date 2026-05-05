@@ -154,6 +154,7 @@ export default function NotenPage() {
 	const [teacherId, setTeacherId] = useState<number | null>(null)
 	const [searchText, setSearchText] = useState('')
 	const [searchDate, setSearchDate] = useState('')
+	const [searchOpen, setSearchOpen] = useState(false)
 	const [searchMessage, setSearchMessage] = useState<string | null>(null)
 	const [nameMatches, setNameMatches] = useState<SearchByNameMatch[]>([])
 	const [activeNameMatchIndex, setActiveNameMatchIndex] = useState(0)
@@ -1007,40 +1008,55 @@ export default function NotenPage() {
 										) : (
 											<>
 												<div className="mb-4 rounded-md border p-3 space-y-2">
-													<p className="text-sm font-medium">
-														{t('noten.searchTitle', { defaultValue: 'Suche' })}
-													</p>
-													<p className="text-xs text-muted-foreground">
-														{t('noten.searchHelp', { defaultValue: 'Suche nach Name (wechselt zur Klasse/Gruppe) oder nach Datum (zeigt alle Klassen/Gruppen dieses Tages).' })}
-													</p>
-													<div className="flex flex-wrap gap-2">
-														<Input
-															value={searchText}
-															onChange={(e) => setSearchText(e.target.value)}
-															placeholder={t('noten.searchNamePlaceholder', { defaultValue: 'Name suchen …' })}
-															className="w-full max-w-xs"
-														/>
-														<Button variant="outline" size="sm" onClick={() => void performNameSearch()}>
-															{t('noten.searchNameAction', { defaultValue: 'Name suchen' })}
-														</Button>
-														{nameMatches.length > 1 && (
-															<Button variant="outline" size="sm" onClick={gotoNextNameMatch}>
-																{t('noten.searchNextMatch', { defaultValue: 'Nächster Treffer' })} ({activeNameMatchIndex + 1}/{nameMatches.length})
-															</Button>
-														)}
-													</div>
-													<div className="flex flex-wrap gap-2">
-														<Input
-															type="date"
-															value={searchDate}
-															onChange={(e) => setSearchDate(e.target.value)}
-															className="w-full max-w-xs"
-														/>
-														<Button variant="outline" size="sm" onClick={() => void performDateSearch()}>
-															{t('noten.searchDateAction', { defaultValue: 'Datum suchen' })}
+													<div className="flex items-center justify-between gap-2">
+														<p className="text-sm font-medium">
+															{t('noten.searchTitle', { defaultValue: 'Suche' })}
+														</p>
+														<Button
+															variant="outline"
+															size="sm"
+															onClick={() => setSearchOpen((prev) => !prev)}
+														>
+															{searchOpen
+																? t('noten.searchCollapse', { defaultValue: 'Suche ausblenden' })
+																: t('noten.searchExpand', { defaultValue: 'Suche einblenden' })}
 														</Button>
 													</div>
-													{searchMessage && <p className="text-sm text-muted-foreground">{searchMessage}</p>}
+													{searchOpen && (
+														<>
+															<p className="text-xs text-muted-foreground">
+																{t('noten.searchHelp', { defaultValue: 'Suche nach Name (wechselt zur Klasse/Gruppe) oder nach Datum (zeigt alle Klassen/Gruppen dieses Tages).' })}
+															</p>
+															<div className="flex flex-wrap gap-2">
+																<Input
+																	value={searchText}
+																	onChange={(e) => setSearchText(e.target.value)}
+																	placeholder={t('noten.searchNamePlaceholder', { defaultValue: 'Name suchen …' })}
+																	className="w-full max-w-xs"
+																/>
+																<Button variant="outline" size="sm" onClick={() => void performNameSearch()}>
+																	{t('noten.searchNameAction', { defaultValue: 'Name suchen' })}
+																</Button>
+																{nameMatches.length > 1 && (
+																	<Button variant="outline" size="sm" onClick={gotoNextNameMatch}>
+																		{t('noten.searchNextMatch', { defaultValue: 'Nächster Treffer' })} ({activeNameMatchIndex + 1}/{nameMatches.length})
+																	</Button>
+																)}
+															</div>
+															<div className="flex flex-wrap gap-2">
+																<Input
+																	type="date"
+																	value={searchDate}
+																	onChange={(e) => setSearchDate(e.target.value)}
+																	className="w-full max-w-xs"
+																/>
+																<Button variant="outline" size="sm" onClick={() => void performDateSearch()}>
+																	{t('noten.searchDateAction', { defaultValue: 'Datum suchen' })}
+																</Button>
+															</div>
+															{searchMessage && <p className="text-sm text-muted-foreground">{searchMessage}</p>}
+														</>
+													)}
 												</div>
 												{dateMatches.length > 0 && (
 													<div className="mb-4 rounded-md border p-3 space-y-3">

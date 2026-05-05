@@ -81,7 +81,9 @@
     "searchDateResultCount": "{{count}} Klassen/Gruppen an diesem Datum gefunden.",
     "searchDateSectionsTitle": "Klassen/Gruppen am gewählten Datum",
     "searchOpenGroup": "In Tabelle öffnen",
-    "searchNoStudentsInGroup": "Keine Schülerdaten für diese Gruppe gefunden."
+    "searchNoStudentsInGroup": "Keine Schülerdaten für diese Gruppe gefunden.",
+    "searchExpand": "Suche einblenden",
+    "searchCollapse": "Suche ausblenden"
   },
   "theme": {
     "light": "Hell",

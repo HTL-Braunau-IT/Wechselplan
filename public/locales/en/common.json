@@ -82,7 +82,9 @@
     "searchDateResultCount": "{{count}} classes/groups found on this date.",
     "searchDateSectionsTitle": "Classes/groups on selected date",
     "searchOpenGroup": "Open in table",
-    "searchNoStudentsInGroup": "No students found for this group."
+    "searchNoStudentsInGroup": "No students found for this group.",
+    "searchExpand": "Show search",
+    "searchCollapse": "Hide search"
   },
   "theme": {
     "light": "Light",
