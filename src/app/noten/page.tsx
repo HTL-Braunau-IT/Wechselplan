@@ -125,6 +125,7 @@ export default function NotenPage() {
 	const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
 	const [teachingDays, setTeachingDays] = useState<TeachingDay[]>([])
 	const [students, setStudents] = useState<Student[]>([])
+	const [rowGradeVisibility, setRowGradeVisibility] = useState<Record<number, boolean>>({})
 	const [weightConfig, setWeightConfig] = useState<WeightConfig | null>(null)
 	const [lehrstoffByDay, setLehrstoffByDay] = useState<Record<string, string>>({})
 	const [entries, setEntries] = useState<Record<string, NotenEntryRow>>({})
@@ -169,13 +170,14 @@ export default function NotenPage() {
 	const selectedClassIdRef = useRef<number | null>(null)
 	selectedClassIdRef.current = selectedClassId
 	const urlParamsAppliedRef = useRef(false)
+	const checkboxColumnWidthPx = 40
 
 	// Update sitzplatz column position dynamically based on name column width
 	const [sitzplatzLeft, setSitzplatzLeft] = useState<string>('0px')
 	useEffect(() => {
 		if (!nameColumnRef.current) return
 		const nameWidth = nameColumnRef.current.offsetWidth
-		setSitzplatzLeft(`${nameWidth}px`)
+		setSitzplatzLeft(`${checkboxColumnWidthPx + nameWidth}px`)
 	}, [students, teachingDays])
 
 	const TODAY_BG = 'bg-blue-50 dark:bg-blue-950/30'
@@ -336,6 +338,7 @@ export default function NotenPage() {
 		if (selectedClassId == null || selectedGroupId == null || !schoolYearId) {
 			setTeachingDays([])
 			setStudents([])
+			setRowGradeVisibility({})
 			setWeightConfig(null)
 			setLehrstoffByDay({})
 			setEntries({})
@@ -364,7 +367,11 @@ export default function NotenPage() {
 				])
 				if (cancelled) return
 				setTeachingDays(daysData.teachingDays ?? [])
-				setStudents(studentsData.students ?? [])
+				const fetchedStudents = studentsData.students ?? []
+				setStudents(fetchedStudents)
+				setRowGradeVisibility(
+					Object.fromEntries(fetchedStudents.map((student) => [student.id, true]))
+				)
 				setWeightConfig(notenData.weightConfig ?? null)
 				setLehrstoffByDay(notenData.lehrstoffByDay ?? {})
 				setFinalGrades(notenData.finalGrades ?? {})
@@ -613,6 +620,22 @@ export default function NotenPage() {
 	const allDaysCollapsed =
 		teachingDays.length > 0 &&
 		teachingDays.every((d) => collapsedDays.has(`${d.date}-${d.period}`))
+	const allRowsVisible =
+		students.length > 0 &&
+		students.every((student) => rowGradeVisibility[student.id] ?? true)
+
+	const toggleRowGradesVisible = useCallback((studentId: number, checked: boolean) => {
+		setRowGradeVisibility((prev) => ({
+			...prev,
+			[studentId]: checked
+		}))
+	}, [])
+
+	const setAllRowsVisible = useCallback((visible: boolean) => {
+		setRowGradeVisibility(
+			Object.fromEntries(students.map((student) => [student.id, visible]))
+		)
+	}, [students])
 
 	const openNotizenModal = useCallback(
 		(studentId: number, date: string, period: string) => {
@@ -969,6 +992,14 @@ export default function NotenPage() {
 															? t('noten.expandAllDays', { defaultValue: 'Alle aufklappen' })
 															: t('noten.collapseAllDays', { defaultValue: 'Alle Tage zuklappen' })}
 													</Button>
+													<Button
+														variant={allRowsVisible ? 'destructive' : 'default'}
+														size="sm"
+														onClick={() => setAllRowsVisible(!allRowsVisible)}
+														disabled={students.length === 0}
+													>
+														{allRowsVisible ? 'Verstecke alle Noten' : 'Zeige alle Noten'}
+													</Button>
 													{isFeatureEnabled('notenmgmt_htl') && selectedGroupId != null && (
 														<Button
 															variant="outline"
@@ -1007,7 +1038,14 @@ export default function NotenPage() {
 													<table className="w-full caption-bottom text-sm border-collapse">
 														<TableHeader>
 															<TableRow className="[&>th]:border-r [&>th]:border-border">
-																<TableHead ref={nameColumnRef} className="sticky left-0 z-20 min-w-[180px] bg-background py-1.5 px-2">
+																<TableHead className="sticky left-0 z-30 min-w-[2.5rem] w-[2.5rem] bg-background py-1.5 px-2 text-center">
+																	{t('noten.notenSichtbar', { defaultValue: 'Sichtbar' })}
+																</TableHead>
+																<TableHead
+																	ref={nameColumnRef}
+																	style={{ left: `${checkboxColumnWidthPx}px` }}
+																	className="sticky z-20 min-w-[180px] bg-background py-1.5 px-2"
+																>
 																	{t('noten.name')}
 																</TableHead>
 																<TableHead ref={(el) => { if (el) sitzplatzCellsRef.current[0] = el }} style={{ left: sitzplatzLeft }} className="sticky z-18 min-w-[3rem] bg-background py-1.5 px-2 border-l border-r border-border h-auto" />
@@ -1063,7 +1101,8 @@ export default function NotenPage() {
 																<TableHead colSpan={9} className="min-w-0 w-[9rem] max-w-[9rem] bg-muted/30 align-top py-1.5 px-0 border-r-2 border-border" />
 															</TableRow>
 															<TableRow className="border-0 hover:bg-transparent [&>th]:border-r [&>th]:border-border">
-																<TableHead className="sticky left-0 z-20 bg-background p-0 min-w-[180px]" />
+																<TableHead className="sticky left-0 z-30 bg-background p-0 min-w-[2.5rem] w-[2.5rem]" />
+																<TableHead style={{ left: `${checkboxColumnWidthPx}px` }} className="sticky z-20 bg-background p-0 min-w-[180px]" />
 																<TableHead ref={(el) => { if (el) sitzplatzCellsRef.current[1] = el }} style={{ left: sitzplatzLeft }} className="sticky z-18 bg-background p-0.5 text-[10px] font-medium min-w-[3rem] w-[3rem] h-24 align-bottom [writing-mode:vertical-rl] [text-orientation:mixed] border-l border-r border-border">
 																	Sitzplatz
 																</TableHead>
@@ -1129,15 +1168,28 @@ export default function NotenPage() {
 														<TableBody>
 															{students.map((student) => (
 																<TableRow key={student.id}>
-																	<TableCell className="sticky left-0 z-20 bg-background align-top">
+																	{(() => {
+																		const isGradesVisible = rowGradeVisibility[student.id] ?? true
+																		return (
+																			<>
+																				<TableCell className="sticky left-0 z-30 bg-background align-top p-1">
+																					<div className="flex items-center justify-center pt-1">
+																						<Checkbox
+																							checked={isGradesVisible}
+																							onCheckedChange={(checked) => toggleRowGradesVisible(student.id, checked === true)}
+																							aria-label={`Noten anzeigen für ${student.lastName} ${student.firstName}`}
+																						/>
+																					</div>
+																				</TableCell>
+																				<TableCell style={{ left: `${checkboxColumnWidthPx}px` }} className="sticky z-20 bg-background align-top">
 																		<StudentPhoto
 																			studentId={student.id}
 																			firstName={student.firstName}
 																			lastName={student.lastName}
 																			nameFormat="lastFirst"
 																		/>
-																	</TableCell>
-																	<TableCell ref={(el) => { if (el && !sitzplatzCellsRef.current.includes(el)) sitzplatzCellsRef.current.push(el) }} style={{ left: sitzplatzLeft }} className="sticky z-18 bg-background border-l border-r align-top p-1 min-w-[3rem] w-[3rem]">
+																				</TableCell>
+																				<TableCell ref={(el) => { if (el && !sitzplatzCellsRef.current.includes(el)) sitzplatzCellsRef.current.push(el) }} style={{ left: sitzplatzLeft }} className="sticky z-18 bg-background border-l border-r align-top p-1 min-w-[3rem] w-[3rem]">
 																		<Input
 																			type="text"
 																			value={student.sitzplatz ?? ''}
@@ -1163,7 +1215,7 @@ export default function NotenPage() {
 																			placeholder="Platz"
 																			className="h-7 w-full text-xs"
 																		/>
-																	</TableCell>
+																				</TableCell>
 																	{teachingDays.map((day) => {
 																		const key = `${day.date}-${day.period}`
 																		const isToday = day.date === todayYmd
@@ -1190,8 +1242,17 @@ export default function NotenPage() {
 																			praktischeArbeit2: null,
 																			notizen: null
 																		}
-																		const gradeSelect = (val1: number | null, val2: number | null, key1: keyof NotenEntryRow, key2: keyof NotenEntryRow) => (
-																			<div className="flex flex-col gap-1">
+																		const gradeSelect = (val1: number | null, val2: number | null, key1: keyof NotenEntryRow, key2: keyof NotenEntryRow) => {
+																			if (!isGradesVisible) {
+																				return (
+																					<div className="flex flex-col gap-1">
+																						<div className="h-7 min-w-[4.5rem] w-20 rounded-md border border-input bg-muted/40 px-2 text-xs flex items-center justify-center select-none">•••</div>
+																						<div className="h-7 min-w-[4.5rem] w-20 rounded-md border border-input bg-muted/40 px-2 text-xs flex items-center justify-center select-none">•••</div>
+																					</div>
+																				)
+																			}
+																			return (
+																				<div className="flex flex-col gap-1">
 																				<Select
 																					value={val1?.toString() ?? ''}
 																					onValueChange={(v) => {
@@ -1233,7 +1294,8 @@ export default function NotenPage() {
 																					</SelectContent>
 																				</Select>
 																			</div>
-																		)
+																			)
+																		}
 																		const attendanceBg =
 																			e.attendance == null || e.attendance === ''
 																				? ''
@@ -1284,6 +1346,13 @@ export default function NotenPage() {
 																				</TableCell>
 																				<TableCell className={`p-1 border-r-2 border-border w-[4.5rem] min-w-[4.5rem] max-w-[4.5rem] overflow-hidden align-top${todayCellBg}`}>
 																					{(() => {
+																						if (!isGradesVisible) {
+																							return (
+																								<div className="h-full min-h-[4.5rem] w-full rounded-md border border-input bg-muted/40 px-2 py-1.5 text-sm flex items-center justify-center select-none">
+																									•••
+																								</div>
+																							)
+																						}
 																						const notizenValue = (e.notizen ?? '').trim()
 																						const notizenBtn = (
 																							<button
@@ -1338,9 +1407,10 @@ export default function NotenPage() {
 																				>
 																					{sum != null ? `${sum.pct} %` : '–'}
 																				</TableCell>
-																				<TableCell className="p-1 text-center border-r border-border w-8 min-w-[2rem]">{sum?.calculatedGrade ?? '–'}</TableCell>
+																				<TableCell className="p-1 text-center border-r border-border w-8 min-w-[2rem]">{isGradesVisible ? (sum?.calculatedGrade ?? '–') : '•••'}</TableCell>
 																				<TableCell className="p-1 border-r border-border w-10 min-w-[2.5rem]">
-																					<Select
+																					{isGradesVisible ? (
+																						<Select
 																						value={fg.first.grade != null ? String(fg.first.grade) : ''}
 																						onValueChange={(v) => setFinalGrade(student.id, 'first', 'grade', (v === GRADE_CLEAR_VALUE || v === '') ? null : parseFloat(v))}
 																						onOpenChange={(open) => { if (!open) saveOneStudent() }}
@@ -1352,10 +1422,14 @@ export default function NotenPage() {
 																								<SelectItem key={g} value={String(g)}>{endGradeLabel(g)}</SelectItem>
 																							))}
 																						</SelectContent>
-																					</Select>
+																						</Select>
+																					) : (
+																						<div className="h-8 w-full min-w-0 rounded-md border border-input bg-muted/40 px-2 text-xs flex items-center justify-center select-none">•••</div>
+																					)}
 																				</TableCell>
 																				<TableCell className="p-1 border-r border-border w-10 min-w-[2.5rem]">
-																					<Select
+																					{isGradesVisible ? (
+																						<Select
 																						value={fg.first.conductNoteWish ?? ''}
 																						onValueChange={(v) => setFinalGrade(student.id, 'first', 'conductNoteWish', v || null)}
 																						onOpenChange={(open) => { if (!open) saveOneStudent() }}
@@ -1366,10 +1440,14 @@ export default function NotenPage() {
 																								<SelectItem key={opt} value={opt}>{opt}</SelectItem>
 																							))}
 																						</SelectContent>
-																					</Select>
+																						</Select>
+																					) : (
+																						<div className="h-8 w-full min-w-0 rounded-md border border-input bg-muted/40 px-2 text-xs flex items-center justify-center select-none">•••</div>
+																					)}
 																				</TableCell>
 																				<TableCell className="p-1 border-r border-border w-10 min-w-[2.5rem]">
-																					<Select
+																					{isGradesVisible ? (
+																						<Select
 																						value={fg.second.grade != null ? String(fg.second.grade) : ''}
 																						onValueChange={(v) => setFinalGrade(student.id, 'second', 'grade', (v === GRADE_CLEAR_VALUE || v === '') ? null : parseFloat(v))}
 																						onOpenChange={(open) => { if (!open) saveOneStudent() }}
@@ -1381,10 +1459,14 @@ export default function NotenPage() {
 																								<SelectItem key={g} value={String(g)}>{endGradeLabel(g)}</SelectItem>
 																							))}
 																						</SelectContent>
-																					</Select>
+																						</Select>
+																					) : (
+																						<div className="h-8 w-full min-w-0 rounded-md border border-input bg-muted/40 px-2 text-xs flex items-center justify-center select-none">•••</div>
+																					)}
 																				</TableCell>
 																				<TableCell className="p-1 border-r-2 border-border w-10 min-w-[2.5rem]">
-																					<Select
+																					{isGradesVisible ? (
+																						<Select
 																						value={fg.second.conductNoteWish ?? ''}
 																						onValueChange={(v) => setFinalGrade(student.id, 'second', 'conductNoteWish', v || null)}
 																						onOpenChange={(open) => { if (!open) saveOneStudent() }}
@@ -1395,15 +1477,22 @@ export default function NotenPage() {
 																								<SelectItem key={opt} value={opt}>{opt}</SelectItem>
 																							))}
 																						</SelectContent>
-																					</Select>
+																						</Select>
+																					) : (
+																						<div className="h-8 w-full min-w-0 rounded-md border border-input bg-muted/40 px-2 text-xs flex items-center justify-center select-none">•••</div>
+																					)}
 																				</TableCell>
+																			</>
+																		)
+																	})()}
 																			</>
 																		)
 																	})()}
 																</TableRow>
 															))}
 															<TableRow>
-																<TableCell className="sticky left-0 z-10 font-medium bg-muted/30 bg-background border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+																<TableCell className="sticky left-0 z-10 bg-muted/20 bg-background border-r min-w-[2.5rem] w-[2.5rem]" />
+																<TableCell style={{ left: `${checkboxColumnWidthPx}px` }} className="sticky z-10 font-medium bg-muted/30 bg-background border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
 																	{t('noten.lehrstoff')}
 																</TableCell>
 																<TableCell className="p-1 border-r border-border w-[3rem] min-w-[3rem] max-w-[3rem] bg-muted/20" />
