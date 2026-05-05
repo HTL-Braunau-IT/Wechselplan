@@ -84,7 +84,10 @@
     "searchOpenGroup": "Open in table",
     "searchNoStudentsInGroup": "No students found for this group.",
     "searchExpand": "Show search",
-    "searchCollapse": "Hide search"
+    "searchCollapse": "Hide search",
+    "remainingFullYear": "Remaining school year",
+    "remainingSemester": "Remaining semester",
+    "remainingPeriod": "Remaining period"
   },
   "theme": {
     "light": "Light",

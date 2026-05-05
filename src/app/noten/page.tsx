@@ -187,6 +187,7 @@ export default function NotenPage() {
 		const n = new Date()
 		return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
 	})()
+	const currentPeriod: 'AM' | 'PM' = new Date().getHours() < 12 ? 'AM' : 'PM'
 	const todayColumnRef = useRef<HTMLTableCellElement | null>(null)
 	const dayColumnRefs = useRef<Record<string, HTMLTableCellElement | null>>({})
 	const nameColumnRef = useRef<HTMLTableCellElement | null>(null)
@@ -733,6 +734,17 @@ export default function NotenPage() {
 		defaultWeights.weightPraktischeArbeit
 	const weightsValid = weightSum === 100
 
+	const remainingDays = useMemo(() => {
+		const upcoming = teachingDays.filter((d) => d.date > todayYmd)
+		const inCurrentPeriod = upcoming.filter((d) => d.period === currentPeriod)
+		const inCurrentSemester = upcoming.filter((d) => isSemester2(d.date, semesterChangeDate) === isSemester2(todayYmd, semesterChangeDate))
+		return {
+			fullYear: upcoming.length,
+			semester: inCurrentSemester.length,
+			period: inCurrentPeriod.length
+		}
+	}, [teachingDays, todayYmd, semesterChangeDate, currentPeriod])
+
 	// Per-student: attendance counts and calculated grade (weighted average over days)
 	const studentSummary = useMemo(() => {
 		const out: Record<
@@ -999,9 +1011,16 @@ export default function NotenPage() {
 
 								{cls.groupIds.map((gid) => (
 									<TabsContent key={gid} value={gid.toString()} className="mt-2">
-										<h2 className="text-base font-semibold text-foreground mb-4 pb-2 border-b border-border">
-											{cls.name} - {t('noten.gruppe')} {gid}
-										</h2>
+										<div className="mb-4 pb-2 border-b border-border flex flex-wrap items-center justify-between gap-2">
+											<h2 className="text-base font-semibold text-foreground">
+												{cls.name} - {t('noten.gruppe')} {gid}
+											</h2>
+											<p className="text-xs text-muted-foreground">
+												{t('noten.remainingFullYear', { defaultValue: 'Rest Schuljahr' })}: {remainingDays.fullYear} ·{' '}
+												{t('noten.remainingSemester', { defaultValue: 'Rest Semester' })}: {remainingDays.semester} ·{' '}
+												{t('noten.remainingPeriod', { defaultValue: `Rest ${currentPeriod}` })}: {remainingDays.period}
+											</p>
+										</div>
 
 										{loadingGroup ? (
 											<Spinner />

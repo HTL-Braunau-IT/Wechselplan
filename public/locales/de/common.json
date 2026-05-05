@@ -83,7 +83,10 @@
     "searchOpenGroup": "In Tabelle öffnen",
     "searchNoStudentsInGroup": "Keine Schülerdaten für diese Gruppe gefunden.",
     "searchExpand": "Suche einblenden",
-    "searchCollapse": "Suche ausblenden"
+    "searchCollapse": "Suche ausblenden",
+    "remainingFullYear": "Rest Schuljahr",
+    "remainingSemester": "Rest Semester",
+    "remainingPeriod": "Rest Periode"
   },
   "theme": {
     "light": "Hell",
