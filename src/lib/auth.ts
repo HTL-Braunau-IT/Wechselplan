@@ -7,6 +7,73 @@ import type { User } from 'next-auth'
 import { captureError } from '@/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
 
+type AppRole = 'admin' | 'teacher' | 'student' | 'user'
+
+function parseCsvEnv(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map(entry => entry.trim())
+    .filter(Boolean)
+}
+
+function isEnabled(value: string | undefined, defaultValue = true): boolean {
+  if (value === undefined) return defaultValue
+  const normalized = value.trim().toLowerCase()
+  return !['0', 'false', 'off', 'no'].includes(normalized)
+}
+
+async function fetchMicrosoftGroupIds(accessToken: string): Promise<string[]> {
+  const groups: string[] = []
+  let nextUrl = 'https://graph.microsoft.com/v1.0/me/memberOf?$select=id'
+
+  while (nextUrl) {
+    const response = await fetch(nextUrl, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`Microsoft Graph API returned ${response.status} ${response.statusText}`)
+    }
+
+    const data = await response.json() as { value?: Array<{ id?: string }>; '@odata.nextLink'?: string }
+    for (const entry of data.value ?? []) {
+      if (entry.id) {
+        groups.push(entry.id)
+      }
+    }
+    nextUrl = data['@odata.nextLink'] ?? ''
+  }
+
+  return groups
+}
+
+async function resolveMicrosoftAccess(accessToken: string): Promise<{ allowed: boolean; role: AppRole }> {
+  const groups = await fetchMicrosoftGroupIds(accessToken)
+  const teacherGroupId = process.env.ENTRA_TEACHER_GROUP_ID?.trim()
+  const syncedClassGroupIds = parseCsvEnv(process.env.ENTRA_SYNC_CLASS_GROUP_IDS)
+  const legacyStudentGroups = parseCsvEnv(process.env.MS_STUDENT_GROUPS)
+  const legacyTeacherGroups = parseCsvEnv(process.env.MS_TEACHER_GROUPS)
+
+  const isTeacher = Boolean(
+    (teacherGroupId && groups.includes(teacherGroupId)) ||
+    groups.some(id => legacyTeacherGroups.includes(id))
+  )
+  const isSyncedStudent = groups.some(id => syncedClassGroupIds.includes(id))
+  const isLegacyStudent = groups.some(id => legacyStudentGroups.includes(id))
+  const allowed = isTeacher || isSyncedStudent || isLegacyStudent
+
+  if (!allowed) {
+    return { allowed: false, role: 'user' }
+  }
+
+  return {
+    allowed: true,
+    role: isTeacher ? 'teacher' : 'student',
+  }
+}
+
 async function ensureRolesExist() {
   try {
     const roles = ['admin', 'teacher', 'student', 'user']
@@ -29,7 +96,50 @@ async function ensureRolesExist() {
   }
 }
 
-async function saveUserRole(username: string, role: 'admin' | 'teacher' | 'student' | 'user') {
+async function hasLocalAdminRole(userId: string): Promise<boolean> {
+  try {
+    const adminAssignment = await prisma.userRole.findFirst({
+      where: {
+        userId,
+        role: { name: 'admin' },
+      },
+    })
+    return Boolean(adminAssignment)
+  } catch (error) {
+    console.error('Error checking local admin role:', error)
+    captureError(error, {
+      location: 'auth',
+      type: 'check_local_admin_error',
+      extra: { userId },
+    })
+    return false
+  }
+}
+
+async function ensureAdminRoleAssignment(userId: string) {
+  try {
+    await ensureRolesExist()
+    const adminRole = await prisma.role.findUnique({ where: { name: 'admin' } })
+    if (!adminRole) return
+    const existing = await prisma.userRole.findFirst({
+      where: { userId, roleId: adminRole.id },
+    })
+    if (!existing) {
+      await prisma.userRole.create({
+        data: { userId, roleId: adminRole.id },
+      })
+    }
+  } catch (error) {
+    console.error('Error ensuring admin role assignment:', error)
+    captureError(error, {
+      location: 'auth',
+      type: 'ensure_admin_assignment_error',
+      extra: { userId },
+    })
+  }
+}
+
+async function saveUserRole(username: string, role: AppRole) {
   try {
     console.log('Saving role for user:', { username, role })
     
@@ -53,10 +163,17 @@ async function saveUserRole(username: string, role: 'admin' | 'teacher' | 'stude
       return
     }
 
-    // Remove existing roles for this user
-    console.log('Removing existing roles for user:', username)
+    // Remove only non-admin role assignments so local admin stays additive.
+    console.log('Removing existing non-admin roles for user:', username)
     await prisma.userRole.deleteMany({
-      where: { userId: username }
+      where: {
+        userId: username,
+        role: {
+          name: {
+            in: ['teacher', 'student', 'user']
+          }
+        }
+      }
     })
 
     // Create new role assignment
@@ -87,7 +204,7 @@ interface LDAPUser extends User {
 
 export const authOptions: NextAuthOptions = {
   providers: [
-    CredentialsProvider({
+    ...(isEnabled(process.env.AUTH_LDAP_ENABLED) ? [CredentialsProvider({
       id: 'ldap',
       name: 'LDAP',
       credentials: {
@@ -175,64 +292,120 @@ export const authOptions: NextAuthOptions = {
           return null
         }
       },
-    }),
-    AzureADProvider({
-      clientId: process.env.AZURE_AD_CLIENT_ID!,
-      clientSecret: process.env.AZURE_AD_CLIENT_SECRET!,
-      tenantId: process.env.AZURE_AD_TENANT_ID,
+    })] : []),
+    ...(isEnabled(process.env.AUTH_MS_ENABLED) ? [AzureADProvider({
+      clientId: process.env.ENTRA_CLIENT_ID ?? process.env.AZURE_AD_CLIENT_ID!,
+      clientSecret: process.env.ENTRA_CLIENT_SECRET ?? process.env.AZURE_AD_CLIENT_SECRET!,
+      tenantId: process.env.ENTRA_TENANT_ID ?? process.env.AZURE_AD_TENANT_ID,
       authorization: {
         params: {
           scope: 'openid profile email',
         },
       },
-    }),
+      // Use Entra Object ID (oid) as the stable user identifier so it matches
+      // ENTRA_SUPER_ADMIN_OBJECT_ID and the external key we'll use for sync.
+      profile(profile) {
+        const entraProfile = profile as {
+          oid?: string
+          sub?: string
+          name?: string
+          email?: string
+          preferred_username?: string
+          given_name?: string
+          family_name?: string
+        }
+
+        const displayName = entraProfile.name?.trim() ?? ''
+        let firstName = entraProfile.given_name?.trim() ?? null
+        let lastName = entraProfile.family_name?.trim() ?? null
+
+        // Entra sometimes omits given_name/family_name from the id_token even
+        // with the `profile` scope (depends on tenant config and user profile
+        // population). Fall back to splitting the display name so the UI still
+        // shows something meaningful.
+        if (!firstName && !lastName && displayName) {
+          const parts = displayName.split(/\s+/).filter(Boolean)
+          if (parts.length === 1) {
+            firstName = parts[0] ?? null
+          } else if (parts.length > 1) {
+            firstName = parts[0] ?? null
+            lastName = parts.slice(1).join(' ') || null
+          }
+        } else if (!firstName && displayName) {
+          firstName = displayName
+        }
+
+        return {
+          id: entraProfile.oid ?? entraProfile.sub ?? '',
+          name: displayName || null,
+          email: entraProfile.email ?? entraProfile.preferred_username ?? null,
+          image: null,
+          firstName,
+          lastName,
+        } as User & { firstName: string | null; lastName: string | null }
+      },
+    })] : []),
   ],
   callbacks: {
+    async signIn({ account }) {
+      if (account?.provider !== 'azure-ad') {
+        return true
+      }
+
+      if (!account.access_token) {
+        return false
+      }
+
+      try {
+        const { allowed } = await resolveMicrosoftAccess(account.access_token)
+        return allowed
+      } catch (error) {
+        console.error('Error validating Microsoft group access:', error)
+        captureError(error, {
+          location: 'auth',
+          type: 'azure_ad_access_validation_error',
+        })
+        return false
+      }
+    },
     async jwt({ token, user, account }) {
-      if (account?.provider === 'azure-ad') {
+      const isAzureAd = account?.provider === 'azure-ad'
+
+      if (isAzureAd) {
+        if (user) {
+          const msUser = user as User & { firstName?: string | null; lastName?: string | null }
+          if (msUser.firstName !== undefined) {
+            token.firstName = msUser.firstName
+          }
+          if (msUser.lastName !== undefined) {
+            token.lastName = msUser.lastName
+          }
+        }
+      }
+
+      if (isAzureAd && account?.access_token) {
         try {
-          const response = await fetch(
-            'https://graph.microsoft.com/v1.0/me/memberOf',
-            {
-              headers: {
-                Authorization: `Bearer ${account.access_token}`,
-              },
-            }
+          const accessResult = await resolveMicrosoftAccess(account.access_token)
+          token.role = accessResult.role
+
+          const jwtToken = token as typeof token & { preferred_username?: string }
+          const roleUserId = normalizeUsername(
+            String(token.email ?? jwtToken.preferred_username ?? token.name ?? token.sub ?? '')
           )
+          if (roleUserId) {
+            await saveUserRole(roleUserId, accessResult.role)
 
-          if (response.ok) {
-            const data = await response.json()
-            const groups = data.value.map((group: { id: string }) => group.id)
-
-            const studentGroups = process.env.MS_STUDENT_GROUPS?.split(',') ?? []
-            const teacherGroups = process.env.MS_TEACHER_GROUPS?.split(',') ?? []
-
-            let role: 'admin' | 'teacher' | 'student' | 'user' = 'user'
-            if (groups.some((id: string) => teacherGroups.includes(id))) {
-              role = 'teacher'
-            } else if (groups.some((id: string) => studentGroups.includes(id))) {
-              role = 'student'
+            // Super admin (Entra Object ID) is always an admin; auto-grant on login.
+            const superAdminObjectId = process.env.ENTRA_SUPER_ADMIN_OBJECT_ID?.trim()
+            const userObjectId = typeof token.sub === 'string' ? token.sub.trim() : ''
+            if (superAdminObjectId && userObjectId && superAdminObjectId === userObjectId) {
+              await ensureAdminRoleAssignment(roleUserId)
             }
 
-            // Save the role to the database
-            if (token.sub) {
-              await saveUserRole(token.sub, role)
+            // Promote session role to admin if local additive admin is present.
+            if (await hasLocalAdminRole(roleUserId)) {
+              token.role = 'admin'
             }
-
-            token.role = role
-            token.firstName = (user as LDAPUser)?.firstName
-            token.lastName = (user as LDAPUser)?.lastName
-          } else {
-            console.error(`Microsoft Graph API error: ${response.status} ${response.statusText}`)
-            captureError(new Error(`Microsoft Graph API returned ${response.status}`), {
-              location: 'auth',
-              type: 'azure_ad_api_error',
-              extra: { 
-                status: response.status,
-                statusText: response.statusText,
-                userId: token.sub 
-              }
-            })
           }
         } catch (error) {
           console.error('Error fetching Microsoft groups:', error)
@@ -244,16 +417,24 @@ export const authOptions: NextAuthOptions = {
         }
       }
 
-      if (user) {
-        token.role = (user as LDAPUser).role
-        token.firstName = (user as LDAPUser)?.firstName
-        token.lastName = (user as LDAPUser)?.lastName
+      if (user && !isAzureAd) {
+        const ldapUser = user as LDAPUser
+        if (ldapUser.role) {
+          token.role = ldapUser.role
+        }
+        if (ldapUser.firstName !== undefined) {
+          token.firstName = ldapUser.firstName
+        }
+        if (ldapUser.lastName !== undefined) {
+          token.lastName = ldapUser.lastName
+        }
       }
 
       return token
     },
     async session({ session, token }) {
       if (session.user) {
+        session.user.id = token.sub
         session.user.role = token.role as 'admin' | 'teacher' | 'student'
         session.user.firstName = token.firstName as string | null
         session.user.lastName = token.lastName as string | null

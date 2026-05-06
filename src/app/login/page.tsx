@@ -55,6 +55,22 @@ export default function LoginPage() {
 		}
 	}
 
+	const handleMicrosoftLogin = async () => {
+		setIsLoading(true)
+		setError(null)
+		try {
+			await signIn('azure-ad', { callbackUrl: '/' })
+		} catch (err) {
+			console.error('Error during Microsoft login:', err)
+			captureFrontendError(err, {
+				location: 'login',
+				type: 'microsoft-login',
+			})
+			setError(t('auth.error.generic'))
+			setIsLoading(false)
+		}
+	}
+
 	
 
 	return (
@@ -73,6 +89,17 @@ export default function LoginPage() {
 							<AlertDescription>{error}</AlertDescription>
 						</Alert>
 					)}
+
+					<Button
+						type="button"
+						className="mb-4 w-full"
+						disabled={isLoading}
+						onClick={handleMicrosoftLogin}
+					>
+						{isLoading ? t('auth.button.signingIn') : t('auth.button.signInMicrosoft')}
+					</Button>
+
+					<div className="mb-4 border-t" />
 
 					<form onSubmit={handleLDAPLogin} className="space-y-4">
 						<div className="space-y-2">
