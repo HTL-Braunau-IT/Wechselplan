@@ -101,7 +101,7 @@ async function main() {
   console.log('⏰ Seeding schedule times...')
   
   const scheduleTimes = [
-    { startTime: '07:50', endTime: '10:25', hours: 3.5, period: 'AM' },
+    { startTime: '07:50', endTime: '10:30', hours: 3, period: 'AM' },
     { startTime: '07:50', endTime: '11:25', hours: 5, period: 'AM' },
     { startTime: '07:50', endTime: '12:15', hours: 6, period: 'AM' },
     { startTime: '08:40', endTime: '11:25', hours: 4, period: 'AM' },

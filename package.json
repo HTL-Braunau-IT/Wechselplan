@@ -11,6 +11,8 @@
     "db:push": "prisma db push",
     "db:seed": "npx tsx prisma/seed.ts",
     "db:normalize-usernames": "npx tsx scripts/normalize-usernames.ts",
+    "db:audit-teacher-identities": "npx tsx scripts/audit-teacher-identity-collisions.ts",
+    "db:merge-teacher-identities": "npx tsx scripts/merge-teacher-identities.ts",
     "db:studio": "prisma studio",
     "dev": "next dev --turbo",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",

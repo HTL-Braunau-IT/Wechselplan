@@ -17,6 +17,13 @@ model Student {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
   username        String            @unique
+  email           String?
+  externalId      String?           @unique
+  externalSource  String?
+  isActive        Boolean           @default(true)
+  deactivatedAt   DateTime?
+  lastSyncedAt    DateTime?
+  syncStatus      String?           // "active" | "unassigned" (ambiguous membership)
   class           Class?            @relation(fields: [classId], references: [id])
   grades          Grade[]
   finalGrades     FinalGrade[]
@@ -25,22 +32,29 @@ model Student {
   @@index([firstName, lastName])
   @@index([groupId])
   @@index([classId])
+  @@index([isActive])
 }
 
 model Teacher {
-  id          Int                 @id @default(autoincrement())
-  firstName   String
-  lastName    String
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  username    String              @unique
-  email       String?             @unique
-  assignments TeacherAssignment[]
-  headClasses Class[]             @relation("ClassHead")
-  leadClasses Class[]             @relation("ClassLead")
-  grades      Grade[]
+  id             Int                 @id @default(autoincrement())
+  firstName      String
+  lastName       String
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  username       String              @unique
+  email          String?             @unique
+  externalId     String?             @unique
+  externalSource String?
+  isActive       Boolean             @default(true)
+  deactivatedAt  DateTime?
+  lastSyncedAt   DateTime?
+  assignments    TeacherAssignment[]
+  headClasses    Class[]             @relation("ClassHead")
+  leadClasses    Class[]             @relation("ClassLead")
+  grades         Grade[]
 
   @@index([firstName, lastName])
+  @@index([isActive])
 }
 
 model Class {
@@ -51,6 +65,11 @@ model Class {
   updatedAt        DateTime                @updatedAt
   classHeadId      Int?
   classLeadId      Int?
+  externalId       String?                 @unique
+  externalSource   String?
+  isActive         Boolean                 @default(true)
+  deactivatedAt    DateTime?
+  lastSyncedAt     DateTime?
   schedules        Schedule[]
   students         Student[]
   assignments      TeacherAssignment[]
@@ -62,6 +81,7 @@ model Class {
   classLead        Teacher?                @relation("ClassLead", fields: [classLeadId], references: [id])
 
   @@index([name])
+  @@index([isActive])
 }
 
 model SchoolYear {
@@ -335,6 +355,22 @@ model SupportMessage {
   currentUri String?
 
   @@index([createdAt])
+}
+
+// Admin-editable runtime settings for the Entra directory sync.
+// Treated as a singleton: only the row with id = 1 is used.
+model DirectorySyncSettings {
+  id                  Int       @id @default(1)
+  syncedClassGroupIds String[]  @default([])
+  syncMode            String    @default("hybrid")
+  syncEnabled         Boolean   @default(false)
+  studentPhotoSourcePriority String @default("manual_first")
+  teacherPhotoSourcePriority String @default("manual_first")
+  lastSyncAt          DateTime?
+  lastSyncStatus      String?
+  lastSyncSummary     Json?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 }
 
 model Grade {
