@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Menu, LogIn, LogOut, User } from 'lucide-react'
 import { LanguageSwitcher } from '../language-switcher'
@@ -34,6 +34,8 @@ export function Header() {
 	const [isChangelogOpen, setIsChangelogOpen] = useState(false)
 	const { t } = useTranslation()
 	const { data: session } = useSession()
+	const [profileLoaded, setProfileLoaded] = useState(false)
+	const [profileError, setProfileError] = useState(false)
 
 	const { isFeatureEnabled } = useEntitlements()
 	const { version, release, allReleases, loading } = useGitHubVersion()
@@ -44,6 +46,11 @@ export function Header() {
 
 	// Only show menu for authenticated non-student users
 	const showMenu = session && session.user?.role !== 'student'
+	const profileInitials = useMemo(() => {
+		const first = session?.user?.firstName?.charAt(0) ?? ''
+		const last = session?.user?.lastName?.charAt(0) ?? ''
+		return `${first}${last}`.toUpperCase() || session?.user?.name?.charAt(0)?.toUpperCase() || '?'
+	}, [session?.user?.firstName, session?.user?.lastName, session?.user?.name])
 
 	return (
 		<header className="fixed top-0 left-0 right-0 z-50 bg-background border-b">
@@ -102,14 +109,36 @@ export function Header() {
 							<DropdownMenu>
 								<DropdownMenuTrigger asChild>
 									<Button variant="ghost" size="icon" className="relative">
-										<User className="h-5 w-5" />
+										<span className="inline-flex h-8 w-8 overflow-hidden rounded-full bg-muted">
+											<img
+												src="/api/me/photo"
+												alt=""
+												width={32}
+												height={32}
+												className={`h-full w-full object-cover ${(profileError || !profileLoaded) ? 'hidden' : ''}`}
+												onLoad={() => {
+													setProfileLoaded(true)
+													setProfileError(false)
+												}}
+												onError={() => setProfileError(true)}
+											/>
+											{(!profileLoaded || profileError) && (
+												<span className="inline-flex h-full w-full items-center justify-center text-xs font-medium text-muted-foreground">
+													{profileInitials}
+												</span>
+											)}
+										</span>
 										<span className="sr-only">{t('profile.menu')}</span>
 									</Button>
 								</DropdownMenuTrigger>
 								<DropdownMenuContent align="end">
 									<DropdownMenuLabel>
 										<div className="flex flex-col space-y-1">
-											<p className="text-sm font-medium">{session.user?.firstName} {session.user?.lastName}</p>
+											<p className="text-sm font-medium">
+												{[session.user?.firstName, session.user?.lastName]
+													.filter(Boolean)
+													.join(' ') || session.user?.name || session.user?.email || ''}
+											</p>
 											<p className="text-xs text-muted-foreground">
 												{t(`profile.role.${session.user?.role}`)}
 											</p>
@@ -227,10 +256,10 @@ export function Header() {
 											</Link>
 										</li>
 									)}
-									{session?.user?.role === 'teacher' && (
+									{(session?.user?.role === 'teacher' || session?.user?.role === 'admin') && (
 										<li>
 											<Link
-												href="/admin/students"
+												href="/admin/data/students"
 												className="block py-2 hover:text-primary"
 												onClick={() => setIsMenuOpen(false)}
 											>
