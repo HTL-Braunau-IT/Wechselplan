@@ -5,6 +5,10 @@ import { getToken } from 'next-auth/jwt'
 const locales = ['en', 'de']
 const defaultLocale = 'de'
 
+function isTeacherOrAdminRole(role: unknown): boolean {
+  return role === 'teacher' || role === 'admin'
+}
+
 /**
  * Middleware for handling authentication and locale redirection for incoming requests.
  *
@@ -25,8 +29,8 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/schedule')) {
     const token = await getToken({ req: request })
     
-    // If no token or not a teacher, redirect to home
-    if (!token || token.role !== 'teacher') {
+    // If no token or no teacher/admin role, redirect to home
+    if (!token || !isTeacherOrAdminRole(token.role)) {
       return NextResponse.redirect(new URL('/', request.url))
     }
   }
@@ -34,8 +38,8 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/admin')) {
     const token = await getToken({ req: request })
     
-    // If no token or not a teacher, redirect to home
-    if (!token || token.role !== 'teacher') {
+    // If no token or no teacher/admin role, redirect to home
+    if (!token || !isTeacherOrAdminRole(token.role)) {
       return NextResponse.redirect(new URL('/', request.url))
     }
   }
@@ -43,8 +47,8 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/schedueles')) {
     const token = await getToken({ req: request })
     
-    // If no token or not a teacher, redirect to home
-    if (!token || token.role !== 'teacher') {
+    // If no token or no teacher/admin role, redirect to home
+    if (!token || !isTeacherOrAdminRole(token.role)) {
       return NextResponse.redirect(new URL('/', request.url))
     }
   }
@@ -52,8 +56,8 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/students')) {
     const token = await getToken({ req: request })
     
-    // If no token or not a teacher, redirect to home
-    if (!token || token.role !== 'teacher') {
+    // If no token or no teacher/admin role, redirect to home
+    if (!token || !isTeacherOrAdminRole(token.role)) {
       return NextResponse.redirect(new URL('/', request.url))
     }
   }
@@ -62,8 +66,8 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/notensammler')) {
     const token = await getToken({ req: request })
     
-    // If no token or not a teacher, redirect to home
-    if (!token || token.role !== 'teacher') {
+    // If no token or no teacher/admin role, redirect to home
+    if (!token || !isTeacherOrAdminRole(token.role)) {
       return NextResponse.redirect(new URL('/', request.url))
     }
   }
@@ -71,7 +75,7 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/noten')) {
     const token = await getToken({ req: request })
     
-    if (!token || token.role !== 'teacher') {
+    if (!token || !isTeacherOrAdminRole(token.role)) {
       return NextResponse.redirect(new URL('/', request.url))
     }
   }

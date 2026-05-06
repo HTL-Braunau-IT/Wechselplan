@@ -72,9 +72,12 @@ export async function GET(request: Request) {
 			return NextResponse.json({ students: [] })
 		}
 
+		// Grade entry student picker: only show active students. Historical grades
+		// still look up by studentId directly (no filter), so past records stay visible.
 		const students = await prisma.student.findMany({
 			where: {
 				id: { in: studentIds },
+				isActive: true,
 				...(groupId !== null ? { groupId } : {})
 			},
 			select: { id: true, firstName: true, lastName: true, groupId: true, sitzplatz: true },

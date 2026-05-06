@@ -16,9 +16,15 @@ export async function GET(request: Request) {
         const schoolYearIdParam = searchParams.get('schoolYearId')
         const schoolYearId = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
 
+        // Scheduling-facing class list filters to active classes when a school year is
+        // requested. Calls without a school year are treated as admin lookups and keep
+        // returning every class so admins can still reference inactive rows.
+        // TODO(entra-sync): audit remaining admin-facing class pickers once the sync
+        // dialog has shipped to real users.
         const where =
             schoolYearId != null && !Number.isNaN(schoolYearId)
                 ? {
+                      isActive: true,
                       OR: [
                           { schedules: { some: { schoolYearId } } },
                           { classMemberships: { some: { schoolYearId } } },

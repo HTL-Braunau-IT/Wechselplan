@@ -75,7 +75,7 @@ export default function Home() {
         {session.user?.role === 'student' && (
           <StudentOverview />
         )}
-        {session.user?.role === 'teacher' && (
+        {(session.user?.role === 'teacher' || session.user?.role === 'admin') && (
           <TeacherOverview />
         )}
 

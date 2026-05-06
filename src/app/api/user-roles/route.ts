@@ -2,6 +2,20 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+
+async function requireSuperAdmin() {
+  const session = await getServerSession(authOptions)
+  const superAdminObjectId = process.env.ENTRA_SUPER_ADMIN_OBJECT_ID?.trim()
+  const userObjectId = session?.user?.id?.trim()
+
+  if (!superAdminObjectId || !userObjectId || userObjectId !== superAdminObjectId) {
+    return false
+  }
+
+  return true
+}
 
 /**
  * Retrieves all role assignments for a specified user.
@@ -11,6 +25,11 @@ import { normalizeUsername } from '@/lib/username'
  */
 export async function GET(request: Request) {
   try {
+    const isSuperAdmin = await requireSuperAdmin()
+    if (!isSuperAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+
     const { searchParams } = new URL(request.url)
     const rawUserId = searchParams.get('userId')
     if (!rawUserId) {
@@ -54,6 +73,11 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
+    const isSuperAdmin = await requireSuperAdmin()
+    if (!isSuperAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+
     const { userId, roleId } = await request.json() as { userId?: string; roleId?: string | number }
     const numericRoleId = Number(roleId)
  
@@ -128,6 +152,11 @@ export async function POST(request: Request) {
  */
 export async function DELETE(request: Request) {
   try {
+    const isSuperAdmin = await requireSuperAdmin()
+    if (!isSuperAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+
     const { searchParams } = new URL(request.url)
     const rawUserId = searchParams.get('userId')
     const roleId = searchParams.get('roleId')
