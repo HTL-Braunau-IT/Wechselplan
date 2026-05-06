@@ -147,6 +147,7 @@ export async function GET(req: Request) {
             }
             
             // Fetch students for this class: by ClassMembership when schoolYearId set, else by Student.classId
+            // Scheduling view only shows active students; historical grade queries remain unfiltered.
             let studentList: Awaited<ReturnType<typeof prisma.student.findMany>>
             if (schoolYearId != null) {
                 const memberships = await prisma.classMembership.findMany({
@@ -154,10 +155,12 @@ export async function GET(req: Request) {
                     select: { studentId: true }
                 })
                 const ids = memberships.map((m) => m.studentId)
-                studentList = ids.length > 0 ? await prisma.student.findMany({ where: { id: { in: ids } } }) : []
+                studentList = ids.length > 0
+                    ? await prisma.student.findMany({ where: { id: { in: ids }, isActive: true } })
+                    : []
             } else {
                 studentList = await prisma.student.findMany({
-                    where: { classId }
+                    where: { classId, isActive: true }
                 })
             }
             if (studentList) {

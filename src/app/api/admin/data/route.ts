@@ -123,23 +123,35 @@ export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url)
   const model = searchParams.get('model')
   const id = searchParams.get('id')
+  const isBulkDelete = searchParams.get('bulk') === 'true'
 
-  if (!model || !id) {
+  if (!model || (!id && !isBulkDelete)) {
     return NextResponse.json(
-      { error: 'Model and ID parameters are required' },
+      { error: 'Model and ID parameters are required unless bulk=true is set' },
       { status: 400 }
     )
   }
 
   try {
-    await deleteRecord(model, parseInt(id))
+    if (isBulkDelete) {
+      const result = await deleteAllRecords(model)
+      return NextResponse.json({ success: true, deleted: result })
+    }
+
+    if (!id) {
+      return NextResponse.json(
+        { error: 'ID parameter is required' },
+        { status: 400 }
+      )
+    }
+    await deleteRecord(model, parseInt(id, 10))
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error(`Error deleting ${model}:`, error)
     captureError(error, {
       location: 'api/admin/data',
       type: 'delete-data',
-      extra: { model, id }
+      extra: { model, id, isBulkDelete }
     })
     return NextResponse.json(
       { error: 'Failed to delete record' },
@@ -574,5 +586,30 @@ async function deleteRecord(model: string, id: number) {
       return await prisma.supportMessage.delete({ where: { id } })
     default:
       throw new Error(`Unknown model: ${model}`)
+  }
+}
+
+async function deleteAllRecords(model: string | null) {
+  switch (model) {
+    case 'student': {
+      const { count } = await prisma.student.deleteMany()
+      return { students: count }
+    }
+    case 'teacher': {
+      const { count } = await prisma.teacher.deleteMany()
+      return { teachers: count }
+    }
+    case 'class': {
+      return await prisma.$transaction(async (tx) => {
+        const deletedStudents = await tx.student.deleteMany()
+        const deletedClasses = await tx.class.deleteMany()
+        return {
+          students: deletedStudents.count,
+          classes: deletedClasses.count
+        }
+      })
+    }
+    default:
+      throw new Error(`Bulk delete not supported for model: ${model}`)
   }
 }
