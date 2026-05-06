@@ -10,7 +10,7 @@ export default function AdminLayout({
   return (
     <div className="flex min-h-screen bg-background">
       <AdminMenu />
-      <div className="flex-1 p-4 space-y-8">
+      <div className="flex-1 p-6 space-y-8">
         {children}
       </div>
     </div>

@@ -5,6 +5,16 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog'
 import { Plus, Edit, Trash2, Search, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -28,6 +38,8 @@ interface DataTableProps {
   onEdit: (item: Record<string, unknown>) => Promise<Record<string, unknown>>
   onDelete: (id: number) => Promise<void>
   onCreate: (data: Record<string, unknown>) => Promise<Record<string, unknown>>
+  onDeleteAll?: () => Promise<{ deleted?: Record<string, number> } | void>
+  deleteAllLabel?: string
   isLoading?: boolean
 }
 
@@ -53,6 +65,8 @@ export function DataTable({
   onEdit,
   onDelete,
   onCreate,
+  onDeleteAll,
+  deleteAllLabel = `Alle ${model}-Einträge löschen`,
   isLoading = false
 }: DataTableProps) {
   const [searchTerm, setSearchTerm] = useState('')
@@ -61,6 +75,8 @@ export function DataTable({
   const [editingItem, setEditingItem] = useState<Record<string, unknown> | null>(null)
   const [formData, setFormData] = useState<Record<string, unknown>>({})
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null)
+  const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false)
+  const [isDeleteAllLoading, setIsDeleteAllLoading] = useState(false)
 
   const filteredAndSortedData = (() => {
     const filtered = data.filter(item =>
@@ -143,21 +159,42 @@ export function DataTable({
       }
       setFormData({})
       onRefresh()
-      toast.success(`${model} ${editingItem ? 'updated' : 'created'} successfully`)
+      toast.success(`${model} ${editingItem ? 'aktualisiert' : 'erstellt'}`)
     } catch {
-      toast.error(`Failed to ${editingItem ? 'update' : 'create'} ${model}`)
+      toast.error(`${model} konnte nicht ${editingItem ? 'aktualisiert' : 'erstellt'} werden`)
     }
   }
 
   const handleDelete = async (id: number) => {
-    if (confirm(`Are you sure you want to delete this ${model}?`)) {
+    if (confirm(`Möchtest du diesen ${model}-Eintrag wirklich löschen?`)) {
       try {
         await onDelete(id)
         onRefresh()
-        toast.success(`${model} deleted successfully`)
+        toast.success(`${model} erfolgreich gelöscht`)
       } catch {
-        toast.error(`Failed to delete ${model}`)
+        toast.error(`${model} konnte nicht gelöscht werden`)
       }
+    }
+  }
+
+  const handleDeleteAll = async () => {
+    if (!onDeleteAll) return
+    try {
+      setIsDeleteAllLoading(true)
+      const result = await onDeleteAll()
+      const deletedValues = Object.values(result?.deleted ?? {})
+      const totalDeleted = deletedValues.reduce((sum, count) => sum + count, 0)
+      toast.success(
+        totalDeleted > 0
+          ? `${totalDeleted} Einträge gelöscht`
+          : `Keine ${model.toLowerCase()}-Einträge wurden gelöscht`
+      )
+      setIsDeleteAllDialogOpen(false)
+      onRefresh()
+    } catch {
+      toast.error(`Alle ${model.toLowerCase()}-Einträge konnten nicht gelöscht werden`)
+    } finally {
+      setIsDeleteAllLoading(false)
     }
   }
 
@@ -168,7 +205,7 @@ export function DataTable({
       case 'date':
         return new Date(value as string | number | Date).toLocaleDateString()
       case 'boolean':
-        return value ? 'Yes' : 'No'
+        return value ? 'Ja' : 'Nein'
       case 'select':
         const option = column.options?.find(opt => opt.value === value)
         return option?.label ?? safeStringify(value)
@@ -201,7 +238,7 @@ export function DataTable({
             required={column.required}
             disabled={column.readonly}
           >
-            <option value="">Select {column.label}</option>
+            <option value="">Bitte {column.label} auswählen</option>
             {column.options?.map(option => (
               <option key={String(option.value)} value={String(option.value)}>
                 {option.label}
@@ -257,7 +294,7 @@ export function DataTable({
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search..."
+              placeholder="Suchen..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-8 w-64"
@@ -272,38 +309,73 @@ export function DataTable({
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={handleCreate}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add {model}
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Create {model}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              {columns.filter((c) => !c.render).map(column => (
-                <div key={column.key} className="space-y-2">
-                  <label className="text-sm font-medium">
-                    {column.label}
-                    {column.required && <span className="text-red-500 ml-1">*</span>}
-                  </label>
-                  {renderFormField(column)}
+        <div className="flex items-center gap-2">
+          {onDeleteAll ? (
+            <AlertDialog open={isDeleteAllDialogOpen} onOpenChange={setIsDeleteAllDialogOpen}>
+              <Button
+                variant="destructive"
+                onClick={() => setIsDeleteAllDialogOpen(true)}
+                disabled={isLoading || isDeleteAllLoading || data.length === 0}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                {deleteAllLabel}
+              </Button>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Alle {model.toLowerCase()}-Einträge löschen?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Diese Aktion kann nicht rückgängig gemacht werden. Alle aktuell in diesem Tab
+                    angezeigten {model.toLowerCase()}-Einträge werden dauerhaft gelöscht.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={isDeleteAllLoading}>Abbrechen</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={(event) => {
+                      event.preventDefault()
+                      void handleDeleteAll()
+                    }}
+                    disabled={isDeleteAllLoading}
+                  >
+                    {isDeleteAllLoading ? 'Löschen...' : 'Alle löschen'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : null}
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={handleCreate}>
+                <Plus className="h-4 w-4 mr-2" />
+                {model} hinzufügen
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{model} erstellen</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                {columns.filter((c) => !c.render).map(column => (
+                  <div key={column.key} className="space-y-2">
+                    <label className="text-sm font-medium">
+                      {column.label}
+                      {column.required && <span className="text-red-500 ml-1">*</span>}
+                    </label>
+                    {renderFormField(column)}
+                  </div>
+                ))}
+                <div className="flex justify-end space-x-2">
+                  <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                    Abbrechen
+                  </Button>
+                  <Button onClick={handleSave}>
+                    Erstellen
+                  </Button>
                 </div>
-              ))}
-              <div className="flex justify-end space-x-2">
-                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleSave}>
-                  Create
-                </Button>
               </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="rounded-md border">
@@ -322,7 +394,7 @@ export function DataTable({
                   </div>
                 </TableHead>
               ))}
-              <TableHead className="w-24">Actions</TableHead>
+              <TableHead className="w-24">Aktionen</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -360,7 +432,7 @@ export function DataTable({
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit {model}</DialogTitle>
+            <DialogTitle>{model} bearbeiten</DialogTitle>
           </DialogHeader>
             <div className="space-y-4">
               {columns.filter((c) => !c.render).map(column => (
@@ -374,10 +446,10 @@ export function DataTable({
               ))}
             <div className="flex justify-end space-x-2">
                 <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                  Cancel
+                  Abbrechen
                 </Button>
                 <Button onClick={handleSave}>
-                  Save Changes
+                  Änderungen speichern
                 </Button>
               </div>
           </div>

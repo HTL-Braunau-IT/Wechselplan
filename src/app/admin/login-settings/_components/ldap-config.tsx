@@ -38,7 +38,7 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 		async function fetchConfig() {
 			try {
 				const response = await fetch('/api/auth/ldap-config')
-				if (!response.ok) throw new Error('Failed to fetch LDAP configuration')
+				if (!response.ok) throw new Error('Laden fehlgeschlagen LDAP configuration')
 				const data = await response.json() as LDAPConfig
 				setConfig({
 					serverUrl: data.serverUrl ?? '',
@@ -52,7 +52,7 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 					teacherGroups: data.teacherGroups ?? [],
 				})
 			} catch (err) {
-				setError(err instanceof Error ? err.message : 'Failed to load configuration')
+				setError(err instanceof Error ? err.message : 'Konfiguration konnte nicht geladen werden')
 			} finally {
 				setIsLoading(false)
 			}
@@ -69,7 +69,7 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 		}
 	}, [initialConfig])
 
-	const handleAddStudentGroup = () => {
+	const handleHinzufügenStudentGroup = () => {
 		if (!newStudentGroup.trim() || !config) return
 		setConfig({
 			...config,
@@ -78,7 +78,7 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 		setNewStudentGroup('')
 	}
 
-	const handleAddTeacherGroup = () => {
+	const handleHinzufügenTeacherGroup = () => {
 		if (!newTeacherGroup.trim() || !config) return
 		setConfig({
 			...config,
@@ -87,7 +87,7 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 		setNewTeacherGroup('')
 	}
 
-	const handleRemoveStudentGroup = (index: number) => {
+	const handleEntfernenStudentGroup = (index: number) => {
 		if (!config) return
 		setConfig({
 			...config,
@@ -95,7 +95,7 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 		})
 	}
 
-	const handleRemoveTeacherGroup = (index: number) => {
+	const handleEntfernenTeacherGroup = (index: number) => {
 		if (!config) return
 		setConfig({
 			...config,
@@ -114,7 +114,7 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 			console.log('LDAP config saved successfully')
 		} catch (err) {
 			console.error('Error saving LDAP config:', err)
-			setError(err instanceof Error ? err.message : 'Failed to save configuration')
+			setError(err instanceof Error ? err.message : 'Konfiguration konnte nicht gespeichert werden')
 		} finally {
 			setIsSaving(false)
 		}
@@ -124,7 +124,7 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 		return (
 			<Card>
 				<CardContent className="p-6">
-					<div className="text-sm text-muted-foreground">Loading configuration...</div>
+					<div className="text-sm text-muted-foreground">Konfiguration wird geladen...</div>
 				</CardContent>
 			</Card>
 		)
@@ -136,7 +136,7 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 		return (
 			<Card>
 				<CardContent className="p-6">
-					<div className="text-sm text-muted-foreground">Failed to load configuration</div>
+					<div className="text-sm text-muted-foreground">Konfiguration konnte nicht geladen werden</div>
 				</CardContent>
 			</Card>
 		)
@@ -145,9 +145,9 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle>LDAP Configuration</CardTitle>
+				<CardTitle>LDAP-Konfiguration</CardTitle>
 				<CardDescription>
-					Configure LDAP authentication settings for your application
+					LDAP-Authentifizierungseinstellungen für die Anwendung konfigurieren
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-4">
@@ -159,7 +159,7 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 				)}
 
 				<div className="space-y-2">
-					<Label htmlFor="serverUrl">Server URL</Label>
+					<Label htmlFor="serverUrl">Server-URL</Label>
 					<Input
 						id="serverUrl"
 						value={config.serverUrl}
@@ -195,7 +195,7 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 				</div>
 
 				<div className="space-y-2">
-					<Label htmlFor="bindPassword">Bind Password</Label>
+					<Label htmlFor="bindPassword">Bind-Passwort</Label>
 					<Input
 						id="bindPassword"
 						type="password"
@@ -203,12 +203,12 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 						onChange={(e) =>
 							setConfig((prev) => prev && { ...prev, bindPassword: e.target.value })
 						}
-						placeholder="Enter bind password"
+						placeholder="Bind-Passwort eingeben"
 					/>
 				</div>
 
 				<div className="space-y-2">
-					<Label htmlFor="userSearchBase">User Search Base</Label>
+					<Label htmlFor="userSearchBase">Benutzersuche-Basis</Label>
 					<Input
 						id="userSearchBase"
 						value={config.userSearchBase}
@@ -220,7 +220,7 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 				</div>
 
 				<div className="space-y-2">
-					<Label htmlFor="userSearchFilter">User Search Filter</Label>
+					<Label htmlFor="userSearchFilter">Benutzersuche-Filter</Label>
 					<Input
 						id="userSearchFilter"
 						value={config.userSearchFilter}
@@ -239,20 +239,20 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 							setConfig((prev) => prev && { ...prev, enabled: checked })
 						}
 					/>
-					<Label htmlFor="enabled">Enable LDAP Authentication</Label>
+					<Label htmlFor="enabled">LDAP-Authentifizierung aktivieren</Label>
 				</div>
 
 				<div className="space-y-4">
 					<div className="space-y-2">
-						<Label>Student Groups</Label>
+						<Label>Schüler-Gruppen</Label>
 						<div className="flex gap-2">
 							<Input
 								value={newStudentGroup}
 								onChange={(e) => setNewStudentGroup(e.target.value)}
-								placeholder="Enter LDAP group DN"
+								placeholder="LDAP-Gruppen-DN eingeben"
 							/>
-							<Button onClick={handleAddStudentGroup} type="button">
-								Add
+							<Button onClick={handleHinzufügenStudentGroup} type="button">
+								Hinzufügen
 							</Button>
 						</div>
 						<div className="space-y-2 mt-2">
@@ -262,9 +262,9 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 									<Button
 										variant="ghost"
 										size="sm"
-										onClick={() => handleRemoveStudentGroup(index)}
+										onClick={() => handleEntfernenStudentGroup(index)}
 									>
-										Remove
+										Entfernen
 									</Button>
 								</div>
 							))}
@@ -272,15 +272,15 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 					</div>
 
 					<div className="space-y-2">
-						<Label>Teacher Groups</Label>
+						<Label>Lehrkräfte-Gruppen</Label>
 						<div className="flex gap-2">
 							<Input
 								value={newTeacherGroup}
 								onChange={(e) => setNewTeacherGroup(e.target.value)}
-								placeholder="Enter LDAP group DN"
+								placeholder="LDAP-Gruppen-DN eingeben"
 							/>
-							<Button onClick={handleAddTeacherGroup} type="button">
-								Add
+							<Button onClick={handleHinzufügenTeacherGroup} type="button">
+								Hinzufügen
 							</Button>
 						</div>
 						<div className="space-y-2 mt-2">
@@ -290,9 +290,9 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 									<Button
 										variant="ghost"
 										size="sm"
-										onClick={() => handleRemoveTeacherGroup(index)}
+										onClick={() => handleEntfernenTeacherGroup(index)}
 									>
-										Remove
+										Entfernen
 									</Button>
 								</div>
 							))}
@@ -302,7 +302,7 @@ export function LDAPConfig({ onSave, initialConfig }: LDAPConfigProps) {
 
 				<div className="flex justify-end">
 					<Button onClick={handleSave} disabled={isSaving}>
-						{isSaving ? 'Saving...' : 'Save Configuration'}
+						{isSaving ? 'Speichert...' : 'Konfiguration speichern'}
 					</Button>
 				</div>
 			</CardContent>

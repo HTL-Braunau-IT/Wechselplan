@@ -3,6 +3,10 @@
 import { useState, useEffect } from 'react'
 import { DataTable } from './data-table'
 import type { Column } from './data-table'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { RefreshCw } from 'lucide-react'
+import { ClassStudentSyncDialog } from './class-student-sync-dialog'
 
 interface Class {
   id: number
@@ -10,6 +14,11 @@ interface Class {
   description?: string
   classHeadId?: number
   classLeadId?: number
+  externalId?: string | null
+  externalSource?: string | null
+  isActive?: boolean
+  deactivatedAt?: string | null
+  lastSyncedAt?: string | null
   createdAt: string
   updatedAt: string
   classHead?: { id: number; firstName: string; lastName: string }
@@ -20,27 +29,52 @@ export function ClassTab() {
   const [classes, setClasses] = useState<Class[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [teachers, setTeachers] = useState<{ id: number; firstName: string; lastName: string }[]>([])
+  const [isSyncOpen, setIsSyncOpen] = useState(false)
 
   const columns: Column[] = [
     { key: 'id', label: 'ID', type: 'number', readonly: true, sortable: true },
     { key: 'name', label: 'Name', type: 'text', required: true, sortable: true },
-    { key: 'description', label: 'Description', type: 'textarea', sortable: true },
+    { key: 'description', label: 'Beschreibung', type: 'textarea', sortable: true },
     { 
       key: 'classHeadId', 
-      label: 'Class Head', 
+      label: 'Klassenvorstand', 
       type: 'select', 
-      options: [{ value: '', label: 'None' }, ...teachers.map(t => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))],
+      options: [{ value: '', label: 'Kein Eintrag' }, ...teachers.map(t => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))],
       sortable: true
     },
     { 
       key: 'classLeadId', 
-      label: 'Class Lead', 
+      label: 'Klassenleitung', 
       type: 'select', 
-      options: [{ value: '', label: 'None' }, ...teachers.map(t => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))],
+      options: [{ value: '', label: 'Kein Eintrag' }, ...teachers.map(t => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))],
       sortable: true
     },
-    { key: 'createdAt', label: 'Created At', type: 'date', readonly: true, sortable: true },
-    { key: 'updatedAt', label: 'Updated At', type: 'date', readonly: true, sortable: true }
+    {
+      key: 'isActive',
+      label: 'Aktiv',
+      type: 'boolean',
+      readonly: true,
+      sortable: true,
+      render: (item) => (
+        <Badge variant={item.isActive === false ? 'outline' : 'default'}>
+          {item.isActive === false ? 'inaktiv' : 'aktiv'}
+        </Badge>
+      ),
+    },
+    {
+      key: 'externalId',
+      label: 'Entra group id',
+      type: 'text',
+      readonly: true,
+      sortable: true,
+      render: (item) => (
+        <span className="font-mono text-xs">{(item.externalId as string | null | undefined) ?? '-'}</span>
+      ),
+    },
+    { key: 'externalSource', label: 'Quelle', type: 'text', readonly: true, sortable: true },
+    { key: 'lastSyncedAt', label: 'Zuletzt synchronisiert', type: 'date', readonly: true, sortable: true },
+    { key: 'createdAt', label: 'Erstellt am', type: 'date', readonly: true, sortable: true },
+    { key: 'updatedAt', label: 'Aktualisiert am', type: 'date', readonly: true, sortable: true }
   ]
 
   const fetchClasses = async () => {
@@ -88,7 +122,7 @@ export function ClassTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to create class')
+      throw new Error(error.error ?? 'Klasse konnte nicht erstellt werden')
     }
     
     return response.json() as Promise<Record<string, unknown>>
@@ -103,7 +137,7 @@ export function ClassTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to update class')
+      throw new Error(error.error ?? 'Klasse konnte nicht aktualisiert werden')
     }
     
     return response.json() as Promise<Record<string, unknown>>
@@ -116,20 +150,52 @@ export function ClassTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to delete class')
+      throw new Error(error.error ?? 'Klasse konnte nicht gelöscht werden')
     }
   }
 
+  const handleDeleteAll = async (): Promise<{ deleted?: Record<string, number> }> => {
+    const response = await fetch('/api/admin/data?model=class&bulk=true', {
+      method: 'DELETE'
+    })
+
+    if (!response.ok) {
+      const error = await response.json() as { error?: string }
+      throw new Error(error.error ?? 'Klassen konnten nicht gelöscht werden')
+    }
+
+    return response.json() as Promise<{ deleted?: Record<string, number> }>
+  }
+
   return (
-    <DataTable
-      model="Class"
-      columns={columns}
-      data={classes as unknown as Record<string, unknown>[]}
-      onRefresh={fetchClasses}
-      onEdit={handleEdit}
-      onDelete={handleDelete}
-      onCreate={handleCreate}
-      isLoading={isLoading}
-    />
+    <div className="space-y-4">
+      <div className="flex items-center justify-end">
+        <Button onClick={() => setIsSyncOpen(true)} variant="secondary">
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Klassen + Schüler mit Entra synchronisieren
+        </Button>
+      </div>
+
+      <DataTable
+        model="Class"
+        columns={columns}
+        data={classes as unknown as Record<string, unknown>[]}
+        onRefresh={fetchClasses}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        onDeleteAll={handleDeleteAll}
+        deleteAllLabel="Alle Klassen löschen"
+        onCreate={handleCreate}
+        isLoading={isLoading}
+      />
+
+      <ClassStudentSyncDialog
+        open={isSyncOpen}
+        onOpenChange={setIsSyncOpen}
+        onCompleted={() => {
+          void fetchClasses()
+        }}
+      />
+    </div>
   )
 }

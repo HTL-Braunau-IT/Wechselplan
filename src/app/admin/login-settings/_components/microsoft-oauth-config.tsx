@@ -42,7 +42,7 @@ export function MicrosoftOAuthConfig({ onSave, initialConfig }: MicrosoftOAuthCo
 		try {
 			await onSave(config)
 		} catch (err) {
-			setError(err instanceof Error ? err.message : 'Failed to save configuration')
+			setError(err instanceof Error ? err.message : 'Konfiguration konnte nicht gespeichert werden')
 		} finally {
 			setIsSaving(false)
 		}
@@ -51,9 +51,9 @@ export function MicrosoftOAuthConfig({ onSave, initialConfig }: MicrosoftOAuthCo
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle>Microsoft 365 OAuth Configuration</CardTitle>
+				<CardTitle>Microsoft 365 OAuth-Konfiguration</CardTitle>
 				<CardDescription>
-					Configure Microsoft 365 authentication settings for your application
+					Microsoft 365-Authentifizierungseinstellungen für die Anwendung konfigurieren
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-4">
@@ -72,7 +72,7 @@ export function MicrosoftOAuthConfig({ onSave, initialConfig }: MicrosoftOAuthCo
 						onChange={(e) =>
 							setConfig((prev) => ({ ...prev, clientId: e.target.value }))
 						}
-						placeholder="Enter your Azure AD client ID"
+						placeholder="Azure AD Client-ID eingeben"
 					/>
 				</div>
 
@@ -85,7 +85,7 @@ export function MicrosoftOAuthConfig({ onSave, initialConfig }: MicrosoftOAuthCo
 						onChange={(e) =>
 							setConfig((prev) => ({ ...prev, clientSecret: e.target.value }))
 						}
-						placeholder="Enter your Azure AD client secret"
+						placeholder="Azure AD Client-Secret eingeben"
 					/>
 				</div>
 
@@ -97,7 +97,7 @@ export function MicrosoftOAuthConfig({ onSave, initialConfig }: MicrosoftOAuthCo
 						onChange={(e) =>
 							setConfig((prev) => ({ ...prev, tenantId: e.target.value }))
 						}
-						placeholder="Enter your Azure AD tenant ID"
+						placeholder="Azure AD Tenant-ID eingeben"
 					/>
 				</div>
 
@@ -109,7 +109,7 @@ export function MicrosoftOAuthConfig({ onSave, initialConfig }: MicrosoftOAuthCo
 						onChange={(e) =>
 							setConfig((prev) => ({ ...prev, redirectUri: e.target.value }))
 						}
-						placeholder="Enter your redirect URI"
+						placeholder="Redirect-URI eingeben"
 					/>
 				</div>
 
@@ -121,12 +121,12 @@ export function MicrosoftOAuthConfig({ onSave, initialConfig }: MicrosoftOAuthCo
 							setConfig((prev) => ({ ...prev, enabled: checked }))
 						}
 					/>
-					<Label htmlFor="enabled">Enable Microsoft 365 Authentication</Label>
+					<Label htmlFor="enabled">Microsoft 365-Authentifizierung aktivieren</Label>
 				</div>
 
 				<div className="flex justify-end">
 					<Button onClick={handleSave} disabled={isSaving}>
-						{isSaving ? 'Saving...' : 'Save Configuration'}
+						{isSaving ? 'Speichert...' : 'Konfiguration speichern'}
 					</Button>
 				</div>
 			</CardContent>

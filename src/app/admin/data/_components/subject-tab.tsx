@@ -20,8 +20,8 @@ export function SubjectTab() {
     { key: 'id', label: 'ID', type: 'number', readonly: true },
     { key: 'name', label: 'Name', type: 'text', required: true },
     { key: 'description', label: 'Description', type: 'textarea' },
-    { key: 'createdAt', label: 'Created At', type: 'date', readonly: true },
-    { key: 'updatedAt', label: 'Updated At', type: 'date', readonly: true }
+    { key: 'createdAt', label: 'Erstellt am', type: 'date', readonly: true },
+    { key: 'updatedAt', label: 'Aktualisiert am', type: 'date', readonly: true }
   ]
 
   const fetchSubjects = async () => {
@@ -52,7 +52,7 @@ export function SubjectTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to create subject')
+      throw new Error(error.error ?? 'Erstellen fehlgeschlagen subject')
     }
     
     return response.json() as Promise<Record<string, unknown>>
@@ -67,7 +67,7 @@ export function SubjectTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to update subject')
+      throw new Error(error.error ?? 'Aktualisieren fehlgeschlagen subject')
     }
     
     return response.json() as Promise<Record<string, unknown>>
@@ -80,7 +80,7 @@ export function SubjectTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to delete subject')
+      throw new Error(error.error ?? 'Löschen fehlgeschlagen subject')
     }
   }
 
