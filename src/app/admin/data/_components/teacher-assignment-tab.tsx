@@ -45,7 +45,7 @@ export function TeacherAssignmentTab() {
       options: classes.map(c => ({ value: c.id, label: c.name }))
     },
     { key: 'period', label: 'Period', type: 'text', required: true },
-    { key: 'groupId', label: 'Group ID', type: 'number', required: true },
+    { key: 'groupId', label: 'Gruppen-ID', type: 'number', required: true },
     { 
       key: 'teacherId', 
       label: 'Teacher', 
@@ -75,8 +75,8 @@ export function TeacherAssignmentTab() {
       options: rooms.map(r => ({ value: r.id, label: r.name }))
     },
     { key: 'selectedWeekday', label: 'Selected Weekday', type: 'number', required: true },
-    { key: 'createdAt', label: 'Created At', type: 'date', readonly: true },
-    { key: 'updatedAt', label: 'Updated At', type: 'date', readonly: true }
+    { key: 'createdAt', label: 'Erstellt am', type: 'date', readonly: true },
+    { key: 'updatedAt', label: 'Aktualisiert am', type: 'date', readonly: true }
   ]
 
   const fetchTeacherAssignments = async () => {
@@ -161,7 +161,7 @@ export function TeacherAssignmentTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to create teacher assignment')
+      throw new Error(error.error ?? 'Erstellen fehlgeschlagen teacher assignment')
     }
     
     return response.json() as Promise<Record<string, unknown>>
@@ -176,7 +176,7 @@ export function TeacherAssignmentTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to update teacher assignment')
+      throw new Error(error.error ?? 'Aktualisieren fehlgeschlagen teacher assignment')
     }
     
     return response.json() as Promise<Record<string, unknown>>
@@ -189,7 +189,7 @@ export function TeacherAssignmentTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to delete teacher assignment')
+      throw new Error(error.error ?? 'Löschen fehlgeschlagen teacher assignment')
     }
   }
 

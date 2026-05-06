@@ -19,8 +19,8 @@ export function SchedulePDFTab() {
   const columns: Column[] = [
     { key: 'id', label: 'ID', type: 'text', readonly: true },
     { key: 'classId', label: 'Class ID', type: 'text', required: true },
-    { key: 'createdAt', label: 'Created At', type: 'date', readonly: true },
-    { key: 'updatedAt', label: 'Updated At', type: 'date', readonly: true }
+    { key: 'createdAt', label: 'Erstellt am', type: 'date', readonly: true },
+    { key: 'updatedAt', label: 'Aktualisiert am', type: 'date', readonly: true }
   ]
 
   const fetchSchedulePDFs = async () => {
@@ -51,7 +51,7 @@ export function SchedulePDFTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to create schedule PDF')
+      throw new Error(error.error ?? 'Erstellen fehlgeschlagen schedule PDF')
     }
     
     return response.json() as Promise<Record<string, unknown>>
@@ -66,7 +66,7 @@ export function SchedulePDFTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to update schedule PDF')
+      throw new Error(error.error ?? 'Aktualisieren fehlgeschlagen schedule PDF')
     }
     
     return response.json() as Promise<Record<string, unknown>>
@@ -79,7 +79,7 @@ export function SchedulePDFTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to delete schedule PDF')
+      throw new Error(error.error ?? 'Löschen fehlgeschlagen schedule PDF')
     }
   }
 

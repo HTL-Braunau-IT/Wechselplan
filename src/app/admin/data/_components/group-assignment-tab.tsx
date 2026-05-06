@@ -18,10 +18,10 @@ export function GroupAssignmentTab() {
 
   const columns: Column[] = [
     { key: 'id', label: 'ID', type: 'number', readonly: true },
-    { key: 'groupId', label: 'Group ID', type: 'number', required: true },
+    { key: 'groupId', label: 'Gruppen-ID', type: 'number', required: true },
     { key: 'class', label: 'Class', type: 'text', required: true },
-    { key: 'createdAt', label: 'Created At', type: 'date', readonly: true },
-    { key: 'updatedAt', label: 'Updated At', type: 'date', readonly: true }
+    { key: 'createdAt', label: 'Erstellt am', type: 'date', readonly: true },
+    { key: 'updatedAt', label: 'Aktualisiert am', type: 'date', readonly: true }
   ]
 
   const fetchGroupAssignments = async () => {
@@ -52,7 +52,7 @@ export function GroupAssignmentTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to create group assignment')
+      throw new Error(error.error ?? 'Erstellen fehlgeschlagen group assignment')
     }
     
     return response.json() as Promise<Record<string, unknown>>
@@ -67,7 +67,7 @@ export function GroupAssignmentTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to update group assignment')
+      throw new Error(error.error ?? 'Aktualisieren fehlgeschlagen group assignment')
     }
     
     return response.json() as Promise<Record<string, unknown>>
@@ -80,7 +80,7 @@ export function GroupAssignmentTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to delete group assignment')
+      throw new Error(error.error ?? 'Löschen fehlgeschlagen group assignment')
     }
   }
 

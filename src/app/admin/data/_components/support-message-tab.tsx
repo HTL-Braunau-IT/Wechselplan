@@ -22,8 +22,8 @@ export function SupportMessageTab() {
     { key: 'name', label: 'Name', type: 'text', required: true },
     { key: 'message', label: 'Message', type: 'textarea', required: true },
     { key: 'currentUri', label: 'Current URI', type: 'text' },
-    { key: 'createdAt', label: 'Created At', type: 'date', readonly: true },
-    { key: 'updatedAt', label: 'Updated At', type: 'date', readonly: true }
+    { key: 'createdAt', label: 'Erstellt am', type: 'date', readonly: true },
+    { key: 'updatedAt', label: 'Aktualisiert am', type: 'date', readonly: true }
   ]
 
   const fetchSupportMessages = async () => {
@@ -54,7 +54,7 @@ export function SupportMessageTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to create support message')
+      throw new Error(error.error ?? 'Erstellen fehlgeschlagen support message')
     }
     
     return response.json() as Promise<Record<string, unknown>>
@@ -69,7 +69,7 @@ export function SupportMessageTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to update support message')
+      throw new Error(error.error ?? 'Aktualisieren fehlgeschlagen support message')
     }
     
     return response.json() as Promise<Record<string, unknown>>
@@ -82,7 +82,7 @@ export function SupportMessageTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to delete support message')
+      throw new Error(error.error ?? 'Löschen fehlgeschlagen support message')
     }
   }
 

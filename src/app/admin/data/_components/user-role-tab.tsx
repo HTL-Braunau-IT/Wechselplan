@@ -28,8 +28,8 @@ export function UserRoleTab() {
       required: true,
       options: roles.map(r => ({ value: r.id, label: r.name }))
     },
-    { key: 'createdAt', label: 'Created At', type: 'date', readonly: true },
-    { key: 'updatedAt', label: 'Updated At', type: 'date', readonly: true }
+    { key: 'createdAt', label: 'Erstellt am', type: 'date', readonly: true },
+    { key: 'updatedAt', label: 'Aktualisiert am', type: 'date', readonly: true }
   ]
 
   const fetchUserRoles = async () => {
@@ -76,7 +76,7 @@ export function UserRoleTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to create user role')
+      throw new Error(error.error ?? 'Erstellen fehlgeschlagen user role')
     }
     
     return response.json() as Promise<Record<string, unknown>>
@@ -91,7 +91,7 @@ export function UserRoleTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to update user role')
+      throw new Error(error.error ?? 'Aktualisieren fehlgeschlagen user role')
     }
     
     return response.json() as Promise<Record<string, unknown>>
@@ -104,7 +104,7 @@ export function UserRoleTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to delete user role')
+      throw new Error(error.error ?? 'Löschen fehlgeschlagen user role')
     }
   }
 

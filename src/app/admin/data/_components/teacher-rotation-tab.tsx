@@ -22,12 +22,12 @@ export function TeacherRotationTab() {
   const columns: Column[] = [
     { key: 'id', label: 'ID', type: 'number', readonly: true },
     { key: 'classId', label: 'Class ID', type: 'number', required: true },
-    { key: 'groupId', label: 'Group ID', type: 'number', required: true },
+    { key: 'groupId', label: 'Gruppen-ID', type: 'number', required: true },
     { key: 'teacherId', label: 'Teacher ID', type: 'number', required: true },
     { key: 'turnId', label: 'Turn ID', type: 'text', required: true },
     { key: 'period', label: 'Period', type: 'text', required: true },
-    { key: 'createdAt', label: 'Created At', type: 'date', readonly: true },
-    { key: 'updatedAt', label: 'Updated At', type: 'date', readonly: true }
+    { key: 'createdAt', label: 'Erstellt am', type: 'date', readonly: true },
+    { key: 'updatedAt', label: 'Aktualisiert am', type: 'date', readonly: true }
   ]
 
   const fetchTeacherRotations = async () => {
@@ -58,7 +58,7 @@ export function TeacherRotationTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to create teacher rotation')
+      throw new Error(error.error ?? 'Erstellen fehlgeschlagen teacher rotation')
     }
     
     return response.json() as Promise<Record<string, unknown>>
@@ -73,7 +73,7 @@ export function TeacherRotationTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to update teacher rotation')
+      throw new Error(error.error ?? 'Aktualisieren fehlgeschlagen teacher rotation')
     }
     
     return response.json() as Promise<Record<string, unknown>>
@@ -86,7 +86,7 @@ export function TeacherRotationTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to delete teacher rotation')
+      throw new Error(error.error ?? 'Löschen fehlgeschlagen teacher rotation')
     }
   }
 

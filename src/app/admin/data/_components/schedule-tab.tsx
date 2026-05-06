@@ -42,8 +42,8 @@ export function ScheduleTab() {
       options: [{ value: '', label: 'None' }, ...classes.map(c => ({ value: c.id, label: c.name }))]
     },
     { key: 'semesterPlanning', label: 'Semester Planning', type: 'text' },
-    { key: 'createdAt', label: 'Created At', type: 'date', readonly: true },
-    { key: 'updatedAt', label: 'Updated At', type: 'date', readonly: true }
+    { key: 'createdAt', label: 'Erstellt am', type: 'date', readonly: true },
+    { key: 'updatedAt', label: 'Aktualisiert am', type: 'date', readonly: true }
   ]
 
   const fetchSchedules = async () => {
@@ -92,7 +92,7 @@ export function ScheduleTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to create schedule')
+      throw new Error(error.error ?? 'Erstellen fehlgeschlagen schedule')
     }
     
     return response.json() as Promise<Record<string, unknown>>
@@ -107,7 +107,7 @@ export function ScheduleTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to update schedule')
+      throw new Error(error.error ?? 'Aktualisieren fehlgeschlagen schedule')
     }
     
     return response.json() as Promise<Record<string, unknown>>
@@ -120,7 +120,7 @@ export function ScheduleTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to delete schedule')
+      throw new Error(error.error ?? 'Löschen fehlgeschlagen schedule')
     }
   }
 

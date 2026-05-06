@@ -24,8 +24,8 @@ export function ScheduleTimeTab() {
     { key: 'endTime', label: 'End Time', type: 'text', required: true },
     { key: 'hours', label: 'Hours', type: 'number', required: true },
     { key: 'period', label: 'Period', type: 'text', required: true },
-    { key: 'createdAt', label: 'Created At', type: 'date', readonly: true },
-    { key: 'updatedAt', label: 'Updated At', type: 'date', readonly: true }
+    { key: 'createdAt', label: 'Erstellt am', type: 'date', readonly: true },
+    { key: 'updatedAt', label: 'Aktualisiert am', type: 'date', readonly: true }
   ]
 
   const fetchScheduleTimes = async () => {
@@ -56,7 +56,7 @@ export function ScheduleTimeTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to create schedule time')
+      throw new Error(error.error ?? 'Erstellen fehlgeschlagen schedule time')
     }
     
     return response.json() as Promise<Record<string, unknown>>
@@ -71,7 +71,7 @@ export function ScheduleTimeTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to update schedule time')
+      throw new Error(error.error ?? 'Aktualisieren fehlgeschlagen schedule time')
     }
     
     return response.json() as Promise<Record<string, unknown>>
@@ -84,7 +84,7 @@ export function ScheduleTimeTab() {
     
     if (!response.ok) {
       const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Failed to delete schedule time')
+      throw new Error(error.error ?? 'Löschen fehlgeschlagen schedule time')
     }
   }
 

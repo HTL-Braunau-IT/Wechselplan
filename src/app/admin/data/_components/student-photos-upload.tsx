@@ -96,11 +96,11 @@ export function StudentPhotosUpload() {
   const handleUpload = async (forAllClasses: boolean) => {
     const filesToUse = forAllClasses ? allClassesFiles : files
     if (!forAllClasses && !selectedClassId) {
-      setError('Select a class and at least one file.')
+      setError('Bitte Klasse und mindestens eine Datei auswaehlen.')
       return
     }
     if (!filesToUse || filesToUse.length === 0) {
-      setError(forAllClasses ? 'Select at least one file.' : 'Select a class and at least one file.')
+      setError(forAllClasses ? 'Bitte mindestens eine Datei auswaehlen.' : 'Bitte Klasse und mindestens eine Datei auswaehlen.')
       return
     }
     setError(null)
@@ -137,7 +137,7 @@ export function StudentPhotosUpload() {
           collectedResults.push({
             filename: file.name,
             success: false,
-            error: data.error ?? 'Upload failed'
+            error: data.error ?? 'Upload fehlgeschlagen'
           })
         }
         setResults([...collectedResults])
@@ -147,7 +147,7 @@ export function StudentPhotosUpload() {
       setAllClassesFolderName(null)
     } catch (err) {
       console.error('Upload error:', err)
-      setError('Upload failed')
+      setError('Upload fehlgeschlagen')
     } finally {
       setUploading(false)
       setProgressDone(true)
@@ -166,18 +166,18 @@ export function StudentPhotosUpload() {
   return (
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">
-        File names must be <strong>LastName_FirstName</strong> (e.g. Mustermann_Max.jpg). Photos are
-        stored one per student and overwritten on re-upload.
+        Dateinamen muessen <strong>Nachname_Vorname</strong> sein (z. B. Mustermann_Max.jpg).
+        Pro Schueler wird ein Foto gespeichert und bei erneutem Upload ueberschrieben.
       </p>
 
       <div className="space-y-4">
-        <h4 className="text-sm font-medium">Upload for one class</h4>
+        <h4 className="text-sm font-medium">Upload fuer eine Klasse</h4>
         <div className="flex flex-wrap items-end gap-4">
           <div className="space-y-2">
-            <Label htmlFor="photo-class">Class</Label>
+            <Label htmlFor="photo-class">Klasse</Label>
             <Select value={selectedClassId} onValueChange={setSelectedClassId}>
               <SelectTrigger id="photo-class" className="w-[200px]">
-                <SelectValue placeholder="Select class" />
+                <SelectValue placeholder="Klasse auswaehlen" />
               </SelectTrigger>
               <SelectContent>
                 {classes.map((c) => (
@@ -189,7 +189,7 @@ export function StudentPhotosUpload() {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="photo-files">Files</Label>
+            <Label htmlFor="photo-files">Dateien</Label>
             <input
               id="photo-files"
               type="file"
@@ -204,21 +204,22 @@ export function StudentPhotosUpload() {
             disabled={uploading || !selectedClassId || !files?.length}
           >
             <Upload className="mr-2 h-4 w-4" />
-            {uploading ? 'Uploading…' : 'Upload'}
+            {uploading ? 'Lade hoch…' : 'Hochladen'}
           </Button>
         </div>
       </div>
 
       <div className="space-y-4 border-t pt-4">
-        <h4 className="text-sm font-medium">Import for all classes at once</h4>
+        <h4 className="text-sm font-medium">Import fuer alle Klassen auf einmal</h4>
         <p className="text-sm text-muted-foreground">
-          Select a folder or multiple files; each image is matched to students by name across all
-          classes. If one or more students have that first and last name, the same photo is saved for
-          all of them. If none match, the file is skipped and reported.
+          Waehlen Sie einen Ordner oder mehrere Dateien; jedes Bild wird klassenuebergreifend per Name
+          Schuelern zugeordnet. Wenn mehrere Schueler denselben Vor- und Nachnamen haben, wird dasselbe
+          Foto fuer alle gespeichert. Wenn kein Treffer gefunden wird, wird die Datei uebersprungen und
+          gemeldet.
         </p>
         <div className="flex flex-wrap items-end gap-4">
           <div className="space-y-2">
-            <Label htmlFor="photo-files-all">Files</Label>
+            <Label htmlFor="photo-files-all">Dateien</Label>
             <input
               id="photo-files-all"
               type="file"
@@ -231,7 +232,7 @@ export function StudentPhotosUpload() {
           <div className="space-y-2">
             <Label htmlFor="photo-folder-all" className="flex items-center gap-1.5">
               <FolderOpen className="h-4 w-4" />
-              Or select folder
+              Oder Ordner auswaehlen
             </Label>
             <input
               id="photo-folder-all"
@@ -248,12 +249,12 @@ export function StudentPhotosUpload() {
             disabled={uploading || !allClassesFiles?.length}
           >
             <Upload className="mr-2 h-4 w-4" />
-            {uploading ? 'Uploading…' : 'Import all'}
+            {uploading ? 'Lade hoch…' : 'Alle importieren'}
           </Button>
         </div>
         {allClassesFolderName != null && allClassesFiles != null && allClassesFiles.length > 0 && (
           <p className="text-sm text-muted-foreground">
-            Folder “{allClassesFolderName}”: {allClassesFiles.length} file(s) selected.
+            Ordner "{allClassesFolderName}": {allClassesFiles.length} Datei(en) ausgewaehlt.
           </p>
         )}
       </div>
@@ -264,7 +265,7 @@ export function StudentPhotosUpload() {
       )}
       {results.length > 0 && !progressOpen && (
         <div className="space-y-2">
-          <Label>Last upload</Label>
+          <Label>Letzter Upload</Label>
           <ul className="max-h-48 overflow-y-auto rounded-md border p-2 text-sm">
             {results.map((r, i) => (
               <li key={i} className="flex items-center gap-2 py-1">
@@ -292,14 +293,14 @@ export function StudentPhotosUpload() {
         <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => uploading && e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>
-              {progressDone ? 'Upload complete' : 'Uploading student photos'}
+              {progressDone ? 'Upload abgeschlossen' : 'Schuelerfotos werden hochgeladen'}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             {!progressDone ? (
               <>
                 <p className="text-sm text-muted-foreground">
-                  Processing {progressCurrent} of {progressTotal}
+                  Verarbeite {progressCurrent} von {progressTotal}
                 </p>
                 {progressFileName != null && (
                   <>
@@ -316,14 +317,14 @@ export function StudentPhotosUpload() {
             ) : (
               <>
                 <p className="text-sm text-muted-foreground">
-                  {results.filter((r) => r.success).length} succeeded, {results.filter((r) => !r.success).length} failed.
+                  {results.filter((r) => r.success).length} erfolgreich, {results.filter((r) => !r.success).length} fehlgeschlagen.
                 </p>
               </>
             )}
           </div>
           <DialogFooter>
             <Button onClick={closeProgressModal} disabled={!progressDone}>
-              Close
+              Schliessen
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,103 +1,78 @@
 'use client'
 
 import Link from 'next/link'
-import { Settings, Users, Trash2, Download, GraduationCap, Calendar, Clock, Database, Award } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
+import { usePathname } from 'next/navigation'
+import { Database, Settings } from 'lucide-react'
+import {
+  adminDataSectionGroups,
+  adminDataSections,
+} from '@/app/admin/data/_components/data-sections'
+import { useEntitlements } from '@/contexts/entitlements-context'
+import { cn } from '@/lib/utils'
 
 export function AdminMenu() {
-  const { t } = useTranslation(['admin', 'common'])
+  const pathname = usePathname()
+  const { isFeatureEnabled } = useEntitlements()
+
+  const groupedSections = Object.entries(adminDataSectionGroups).map(([id, label]) => ({
+    label,
+    items: adminDataSections.filter(
+      (section) =>
+        section.group === id &&
+        (!section.requiresFeature || isFeatureEnabled(section.requiresFeature))
+    ),
+  }))
 
   return (
-    <div className="w-64 bg-background border-r p-4 min-h-screen">
-      <nav className="space-y-2">
-        <Link
-          href="/admin/data"
-          className="flex items-center space-x-2 p-2 hover:bg-accent hover:text-accent-foreground rounded-lg"
-          aria-label="Data Management"
-        >
-          <Database className="h-5 w-5" />
-          <span>Data Management</span>
-        </Link>
-        <Link
-          href="/admin/students"
-          className="flex items-center space-x-2 p-2 hover:bg-accent hover:text-accent-foreground rounded-lg"
-          aria-label={t('studentAdministration')}
-        >
-          <Users className="h-5 w-5" />
-          <span>{t('studentAdministration')}</span>
-        </Link>
-        <Link
-          href="/admin/students/import"
-          className="flex items-center space-x-2 p-2 hover:bg-accent hover:text-accent-foreground rounded-lg"
-          aria-label={t('importStudents')}
-        >
-          <Download className="h-5 w-5" />
-          <span>{t('importStudents')}</span>
-        </Link>
-        <Link
-          href="/admin/teachers/import"
-          className="flex items-center space-x-2 p-2 hover:bg-accent hover:text-accent-foreground rounded-lg"
-          aria-label={t('importTeachers')}
-        >
-          <GraduationCap className="h-5 w-5" />
-          <span>{t('importTeachers')}</span>
-        </Link>
-        <Link
-          href="/admin/settings"
-          className="flex items-center space-x-2 p-2 hover:bg-accent hover:text-accent-foreground rounded-lg"
-          aria-label={t('settings.title')}
-        >
-          <Settings className="h-5 w-5" />
-          <span>{t('settings.title')}</span>
-        </Link>
-        <Link
-          href="/admin/login-settings"
-          className="flex items-center space-x-2 p-2 hover:bg-accent hover:text-accent-foreground rounded-lg"
-          aria-label={t('login-settings.title')}
-        >
-          <Settings className="h-5 w-5" />
-          <span>{t('login-settings.title')}</span>
-        </Link>
-        <Link
-          href="/admin/settings/holidays"
-          className="flex items-center space-x-2 p-2 hover:bg-accent hover:text-accent-foreground rounded-lg"
-          aria-label={t('settings.holidays.title')}
-        >
-          <Calendar className="h-5 w-5" />
-          <span>{t('settings.holidays.title')}</span>
-        </Link>
-        <Link
-          href="/admin/settings/times"
-          className="flex items-center space-x-2 p-2 hover:bg-accent hover:text-accent-foreground rounded-lg"
-          aria-label={t('settings.times.title')}
-        >
-          <Clock className="h-5 w-5" />
-          <span>{t('settings.times.title')}</span>
-        </Link>
-        <Link
-          href="/admin/settings/import"
-          className="flex items-center space-x-2 p-2 hover:bg-accent hover:text-accent-foreground rounded-lg"
-          aria-label={t('importData')}
-        >
-          <Download className="h-5 w-5" />
-          <span>{t('importData')}</span>
-        </Link>
-        <Link
-          href="/admin/grades"
-          className="flex items-center space-x-2 p-2 hover:bg-accent hover:text-accent-foreground rounded-lg"
-          aria-label="Grades Import/Export"
-        >
-          <Award className="h-5 w-5" />
-          <span>Grades Import/Export</span>
-        </Link>
-        <Link
-          href="/admin/students/delete-all"
-          className="flex items-center space-x-2 p-2 hover:bg-accent hover:text-accent-foreground rounded-lg w-full text-left text-destructive"
-          aria-label={t('deleteAllData')}
-        >
-          <Trash2 className="h-5 w-5" />
-          <span>{t('deleteAllData')}</span>
-        </Link>
+    <div className="w-72 bg-background border-r p-4 min-h-screen">
+      <div className="mb-4 flex items-center gap-2 px-2">
+        <Database className="h-5 w-5" />
+        <p className="text-sm font-semibold">Admin</p>
+      </div>
+
+      <nav className="space-y-4">
+        {groupedSections.map((group) => (
+          <div key={group.label} className="space-y-1">
+            <p className="px-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {group.label}
+            </p>
+            {group.items.map((item) => {
+              const Icon = item.icon
+              const href = `/admin/data/${item.slug}`
+              const isActive = pathname === href
+
+              return (
+                <Link
+                  key={item.slug}
+                  href={href}
+                  className={cn(
+                    'flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground',
+                    isActive && 'bg-accent text-accent-foreground'
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span>{item.label}</span>
+                </Link>
+              )
+            })}
+          </div>
+        ))}
+
+        <div className="space-y-1 pt-2">
+          <p className="px-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Einstellungen
+          </p>
+          <Link
+            href="/admin/settings/entra-sync"
+            className={cn(
+              'flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground',
+              pathname === '/admin/settings/entra-sync' && 'bg-accent text-accent-foreground'
+            )}
+          >
+            <Settings className="h-4 w-4" />
+            <span>Entra Sync</span>
+          </Link>
+        </div>
       </nav>
     </div>
   )
