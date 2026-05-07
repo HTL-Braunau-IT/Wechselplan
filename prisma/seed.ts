@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client'
+import { Prisma, PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
@@ -100,7 +100,7 @@ async function main() {
   // Seed Schedule Times
   console.log('⏰ Seeding schedule times...')
   
-  const scheduleTimes = [
+  const scheduleTimes: Prisma.ScheduleTimeCreateInput[] = [
     { startTime: '07:50', endTime: '10:30', hours: 3, period: 'AM' },
     { startTime: '07:50', endTime: '11:25', hours: 5, period: 'AM' },
     { startTime: '07:50', endTime: '12:15', hours: 6, period: 'AM' },
@@ -139,7 +139,7 @@ async function main() {
   // Seed Break Times
   console.log('☕ Seeding break times...')
   
-  const breakTimes = [
+  const breakTimes: Prisma.BreakTimeCreateInput[] = [
     { name: 'Vormittagspause 1', startTime: '08:45', endTime: '09:00', period: 'AM' },
     { name: 'Vormittagspause 2', startTime: '09:45', endTime: '09:55', period: 'AM' },
     { name: 'Vormittagspause 3', startTime: '10:45', endTime: '10:55', period: 'AM' },
@@ -267,12 +267,12 @@ async function main() {
   ]
 
   for (const contentName of learningContents) {
-    await prisma.learningContent.upsert({
+    await prisma.lookupValue.upsert({
       where: {
-        name: contentName
+        kind_name: { kind: 'LEARNING_CONTENT', name: contentName }
       },
       update: { name: contentName },
-      create: { name: contentName }
+      create: { kind: 'LEARNING_CONTENT', name: contentName }
     })
   }
 
@@ -336,12 +336,12 @@ async function main() {
   ]
 
   for (const roomName of rooms) {
-    await prisma.room.upsert({
+    await prisma.lookupValue.upsert({
       where: {
-        name: roomName
+        kind_name: { kind: 'ROOM', name: roomName }
       },
       update: { name: roomName, isCustom: false },
-      create: { name: roomName, isCustom: false }
+      create: { kind: 'ROOM', name: roomName, isCustom: false }
     })
   }
 
@@ -453,12 +453,12 @@ async function main() {
   ]
 
   for (const subjectName of subjects) {
-    await prisma.subject.upsert({
+    await prisma.lookupValue.upsert({
       where: {
-        name: subjectName
+        kind_name: { kind: 'SUBJECT', name: subjectName }
       },
       update: { name: subjectName, isCustom: false },
-      create: { name: subjectName, isCustom: false }
+      create: { kind: 'SUBJECT', name: subjectName, isCustom: false }
     })
   }
 

@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { RefreshCw } from 'lucide-react'
 import { TeacherSyncDialog } from './teacher-sync-dialog'
 import { TeacherPhoto } from '@/components/teacher-photo'
+import { adminGet, adminWrite } from './admin-data-client'
 
 interface Teacher {
   id: number
@@ -22,8 +23,8 @@ interface Teacher {
   lastSyncedAt?: string | null
   createdAt: string
   updatedAt: string
-  headClasses?: Record<string, unknown>[]
-  leadClasses?: Record<string, unknown>[]
+  headYears?: Record<string, unknown>[]
+  leadYears?: Record<string, unknown>[]
   assignments?: Record<string, unknown>[]
 }
 
@@ -48,9 +49,9 @@ export function TeacherTab() {
       ),
     },
     { key: 'id', label: 'ID', type: 'number', readonly: true, sortable: true },
-    { key: 'firstName', label: 'First Name', type: 'text', required: true, sortable: true },
-    { key: 'lastName', label: 'Last Name', type: 'text', required: true, sortable: true },
-    { key: 'username', label: 'Username', type: 'text', required: true, sortable: true },
+    { key: 'firstName', label: 'Vorname', type: 'text', required: true, sortable: true },
+    { key: 'lastName', label: 'Nachname', type: 'text', required: true, sortable: true },
+    { key: 'username', label: 'Benutzername', type: 'text', required: true, sortable: true },
     { key: 'email', label: 'Email', type: 'text', sortable: true },
     {
       key: 'isActive',
@@ -95,11 +96,8 @@ export function TeacherTab() {
   const fetchTeachers = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch('/api/admin/data?model=teacher')
-      if (response.ok) {
-        const data = await response.json() as Teacher[]
-        setTeachers(data)
-      }
+      const data = await adminGet<Teacher[]>('/api/admin/data?model=teacher')
+      setTeachers(data)
     } catch (error) {
       console.error('Fehler beim Laden der Lehrkräfte:', error)
     } finally {
@@ -112,57 +110,31 @@ export function TeacherTab() {
   }, [])
 
   const handleCreate = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
-    const response = await fetch('/api/admin/data?model=teacher', {
+    return adminWrite<Record<string, unknown>>('/api/admin/data?model=teacher', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     })
-    
-    if (!response.ok) {
-      const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Lehrkraft konnte nicht erstellt werden')
-    }
-    
-    return response.json() as Promise<Record<string, unknown>>
   }
 
   const handleEdit = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
-    const response = await fetch('/api/admin/data?model=teacher', {
+    return adminWrite<Record<string, unknown>>('/api/admin/data?model=teacher', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     })
-    
-    if (!response.ok) {
-      const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Lehrkraft konnte nicht aktualisiert werden')
-    }
-    
-    return response.json() as Promise<Record<string, unknown>>
   }
 
   const handleDelete = async (id: number): Promise<void> => {
-    const response = await fetch(`/api/admin/data?model=teacher&id=${id}`, {
+    await adminWrite<null>(`/api/admin/data?model=teacher&id=${id}`, {
       method: 'DELETE'
     })
-    
-    if (!response.ok) {
-      const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Lehrkraft konnte nicht gelöscht werden')
-    }
   }
 
   const handleDeleteAll = async (): Promise<{ deleted?: Record<string, number> }> => {
-    const response = await fetch('/api/admin/data?model=teacher&bulk=true', {
+    return adminWrite<{ deleted?: Record<string, number> }>('/api/admin/data?model=teacher&bulk=true', {
       method: 'DELETE'
     })
-
-    if (!response.ok) {
-      const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Lehrkräfte konnten nicht gelöscht werden')
-    }
-
-    return response.json() as Promise<{ deleted?: Record<string, number> }>
   }
 
   return (

@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/server/send-support-email-graph'
 import { captureError } from '@/lib/sentry'
+import { badRequest, ok, serverError } from '@/lib/api-response'
 
 interface NotifyTeachersRequest {
   classId: number
@@ -20,15 +20,14 @@ interface NotifyTeachersRequest {
  * @returns A JSON response indicating success or providing an error message
  */
 export async function POST(request: Request) {
+  let requestBody: NotifyTeachersRequest | Record<string, unknown> = {}
   try {
     const data = await request.json() as NotifyTeachersRequest
+    requestBody = data
     const { classId, className, teacherIds, scheduleLink } = data
 
     if (!classId || typeof classId !== 'number' || !className || !teacherIds || !Array.isArray(teacherIds)) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      )
+      return badRequest('Missing required fields')
     }
 
     // Fetch teacher details from database
@@ -50,13 +49,11 @@ export async function POST(request: Request) {
     const teachersWithEmails = teachers.filter(teacher => teacher.email)
 
     if (teachersWithEmails.length === 0) {
-      return NextResponse.json(
-        { error: 'No teachers with valid email addresses found' },
-        { status: 400 }
-      )
+      return badRequest('No teachers with valid email addresses found')
     }
 
     // Send emails to all teachers
+    let failedCount = 0
     const emailPromises = teachersWithEmails.map(async (teacher) => {
       const subject = `Wechselplan ${className}`
       const message = `Hallo ${teacher.firstName} ${teacher.lastName}!\n\nEs wurde ein Wechselplan für Klasse ${className} erstellt. Du findest den Plan unter ${scheduleLink}.\n\nViele Grüße,\nDas Wechselplan-Team`
@@ -67,6 +64,7 @@ export async function POST(request: Request) {
       } catch (emailError) {
         console.error(`Failed to send email to ${teacher.email}:`, emailError)
         // Don't throw here, we want to continue with other teachers
+        failedCount++
         captureError(emailError, {
           location: 'api/schedules/notify-teachers',
           type: 'send-teacher-email',
@@ -82,22 +80,20 @@ export async function POST(request: Request) {
     // Wait for all emails to be sent (or fail)
     await Promise.allSettled(emailPromises)
 
-    return NextResponse.json({ 
-      success: true, 
+    return ok({
       emailsSent: teachersWithEmails.length,
-      totalTeachers: teachers.length
+      totalTeachers: teachers.length,
+      failedEmails: failedCount
     })
 
   } catch (error) {
     console.error('Error in notify-teachers API:', error)
     captureError(error, {
       location: 'api/schedules/notify-teachers',
-      type: 'notify-teachers'
+      type: 'notify-teachers',
+      extra: { requestBody }
     })
-    return NextResponse.json(
-      { error: 'Failed to send teacher notifications' },
-      { status: 500 }
-    )
+    return serverError('Failed to send teacher notifications')
   }
 }
 

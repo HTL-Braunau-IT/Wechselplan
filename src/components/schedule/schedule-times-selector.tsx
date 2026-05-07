@@ -13,9 +13,13 @@ import { useScheduleTimes } from '@/hooks/use-schedule-times'
 import { useTeacherAssignments } from '@/hooks/use-teacher-assignments'
 import { useSaveScheduleTimes } from '@/hooks/use-schedule-times'
 import type { ScheduleTime, BreakTime } from '@/types/schedule'
+import { fetchAndUnwrap, parseJsonSafe, unwrapData } from '@/lib/api-client'
+import { useSchoolYear } from '@/contexts/school-year-context'
 
 interface ScheduleTimesSelectorProps {
   className: string | null
+  /** 1–5; when set, times are loaded/saved for that weekday’s schedule */
+  weekday?: number | null
   onSave?: () => void
   onCancel?: () => void
 }
@@ -26,7 +30,9 @@ interface ScheduleTimesSelectorProps {
  * Fetches teacher assignments to determine active periods, loads available schedule and break times,
  * and allows users to select or add new times for AM, PM, and lunch periods.
  */
-export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleTimesSelectorProps) {
+export function ScheduleTimesSelector({ className, weekday, onSave, onCancel }: ScheduleTimesSelectorProps) {
+  const { selectedYear } = useSchoolYear()
+  const schoolYearId = selectedYear?.id
   const [scheduleTimes, setScheduleTimes] = useState<ScheduleTime[]>([])
   const [breakTimes, setBreakTimes] = useState<BreakTime[]>([])
   const [selectedAMScheduleTime, setSelectedAMScheduleTime] = useState<number | null>(null)
@@ -40,26 +46,7 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
   const [error, setError] = useState<string | null>(null)
   const [isErrorDialogOpen, setIsErrorDialogOpen] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
-  const [isSubmittingScheduleTime, setIsSubmittingScheduleTime] = useState(false)
   const { t } = useTranslation(['admin', 'common', 'schedule'])
-
-  // New form states
-  const [newScheduleTime, setNewScheduleTime] = useState<Partial<ScheduleTime>>({
-    startTime: '',
-    endTime: '',
-    hours: 0,
-    period: 'AM'
-  })
-
-  const [newBreakTime, setNewBreakTime] = useState<Partial<BreakTime>>({
-    name: '',
-    startTime: '',
-    endTime: '',
-    period: 'AM'
-  })
-
-  const [isScheduleTimeFormOpen, setIsScheduleTimeFormOpen] = useState(false)
-  const [isBreakTimeFormOpen, setIsBreakTimeFormOpen] = useState(false)
 
   const [classId, setClassId] = useState<number | null>(null)
 
@@ -71,16 +58,16 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
       setClassId(classData.id)
     } else if (!className) {
       setClassId(null)
-      setError('Class ID is required')
+      setError(t('errors.classIdRequired'))
       setIsLoading(false)
     }
   }, [classData, className])
 
   // Fetch teacher assignments to determine periods
-  const { data: teacherAssignmentsData } = useTeacherAssignments(classId, null)
+  const wd = weekday != null && weekday >= 1 && weekday <= 5 ? weekday : null
+  const { data: teacherAssignmentsData } = useTeacherAssignments(classId, wd, schoolYearId)
 
-  // Fetch schedule times
-  useScheduleTimes(classId)
+  useScheduleTimes(classId, schoolYearId, wd ?? undefined)
 
   // Save mutation
   const saveTimesMutation = useSaveScheduleTimes()
@@ -90,7 +77,7 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
       return
     }
     void fetchData()
-  }, [className, classId, teacherAssignmentsData])
+  }, [className, classId, teacherAssignmentsData, wd, schoolYearId])
 
   const fetchData = async () => {
     try {
@@ -104,18 +91,14 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
       setPeriods(newPeriods)
 
       // Fetch schedule times
-      const scheduleResponse = await fetch('/api/admin/settings/schedule-times')
-      if (!scheduleResponse.ok) throw new Error('Failed to fetch schedule times')
-      const scheduleData = await scheduleResponse.json() as ScheduleTime[]
+      const scheduleData = await fetchAndUnwrap<ScheduleTime[]>('/api/admin/settings/schedule-times')
 
       // Filter schedule times based on periods in assignments
       const filteredScheduleTimes = scheduleData.filter(time => newPeriods.has(time.period))
       setScheduleTimes(filteredScheduleTimes)
 
       // Fetch break times
-      const breakResponse = await fetch('/api/admin/settings/break-times')
-      if (!breakResponse.ok) throw new Error('Failed to fetch break times')
-      const breakData = await breakResponse.json() as BreakTime[]
+      const breakData = await fetchAndUnwrap<BreakTime[]>('/api/admin/settings/break-times')
 
       // Filter break times based on periods and lunch breaks
       const filteredBreakTimes = breakData.filter(time => {
@@ -132,9 +115,12 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
       // Fetch saved times for this class
       setIsLoadingSavedTimes(true)
       try {
-        const savedTimesResponse = await fetch(`/api/schedules/times?classId=${classId}`)
+        const yearQ = schoolYearId != null ? `&schoolYearId=${schoolYearId}` : ''
+        const wdQ = wd != null ? `&weekday=${wd}` : ''
+        const savedTimesResponse = await fetch(`/api/schedules/times?classId=${classId}${yearQ}${wdQ}`)
         if (savedTimesResponse.ok) {
-          const savedTimes = await savedTimesResponse.json()
+          const savedPayload = await parseJsonSafe(savedTimesResponse)
+          const savedTimes = unwrapData<{ times: { scheduleTimes: Array<{ id: number; period: string }>; breakTimes: Array<{ id: number; period: string }> } }>(savedPayload)
 
           // Set selected schedule times
           if (savedTimes.times?.scheduleTimes && Array.isArray(savedTimes.times.scheduleTimes)) {
@@ -169,7 +155,7 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
 
     } catch (error) {
       console.error('Error fetching data:', error)
-      setError('Failed to load times')
+      setError(t('errors.loadTimes'))
     } finally {
       setIsLoading(false)
     }
@@ -217,6 +203,8 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
 
       await saveTimesMutation.mutateAsync({
         classId,
+        ...(schoolYearId != null && { schoolYearId }),
+        ...(wd != null && { weekday: wd }),
         scheduleTimes,
         breakTimes
       })
@@ -228,75 +216,6 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
       console.error('Error saving times:', error)
       setError(t('settings.times.errors.saveFailed'))
       setIsErrorDialogOpen(true)
-    }
-  }
-
-  const handleAddScheduleTime = async () => {
-    if (isSubmittingScheduleTime) return
-
-    try {
-      setIsSubmittingScheduleTime(true)
-      const response = await fetch('/api/admin/settings/schedule-times', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newScheduleTime),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to add schedule time')
-      }
-
-      const data = await response.json()
-      if (!data || typeof data.id !== 'number' || !['AM', 'PM'].includes(data.period as string)) {
-        throw new Error('Invalid response format')
-      }
-      const periodsArray = Array.from(periods)
-      if (periodsArray.includes(data.period as 'AM' | 'PM')) {
-        setScheduleTimes([...scheduleTimes, data as ScheduleTime])
-      }
-      setNewScheduleTime({
-        startTime: '',
-        endTime: '',
-        hours: 0,
-        period: 'AM'
-      })
-      setSuccess(t('settings.times.scheduleTimeAdded'))
-    } catch (error) {
-      console.error('Error adding schedule time:', error)
-      setError(t('settings.times.scheduleTimeError'))
-    } finally {
-      setIsSubmittingScheduleTime(false)
-    }
-  }
-
-  const handleAddBreakTime = async () => {
-    try {
-      const response = await fetch('/api/admin/settings/break-times', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newBreakTime),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to add break time')
-      }
-
-      const data = await response.json() as BreakTime
-      setBreakTimes([...breakTimes, data])
-      setNewBreakTime({
-        name: '',
-        startTime: '',
-        endTime: '',
-        period: 'AM'
-      })
-      setSuccess(t('settings.times.breakTimeAdded'))
-    } catch (error) {
-      console.error('Error adding break time:', error)
-      setError(t('settings.times.breakTimeError'))
     }
   }
 
@@ -313,6 +232,9 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
           <CardTitle>{t('settings.times.title')}</CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="mb-4 rounded-lg border bg-muted/50 p-4 text-sm text-muted-foreground">
+            {t('schedule:help.times')}
+          </div>
           {success && (
             <div className="mb-4 p-4 text-green-500 bg-green-50 rounded-md">
               {success}
@@ -450,153 +372,10 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
             </div>
           </div>
 
-          {/* Creation Forms */}
-          <div className="mt-8 grid grid-cols-2 gap-4">
-            <Card className="border-dashed">
-              <CardHeader className="cursor-pointer py-2" onClick={() => setIsScheduleTimeFormOpen(!isScheduleTimeFormOpen)}>
-                <CardTitle className="flex items-center justify-between text-sm">
-                  {t('settings.times.addNewScheduleTime')}
-                  <span className="text-sm text-gray-500">
-                    {isScheduleTimeFormOpen ? '▼' : '▶'}
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              {isScheduleTimeFormOpen && (
-                <CardContent className="pt-0">
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <Label htmlFor="startTime" className="text-sm">{t('settings.times.startTime')}</Label>
-                        <input
-                          type="time"
-                          id="startTime"
-                          value={newScheduleTime.startTime}
-                          onChange={(e) => setNewScheduleTime({ ...newScheduleTime, startTime: e.target.value })}
-                          className="w-full p-1.5 border rounded text-sm"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="endTime" className="text-sm">{t('settings.times.endTime')}</Label>
-                        <input
-                          type="time"
-                          id="endTime"
-                          value={newScheduleTime.endTime}
-                          onChange={(e) => setNewScheduleTime({ ...newScheduleTime, endTime: e.target.value })}
-                          className="w-full p-1.5 border rounded text-sm"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <Label htmlFor="hours" className="text-sm">{t('settings.times.hours')}</Label>
-                        <input
-                          type="number"
-                          id="hours"
-                          value={newScheduleTime.hours}
-                          onChange={(e) => setNewScheduleTime({ ...newScheduleTime, hours: e.target.valueAsNumber || 0 })}
-                          className="w-full p-1.5 border rounded text-sm"
-                          min="0"
-                          step="0.5"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="period" className="text-sm">{t('settings.times.period')}</Label>
-                        <select
-                          id="period"
-                          value={newScheduleTime.period}
-                          onChange={(e) => setNewScheduleTime({ ...newScheduleTime, period: e.target.value as 'AM' | 'PM' })}
-                          className="w-full p-1.5 border rounded text-sm"
-                        >
-                          {periods.has('AM') && <option value="AM">{t('settings.times.periods.AM')}</option>}
-                          {periods.has('PM') && <option value="PM">{t('settings.times.periods.PM')}</option>}
-                        </select>
-                      </div>
-                    </div>
-                    <Button
-                      onClick={handleAddScheduleTime}
-                      className="w-full text-sm py-1"
-                      disabled={isSubmittingScheduleTime}
-                    >
-                      {isSubmittingScheduleTime
-                        ? t('common:common.loading')
-                        : t('settings.times.addScheduleTime')}
-                    </Button>
-                  </div>
-                </CardContent>
-              )}
-            </Card>
-
-            <Card className="border-dashed">
-              <CardHeader className="cursor-pointer py-2" onClick={() => setIsBreakTimeFormOpen(!isBreakTimeFormOpen)}>
-                <CardTitle className="flex items-center justify-between text-sm">
-                  {t('settings.times.addNewBreakTime')}
-                  <span className="text-sm text-gray-500">
-                    {isBreakTimeFormOpen ? '▼' : '▶'}
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              {isBreakTimeFormOpen && (
-                <CardContent className="pt-0">
-                  <div className="space-y-2">
-                    <div>
-                      <Label htmlFor="breakName" className="text-sm">{t('settings.times.breakName')}</Label>
-                      <input
-                        type="text"
-                        id="breakName"
-                        value={newBreakTime.name}
-                        onChange={(e) => setNewBreakTime({ ...newBreakTime, name: e.target.value })}
-                        className="w-full p-1.5 border rounded text-sm"
-                        placeholder={t('settings.times.breakNamePlaceholder')}
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <Label htmlFor="breakStartTime" className="text-sm">{t('settings.times.startTime')}</Label>
-                        <input
-                          type="time"
-                          id="breakStartTime"
-                          value={newBreakTime.startTime}
-                          onChange={(e) => setNewBreakTime({ ...newBreakTime, startTime: e.target.value })}
-                          className="w-full p-1.5 border rounded text-sm"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="breakEndTime" className="text-sm">{t('settings.times.endTime')}</Label>
-                        <input
-                          type="time"
-                          id="breakEndTime"
-                          value={newBreakTime.endTime}
-                          onChange={(e) => setNewBreakTime({ ...newBreakTime, endTime: e.target.value })}
-                          className="w-full p-1.5 border rounded text-sm"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <Label htmlFor="breakPeriod" className="text-sm">{t('settings.times.period')}</Label>
-                      <select
-                        id="breakPeriod"
-                        value={newBreakTime.period}
-                        onChange={(e) => setNewBreakTime({ ...newBreakTime, period: e.target.value as 'AM' | 'PM' | 'LUNCH' })}
-                        className="w-full p-1.5 border rounded text-sm"
-                      >
-                        {periods.has('AM') && <option value="AM">{t('settings.times.periods.AM')}</option>}
-                        <option value="LUNCH">{t('settings.times.periods.LUNCH')}</option>
-                        {periods.has('PM') && <option value="PM">{t('settings.times.periods.PM')}</option>}
-                      </select>
-                    </div>
-                    <Button onClick={handleAddBreakTime} className="w-full text-sm py-1">
-                      {t('settings.times.addBreakTime')}
-                    </Button>
-                  </div>
-                </CardContent>
-              )}
-            </Card>
-          </div>
-
           <div className="mt-8 flex justify-end gap-4">
             {onCancel && (
               <Button variant="outline" onClick={onCancel}>
-                {t('common:common.cancel')}
+                {t('schedule:back')}
               </Button>
             )}
             <Button onClick={handleSave} disabled={saveTimesMutation.isPending}>

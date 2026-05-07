@@ -20,11 +20,26 @@ function isDisableFlagSet(): boolean {
   const v = env.DISABLE_ENTITLEMENTS
   if (v === undefined || v === '') return false
   const lower = v.toLowerCase()
-  return lower === 'true' || lower === '1' || lower === 'yes'
+  return lower === 'false' || lower === '0' || lower === 'no'
 }
 
 function hasLicenseConfig(): boolean {
   return Boolean(env.LICENSE_SERVER_URL && env.LICENSE_KEY)
+}
+
+function isNotenmanagementEnabled(): boolean {
+  return (env.NOTENMANAGEMENT ?? '').toLowerCase() === 'true'
+}
+
+/**
+ * Strips deployment-disabled feature keys from a license-derived feature list.
+ * Currently masks `notenmgmt_htl` unless the NOTENMANAGEMENT env flag is "true",
+ * so the Notenmanagement transfer integration can be turned off per deployment
+ * regardless of what the license server returns.
+ */
+function applyDeploymentMask(features: FeatureKey[]): FeatureKey[] {
+  if (isNotenmanagementEnabled()) return features
+  return features.filter((f) => f !== 'notenmgmt_htl')
 }
 
 async function fetchFromServer(): Promise<FeatureKey[]> {
@@ -51,35 +66,35 @@ async function fetchFromServer(): Promise<FeatureKey[]> {
 
 /**
  * Returns the list of enabled feature keys for this instance.
- * - If DISABLE_ENTITLEMENTS is set: returns all feature keys (no server call).
+ * - If DISABLE_ENTITLEMENTS indicates "disabled" (false/0/no): returns all feature keys (no server call).
  * - If LICENSE_SERVER_URL and LICENSE_KEY are set: fetches from server (with cache); on failure uses stale cache up to 24h, then empty.
  * - Otherwise: returns empty list (no premium features).
  */
 export async function getEnabledFeatures(): Promise<FeatureKey[]> {
   if (isDisableFlagSet()) {
-    return [...ALL_FEATURE_KEYS]
+    return applyDeploymentMask([...ALL_FEATURE_KEYS])
   }
 
   if (!hasLicenseConfig()) {
-    return []
+    return applyDeploymentMask([])
   }
 
   const now = Date.now()
 
   if (cache) {
     const age = now - cache.fetchedAt
-    if (age < CACHE_TTL_MS) return cache.features
+    if (age < CACHE_TTL_MS) return applyDeploymentMask(cache.features)
   }
 
   try {
     const features = await fetchFromServer()
     cache = { features, fetchedAt: now }
-    return features
+    return applyDeploymentMask(features)
   } catch {
     if (cache && now - cache.fetchedAt < STALE_WINDOW_MS) {
-      return cache.features
+      return applyDeploymentMask(cache.features)
     }
-    return []
+    return applyDeploymentMask([])
   }
 }
 

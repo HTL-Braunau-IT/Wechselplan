@@ -301,7 +301,7 @@ async function performMerge(tx: Prisma.TransactionClient, options: CliOptions): 
           teacherId,
           studentId: (row as unknown as { studentId: number }).studentId,
           classId: (row as unknown as { classId: number }).classId,
-          semester: (row as unknown as { semester: string }).semester,
+          semester: (row as unknown as { semester: 'first' | 'second' }).semester,
           schoolYearId: (row as unknown as { schoolYearId: number }).schoolYearId,
         },
       }),
@@ -342,7 +342,7 @@ async function performMerge(tx: Prisma.TransactionClient, options: CliOptions): 
           groupId: (row as unknown as { groupId: number }).groupId,
           schoolYearId: (row as unknown as { schoolYearId: number }).schoolYearId,
           date: (row as unknown as { date: Date }).date,
-          period: (row as unknown as { period: string }).period,
+          period: (row as unknown as { period: 'AM' | 'PM' }).period,
         },
       }),
       (id, teacherId) => tx.lehrstoffPerDay.update({ where: { id }, data: { teacherId } }).then(() => undefined),
@@ -364,7 +364,7 @@ async function performMerge(tx: Prisma.TransactionClient, options: CliOptions): 
           groupId: (row as unknown as { groupId: number }).groupId,
           schoolYearId: (row as unknown as { schoolYearId: number }).schoolYearId,
           date: (row as unknown as { date: Date }).date,
-          period: (row as unknown as { period: string }).period,
+          period: (row as unknown as { period: 'AM' | 'PM' }).period,
         },
       }),
       (id, teacherId) => tx.notenEntry.update({ where: { id }, data: { teacherId } }).then(() => undefined),
@@ -373,11 +373,11 @@ async function performMerge(tx: Prisma.TransactionClient, options: CliOptions): 
     rewired.notenEntries += notenEntryStats.rewired
     deduped.notenEntries += notenEntryStats.deduped
 
-    rewired.classHeadLinks += await tx.class.updateMany({
+    rewired.classHeadLinks += await tx.classYearStaff.updateMany({
       where: { classHeadId: source.id },
       data: { classHeadId: canonical.id },
     }).then((r) => r.count)
-    rewired.classLeadLinks += await tx.class.updateMany({
+    rewired.classLeadLinks += await tx.classYearStaff.updateMany({
       where: { classLeadId: source.id },
       data: { classLeadId: canonical.id },
     }).then((r) => r.count)

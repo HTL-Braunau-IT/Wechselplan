@@ -48,9 +48,9 @@
     "times": "Unterrichtszeiten",
     "overview": "Übersicht"
   },
-  "existingAssignmentsWarning": "Es existieren bereits Lehrerzuweisungen für diese Klasse. Änderungen werden die bestehenden Zuweisungen aktualisieren.",
+  "existingAssignmentsWarning": "Es existieren bereits Schülerzuweisungen für diese Klasse. Änderungen werden die bestehenden Zuweisungen aktualisieren.",
   "updateAssignmentsTitle": "Zuweisungen aktualisieren",
-  "updateAssignmentsMessage": "Es existieren bereits Lehrerzuweisungen für diese Klasse. Möchten Sie die bestehenden Zuweisungen mit den neuen Daten aktualisieren?",
+  "updateAssignmentsMessage": "Es existieren bereits Schülerzuweisungen für diese Klasse. Möchten Sie die bestehenden Zuweisungen mit den neuen Daten aktualisieren?",
   "cancel": "Abbrechen",
   "update": "Aktualisieren",
   "clearRow": "Zeile leeren",
@@ -101,5 +101,31 @@
   "transferLoadGroupsError": "Gruppen der Zielklasse konnten nicht geladen werden.",
   "transferSelectClassError": "Bitte wählen Sie eine Zielklasse aus.",
   "removeStudent": "Schüler entfernen",
-  "settings.times.optional": "Optional"
+  "settings.times.optional": "Optional",
+  "finish": "Speichern & abschließen",
+  "loadingOverviewData": "Lade Daten...",
+  "pdfDialog": {
+    "title": "PDF erstellen?",
+    "description": "Möchten Sie eine PDF-Version des Stundenplans erstellen und herunterladen?",
+    "skip": "Überspringen",
+    "generate": "PDF erstellen",
+    "generating": "PDF wird erstellt..."
+  },
+  "help": {
+    "classSelection": "Wählen Sie hier eine Klasse und einen Wochentag aus, um den Wechselplan für diesen Tag zu erstellen oder zu bearbeiten.",
+    "groupAssignment": "Teilen Sie die Schülerinnen und Schüler per Drag-and-drop in Gruppen ein und prüfen Sie die Gruppengröße, bevor Sie fortfahren.",
+    "teachers": "Weisen Sie jeder Gruppe Lehrperson, Fach, Lerninhalt und Raum zu. Sie können Einträge auch manuell ergänzen oder aus dem Vormittag übernehmen.",
+    "rotation": "Legen Sie hier die Turnusse und deren Länge fest. Optional können Sie zusätzliche Hinweise und die Semesterplanung anpassen.",
+    "times": "Wählen Sie die Unterrichts- und Pausenzeiten für den gewählten Tag. Nur vorhandene Zeitmodelle werden zur Auswahl angezeigt.",
+    "overview": "Prüfen Sie alle Angaben des Wechselplans in der Übersicht und schließen Sie die Erstellung erst nach einer finalen Kontrolle ab."
+  },
+  "errors": {
+    "loadTeacherAssignments": "Daten konnten nicht geladen werden. Bitte versuchen Sie es erneut.",
+    "saveTeacherAssignments": "Zuweisungen konnten nicht gespeichert werden. Bitte versuchen Sie es erneut.",
+    "updateTeacherAssignments": "Zuweisungen konnten nicht aktualisiert werden. Bitte versuchen Sie es erneut.",
+    "classIdRequired": "Klassen-ID ist erforderlich.",
+    "loadTimes": "Zeiten konnten nicht geladen werden.",
+    "saveOverview": "Speichern fehlgeschlagen.",
+    "generatePdf": "PDF konnte nicht erstellt werden."
+  }
 } 

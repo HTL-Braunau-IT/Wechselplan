@@ -1,18 +1,24 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { parse } from 'csv-parse/sync'
-import { type Prisma } from '@prisma/client'
+import { LookupKind } from '@prisma/client'
 import { captureError } from '@/lib/sentry'
+import { badRequest, created, ok, serverError } from '@/lib/api-response'
 
 interface ImportRequest {
 	type: 'room' | 'subject' | 'learningContent'
-	data: string // CSV data
+	data: string
 }
 
 interface ImportData {
 	name: string
 	capacity?: number | null
 	description?: string | null
+}
+
+const TYPE_TO_KIND: Record<ImportRequest['type'], LookupKind> = {
+	room: LookupKind.ROOM,
+	subject: LookupKind.SUBJECT,
+	learningContent: LookupKind.LEARNING_CONTENT
 }
 
 /**
@@ -26,19 +32,20 @@ interface ImportData {
  * @remark Duplicate entries by name are ignored; only records with unique names are imported.
  */
 export async function POST(request: Request) {
-	const rawBody = await request.text() // Cache the raw body first
+	const rawBody = await request.text()
 	try {
 		const body = JSON.parse(rawBody) as ImportRequest
 		const { type, data } = body
+		if (!type || !data) {
+			return badRequest('Missing required fields: type and data')
+		}
 
-		// Parse CSV data
 		const records = parse(data, {
 			columns: true,
 			skip_empty_lines: true,
 			trim: true
 		}) as Record<string, string>[]
 
-		// Validate and transform data based on type
 		const transformedData: ImportData[] = records.map((record: Record<string, string>) => {
 			if (!record.name) {
 				throw new Error('Name is required for all records')
@@ -52,10 +59,6 @@ export async function POST(request: Request) {
 						description: record.description ?? null
 					}
 				case 'subject':
-					return {
-						name: record.name,
-						description: record.description ?? null
-					}
 				case 'learningContent':
 					return {
 						name: record.name,
@@ -66,62 +69,39 @@ export async function POST(request: Request) {
 			}
 		})
 
-		// Import data using Prisma
-		let result: { count: number }
-		switch (type) {
-			case 'room': {
-				const existing = await (prisma as unknown as { room: { findMany: (args: Prisma.RoomFindManyArgs) => Promise<{ name: string }[]> } }).room.findMany({ 
-					select: { name: true } 
-				})
-				const existingNames = new Set(existing.map(r => r.name))
-				const filteredData = transformedData.filter(item => !existingNames.has(item.name))
-				if (filteredData.length === 0) {
-					result = { count: 0 }
-				} else {
-					// Imported values are not custom (they come from seed/import)
-					result = await prisma.room.createMany({
-						data: filteredData.map(item => ({ ...item, isCustom: false }))
-					})
-				}
-				break
-			}
-			case 'subject': {
-				const existing = await (prisma as unknown as { subject: { findMany: (args: Prisma.SubjectFindManyArgs) => Promise<{ name: string }[]> } }).subject.findMany({ 
-					select: { name: true } 
-				})
-				const existingNames = new Set(existing.map(s => s.name))
-				const filteredData = transformedData.filter(item => !existingNames.has(item.name))
-				// Imported values are not custom (they come from seed/import)
-				result = await (prisma as unknown as { subject: { createMany: (args: Prisma.SubjectCreateManyArgs) => Promise<{ count: number }> } }).subject.createMany({
-					data: filteredData.map(item => ({ ...item, isCustom: false }))
-				})
-				break
-			}
-			case 'learningContent': {
-				const existing = await (prisma as unknown as { learningContent: { findMany: (args: Prisma.LearningContentFindManyArgs) => Promise<{ name: string }[]> } }).learningContent.findMany({ 
-					select: { name: true } 
-				})
-				const existingNames = new Set(existing.map(lc => lc.name))
-				const filteredData = transformedData.filter(item => !existingNames.has(item.name))
-				// Imported values are not custom (they come from seed/import)
-				result = await (prisma as unknown as { learningContent: { createMany: (args: Prisma.LearningContentCreateManyArgs) => Promise<{ count: number }> } }).learningContent.createMany({
-					data: filteredData.map(item => ({ ...item, isCustom: false }))
-				})
-				break
-			}
+		const kind = TYPE_TO_KIND[type]
+		if (!kind) {
+			return badRequest('Invalid import type')
 		}
 
-		return NextResponse.json({ count: result.count })
+		const existing = await prisma.lookupValue.findMany({
+			where: { kind },
+			select: { name: true }
+		})
+		const existingNames = new Set(existing.map(r => r.name))
+		const filteredData = transformedData.filter(item => !existingNames.has(item.name))
+
+		let result: { count: number } = { count: 0 }
+		if (filteredData.length > 0) {
+			result = await prisma.lookupValue.createMany({
+				data: filteredData.map(item => ({
+					kind,
+					name: item.name,
+					description: item.description ?? null,
+					capacity: type === 'room' ? (item.capacity ?? null) : null,
+					isCustom: false
+				}))
+			})
+		}
+
+		return created({ count: result.count })
 	} catch (error: unknown) {
 		captureError(error, {
 			location: 'api/admin/settings/import',
 			type: 'data-import',
 			extra: { requestBody: rawBody }
 		})
-		return NextResponse.json(
-			{ error: 'Failed to import data', message: error instanceof Error ? error.message : 'Unknown error' },
-			{ status: 500 }
-		)
+		return serverError('Failed to import data', error instanceof Error ? { message: error.message } : undefined)
 	}
 }
 
@@ -136,44 +116,31 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
 	try {
 		const { searchParams } = new URL(request.url)
-		const type = searchParams.get('type')
+		const type = searchParams.get('type') as ImportRequest['type'] | null
 
-		if (!type || !['room', 'subject', 'learningContent'].includes(type)) {
-			return NextResponse.json(
-				{ error: 'Invalid type parameter' },
-				{ status: 400 }
-			)
+		if (!type || !(type in TYPE_TO_KIND)) {
+			return badRequest('Invalid type parameter')
 		}
 
-		let data
-		switch (type) {
-			case 'room':
-				data = await prisma.room.findMany({
-					orderBy: { name: 'asc' }
-				})
-				break
-			case 'subject':
-				data = await prisma.subject.findMany({
-					orderBy: { name: 'asc' }
-				})
-				break
-			case 'learningContent':
-				data = await prisma.learningContent.findMany({
-					orderBy: { name: 'asc' }
-				})
-				break
-		}
+		const kind = TYPE_TO_KIND[type]
+		const rows = await prisma.lookupValue.findMany({
+			where: { kind },
+			orderBy: { name: 'asc' }
+		})
 
-		return NextResponse.json({ data })
+		const data = rows.map(({ kind: _kind, capacity, ...rest }) => {
+			if (type === 'room') {
+				return { ...rest, capacity }
+			}
+			return rest
+		})
+
+		return ok(data)
 	} catch (error: unknown) {
 		captureError(error, {
 			location: 'api/admin/settings/import',
-			type: 'data-import',
-			extra: { requestBody: request.text() }
+			type: 'data-import'
 		})
-		return NextResponse.json(
-			{ error: 'Failed to fetch data', message: error instanceof Error ? error.message : 'Unknown error' },
-			{ status: 500 }
-		)
+		return serverError('Failed to fetch data', error instanceof Error ? { message: error.message } : undefined)
 	}
-} 
+}

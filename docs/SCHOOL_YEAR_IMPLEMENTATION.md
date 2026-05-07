@@ -15,10 +15,9 @@ This document describes how to implement school-year support: a header dropdown 
 | **§5b APIs filter (read)** | ✅ Done | Classes, schedules, teacher-assignments GET, notensammler teacher-classes/class/grades, students by class+year, export all filter by schoolYearId (optional or required as appropriate). |
 | **§5c APIs write** | ✅ Done | Schedule, TeacherAssignment, Grade, FinalGrade, NotenmanagementTransfer, ClassMembership on student import. |
 | **§6 Pages** | ✅ Done | Notensammler, schedule, class-settings, admin students import pass schoolYearId; selected year semesterChangeDate used for current semester (context currentSemester, Notensammler Aktuell label). |
-| **§8 Cleanup** | ⏳ Optional | Optional deprecation of Student.classId in favor of ClassMembership for selected year. |
+| **§8 Cleanup** | ✅ Done | Student.classId removed; ClassMembership is the sole source of truth per year. |
 
-**Done:** Schema, migrations, admin School Years tab, GET /api/school-years, context + header dropdown (localStorage), all write/read paths and pages, ClassMembership on import, semester from DB (getCurrentSemesterFromSchoolYear, context currentSemester, Notensammler current-semester label).  
-**Optional (remaining):** Deprecate Student.classId; ClassMembership is already the source of truth per year for reads.
+**Done:** Schema, migrations, admin School Years tab, GET /api/school-years, context + header dropdown (localStorage), all write/read paths and pages, ClassMembership on import, semester from DB (getCurrentSemesterFromSchoolYear, context currentSemester, Notensammler current-semester label), Student.classId column dropped (Phase 6).
 
 ---
 
@@ -34,7 +33,7 @@ This document describes how to implement school-year support: a header dropdown 
 ## 1. Current state (before school year)
 
 - **Class**: Global, `name` unique. No year.
-- **Student**: `classId` (one current class). No year.
+- **Student**: previously `classId` (one current class). Phase 6 removed it; class membership is now per school year via `ClassMembership`.
 - **Schedule**: `classId`; a class can have multiple schedules. No year.
 - **TeacherAssignment**, **Grade**, **FinalGrade**, **NotenmanagementTransfer**: No year.
 
@@ -64,7 +63,7 @@ Relations: referenced by Schedule, Grade, FinalGrade, NotenmanagementTransfer, T
 - Unique `[studentId, schoolYearId]` (one class per student per year)
 - Indexes on studentId, classId, schoolYearId
 
-**No promotion / "move class up" logic.** Students and classes are imported fresh each year; we do not derive next year’s class from the previous year. Each school year gets its own fresh set of student, class, and teacher data (via import); the goal is to preserve that data and link it to a year for archive purposes. When importing for a new year, create/update ClassMembership (and Student/Class/TeacherAssignment as needed) for that year only. **Student.classId** stays for backward compatibility during migration; long-term it can be deprecated in favor of ClassMembership for the selected year.
+**No promotion / "move class up" logic.** Students and classes are imported fresh each year; we do not derive next year’s class from the previous year. Each school year gets its own fresh set of student, class, and teacher data (via import); the goal is to preserve that data and link it to a year for archive purposes. When importing for a new year, create/update ClassMembership (and Student/Class/TeacherAssignment as needed) for that year only. **Student.classId** has been removed (Phase 6, 2026-05-07): ClassMembership is the only source of truth for student↔class assignments per year.
 
 ### 2c. Add schoolYearId to existing tables
 
@@ -83,7 +82,7 @@ All existing data is migrated into **school year 2025/2026** only (no data for y
 3. Create exactly one school year: label `"2025/2026"`, startDate/endDate e.g. 2025-09-08 / 2026-07-10, semesterChangeDate e.g. 2026-02-15 (hardcode in migration).
 4. Backfill: set schoolYearId = that 2025/2026 year for all existing Schedule, TeacherAssignment, Grade, FinalGrade, NotenmanagementTransfer. For Student: insert ClassMembership (studentId, classId, schoolYearId) for every Student where classId is not null.
 5. Make schoolYearId non-nullable; add FKs and uniques.
-6. Optional: later deprecate Student.classId in favor of ClassMembership for the selected year.
+6. **Done (Phase 6, 2026-05-07):** Student.classId column dropped. ClassMembership is the only source of truth for the student↔class relationship per school year. The legacy `Student.classId` value was preserved as ClassMembership rows during the migration so no assignments were lost.
 
 Future years (2026/2027, etc.) are created via /admin/data (School Years tab) or seed, not by migration.
 
@@ -166,7 +165,7 @@ Admins can set start/end and semester change date per year and add new years wit
 5. **APIs (read)**: ✅ Classes, schedules, teacher-assignments, notensammler (all), students (class by year), export filter by schoolYearId.
 6. **APIs (write)**: ✅ All create/update set schoolYearId; ClassMembership on student import.
 7. **Pages**: ✅ Notensammler, schedule flows, class-settings, admin students import pass selected year. Optional: use selected year’s semesterChangeDate from DB for current-semester logic.
-8. **Cleanup**: ⏳ Optional deprecation of Student.classId in favor of ClassMembership for the selected year.
+8. **Cleanup**: ✅ Done. Student.classId column dropped. ClassMembership is the only source of truth for student↔class linking per school year. Backfill migration (`20260507211000_drop_student_classid`) preserved any orphaned `Student.classId` values as ClassMembership rows for the current school year before dropping the column, FK and index.
 
 ---
 
@@ -190,4 +189,4 @@ Admins can set start/end and semester change date per year and add new years wit
 
 - **URL vs localStorage**: Store selected year in URL (e.g. `?year=2025%2F2026`) for shareable links, or localStorage for simplicity.
 - **Creating future years**: Admin UI (/admin/data School Years tab) or seed. No env needed.
-- **Student.classId**: Keep for compatibility and sync from ClassMembership for selected year, or remove after full migration.
+- **Student.classId**: Removed (Phase 6, 2026-05-07). Use ClassMembership for the selected year as the source of truth.

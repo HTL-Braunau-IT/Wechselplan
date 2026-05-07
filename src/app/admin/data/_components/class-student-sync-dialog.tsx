@@ -33,6 +33,7 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { AlertCircle, CheckCircle2, Loader2, RefreshCw } from 'lucide-react'
 import { useSchoolYear } from '@/contexts/school-year-context'
+import { getApiErrorMessage, parseJsonSafe, unwrapData } from '@/lib/api-client'
 
 /* ---------- Types mirroring lib/class-student-sync.ts ------------------------------- */
 
@@ -203,11 +204,11 @@ export function ClassStudentSyncDialog({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(year != null ? { schoolYearId: year } : {}),
         })
+        const payload = await parseJsonSafe(res)
         if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { error?: string }
-          throw new Error(body.error ?? `Preview failed (${res.status})`)
+          throw new Error(getApiErrorMessage(payload, `Preview failed (${res.status})`))
         }
-        const data = (await res.json()) as ClassStudentSyncDiff
+        const data = unwrapData<ClassStudentSyncDiff>(payload)
         setDiff(data)
         setSchoolYearId(data.schoolYearId)
         setSelection(buildDefaultSelection(data))
@@ -257,11 +258,11 @@ export function ClassStudentSyncDialog({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
+      const responsePayload = await parseJsonSafe(res)
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        throw new Error(body.error ?? `Anwenden fehlgeschlagen (${res.status})`)
+        throw new Error(getApiErrorMessage(responsePayload, `Anwenden fehlgeschlagen (${res.status})`))
       }
-      const data = (await res.json()) as ClassStudentSyncSummary
+      const data = unwrapData<ClassStudentSyncSummary>(responsePayload)
       setSummary(data)
       setStage('done')
       toast.success(

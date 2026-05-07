@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { resolveTeacherPhoto } from '@/lib/teacher-photo-source'
+import { badRequest, notFound } from '@/lib/api-response'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -7,12 +8,12 @@ export async function GET(request: Request) {
   const teacherId = teacherIdParam ? parseInt(teacherIdParam, 10) : NaN
 
   if (Number.isNaN(teacherId) || teacherId < 1) {
-    return NextResponse.json({ error: 'Valid teacherId is required' }, { status: 400 })
+    return badRequest('Valid teacherId is required')
   }
 
   const photo = await resolveTeacherPhoto(teacherId)
   if (!photo) {
-    return NextResponse.json({ error: 'Photo not found' }, { status: 404 })
+    return notFound('Photo not found')
   }
 
   const ifNoneMatch = request.headers.get('if-none-match')?.trim()

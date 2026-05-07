@@ -42,7 +42,7 @@ describe('Students API', () => {
         name: 'should return 400 if class parameter is missing',
         request: () => new Request('http://localhost/api/students'),
         expectedStatus: 400,
-        expectedData: { error: 'Class parameter is required' },
+        expectedData: { error: { code: 'BAD_REQUEST', message: 'Class parameter is required' } },
       },
       {
         name: 'should return 200 with students if found',
@@ -53,17 +53,16 @@ describe('Students API', () => {
               firstName: 'John',
               lastName: 'Doe',
               username: 'john.doe',
-              classId: 1,
-              groupId: 1,
               createdAt: new Date(),
               updatedAt: new Date(),
             },
           ];
-          vi.mocked(prisma.student.findMany).mockResolvedValue(mockStudents);
+          vi.mocked(prisma.student.findMany).mockResolvedValue(mockStudents as never);
         },
         request: () => new Request('http://localhost/api/students?class=1A'),
         expectedStatus: 200,
-        expectedData: (data: Student[]) => {
+        expectedData: (payload: { data: Student[] }) => {
+          const data = payload.data
           expect(Array.isArray(data)).toBe(true);
           expect(data.length).toBe(1);
           expect(data[0]).toHaveProperty('firstName', 'John');
@@ -78,7 +77,7 @@ describe('Students API', () => {
         },
         request: () => new Request('http://localhost/api/students?class=1A'),
         expectedStatus: 500,
-        expectedData: { error: 'Failed to fetch students' },
+        expectedData: { error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch students' } },
       },
     ];
 
@@ -110,7 +109,7 @@ describe('Students API', () => {
           }),
         }),
         expectedStatus: 400,
-        expectedData: { error: 'Missing required fields' },
+        expectedData: { error: { code: 'BAD_REQUEST', message: 'Missing required fields' } },
       },
       {
         name: 'should return 400 if username already exists',
@@ -120,11 +119,9 @@ describe('Students API', () => {
             firstName: 'Jane',
             lastName: 'Doe',
             username: 'john.doe',
-            classId: 1,
-            groupId: 1,
             createdAt: new Date(),
             updatedAt: new Date(),
-          });
+          } as never);
         },
         request: () => new Request('http://localhost/api/students', {
           method: 'POST',
@@ -135,8 +132,8 @@ describe('Students API', () => {
             className: '1A',
           }),
         }),
-        expectedStatus: 400,
-        expectedData: { error: 'Username already exists' },
+        expectedStatus: 409,
+        expectedData: { error: { code: 'CONFLICT', message: 'Username already exists' } },
       },
       {
         name: 'should return 404 if class not found',
@@ -154,10 +151,10 @@ describe('Students API', () => {
           }),
         }),
         expectedStatus: 404,
-        expectedData: { error: 'Class not found' },
+        expectedData: { error: { code: 'NOT_FOUND', message: 'Class not found' } },
       },
       {
-        name: 'should return 200 with created student if successful',
+        name: 'should return 201 with created student if successful',
         setup: () => {
           vi.mocked(prisma.student.findUnique).mockResolvedValue(null);
           vi.mocked(prisma.class.findUnique).mockResolvedValue({
@@ -166,19 +163,15 @@ describe('Students API', () => {
             description: null,
             createdAt: new Date(),
             updatedAt: new Date(),
-            classHeadId: null,
-            classLeadId: null,
-          });
+          } as never);
           vi.mocked(prisma.student.create).mockResolvedValue({
             id: 1,
             firstName: 'John',
             lastName: 'Doe',
             username: 'john.doe',
-            classId: 1,
-            groupId: 1,
             createdAt: new Date(),
             updatedAt: new Date(),
-          });
+          } as never);
         },
         request: () => new Request('http://localhost/api/students', {
           method: 'POST',
@@ -189,8 +182,9 @@ describe('Students API', () => {
             className: '1A',
           }),
         }),
-        expectedStatus: 200,
-        expectedData: (data: Student) => {
+        expectedStatus: 201,
+        expectedData: (payload: { data: Student }) => {
+          const data = payload.data
           expect(data).toHaveProperty('firstName', 'John');
           expect(data).toHaveProperty('lastName', 'Doe');
           expect(data).toHaveProperty('username', 'john.doe');
@@ -212,7 +206,7 @@ describe('Students API', () => {
           }),
         }),
         expectedStatus: 500,
-        expectedData: { error: 'Failed to create student' },
+        expectedData: { error: { code: 'INTERNAL_ERROR', message: 'Failed to create student' } },
       },
     ];
 

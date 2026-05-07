@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useTranslation } from 'next-i18next';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { useScheduleOverview } from '@/hooks/use-schedule-overview';
+import { useSchoolYear } from '@/contexts/school-year-context';
 import { captureFrontendError } from '@/lib/frontend-error'
 import { captureError } from '@/lib/sentry'
 import {
@@ -18,16 +20,18 @@ import { Button } from "@/components/ui/button"
 import { ScheduleOverview } from '@/components/schedule-overview'
 import { Spinner } from '@/components/ui/spinner'
 import { generatePdf, generateSchedulePDF } from '@/lib/export-utils';
+import { fetchAndUnwrap, getApiErrorMessage, parseJsonSafe, unwrapData } from '@/lib/api-client'
 
 
 /**
  * Renders a centered loading spinner with a localized loading message.
  */
 function LoadingScreen() {
+    const { t } = useTranslation('schedule')
     return (
         <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
             <Spinner size="lg" />
-            <p className="text-lg text-muted-foreground">Lade Daten...</p>
+            <p className="text-lg text-muted-foreground">{t('loadingOverviewData')}</p>
         </div>
     )
 }
@@ -41,9 +45,16 @@ function LoadingScreen() {
  */
 export default function OverviewPage() {
   const searchParams = useSearchParams();
+  const { t } = useTranslation('schedule')
   const classId = searchParams.get('class');
   const { isLoading: isLoadingCachedData } = useCachedData();
   const router = useRouter();
+  const { selectedYear } = useSchoolYear();
+  const schoolYearId = selectedYear?.id;
+  const weekdayParam = searchParams.get('weekday');
+  const parsedW = weekdayParam ? parseInt(weekdayParam, 10) : NaN;
+  const overviewWeekdayOverride =
+    !Number.isNaN(parsedW) && parsedW >= 1 && parsedW <= 5 ? parsedW : null;
 
   const {
     groups,
@@ -58,7 +69,7 @@ export default function OverviewPage() {
     weekday,
     loading: overviewLoading,
     error: overviewError
-  } = useScheduleOverview(classId);
+  } = useScheduleOverview(classId, schoolYearId, overviewWeekdayOverride);
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -104,9 +115,7 @@ export default function OverviewPage() {
       // Resolve className to classId if needed
       let resolvedClassId: number
       if (typeof classId === 'string') {
-        const classRes = await fetch(`/api/classes/get-by-name?name=${classId}`)
-        if (!classRes.ok) throw new Error('Failed to fetch class ID')
-        const classData = await classRes.json() as { id: number }
+        const classData = await fetchAndUnwrap<{ id: number }>(`/api/classes/get-by-name?name=${classId}`)
         resolvedClassId = classData.id
       } else if (classId === null) {
         throw new Error('Class ID is required')
@@ -115,11 +124,19 @@ export default function OverviewPage() {
       }
 
       // Save to backend
+      if (schoolYearId == null) {
+        throw new Error('School year is required')
+      }
+      if (weekday == null) {
+        throw new Error('Weekday is required')
+      }
       const response = await fetch('/api/schedules/rotation', {        
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           classId: resolvedClassId,
+          schoolYearId,
+          selectedWeekday: weekday,
           turns: turnKeys,
           amRotation,
           pmRotation
@@ -145,7 +162,7 @@ export default function OverviewPage() {
         const scheduleLink = `${window.location.origin}/schedules?class=${classId}`;
         const className = typeof classId === 'string' ? classId : ''
         
-        await fetch('/api/schedules/notify-teachers', {
+        const notifyResponse = await fetch('/api/schedules/notify-teachers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -155,8 +172,14 @@ export default function OverviewPage() {
             scheduleLink
           })
         });
-        
-        console.log('Teacher notifications sent successfully');
+        if (!notifyResponse.ok) {
+          const notifyPayload = await parseJsonSafe(notifyResponse)
+          throw new Error(getApiErrorMessage(notifyPayload, 'Failed to notify teachers'))
+        }
+        const notifyPayload = unwrapData<{ failedEmails?: number; totalTeachers?: number }>(await parseJsonSafe(notifyResponse))
+        if ((notifyPayload.failedEmails ?? 0) > 0) {
+          console.warn(`Teacher notifications partially failed (${notifyPayload.failedEmails}/${notifyPayload.totalTeachers ?? 0})`)
+        }
       } catch (emailError) {
         console.error('Failed to send teacher notifications:', emailError);
         // Don't throw here, we still want to show the PDF dialog
@@ -182,7 +205,7 @@ export default function OverviewPage() {
           turns: Object.keys(turns)
         }
       });
-      setError('Failed to save.');
+      setError(t('errors.saveOverview'));
     } finally {
       setSaving(false);
     }
@@ -197,7 +220,7 @@ export default function OverviewPage() {
       await generateSchedulePDF(classId, weekday ?? 0);
     } catch (err) {
       console.error('Error generating PDF:', err);
-      setError('Failed to generate PDF.');
+      setError(t('errors.generatePdf'));
     } finally {
       setGeneratingSchedulePDF(false);
     }
@@ -222,7 +245,7 @@ export default function OverviewPage() {
       router.push('/');
     } catch (err) {
       console.error('Error generating PDF:', err);
-      setError('Failed to generate PDF.');
+      setError(t('errors.generatePdf'));
     } finally {
       setGeneratingPdf(false);
     }
@@ -234,6 +257,11 @@ export default function OverviewPage() {
   function handleSkipPdf() {
     setShowPdfDialog(false);
     router.push('/');
+  }
+
+  function handleBack() {
+    const wq = weekday != null ? `&weekday=${weekday}` : ''
+    router.push(`/schedule/create/times?class=${classId}${wq}`)
   }
 
   if (isLoadingCachedData || overviewLoading) return <LoadingScreen />;
@@ -251,6 +279,9 @@ export default function OverviewPage() {
 
   return (
     <>
+      <div className="mb-4 rounded-lg border bg-muted/50 p-4 text-sm text-muted-foreground">
+        {t('help.overview')}
+      </div>
       <ScheduleOverview
         groups={groups}
         amAssignments={amAssignments}
@@ -266,16 +297,12 @@ export default function OverviewPage() {
         showExportButtons={true}
       />
 
-      {/* Custom blurred overlay for modal */}
-      {showPdfDialog && (
-        <div className="fixed inset-0 z-40 backdrop-blur-sm bg-background/80 transition-all" />
-      )}
       <Dialog open={showPdfDialog} onOpenChange={setShowPdfDialog}>
         <DialogContent className="z-50">
           <DialogHeader>
-            <DialogTitle>PDF erstellen?</DialogTitle>
+            <DialogTitle>{t('pdfDialog.title')}</DialogTitle>
             <DialogDescription>
-              Möchten Sie eine PDF-Version des Stundenplans erstellen und herunterladen?
+              {t('pdfDialog.description')}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2 justify-end">
@@ -284,26 +311,25 @@ export default function OverviewPage() {
               onClick={handleSkipPdf}
               disabled={generatingPdf}
             >
-              Überspringen
+              {t('pdfDialog.skip')}
             </Button>
             <Button
               onClick={handleGeneratePdf}
               disabled={generatingPdf}
             >
-              {generatingPdf ? 'Generating...' : 'Generate PDF'}
+              {generatingPdf ? t('pdfDialog.generating') : t('pdfDialog.generate')}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <div className="flex justify-end mt-8">
-        <button
-          className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
-          onClick={handleSaveAndFinish}
-          disabled={saving}
-        >
-          {saving ? 'Saving...' : 'Save & Finish'}
-        </button>
+      <div className="mt-8 flex justify-end gap-4">
+        <Button variant="outline" onClick={handleBack}>
+          {t('back')}
+        </Button>
+        <Button onClick={handleSaveAndFinish} disabled={saving}>
+          {saving ? t('saving') : t('finish')}
+        </Button>
       </div>
     </>
   );

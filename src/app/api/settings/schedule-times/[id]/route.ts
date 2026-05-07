@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
+import { badRequest, notFound, ok, serverError } from '@/lib/api-response'
 import { captureError } from '~/lib/sentry'
 
 /**
@@ -20,25 +21,22 @@ export async function DELETE(
     const resolvedParams = await params
     const id = parseInt(resolvedParams.id)
     if (isNaN(id)) {
-      return NextResponse.json(
-        { error: 'Invalid ID' },
-        { status: 400 }
-      )
+      return badRequest('Invalid ID')
     }
 
     await prisma.scheduleTime.delete({
       where: { id }
     })
 
-    return NextResponse.json({ success: true })
+    return ok(null, 'Schedule time deleted successfully')
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return notFound('Schedule time not found')
+    }
     captureError(error, {
       location: 'api/settings/schedule-times/[id]',
       type: 'delete-schedule-time'
     })  
-    return NextResponse.json(
-      { error: 'Failed to delete schedule time' },
-      { status: 500 }
-    )
+    return serverError('Failed to delete schedule time')
   }
 } 

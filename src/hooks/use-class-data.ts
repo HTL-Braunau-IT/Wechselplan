@@ -1,6 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
+import { fetchAndUnwrap } from '@/lib/api-client'
 
 interface Class {
 	id: number
@@ -29,12 +30,7 @@ export function useClassData(classId: number | null) {
 		queryFn: async () => {
 			if (!classId) throw new Error('Class ID is required')
 			
-			// Fetch all classes and find by ID
-			const response = await fetch('/api/classes')
-			if (!response.ok) {
-				throw new Error('Failed to fetch classes')
-			}
-			const classes = await response.json() as Class[]
+			const classes = await fetchAndUnwrap<Class[]>('/api/classes')
 			return classes.find(c => c.id === classId)
 		},
 		enabled: classId !== null,
@@ -53,12 +49,7 @@ export function useClassDataByName(className: string | null) {
 		queryKey: ['class', 'name', className],
 		queryFn: async () => {
 			if (!className) throw new Error('Class name is required')
-			
-			const response = await fetch(`/api/classes/get-by-name?name=${encodeURIComponent(className)}`)
-			if (!response.ok) {
-				throw new Error('Failed to fetch class data')
-			}
-			return response.json() as Promise<Class>
+			return fetchAndUnwrap<Class>(`/api/classes/get-by-name?name=${encodeURIComponent(className)}`)
 		},
 		enabled: className !== null && className !== '',
 		staleTime: 1000 * 60 * 5, // 5 minutes

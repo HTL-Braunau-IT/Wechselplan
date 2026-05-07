@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
+import { badRequest, forbidden, notFound, ok, serverError, unauthorized } from '@/lib/api-response'
 
 // Force dynamic rendering - no caching
 export const dynamic = 'force-dynamic'
@@ -23,13 +23,13 @@ export async function GET(request: Request) {
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {
-			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+			return unauthorized('Unauthorized')
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+			return forbidden('Forbidden')
 		}
 		if (!(await isFeatureEnabled('notensammler'))) {
-			return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+			return forbidden('Feature not available')
 		}
 
 		const { searchParams } = new URL(request.url)
@@ -37,18 +37,12 @@ export async function GET(request: Request) {
 		const schoolYearIdParam = searchParams.get('schoolYearId')
 
 		if (!classIdParam) {
-			return NextResponse.json(
-				{ error: 'classId parameter is required' },
-				{ status: 400 }
-			)
+			return badRequest('classId parameter is required')
 		}
 
 		const classId = parseInt(classIdParam)
 		if (isNaN(classId)) {
-			return NextResponse.json(
-				{ error: 'Invalid classId' },
-				{ status: 400 }
-			)
+			return badRequest('Invalid classId')
 		}
 
 		// Resolve school year: from query or current
@@ -62,10 +56,7 @@ export async function GET(request: Request) {
 			schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
 		}
 		if (schoolYearId == null) {
-			return NextResponse.json(
-				{ error: 'No school year found.' },
-				{ status: 400 }
-			)
+			return badRequest('No school year found.')
 		}
 
 		// Verify class exists
@@ -74,10 +65,7 @@ export async function GET(request: Request) {
 		})
 
 		if (!classRecord) {
-			return NextResponse.json(
-				{ error: 'Class not found' },
-				{ status: 404 }
-			)
+			return notFound('Class not found')
 		}
 
 		// Fetch all grades for this class and school year
@@ -140,16 +128,13 @@ export async function GET(request: Request) {
 		}
 
 		console.log(`[GET /api/notensammler/grades] Returning ${Object.keys(gradesByStudent).length} students with grades`)
-		return NextResponse.json({ grades: gradesByStudent, finalGrades })
+		return ok({ grades: gradesByStudent, finalGrades })
 	} catch (error) {
 		captureError(error, {
 			location: 'api/notensammler/grades',
 			type: 'fetch-grades'
 		})
-		return NextResponse.json(
-			{ error: 'Failed to fetch grades' },
-			{ status: 500 }
-		)
+		return serverError('Failed to fetch grades')
 	}
 }
 
@@ -166,13 +151,13 @@ export async function POST(request: Request) {
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {
-			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+			return unauthorized('Unauthorized')
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+			return forbidden('Forbidden')
 		}
 		if (!(await isFeatureEnabled('notensammler'))) {
-			return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+			return forbidden('Feature not available')
 		}
 
 		const body = await request.json() as { studentId: unknown; teacherId: unknown; classId: unknown; semester: unknown; grade: unknown; schoolYearId?: number }
@@ -190,26 +175,17 @@ export async function POST(request: Request) {
 			schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
 		}
 		if (schoolYearId == null) {
-			return NextResponse.json(
-				{ error: 'No school year found. Create a school year in Admin / Data / School Years first.' },
-				{ status: 400 }
-			)
+			return badRequest('No school year found. Create a school year in Admin / Data / School Years first.')
 		}
 
 		// Validate required fields
 		if (studentId === undefined || teacherId === undefined || classId === undefined || semester === undefined) {
-			return NextResponse.json(
-				{ error: 'Missing required fields: studentId, teacherId, classId, semester' },
-				{ status: 400 }
-			)
+			return badRequest('Missing required fields: studentId, teacherId, classId, semester')
 		}
 
 		// Validate semester
 		if (semester !== 'first' && semester !== 'second') {
-			return NextResponse.json(
-				{ error: 'Semester must be "first" or "second"' },
-				{ status: 400 }
-			)
+			return badRequest('Semester must be "first" or "second"')
 		}
 
 		// Validate grade value (can be null or one of the allowed values)
@@ -220,10 +196,7 @@ export async function POST(request: Request) {
 					? grade 
 					: NaN
 			if (isNaN(gradeNum) || !ALLOWED_GRADES.includes(gradeNum)) {
-				return NextResponse.json(
-					{ error: `Grade must be one of: ${ALLOWED_GRADES.join(', ')} or null` },
-					{ status: 400 }
-				)
+				return badRequest(`Grade must be one of: ${ALLOWED_GRADES.join(', ')} or null`)
 			}
 		}
 
@@ -233,10 +206,7 @@ export async function POST(request: Request) {
 		const classIdNum = typeof classId === 'string' ? parseInt(classId) : typeof classId === 'number' ? classId : NaN
 
 		if (isNaN(studentIdNum) || isNaN(teacherIdNum) || isNaN(classIdNum)) {
-			return NextResponse.json(
-				{ error: 'Invalid ID format' },
-				{ status: 400 }
-			)
+			return badRequest('Invalid ID format')
 		}
 
 		// Verify student exists
@@ -244,10 +214,7 @@ export async function POST(request: Request) {
 			where: { id: studentIdNum }
 		})
 		if (!student) {
-			return NextResponse.json(
-				{ error: 'Student not found' },
-				{ status: 404 }
-			)
+			return notFound('Student not found')
 		}
 
 		// Verify teacher exists
@@ -255,10 +222,7 @@ export async function POST(request: Request) {
 			where: { id: teacherIdNum }
 		})
 		if (!teacher) {
-			return NextResponse.json(
-				{ error: 'Teacher not found' },
-				{ status: 404 }
-			)
+			return notFound('Teacher not found')
 		}
 
 		// Verify class exists
@@ -266,10 +230,7 @@ export async function POST(request: Request) {
 			where: { id: classIdNum }
 		})
 		if (!classRecord) {
-			return NextResponse.json(
-				{ error: 'Class not found' },
-				{ status: 404 }
-			)
+			return notFound('Class not found')
 		}
 
 		// Upsert grade (create or update)
@@ -341,7 +302,7 @@ export async function POST(request: Request) {
 			console.log(`[POST /api/notensammler/grades] Verification: Grade exists in DB with value: ${verifyGrade.grade}`)
 		}
 
-		return NextResponse.json({ success: true, grade: result })
+		return ok({ success: true, grade: result })
 	} catch (error) {
 		console.error('Error saving grade:', error)
 		console.error('Request data:', requestData)
@@ -354,13 +315,7 @@ export async function POST(request: Request) {
 				errorStack: error instanceof Error ? error.stack : undefined
 			}
 		})
-		return NextResponse.json(
-			{ 
-				error: 'Failed to save grade',
-				details: error instanceof Error ? error.message : String(error)
-			},
-			{ status: 500 }
-		)
+		return serverError('Failed to save grade', error instanceof Error ? error.message : String(error))
 	}
 }
 
@@ -375,13 +330,13 @@ export async function DELETE(request: Request) {
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {
-			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+			return unauthorized('Unauthorized')
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+			return forbidden('Forbidden')
 		}
 		if (!(await isFeatureEnabled('notensammler'))) {
-			return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+			return forbidden('Feature not available')
 		}
 
 		const { searchParams } = new URL(request.url)
@@ -389,20 +344,14 @@ export async function DELETE(request: Request) {
 		const classIdParam = searchParams.get('classId')
 
 		if (!teacherIdParam || !classIdParam) {
-			return NextResponse.json(
-				{ error: 'teacherId and classId parameters are required' },
-				{ status: 400 }
-			)
+			return badRequest('teacherId and classId parameters are required')
 		}
 
 		const teacherId = parseInt(teacherIdParam)
 		const classId = parseInt(classIdParam)
 
 		if (isNaN(teacherId) || isNaN(classId)) {
-			return NextResponse.json(
-				{ error: 'Invalid teacherId or classId format' },
-				{ status: 400 }
-			)
+			return badRequest('Invalid teacherId or classId format')
 		}
 
 		// Verify teacher exists
@@ -410,10 +359,7 @@ export async function DELETE(request: Request) {
 			where: { id: teacherId }
 		})
 		if (!teacher) {
-			return NextResponse.json(
-				{ error: 'Teacher not found' },
-				{ status: 404 }
-			)
+			return notFound('Teacher not found')
 		}
 
 		// Verify class exists
@@ -421,10 +367,7 @@ export async function DELETE(request: Request) {
 			where: { id: classId }
 		})
 		if (!classRecord) {
-			return NextResponse.json(
-				{ error: 'Class not found' },
-				{ status: 404 }
-			)
+			return notFound('Class not found')
 		}
 
 		// Delete all grades for this teacher in this class
@@ -435,7 +378,7 @@ export async function DELETE(request: Request) {
 			}
 		})
 
-		return NextResponse.json({ 
+		return ok({ 
 			success: true, 
 			deletedCount: result.count 
 		})
@@ -444,10 +387,7 @@ export async function DELETE(request: Request) {
 			location: 'api/notensammler/grades',
 			type: 'delete-teacher-grades'
 		})
-		return NextResponse.json(
-			{ error: 'Failed to delete grades' },
-			{ status: 500 }
-		)
+		return serverError('Failed to delete grades')
 	}
 }
 

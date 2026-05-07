@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { ok, serverError } from '@/lib/api-response'
+import { resolveSchoolYearId } from '@/lib/year-aware-class-staff'
 
 /**
  * Retrieves all classes from the database and returns them as a JSON array.
@@ -15,20 +16,16 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url)
         const schoolYearIdParam = searchParams.get('schoolYearId')
         const schoolYearId = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
+        const filterYearId = schoolYearId != null && !Number.isNaN(schoolYearId) ? schoolYearId : undefined
 
-        // Scheduling-facing class list filters to active classes when a school year is
-        // requested. Calls without a school year are treated as admin lookups and keep
-        // returning every class so admins can still reference inactive rows.
-        // TODO(entra-sync): audit remaining admin-facing class pickers once the sync
-        // dialog has shipped to real users.
         const where =
-            schoolYearId != null && !Number.isNaN(schoolYearId)
+            filterYearId != null
                 ? {
                       isActive: true,
                       OR: [
-                          { schedules: { some: { schoolYearId } } },
-                          { classMemberships: { some: { schoolYearId } } },
-                          { assignments: { some: { schoolYearId } } }
+                          { schedules: { some: { schoolYearId: filterYearId } } },
+                          { classMemberships: { some: { schoolYearId: filterYearId } } },
+                          { assignments: { some: { schoolYearId: filterYearId } } }
                       ]
                   }
                 : undefined
@@ -38,22 +35,38 @@ export async function GET(request: Request) {
             select: {
                 id: true,
                 name: true,
-                description: true,
-                classHeadId: true,
-                classLeadId: true
+                description: true
             },
             orderBy: { name: 'asc' }
         })
 
-        return NextResponse.json(classes)
+        const yearStaffYearId = filterYearId ?? (await resolveSchoolYearId())
+        const yearStaff = yearStaffYearId != null
+            ? await prisma.classYearStaff.findMany({
+                  where: { schoolYearId: yearStaffYearId, classId: { in: classes.map(c => c.id) } },
+                  select: { classId: true, classHeadId: true, classLeadId: true }
+              })
+            : []
+        const staffByClass = new Map<number, { classHeadId: number | null; classLeadId: number | null }>()
+        for (const row of yearStaff) {
+            staffByClass.set(row.classId, {
+                classHeadId: row.classHeadId,
+                classLeadId: row.classLeadId
+            })
+        }
+
+        const enriched = classes.map(c => ({
+            ...c,
+            classHeadId: staffByClass.get(c.id)?.classHeadId ?? null,
+            classLeadId: staffByClass.get(c.id)?.classLeadId ?? null
+        }))
+
+        return ok(enriched)
     } catch (error) {
         captureError(error, {
             location: 'api/classes',
             type: 'fetch-classes'
         })
-        return NextResponse.json(
-            { error: 'Failed to fetch classes' },
-            { status: 500 }
-        )
+        return serverError('Failed to fetch classes')
     }
-} 
+}

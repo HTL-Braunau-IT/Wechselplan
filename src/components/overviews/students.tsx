@@ -57,7 +57,8 @@ export function StudentOverview() {
                     return
                 }
 
-                const schedules = await schedulesResponse.json() as ScheduleResponse[]
+                const schedulesPayload = await schedulesResponse.json() as { data?: ScheduleResponse[] } | ScheduleResponse[]
+                const schedules = Array.isArray(schedulesPayload) ? schedulesPayload : (schedulesPayload.data ?? [])
                 
                 if (schedules.length === 0) {
                     setError('No schedules found for your class')
@@ -352,52 +353,15 @@ function ScheduleOverviewWrapper({ className, weekday, groupId }: { className: s
         pmAssignments,
         scheduleTimes,
         breakTimes,
-        turns: defaultTurns,
+        turns,
         classHead,
         classLead,
-        additionalInfo: defaultAdditionalInfo,
+        additionalInfo,
         loading: hookLoading,
         error: hookError
-    } = useScheduleOverview(className)
+    } = useScheduleOverview(className, undefined, weekday)
 
-    // Fetch schedule data for the specific weekday
-    const [turns, setTurns] = useState(defaultTurns)
-    const [additionalInfo, setAdditionalInfo] = useState(defaultAdditionalInfo)
-    const [scheduleLoading, setScheduleLoading] = useState(true)
-    const [scheduleError, setScheduleError] = useState<string | null>(null)
-
-    useEffect(() => {
-        const fetchScheduleForWeekday = async () => {
-            try {
-                setScheduleLoading(true)
-                setScheduleError(null)
-                const response = await fetch(`/api/schedules?classId=${className}&weekday=${weekday}`)
-                if (!response.ok) {
-                    setScheduleError('Failed to fetch schedule for this weekday')
-                    setScheduleLoading(false)
-                    return
-                }
-                const schedules = await response.json() as ScheduleResponse[]
-                if (schedules.length > 0 && schedules[0]) {
-                    // Get the most recent schedule for this weekday
-                    const latestSchedule = schedules[0]
-                    setTurns((latestSchedule.scheduleData ?? {}) as typeof defaultTurns)
-                    setAdditionalInfo(latestSchedule.additionalInfo ?? '')
-                } else {
-                    setScheduleError('No schedule found for this weekday')
-                }
-            } catch (err) {
-                console.error('Error fetching schedule for weekday:', err)
-                setScheduleError('Failed to load schedule')
-            } finally {
-                setScheduleLoading(false)
-            }
-        }
-
-        void fetchScheduleForWeekday()
-    }, [className, weekday, defaultTurns])
-
-    if (hookLoading || scheduleLoading) {
+    if (hookLoading) {
         return (
             <div className="flex items-center justify-center p-8">
                 <Spinner size="lg" />
@@ -405,12 +369,12 @@ function ScheduleOverviewWrapper({ className, weekday, groupId }: { className: s
         )
     }
 
-    if (hookError || scheduleError) {
+    if (hookError) {
         return (
             <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg shadow-sm">
                 <div className="flex items-center gap-2">
                     <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-500" />
-                    <p className="text-yellow-800 dark:text-yellow-200">{hookError ?? scheduleError ?? ''}</p>
+                    <p className="text-yellow-800 dark:text-yellow-200">{hookError}</p>
                 </div>
             </div>
         )

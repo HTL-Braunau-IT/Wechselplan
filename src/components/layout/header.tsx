@@ -25,7 +25,7 @@ import {
 /**
  * Renders the application's top navigation header with dynamic content based on user authentication and role.
  *
- * Displays the app logo, support dialog, version and build date, theme and language toggles, and a user menu for login or logout. Authenticated users who are not students can access a sidebar navigation menu with links to key sections, including class settings and, for teachers, an admin area.
+ * Displays the app logo, support dialog, version and build date, theme and language toggles, and a user menu for login or logout. Authenticated users who are not students can access a sidebar navigation menu with links to key sections and, for teachers, an admin area.
  *
  * @remark The sidebar navigation menu and its toggle button are only visible to authenticated users whose role is not 'student'.
  */
@@ -39,6 +39,9 @@ export function Header() {
 
 	const { isFeatureEnabled } = useEntitlements()
 	const { version, release, allReleases, loading } = useGitHubVersion()
+	const normalizedVersion = typeof version === 'string' && version.length > 0
+		? (version.startsWith('v') ? version.slice(1) : version)
+		: '0.0.0'
 
 	const toggleMenu = () => {
 		setIsMenuOpen(!isMenuOpen)
@@ -86,7 +89,7 @@ export function Header() {
 							title="Click to view changelog"
 							disabled={loading || !release}
 						>
-							<div>v{version.startsWith('v') ? version.slice(1) : version}</div>
+							<div>v{normalizedVersion}</div>
 						</button>
 
 					{/* Changelog Dialog */}
@@ -220,29 +223,11 @@ export function Header() {
 									)}
 									<li>
 										<Link
-											href="/students"
-											className="block py-2 hover:text-primary"
-											onClick={() => setIsMenuOpen(false)}
-										>
-											{t('navigation.students')}
-										</Link>
-									</li>
-									<li>
-										<Link
 											href="/schedule/create"
 											className="block py-2 hover:text-primary"
 											onClick={() => setIsMenuOpen(false)}
 										>
 											{t('navigation.createSchedule')}
-										</Link>
-									</li>
-									<li>
-										<Link
-											href="/class-settings"
-											className="block py-2 hover:text-primary"
-											onClick={() => setIsMenuOpen(false)}
-										>
-											{t('navigation.classSettings')}
 										</Link>
 									</li>
 									{isFeatureEnabled('notensammler') && (

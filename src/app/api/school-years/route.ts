@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { ok, serverError } from '@/lib/api-response'
 
 /**
  * GET /api/school-years
@@ -20,16 +20,13 @@ export async function GET() {
       orderBy: { startDate: 'asc' },
     })
 
-    return NextResponse.json(schoolYears)
+    return ok(schoolYears)
   } catch (error) {
     console.error('Error fetching school years:', error)
     captureError(error, {
       location: 'api/school-years',
       type: 'fetch-school-years',
     })
-    return NextResponse.json(
-      { error: 'Failed to fetch school years' },
-      { status: 500 }
-    )
+    return serverError('Failed to fetch school years')
   }
 }

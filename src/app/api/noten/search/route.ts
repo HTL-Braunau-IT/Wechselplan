@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -7,6 +6,7 @@ import { normalizeUsername } from '@/lib/username'
 import { captureError } from '@/lib/sentry'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
 import { toLocalDateString } from '@/lib/date-utils'
+import { badRequest, forbidden, ok, serverError, unauthorized } from '@/lib/api-response'
 
 type SearchByNameResult = {
 	classId: number
@@ -39,13 +39,13 @@ export async function GET(request: Request) {
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {
-			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+			return unauthorized('Unauthorized')
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+			return forbidden('Forbidden')
 		}
 		if (!(await isFeatureEnabled('noten'))) {
-			return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+			return forbidden('Feature not available')
 		}
 
 		const { searchParams } = new URL(request.url)
@@ -68,13 +68,13 @@ export async function GET(request: Request) {
 				}))?.id
 		}
 		if (schoolYearId == null) {
-			return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
+			return badRequest('No school year found.')
 		}
 
 		const username = normalizeUsername(session.user.name)
 		const teacher = await prisma.teacher.findUnique({ where: { username } })
 		if (!teacher) {
-			return NextResponse.json({ byName: [], byDate: [] })
+			return ok({ byName: [], byDate: [] })
 		}
 
 		const myAssignments = await prisma.teacherAssignment.findMany({
@@ -83,7 +83,7 @@ export async function GET(request: Request) {
 		})
 		const classIds = [...new Set(myAssignments.map((a) => a.classId))]
 		if (classIds.length === 0) {
-			return NextResponse.json({ byName: [], byDate: [] })
+			return ok({ byName: [], byDate: [] })
 		}
 
 		const classRecords = await prisma.class.findMany({
@@ -103,9 +103,20 @@ export async function GET(request: Request) {
 				const lowered = nameQuery.toLowerCase()
 				const students = await prisma.student.findMany({
 					where: { id: { in: studentIds } },
-					select: { id: true, firstName: true, lastName: true, groupId: true },
+					select: { id: true, firstName: true, lastName: true },
 					orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }]
 				})
+				const weekdayGroups = await prisma.studentWeekdayGroup.findMany({
+					where: { studentId: { in: studentIds }, schoolYearId },
+					select: { studentId: true, groupId: true },
+					distinct: ['studentId', 'groupId']
+				})
+				const groupsByStudent = new Map<number, number[]>()
+				for (const row of weekdayGroups) {
+					const list = groupsByStudent.get(row.studentId) ?? []
+					if (!list.includes(row.groupId)) list.push(row.groupId)
+					groupsByStudent.set(row.studentId, list)
+				}
 				const classIdsByStudent = new Map<number, number[]>()
 				for (const m of memberships) {
 					const list = classIdsByStudent.get(m.studentId) ?? []
@@ -114,19 +125,22 @@ export async function GET(request: Request) {
 				}
 
 				for (const s of students) {
-					if (s.groupId == null) continue
 					const fullName = `${s.lastName} ${s.firstName}`.toLowerCase()
 					const reverseName = `${s.firstName} ${s.lastName}`.toLowerCase()
 					if (!fullName.includes(lowered) && !reverseName.includes(lowered)) continue
+					const groupIds = groupsByStudent.get(s.id) ?? []
+					if (groupIds.length === 0) continue
 					for (const classId of classIdsByStudent.get(s.id) ?? []) {
-						byName.push({
-							classId,
-							className: classNameById.get(classId) ?? `Klasse ${classId}`,
-							groupId: s.groupId,
-							studentId: s.id,
-							firstName: s.firstName,
-							lastName: s.lastName
-						})
+						for (const groupId of groupIds) {
+							byName.push({
+								classId,
+								className: classNameById.get(classId) ?? `Klasse ${classId}`,
+								groupId,
+								studentId: s.id,
+								firstName: s.firstName,
+								lastName: s.lastName
+							})
+						}
 					}
 				}
 			}
@@ -136,7 +150,7 @@ export async function GET(request: Request) {
 		if (dateQuery.length > 0) {
 			const rotations = await prisma.teacherRotation.findMany({
 				where: { teacherId: teacher.id, classId: { in: classIds } },
-				select: { classId: true, groupId: true, turnId: true, period: true }
+				select: { classId: true, groupId: true, turnId: true, period: true, turn: { select: { name: true } } }
 			})
 			const scheduleByClass = new Map<number, Record<string, { weeks: Array<{ date: string; isHoliday: boolean }> }>>()
 			for (const classId of classIds) {
@@ -147,13 +161,7 @@ export async function GET(request: Request) {
 				})
 				let scheduleData: Record<string, { weeks: Array<{ date: string; isHoliday: boolean }> }> = {}
 				if (schedule?.turns && schedule.turns.length > 0) {
-					scheduleData = normalizeToJsonFormat(
-						schedule.turns.map((t) => ({
-							name: t.name,
-							customLength: t.customLength,
-							weeks: t.weeks.map((w) => ({ date: w.date, week: w.week, isHoliday: w.isHoliday }))
-						}))
-					) as Record<string, { weeks: Array<{ date: string; isHoliday: boolean }> }>
+					scheduleData = normalizeToJsonFormat(schedule.turns) as Record<string, { weeks: Array<{ date: string; isHoliday: boolean }> }>
 				}
 				scheduleByClass.set(classId, scheduleData)
 			}
@@ -161,7 +169,7 @@ export async function GET(request: Request) {
 			const seen = new Set<string>()
 			for (const rot of rotations) {
 				const scheduleData = scheduleByClass.get(rot.classId)
-				const weeks = scheduleData?.[rot.turnId]?.weeks ?? []
+				const weeks = scheduleData?.[rot.turn.name]?.weeks ?? []
 				for (const week of weeks) {
 					if (week.isHoliday) continue
 					const dateObj = parseDateString(week.date)
@@ -185,9 +193,9 @@ export async function GET(request: Request) {
 			})
 		}
 
-		return NextResponse.json({ byName, byDate })
+		return ok({ byName, byDate })
 	} catch (error) {
 		captureError(error, { location: 'api/noten/search', type: 'search-noten' })
-		return NextResponse.json({ error: 'Failed to search noten data' }, { status: 500 })
+		return serverError('Failed to search noten data')
 	}
 }

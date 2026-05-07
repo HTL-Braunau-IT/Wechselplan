@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
 import { env } from '~/env'
 import { captureError } from '@/lib/sentry'
+import { badRequest, notFound, ok, serverError } from '@/lib/api-response'
 
 interface GitHubRelease {
   tag_name: string
@@ -29,10 +29,7 @@ export async function GET(request: Request) {
     const token = env.GITHUB_TOKEN
 
     if (!token) {
-      return NextResponse.json(
-        { error: 'GitHub token not configured' },
-        { status: 500 }
-      )
+      return serverError('GitHub token not configured')
     }
 
     // Helper function to fetch with authentication
@@ -69,10 +66,7 @@ export async function GET(request: Request) {
 
       if (!response.ok) {
         if (response.status === 404) {
-          return NextResponse.json(
-            { error: 'Repository not found or no releases available' },
-            { status: 404 }
-          )
+          return notFound('Repository not found or no releases available')
         }
 
         if (response.status === 401 || response.status === 403) {
@@ -88,15 +82,11 @@ export async function GET(request: Request) {
               tokenLength: token?.length ?? 0,
             }
           })
-          return NextResponse.json(
-            { 
-              error: 'GitHub authentication failed',
-              message: response.status === 401 
-                ? 'Invalid or expired token. Please check your GITHUB_TOKEN.'
-                : 'Token does not have permission to access this repository. Ensure the token has the "repo" scope for private repositories.',
-              status: response.status
-            },
-            { status: 500 }
+          return serverError(
+            'GitHub authentication failed',
+            response.status === 401
+              ? 'Invalid or expired token. Please check your GITHUB_TOKEN.'
+              : 'Token does not have permission to access this repository. Ensure the token has the "repo" scope for private repositories.'
           )
         }
 
@@ -110,10 +100,7 @@ export async function GET(request: Request) {
           }
         })
 
-        return NextResponse.json(
-          { error: 'Failed to fetch release information' },
-          { status: response.status }
-        )
+        return serverError('Failed to fetch release information', { status: response.status, statusText: response.statusText })
       }
 
       const allReleases = await response.json() as GitHubRelease[]
@@ -129,7 +116,7 @@ export async function GET(request: Request) {
           name: release.name || release.tag_name,
         }))
 
-      return NextResponse.json(formattedReleases)
+      return ok(formattedReleases)
     }
 
     // Otherwise, fetch only the latest release
@@ -148,7 +135,7 @@ export async function GET(request: Request) {
         const allReleases = await allReleasesResponse.json() as GitHubRelease[]
         if (allReleases.length === 0) {
           // No releases exist yet - return a helpful message
-          return NextResponse.json(
+          return ok(
             { 
               error: 'No releases found',
               message: 'The repository exists but has no releases yet. Please create a release on GitHub.',
@@ -158,7 +145,6 @@ export async function GET(request: Request) {
               html_url: 'https://github.com/HTL-Braunau-IT/Wechselplan/releases',
               name: 'No releases available'
             },
-            { status: 200 } // Return 200 with a default version so the app doesn't break
           )
         }
         // If releases exist but /latest returned 404, use the first one (most recent)
@@ -168,7 +154,7 @@ export async function GET(request: Request) {
         )
         const latestRelease = sortedReleases[0]
         if (latestRelease) {
-          return NextResponse.json({
+          return ok({
             tag_name: latestRelease.tag_name,
             body: latestRelease.body,
             published_at: latestRelease.published_at,
@@ -178,19 +164,13 @@ export async function GET(request: Request) {
         }
       } else if (allReleasesResponse.status === 404) {
         // Repository not found or no access
-        return NextResponse.json(
-          { error: 'Repository not found or access denied. Please check the repository name and token permissions.' },
-          { status: 404 }
-        )
+        return notFound('Repository not found or access denied. Please check the repository name and token permissions.')
       }
     }
 
     if (!response.ok) {
       if (response.status === 404) {
-        return NextResponse.json(
-          { error: 'Repository not found or no releases available' },
-          { status: 404 }
-        )
+        return notFound('Repository not found or no releases available')
       }
 
       if (response.status === 401 || response.status === 403) {
@@ -206,15 +186,11 @@ export async function GET(request: Request) {
             tokenLength: token?.length ?? 0,
           }
         })
-        return NextResponse.json(
-          { 
-            error: 'GitHub authentication failed',
-            message: response.status === 401 
-              ? 'Invalid or expired token. Please check your GITHUB_TOKEN.'
-              : 'Token does not have permission to access this repository. Ensure the token has the "repo" scope for private repositories.',
-            status: response.status
-          },
-          { status: 500 }
+        return serverError(
+          'GitHub authentication failed',
+          response.status === 401
+            ? 'Invalid or expired token. Please check your GITHUB_TOKEN.'
+            : 'Token does not have permission to access this repository. Ensure the token has the "repo" scope for private repositories.'
         )
       }
 
@@ -224,10 +200,7 @@ export async function GET(request: Request) {
           location: 'api/github/releases',
           type: 'github-rate-limit',
         })
-        return NextResponse.json(
-          { error: 'GitHub API rate limit exceeded. Please try again later.' },
-          { status: 429 }
-        )
+        return badRequest('GitHub API rate limit exceeded. Please try again later.')
       }
 
       const errorText = await response.text().catch(() => 'Unknown error')
@@ -240,15 +213,12 @@ export async function GET(request: Request) {
         }
       })
 
-      return NextResponse.json(
-        { error: 'Failed to fetch release information' },
-        { status: response.status }
-      )
+      return serverError('Failed to fetch release information', { status: response.status, statusText: response.statusText })
     }
 
     const release: GitHubRelease = await response.json()
 
-    return NextResponse.json({
+    return ok({
       tag_name: release.tag_name,
       body: release.body,
       published_at: release.published_at,
@@ -261,10 +231,7 @@ export async function GET(request: Request) {
       type: 'github-fetch-error',
     })
 
-    return NextResponse.json(
-      { error: 'Failed to fetch release information' },
-      { status: 500 }
-    )
+    return serverError('Failed to fetch release information')
   }
 }
 

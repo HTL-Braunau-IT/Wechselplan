@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
+import { badRequest, notFound, ok, serverError } from '@/lib/api-response'
 
 /**
  * Handles HTTP OPTIONS requests for the schedule times API route.
@@ -26,20 +27,38 @@ export async function OPTIONS() {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const classIdParam = searchParams.get('classId')
+  const schoolYearIdParam = searchParams.get('schoolYearId')
+  const weekdayParam = searchParams.get('weekday')
 
   if (!classIdParam) {
-    return NextResponse.json({ error: 'Class ID is required' }, { status: 400 })
+    return badRequest('Class ID is required')
   }
 
   const classId = parseInt(classIdParam, 10)
   if (isNaN(classId)) {
-    return NextResponse.json({ error: 'Class ID must be a number' }, { status: 400 })
+    return badRequest('Class ID must be a number')
   }
 
-  // Get the latest schedule for this class
+  let schoolYearId: number | undefined = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
+  if (schoolYearId == null || Number.isNaN(schoolYearId)) {
+    const now = new Date()
+    const current = await prisma.schoolYear.findFirst({
+      where: { startDate: { lte: now }, endDate: { gte: now } },
+      select: { id: true }
+    })
+    schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
+  }
+
+  const weekday =
+    weekdayParam != null && weekdayParam !== ''
+      ? parseInt(weekdayParam, 10)
+      : undefined
+
   const times = await prisma.schedule.findFirst({
     where: {
-      classId: classId
+      classId: classId,
+      ...(schoolYearId != null ? { schoolYearId } : {}),
+      ...(weekday != null && !Number.isNaN(weekday) ? { selectedWeekday: weekday } : {})
     },
     orderBy: {
       createdAt: 'desc'
@@ -51,13 +70,10 @@ export async function GET(request: Request) {
   })
 
   if (!times) {
-    return NextResponse.json(
-      { error: 'No schedule times found for this class' },
-      { status: 404 }
-    )
+    return notFound('No schedule times found for this class')
   }
 
-  return NextResponse.json({ times })
+  return ok({ times })
 }
 
 
@@ -68,19 +84,36 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
-    const { scheduleTimes, breakTimes, classId } = await request.json()
-
-    if (!classId || typeof classId !== 'number') {
-      return NextResponse.json(
-        { error: 'Class ID is required' },
-        { status: 400 }
-      )
+    const { scheduleTimes, breakTimes, classId, schoolYearId: bodySchoolYearId, weekday: bodyWeekday } = await request.json() as {
+      scheduleTimes: Array<{ id: number }>
+      breakTimes: Array<{ id: number }>
+      classId: number
+      schoolYearId?: number
+      weekday?: number
     }
 
-    // Get the latest schedule for this class
+    if (!classId || typeof classId !== 'number') {
+      return badRequest('Class ID is required')
+    }
+
+    let schoolYearId = bodySchoolYearId
+    if (schoolYearId == null) {
+      const now = new Date()
+      const current = await prisma.schoolYear.findFirst({
+        where: { startDate: { lte: now }, endDate: { gte: now } },
+        select: { id: true }
+      })
+      schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
+    }
+
+    const weekdayFilter =
+      typeof bodyWeekday === 'number' && bodyWeekday >= 1 && bodyWeekday <= 5 ? bodyWeekday : undefined
+
     const latestSchedule = await prisma.schedule.findFirst({
       where: {
-        classId: classId
+        classId: classId,
+        ...(schoolYearId != null ? { schoolYearId } : {}),
+        ...(weekdayFilter != null ? { selectedWeekday: weekdayFilter } : {})
       },
       orderBy: {
         createdAt: 'desc'
@@ -92,10 +125,7 @@ export async function POST(request: Request) {
     })
 
     if (!latestSchedule) {
-      return NextResponse.json(
-        { error: 'No schedule found for this class' },
-        { status: 404 }
-      )
+      return notFound('No schedule found for this class')
     }
 
     // Update the schedule with the selected times
@@ -117,17 +147,14 @@ export async function POST(request: Request) {
       }
     })
 
-    return NextResponse.json(updatedSchedule)
+    return ok(updatedSchedule)
   } catch (error) {
     
     captureError(error, {
       location: 'api/schedules/times',
       type: 'save-times'
     })
-    return NextResponse.json(
-      { error: 'Failed to save times' },
-      { status: 500 }
-    )
+    return serverError('Failed to save times')
   }
 }
 

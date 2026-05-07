@@ -1,10 +1,10 @@
-import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { normalizeUsername } from '@/lib/username'
+import { badRequest, forbidden, notFound, ok, serverError, unauthorized } from '@/lib/api-response'
 
 /**
  * PATCH: Update student sitzplatz
@@ -14,13 +14,13 @@ export async function PATCH(request: Request) {
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {
-			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+			return unauthorized('Unauthorized')
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+			return forbidden('Forbidden')
 		}
 		if (!(await isFeatureEnabled('noten'))) {
-			return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+			return forbidden('Feature not available')
 		}
 
 		const body = await request.json()
@@ -30,38 +30,35 @@ export async function PATCH(request: Request) {
 		}
 
 		if (!studentId || typeof studentId !== 'number') {
-			return NextResponse.json({ error: 'studentId required' }, { status: 400 })
+			return badRequest('studentId required')
 		}
 
 		// Verify the teacher has access to update this student
 		const username = normalizeUsername(session.user.name)
 		const teacher = await prisma.teacher.findUnique({ where: { username } })
 		if (!teacher) {
-			return NextResponse.json({ error: 'Teacher not found' }, { status: 403 })
+			return forbidden('Teacher not found')
 		}
 
 		// Verify the student exists
 		const student = await prisma.student.findUnique({ where: { id: studentId } })
 		if (!student) {
-			return NextResponse.json({ error: 'Student not found' }, { status: 404 })
+			return notFound('Student not found')
 		}
 
 		// Update the sitzplatz
 		const updated = await prisma.student.update({
 			where: { id: studentId },
 			data: { sitzplatz: sitzplatz ?? null },
-			select: { id: true, firstName: true, lastName: true, groupId: true, sitzplatz: true }
+			select: { id: true, firstName: true, lastName: true, sitzplatz: true }
 		})
 
-		return NextResponse.json({ student: updated })
+		return ok({ student: { ...updated, groupId: null } })
 	} catch (error) {
 		captureError(error, {
 			location: 'api/noten/student-sitzplatz',
 			type: 'update-sitzplatz'
 		})
-		return NextResponse.json(
-			{ error: 'Failed to update sitzplatz' },
-			{ status: 500 }
-		)
+		return serverError('Failed to update sitzplatz')
 	}
 }

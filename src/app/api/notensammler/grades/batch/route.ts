@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
+import { badRequest, forbidden, notFound, ok, serverError, unauthorized } from '@/lib/api-response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -27,13 +27,13 @@ export async function POST(request: Request) {
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {
-			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+			return unauthorized('Unauthorized')
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+			return forbidden('Forbidden')
 		}
 		if (!(await isFeatureEnabled('notensammler'))) {
-			return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+			return forbidden('Feature not available')
 		}
 
 		const body = (await request.json()) as {
@@ -45,22 +45,16 @@ export async function POST(request: Request) {
 		const { classId, schoolYearId: bodySchoolYearId, grades: rawGrades } = body
 
 		if (!rawGrades || !Array.isArray(rawGrades)) {
-			return NextResponse.json(
-				{ error: 'grades must be a non-empty array' },
-				{ status: 400 }
-			)
+			return badRequest('grades must be a non-empty array')
 		}
 		if (rawGrades.length > MAX_GRADES_BATCH) {
-			return NextResponse.json(
-				{ error: `Too many grades. Maximum ${MAX_GRADES_BATCH} per request.` },
-				{ status: 400 }
-			)
+			return badRequest(`Too many grades. Maximum ${MAX_GRADES_BATCH} per request.`)
 		}
 
 		const classIdNum =
 			typeof classId === 'string' ? parseInt(classId, 10) : typeof classId === 'number' ? classId : NaN
 		if (isNaN(classIdNum)) {
-			return NextResponse.json({ error: 'Invalid classId' }, { status: 400 })
+			return badRequest('Invalid classId')
 		}
 
 		// Resolve school year once
@@ -74,10 +68,7 @@ export async function POST(request: Request) {
 			schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
 		}
 		if (schoolYearId == null) {
-			return NextResponse.json(
-				{ error: 'No school year found. Create a school year in Admin / Data / School Years first.' },
-				{ status: 400 }
-			)
+			return badRequest('No school year found. Create a school year in Admin / Data / School Years first.')
 		}
 
 		// Verify class exists
@@ -85,7 +76,7 @@ export async function POST(request: Request) {
 			where: { id: classIdNum }
 		})
 		if (!classRecord) {
-			return NextResponse.json({ error: 'Class not found' }, { status: 404 })
+			return notFound('Class not found')
 		}
 
 		// Parse and validate each entry
@@ -95,25 +86,16 @@ export async function POST(request: Request) {
 			const studentId = typeof g.studentId === 'string' ? parseInt(g.studentId, 10) : typeof g.studentId === 'number' ? g.studentId : NaN
 			const teacherId = typeof g.teacherId === 'string' ? parseInt(g.teacherId, 10) : typeof g.teacherId === 'number' ? g.teacherId : NaN
 			if (isNaN(studentId) || isNaN(teacherId)) {
-				return NextResponse.json(
-					{ error: `Invalid studentId or teacherId at index ${i}` },
-					{ status: 400 }
-				)
+				return badRequest(`Invalid studentId or teacherId at index ${i}`)
 			}
 			if (g.semester !== 'first' && g.semester !== 'second') {
-				return NextResponse.json(
-					{ error: `Semester must be "first" or "second" at index ${i}` },
-					{ status: 400 }
-				)
+				return badRequest(`Semester must be "first" or "second" at index ${i}`)
 			}
 			let gradeValue: number | null = null
 			if (g.grade !== null && g.grade !== undefined) {
 				const num = typeof g.grade === 'string' ? parseFloat(g.grade) : typeof g.grade === 'number' ? g.grade : NaN
 				if (isNaN(num) || !ALLOWED_GRADES.includes(num)) {
-					return NextResponse.json(
-						{ error: `Grade must be one of: ${ALLOWED_GRADES.join(', ')} or null at index ${i}` },
-						{ status: 400 }
-					)
+					return badRequest(`Grade must be one of: ${ALLOWED_GRADES.join(', ')} or null at index ${i}`)
 				}
 				gradeValue = num
 			}
@@ -150,7 +132,7 @@ export async function POST(request: Request) {
 			)
 		)
 
-		return NextResponse.json({ success: true, count: grades.length })
+		return ok({ success: true, count: grades.length })
 	} catch (error) {
 		captureError(error as Error, {
 			location: 'api/notensammler/grades/batch',
@@ -160,12 +142,6 @@ export async function POST(request: Request) {
 				errorMessage: error instanceof Error ? error.message : String(error)
 			}
 		})
-		return NextResponse.json(
-			{
-				error: 'Failed to save grades',
-				details: error instanceof Error ? error.message : String(error)
-			},
-			{ status: 500 }
-		)
+		return serverError('Failed to save grades', { details: error instanceof Error ? error.message : String(error) })
 	}
 }

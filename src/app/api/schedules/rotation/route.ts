@@ -1,10 +1,13 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { badRequest, ok, notFound, serverError, unprocessable } from '@/lib/api-response'
 
 interface TeacherRotationRequest {
   classId: number
-  turns: string[]
+  schoolYearId: number
+  selectedWeekday: number
+  /** Turn names (e.g. "TURNUS 1") OR turn ids — both supported for backwards compat. */
+  turns: Array<string | number>
   amRotation: {
     groupId: number
     turns: (number | null)[]
@@ -25,13 +28,22 @@ interface TeacherRotationRequest {
 export async function POST(request: Request) {
   try {
     const data = await request.json() as TeacherRotationRequest
-    const { classId, turns, amRotation, pmRotation } = data
+    const { classId, schoolYearId, selectedWeekday, turns, amRotation, pmRotation } = data
 
-    if (!classId || typeof classId !== 'number' || !turns || !amRotation || !pmRotation) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      )
+    if (
+      !classId ||
+      typeof classId !== 'number' ||
+      !schoolYearId ||
+      typeof schoolYearId !== 'number' ||
+      !selectedWeekday ||
+      typeof selectedWeekday !== 'number' ||
+      selectedWeekday < 1 ||
+      selectedWeekday > 5 ||
+      !turns ||
+      !amRotation ||
+      !pmRotation
+    ) {
+      return badRequest('Missing required fields')
     }
 
     const classData = await prisma.class.findUnique({
@@ -41,31 +53,61 @@ export async function POST(request: Request) {
     })
 
     if (!classData) {
-      return NextResponse.json(
-        { error: 'Class not found' },
-        { status: 404 }
-      )
+      return notFound('Class not found')
     }
 
-    // Delete existing rotations for this class
+    // Resolve `turns` (either names like "TURNUS 1" or numeric ids) to ScheduleTurn ids
+    // by looking up the active Schedule for (class, year, weekday).
+    const schedule = await prisma.schedule.findFirst({
+      where: { classId: classData.id, schoolYearId, selectedWeekday },
+      orderBy: { createdAt: 'desc' },
+      include: { turns: { select: { id: true, name: true } } }
+    })
+    if (!schedule || schedule.turns.length === 0) {
+      return notFound('No schedule with turns found for this class/year/weekday')
+    }
+
+    const turnIdByName = new Map(schedule.turns.map(t => [t.name, t.id]))
+    const turnIdSet = new Set(schedule.turns.map(t => t.id))
+    const resolvedTurnIds: number[] = []
+    for (const turn of turns) {
+      if (typeof turn === 'number' && turnIdSet.has(turn)) {
+        resolvedTurnIds.push(turn)
+        continue
+      }
+      if (typeof turn === 'string') {
+        const id = turnIdByName.get(turn)
+        if (id != null) {
+          resolvedTurnIds.push(id)
+          continue
+        }
+      }
+      return unprocessable(`Turn "${String(turn)}" not found in schedule`)
+    }
+
+    // Delete only the current class/school year/weekday scope
     await prisma.teacherRotation.deleteMany({
       where: {
-        classId: classData.id
+        classId: classData.id,
+        schoolYearId,
+        selectedWeekday
       }
     })
 
     // Save AM rotation
     for (const groupRotation of amRotation) {
-      for (let i = 0; i < turns.length; i++) {
+      for (let i = 0; i < resolvedTurnIds.length; i++) {
         const teacherId = groupRotation.turns[i]
-        if (teacherId !== null) {
+        if (teacherId !== null && teacherId !== undefined) {
           await prisma.teacherRotation.create({
             data: {
               classId: classData.id,
               groupId: groupRotation.groupId,
-              teacherId: teacherId!,
-              turnId: turns[i]!,
-              period: 'AM'
+              teacherId,
+              turnId: resolvedTurnIds[i]!,
+              period: 'AM',
+              schoolYearId,
+              selectedWeekday
             }
           })
         }
@@ -74,33 +116,32 @@ export async function POST(request: Request) {
 
     // Save PM rotation
     for (const groupRotation of pmRotation) {
-      for (let i = 0; i < turns.length; i++) {
+      for (let i = 0; i < resolvedTurnIds.length; i++) {
         const teacherId = groupRotation.turns[i]
-        if (teacherId !== null) {
+        if (teacherId !== null && teacherId !== undefined) {
           await prisma.teacherRotation.create({
             data: {
               classId: classData.id,
               groupId: groupRotation.groupId,
-              teacherId: teacherId!,
-              turnId: turns[i]!,
-              period: 'PM'
+              teacherId,
+              turnId: resolvedTurnIds[i]!,
+              period: 'PM',
+              schoolYearId,
+              selectedWeekday
             }
           })
         }
       }
     }
 
-    return NextResponse.json({ success: true })
+    return ok({ success: true })
   } catch (error) {
   
     captureError(error, {
       location: 'api/schedules/rotation',
       type: 'update-rotation'
     })
-    return NextResponse.json(
-      { error: 'Failed to update teacher rotation' },
-      { status: 500 }
-    )
+    return serverError('Failed to update teacher rotation')
   }
 }
 

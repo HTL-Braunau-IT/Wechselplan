@@ -1,15 +1,15 @@
 export const runtime = 'nodejs'
 
-import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/require-admin'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { refreshStudentO365PhotoCache } from '@/lib/student-photo-source'
+import { forbidden, ok, serverError } from '@/lib/api-response'
 
 export async function POST(request: Request) {
   const auth = await requireAdmin()
   if (!auth.ok) {
-    return NextResponse.json({ error: 'Nicht berechtigt: Admin-Rolle erforderlich' }, { status: 403 })
+    return forbidden('Nicht berechtigt: Admin-Rolle erforderlich')
   }
 
   try {
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
         .filter(id => Number.isInteger(id) && id > 0)
     } else {
       const students = await prisma.student.findMany({
-        where: { externalSource: 'entra', externalId: { not: null } },
+        where: { externalId: { not: null } },
         select: { id: true },
         take: 1000,
       })
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       if (hasPhoto) withPhoto += 1
     }
 
-    return NextResponse.json({
+    return ok({
       total: studentIds.length,
       refreshed,
       withPhoto,
@@ -48,6 +48,6 @@ export async function POST(request: Request) {
       type: 'refresh_o365_student_photos_error',
     })
     const message = error instanceof Error ? error.message : 'O365-Fotos konnten nicht aktualisiert werden'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return serverError(message)
   }
 }

@@ -1,80 +1,79 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '~/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
+import { badRequest, notFound, ok, serverError } from '@/lib/api-response'
+import { resolveSchoolYearId } from '@/lib/year-aware-class-staff'
+
 /**
- * Processes a GET request to retrieve the class name and group ID assigned to a student by username.
+ * Processes a GET request to retrieve the class name and group ID assigned
+ * to a student by username for the requested (or current) school year.
  *
- * Extracts the `username` query parameter from the request URL and returns the student's class name and groupId in a JSON response. Responds with an error message and appropriate HTTP status code if the username is missing, the student does not exist, or the student has no class assigned.
- *
- * @returns A JSON response containing the class name and groupId, or an error message with the corresponding HTTP status code.
+ * Class membership is now sourced exclusively from `ClassMembership`. The
+ * legacy `Student.classId` column is no longer consulted.
  */
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const rawUsername = searchParams.get('username')
     if (!rawUsername) {
-        return NextResponse.json(
-            { error: 'Username parameter is required' },
-            { status: 400 }
-        )
+        return badRequest('Username parameter is required')
     }
     const username = normalizeUsername(rawUsername)
     if (!username) {
-        return NextResponse.json(
-            { error: 'Username parameter is required' },
-            { status: 400 }
-        )
+        return badRequest('Username parameter is required')
     }
 
     const schoolYearIdParam = searchParams.get('schoolYearId')
-    const schoolYearId = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
+    const selectedWeekdayParam = searchParams.get('selectedWeekday')
+    const selectedWeekday = selectedWeekdayParam ? parseInt(selectedWeekdayParam, 10) : 1
 
     try {
         const student = await prisma.student.findUnique({
-            where: { username },
-            include: { class: true }
+            where: { username }
         })
 
         if (!student) {
             console.warn('[username-match] Student not found', { raw: rawUsername, normalized: username })
-            return NextResponse.json(
-                { error: 'Student not found' },
-                { status: 404 }
-            )
+            return notFound('Student not found')
         }
 
-        if (schoolYearId != null && !Number.isNaN(schoolYearId)) {
-            const membership = await prisma.classMembership.findUnique({
-                where: { studentId_schoolYearId: { studentId: student.id, schoolYearId } },
-                include: { class: true }
-            })
-            if (membership?.class) {
-                return NextResponse.json({
-                    class: membership.class.name,
-                    groupId: student.groupId
-                })
-            }
+        let schoolYearId: number | null = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : null
+        if (schoolYearId == null || Number.isNaN(schoolYearId)) {
+            schoolYearId = await resolveSchoolYearId()
         }
 
-        if (!student.class) {
-            return NextResponse.json(
-                { error: 'Student has no class assigned' },
-                { status: 404 }
-            )
+        if (schoolYearId == null) {
+            return notFound('Student has no class assigned')
         }
 
-        return NextResponse.json({
-            class: student.class.name,
-            groupId: student.groupId
+        const membership = await prisma.classMembership.findUnique({
+            where: { studentId_schoolYearId: { studentId: student.id, schoolYearId } },
+            include: { class: { select: { name: true } } }
+        })
+
+        if (!membership?.class) {
+            return notFound('Student has no class assigned')
+        }
+
+        const weekdayGroup = await prisma.studentWeekdayGroup.findUnique({
+            where: {
+                studentId_schoolYearId_weekday: {
+                    studentId: student.id,
+                    schoolYearId,
+                    weekday: selectedWeekday
+                }
+            },
+            select: { groupId: true }
+        })
+
+        return ok({
+            class: membership.class.name,
+            groupId: weekdayGroup?.groupId ?? null
         })
     } catch (error) {
         captureError(error, {
             location: 'api/students/class',
             type: 'fetch-student-class'
         })
-        return NextResponse.json(
-            { error: 'Failed to fetch student class' },
-            { status: 500 }
-        )
+        return serverError('Failed to fetch student class')
     }
-} 
+}

@@ -1,6 +1,11 @@
 /**
  * Helper functions for converting between scheduleData JSON format
- * and normalized ScheduleTurn/ScheduleWeek database structure
+ * and normalized ScheduleTurn/ScheduleWeek database structure.
+ *
+ * Note: as of Phase 3a, ScheduleWeek.date is stored as DATE and
+ * ScheduleWeek.week as INTEGER (ISO week). At the API boundary we still
+ * expose the legacy display strings ("dd.MM.yy" / "KW##") so existing
+ * clients (UI, exports, PDFs) keep working without changes.
  */
 
 import type { ScheduleTerm, TurnSchedule } from '@/types/schedule'
@@ -17,16 +22,60 @@ export interface ScheduleTurnData {
 	holidayIds?: number[]
 }
 
+/* ----- Format helpers (DB <-> legacy display strings) ----- */
+
+/** Format a Date as the legacy "dd.MM.yy" string. */
+export function formatScheduleWeekDate(date: Date | string): string {
+	const d = date instanceof Date ? date : new Date(date)
+	if (Number.isNaN(d.getTime())) return ''
+	const dd = String(d.getUTCDate()).padStart(2, '0')
+	const mm = String(d.getUTCMonth() + 1).padStart(2, '0')
+	const yy = String(d.getUTCFullYear() % 100).padStart(2, '0')
+	return `${dd}.${mm}.${yy}`
+}
+
+/** Format an ISO week number (Int) as the legacy "KW##" string. */
+export function formatScheduleWeekLabel(week: number | string): string {
+	const n = typeof week === 'number' ? week : parseInt(String(week).replace(/^KW/i, ''), 10)
+	if (Number.isNaN(n)) return ''
+	return `KW${n}`
+}
+
+/** Parse "dd.MM.yy" back to a Date (UTC midnight). Used by writes. */
+export function parseScheduleWeekDate(input: string | Date): Date {
+	if (input instanceof Date) return input
+	const parts = input.split('.')
+	if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) {
+		const fallback = new Date(input)
+		return Number.isNaN(fallback.getTime()) ? new Date(0) : fallback
+	}
+	const dd = parseInt(parts[0], 10)
+	const mm = parseInt(parts[1], 10) - 1
+	const yyRaw = parseInt(parts[2], 10)
+	const yyyy = yyRaw < 100 ? 2000 + yyRaw : yyRaw
+	return new Date(Date.UTC(yyyy, mm, dd))
+}
+
+/** Parse "KW##" or "##" to an ISO week int. Used by writes. */
+export function parseScheduleWeekLabel(input: string | number): number {
+	if (typeof input === 'number') return input
+	const stripped = String(input).replace(/^KW/i, '')
+	const n = parseInt(stripped, 10)
+	return Number.isNaN(n) ? 0 : n
+}
+
 /**
- * Converts normalized database structure to the legacy JSON format
+ * Converts normalized database structure to the legacy JSON format.
+ * Accepts either typed (Date/Int) or legacy (string) values for `date`/`week`
+ * so callers can pass raw Prisma rows.
  */
 export function normalizeToJsonFormat(
 	turns: Array<{
 		name: string
 		customLength?: number | null
 		weeks: Array<{
-			date: string
-			week: string
+			date: Date | string
+			week: number | string
 			isHoliday: boolean
 		}>
 		holidays?: Array<{
@@ -40,29 +89,28 @@ export function normalizeToJsonFormat(
 	}>
 ): TurnSchedule {
 	const result: TurnSchedule = {}
-	
+
 	for (const turn of turns) {
 		result[turn.name] = {
 			name: turn.name,
 			weeks: turn.weeks.map(w => ({
-				date: w.date,
-				week: w.week,
+				date: typeof w.date === 'string' ? w.date : formatScheduleWeekDate(w.date),
+				week: typeof w.week === 'string' ? w.week : formatScheduleWeekLabel(w.week),
 				isHoliday: w.isHoliday
 			})),
 			holidays: turn.holidays?.map(h => {
-				// Handle both Date objects and ISO strings from Prisma
-				const startDate = h.holiday.startDate instanceof Date 
+				const startDate = h.holiday.startDate instanceof Date
 					? h.holiday.startDate.toISOString()
 					: typeof h.holiday.startDate === 'string'
 					? h.holiday.startDate
 					: new Date(h.holiday.startDate).toISOString()
-				
+
 				const endDate = h.holiday.endDate instanceof Date
 					? h.holiday.endDate.toISOString()
 					: typeof h.holiday.endDate === 'string'
 					? h.holiday.endDate
 					: new Date(h.holiday.endDate).toISOString()
-				
+
 				return {
 					id: h.holiday.id,
 					name: h.holiday.name,
@@ -73,7 +121,7 @@ export function normalizeToJsonFormat(
 			customLength: turn.customLength ?? undefined
 		}
 	}
-	
+
 	return result
 }
 
@@ -89,14 +137,14 @@ export function parseJsonToNormalized(
 
 	const data = scheduleData as Record<string, ScheduleTerm>
 	const result: ScheduleTurnData[] = []
-	
+
 	for (const [turnName, turnData] of Object.entries(data)) {
 		if (!turnData || typeof turnData !== 'object') continue
-		
+
 		result.push({
 			name: turnName,
 			customLength: turnData.customLength ?? null,
-			weeks: Array.isArray(turnData.weeks) 
+			weeks: Array.isArray(turnData.weeks)
 				? turnData.weeks.map(w => ({
 					date: String(w.date ?? ''),
 					week: String(w.week ?? ''),
@@ -108,13 +156,14 @@ export function parseJsonToNormalized(
 				: []
 		})
 	}
-	
+
 	return result
 }
 
 /**
- * Creates Prisma data structure for creating ScheduleTurn with weeks and holidays
- * For nested creates (when scheduleId is 0), omit the schedule connection
+ * Creates Prisma data structure for creating ScheduleTurn with weeks and holidays.
+ * Converts legacy "dd.MM.yy" / "KW##" strings to typed Date/Int values for the DB.
+ * For nested creates (when scheduleId is 0), omit the schedule connection.
  */
 export function createScheduleTurnData(
 	turnData: ScheduleTurnData,
@@ -126,8 +175,8 @@ export function createScheduleTurnData(
 		order,
 		weeks: {
 			create: turnData.weeks.map(week => ({
-				date: week.date,
-				week: week.week,
+				date: parseScheduleWeekDate(week.date),
+				week: parseScheduleWeekLabel(week.week),
 				isHoliday: week.isHoliday
 			}))
 		},
@@ -140,4 +189,3 @@ export function createScheduleTurnData(
 		} : undefined
 	}
 }
-

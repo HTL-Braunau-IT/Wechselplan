@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '~/lib/prisma'
 import { sendSupportEmail } from '~/server/send-support-email-graph'
 import { captureError } from '@/lib/sentry'
+import { badRequest, created, serverError } from '@/lib/api-response'
 
 /**
  * Processes a support message submitted via HTTP POST, validating input, storing it in the database, and attempting to notify the admin.
@@ -25,10 +25,7 @@ export async function POST(request: Request) {
         location: 'api/support',
         type: 'missing-required-fields'
       })
-      return NextResponse.json(
-        { error: 'Name and message are required' },
-        { status: 400 }
-      )
+      return badRequest('Name and message are required')
     }
 
     const supportMessage = await prisma.supportMessage.create({
@@ -59,7 +56,7 @@ export async function POST(request: Request) {
       // Don't throw here, we still want to return success to the user
     }
 
-    return NextResponse.json(supportMessage)
+    return created(supportMessage)
   } catch (error) {
     
     captureError(error, {
@@ -69,9 +66,6 @@ export async function POST(request: Request) {
         requestBody
       }
     })
-    return NextResponse.json(
-      { error: 'Failed to process support request' },
-      { status: 500 }
-    )
+    return serverError('Failed to process support request')
   }
 } 

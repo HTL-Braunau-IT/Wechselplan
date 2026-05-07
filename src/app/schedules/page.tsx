@@ -14,15 +14,17 @@ import {
 import { useCachedData } from '@/hooks/use-cached-data'
 import { useScheduleOverview } from '@/hooks/use-schedule-overview'
 import { ScheduleOverview } from '@/components/schedule-overview'
-import { CheckCircle2, XCircle, AlertCircle, ChevronDown } from 'lucide-react'
+import { CheckCircle2, XCircle, ChevronDown } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
 import { generateExcel, generatePdf, generateSchedulePDF } from '@/lib/export-utils'
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { parseJsonSafe, unwrapData } from '@/lib/api-client'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import { ScheduleExportActions } from '@/components/schedule/schedule-export-actions'
+import { ScheduleMissingStateCard } from '@/components/schedule/schedule-missing-state-card'
 
 interface Schedule {
   id: number
@@ -64,7 +66,54 @@ interface TeacherAssignmentsResponse {
  *
  * @param className - The name of the class for which to display the schedule overview.
  */
-function ClassScheduleOverview({ className, schoolYearId }: { className: string; schoolYearId: number | undefined }) {
+function ClassScheduleOverview({
+  className,
+  schoolYearId,
+  weekdayOverride,
+  showWeekdayControl = true,
+}: {
+  className: string
+  schoolYearId: number | undefined
+  weekdayOverride?: number | null
+  showWeekdayControl?: boolean
+}) {
+  const [availableWeekdays, setAvailableWeekdays] = useState<number[]>([])
+  const [localWeekdayOverride, setLocalWeekdayOverride] = useState<number | null>(weekdayOverride ?? null)
+  const weekdayLabels: Record<number, string> = {
+    1: 'Montag',
+    2: 'Dienstag',
+    3: 'Mittwoch',
+    4: 'Donnerstag',
+    5: 'Freitag',
+  }
+
+  useEffect(() => {
+    setLocalWeekdayOverride(weekdayOverride ?? null)
+  }, [weekdayOverride])
+
+  useEffect(() => {
+    const fetchWeekdays = async () => {
+      const yearQ = schoolYearId != null ? `&schoolYearId=${schoolYearId}` : ''
+      const res = await fetch(`/api/schedules?classId=${encodeURIComponent(className)}${yearQ}`, {
+        cache: 'no-store',
+      })
+      if (!res.ok) {
+        setAvailableWeekdays([])
+        return
+      }
+      const payload = (await parseJsonSafe(res)) as { data?: Schedule[] } | Schedule[]
+      const list = Array.isArray(payload) ? payload : (payload.data ?? [])
+      const weekdays = Array.from(
+        new Set(list.map((s) => s.selectedWeekday).filter((wd) => wd >= 1 && wd <= 5))
+      ).sort((a, b) => a - b)
+      setAvailableWeekdays(weekdays)
+      if (weekdays.length > 0 && (localWeekdayOverride == null || !weekdays.includes(localWeekdayOverride))) {
+        setLocalWeekdayOverride(weekdays[0] ?? null)
+      }
+    }
+    void fetchWeekdays()
+  }, [className, schoolYearId])
+
   const {
     groups,
     amAssignments,
@@ -78,7 +127,7 @@ function ClassScheduleOverview({ className, schoolYearId }: { className: string;
     weekday,
     loading: overviewLoading,
     error: overviewError
-  } = useScheduleOverview(className, schoolYearId)
+  } = useScheduleOverview(className, schoolYearId, localWeekdayOverride)
 
   if (overviewLoading) {
     return (
@@ -89,42 +138,54 @@ function ClassScheduleOverview({ className, schoolYearId }: { className: string;
   }
 
   if (overviewError) {
+    const message =
+      overviewError === 'Class ID is required' || overviewError === 'Failed to fetch schedule times'
+        ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
+        : overviewError
     return (
-      <Card className="m-4 border-destructive">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-destructive flex items-center gap-2">
-            <AlertCircle className="h-5 w-5" />
-            Kein Wechselplan für Klasse {className} gefunden!
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">
-            {overviewError === 'Class ID is required' 
-              ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
-              : overviewError === 'Failed to fetch schedule times'
-              ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
-              : overviewError}
-          </p>
-        </CardContent>
-      </Card>
+      <ScheduleMissingStateCard className={className} message={message} />
     )
   }
 
   return (
-    <ScheduleOverview
-      groups={groups}
-      amAssignments={amAssignments}
-      pmAssignments={pmAssignments}
-      scheduleTimes={scheduleTimes}
-      breakTimes={breakTimes}
-      turns={turns}
-      classHead={classHead}
-      classLead={classLead}
-      additionalInfo={additionalInfo}
-      weekday={weekday}
-      className={className}
-      showExportButtons={true}
-    />
+    <div className="space-y-4">
+      {showWeekdayControl && availableWeekdays.length > 1 && (
+        <Select
+          value={localWeekdayOverride != null ? String(localWeekdayOverride) : undefined}
+          onValueChange={(value) => {
+            const wd = parseInt(value, 10)
+            if (Number.isNaN(wd)) return
+            setLocalWeekdayOverride(wd)
+          }}
+        >
+          <SelectTrigger className="w-[220px]">
+            <SelectValue placeholder="Wochentag auswählen" />
+          </SelectTrigger>
+          <SelectContent>
+            {availableWeekdays.map((wd) => (
+              <SelectItem key={wd} value={String(wd)}>
+                {weekdayLabels[wd] ?? `Wochentag ${wd}`}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
+      <ScheduleOverview
+        groups={groups}
+        amAssignments={amAssignments}
+        pmAssignments={pmAssignments}
+        scheduleTimes={scheduleTimes}
+        breakTimes={breakTimes}
+        turns={turns}
+        classHead={classHead}
+        classLead={classLead}
+        additionalInfo={additionalInfo}
+        weekday={weekday}
+        className={className}
+        showExportButtons={true}
+      />
+    </div>
   )
 }
 
@@ -153,12 +214,24 @@ export default function SchedulesPage() {
   const [savingExcelAM, setSavingExcelAM] = useState(false)
   const [savingExcelPM, setSavingExcelPM] = useState(false)
   const [expandedClass, setExpandedClass] = useState<string | null>(null)
+  const [selectedWeekdayOverride, setSelectedWeekdayOverride] = useState<number | null>(null)
+  const weekdayLabels: Record<number, string> = {
+    1: 'Montag',
+    2: 'Dienstag',
+    3: 'Mittwoch',
+    4: 'Donnerstag',
+    5: 'Freitag',
+  }
 
   const {
     weekday,
     loading: overviewLoading,
     error: overviewError
-  } = useScheduleOverview(selectedClass !== 'all' ? selectedClass : null, schoolYearId)
+  } = useScheduleOverview(
+    selectedClass !== 'all' ? selectedClass : null,
+    schoolYearId,
+    selectedWeekdayOverride
+  )
 
   // Create a Map of class names to their schedule status
   const classScheduleMap = useMemo(() => {
@@ -176,6 +249,20 @@ export default function SchedulesPage() {
   const hasSchedule = (className: string) => {
     return classScheduleMap.get(className) ?? false
   }
+
+  const availableWeekdaysForSelectedClass = useMemo(() => {
+    if (selectedClass === 'all') return []
+    const classRecord = classes.find((c) => c.name === selectedClass)
+    if (!classRecord) return []
+    return Array.from(
+      new Set(
+        schedules
+          .filter((s) => s.classId === classRecord.id)
+          .map((s) => s.selectedWeekday)
+          .filter((wd) => wd >= 1 && wd <= 5)
+      )
+    ).sort((a, b) => a - b)
+  }, [selectedClass, classes, schedules])
 
   // Add effect to check if user is a teacher for the selected class
   useEffect(() => {
@@ -224,7 +311,8 @@ export default function SchedulesPage() {
         
         // Then get the teacher assignments for the class (for selected school year)
         const yearQ = schoolYearId != null ? `&schoolYearId=${schoolYearId}` : ''
-        const response = await fetch(`/api/schedules/teacher-assignments?classId=${classData.id}${yearQ}`)
+        const weekdayQ = selectedWeekdayOverride != null ? `&selectedWeekday=${selectedWeekdayOverride}` : ''
+        const response = await fetch(`/api/schedules/teacher-assignments?classId=${classData.id}${yearQ}${weekdayQ}`)
         if (!response.ok) {
           setIsTeacherForClass(false)
           setIsTeacherForAM(false)
@@ -232,7 +320,8 @@ export default function SchedulesPage() {
           return
         }
 
-        const data = await response.json() as TeacherAssignmentsResponse
+        const payload = await response.json() as { data?: TeacherAssignmentsResponse } | TeacherAssignmentsResponse
+        const data = 'data' in payload ? (payload.data as TeacherAssignmentsResponse) : payload
         
         console.log('Teacher assignments data:', {
           teacherId: teacher.id,
@@ -264,7 +353,7 @@ export default function SchedulesPage() {
     }
 
     void checkTeacherAssignment()
-  }, [selectedClass, session?.user?.name, schoolYearId])
+  }, [selectedClass, session?.user?.name, schoolYearId, selectedWeekdayOverride])
 
   useEffect(() => {
     void fetchData()
@@ -272,12 +361,34 @@ export default function SchedulesPage() {
 
   useEffect(() => {
     const classParam = searchParams.get('class')
+    const weekdayParam = searchParams.get('weekday')
+    const parsedWeekday = weekdayParam ? parseInt(weekdayParam, 10) : NaN
+    const validWeekday = !Number.isNaN(parsedWeekday) && parsedWeekday >= 1 && parsedWeekday <= 5 ? parsedWeekday : null
     if (classParam) {
       setSelectedClass(classParam)
+      setSelectedWeekdayOverride(validWeekday)
     } else {
       setSelectedClass('all')
+      setSelectedWeekdayOverride(null)
     }
   }, [searchParams])
+
+  useEffect(() => {
+    if (selectedClass === 'all') {
+      setSelectedWeekdayOverride(null)
+      return
+    }
+    if (availableWeekdaysForSelectedClass.length === 0) {
+      setSelectedWeekdayOverride(null)
+      return
+    }
+    if (
+      selectedWeekdayOverride == null ||
+      !availableWeekdaysForSelectedClass.includes(selectedWeekdayOverride)
+    ) {
+      setSelectedWeekdayOverride(availableWeekdaysForSelectedClass[0] ?? null)
+    }
+  }, [selectedClass, availableWeekdaysForSelectedClass, selectedWeekdayOverride])
 
   const fetchData = async () => {
     try {
@@ -288,12 +399,14 @@ export default function SchedulesPage() {
       // Fetch schedules and classes for the selected school year (when no year, APIs return all)
       const schedulesRes = await fetch(`/api/schedules/all${yearQ}`, { cache: 'no-store' })
       if (!schedulesRes.ok) throw new Error('Failed to fetch schedules')
-      const schedulesData = await schedulesRes.json() as Schedule[]
+      const schedulesPayload = await parseJsonSafe(schedulesRes)
+      const schedulesData = unwrapData<Schedule[]>(schedulesPayload)
       setSchedules(schedulesData)
 
       const classesRes = await fetch(`/api/classes${yearQ}`, { cache: 'no-store' })
       if (!classesRes.ok) throw new Error('Failed to fetch classes')
-      const classesData = await classesRes.json() as Class[]
+      const classesPayload = await parseJsonSafe(classesRes)
+      const classesData = unwrapData<Class[]>(classesPayload)
       setClasses(classesData)
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : 'Failed to load data'
@@ -305,7 +418,26 @@ export default function SchedulesPage() {
 
   const handleClassChange = (value: string) => {
     setSelectedClass(value)
-    router.push(`/schedules?class=${encodeURIComponent(value)}`)
+    if (value === 'all') {
+      setSelectedWeekdayOverride(null)
+      router.push('/schedules?class=all')
+      return
+    }
+    const classRecord = classes.find((c) => c.name === value)
+    const classWeekdays = classRecord
+      ? Array.from(
+          new Set(
+            schedules
+              .filter((s) => s.classId === classRecord.id)
+              .map((s) => s.selectedWeekday)
+              .filter((wd) => wd >= 1 && wd <= 5)
+          )
+        ).sort((a, b) => a - b)
+      : []
+    const nextWeekday = classWeekdays[0] ?? null
+    setSelectedWeekdayOverride(nextWeekday)
+    const weekdayQ = nextWeekday != null ? `&weekday=${nextWeekday}` : ''
+    router.push(`/schedules?class=${encodeURIComponent(value)}${weekdayQ}`)
   }
 
   if (loading || isLoadingCachedData || overviewLoading) return (
@@ -366,7 +498,7 @@ export default function SchedulesPage() {
   return (
     <div className="container mx-auto p-4">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-4">Schedules Overview</h1>
+        <h1 className="text-2xl font-bold mb-4">Schedules Overview</h1>
         <div className="mb-6">
           <Select value={selectedClass} onValueChange={handleClassChange}>
             <SelectTrigger className="w-[200px]">
@@ -390,78 +522,51 @@ export default function SchedulesPage() {
           </Select>
           
           {selectedClass !== 'all' && hasSchedule(selectedClass) && (
-            <div className="flex items-center gap-2 mt-4">
-              <button
-                className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
-                onClick={handlePDFExport}
-                disabled={savingPdf}
-              >
-                {savingPdf ? 'Exporting PDF...' : 'PDF Export'}
-              </button>
-              <button
-                className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
-                onClick={handlePDFDatumExport}
-                disabled={savingPdfDatum}
-              >
-                {savingPdfDatum ? 'Exporting PDF Datum ...' : 'PDF Datum Export'}
-              </button>
-
-              {/* AM Excel Export Button - only show if teacher is assigned to AM */}
-              {isTeacherForAM && (
-                <button
-                  className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-                  onClick={handleExcelAMExport}
-                  disabled={savingExcelAM}
-                >
-                  {savingExcelAM ? (
-                    <>
-                      <Spinner size="sm" />
-                      Exporting AM Excel ...
-                    </>
-                  ) : (
-                    'Export Notenliste Vormittag'
-                  )}
-                </button>
+            <>
+              {availableWeekdaysForSelectedClass.length > 1 && (
+                <div className="mt-4">
+                  <Select
+                    value={selectedWeekdayOverride != null ? String(selectedWeekdayOverride) : undefined}
+                    onValueChange={(value) => {
+                      const wd = parseInt(value, 10)
+                      if (Number.isNaN(wd)) return
+                      setSelectedWeekdayOverride(wd)
+                      router.push(`/schedules?class=${encodeURIComponent(selectedClass)}&weekday=${wd}`)
+                    }}
+                  >
+                    <SelectTrigger className="w-[220px]">
+                      <SelectValue placeholder="Wochentag auswählen" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableWeekdaysForSelectedClass.map((wd) => (
+                        <SelectItem key={wd} value={String(wd)}>
+                          {weekdayLabels[wd] ?? `Wochentag ${wd}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
+            </>
+          )}
 
-              {/* PM Excel Export Button - only show if teacher is assigned to PM */}
-              {isTeacherForPM && (
-                <button
-                   className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-                  onClick={handleExcelPMExport}
-                  disabled={savingExcelPM}
-                >
-                  {savingExcelPM ? (
-                    <>
-                      <Spinner size="sm" />
-                      Exporting PM Excel ...
-                    </>
-                  ) : (
-                    'Export Notenliste Nachmittag'
-                  )}
-                </button>
-              )}
-            </div>
+          {selectedClass !== 'all' && hasSchedule(selectedClass) && (
+            <ScheduleExportActions
+              onPdfExport={handlePDFExport}
+              onPdfDateExport={handlePDFDatumExport}
+              onExcelAmExport={handleExcelAMExport}
+              onExcelPmExport={handleExcelPMExport}
+              savingPdf={savingPdf}
+              savingPdfDate={savingPdfDatum}
+              savingExcelAm={savingExcelAM}
+              savingExcelPm={savingExcelPM}
+              showExcelAm={isTeacherForAM}
+              showExcelPm={isTeacherForPM}
+            />
           )}
 
           {selectedClass !== 'all' && overviewError && (
-            <Card className="mt-4 border-destructive">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-destructive flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5" />
-                  Kein Wechselplan für Klasse {selectedClass} gefunden!
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  {overviewError === 'Class ID is required' 
-                    ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
-                    : overviewError === 'Failed to fetch schedule times'
-                    ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
-                    : overviewError}
-                </p>
-              </CardContent>
-            </Card>
+            <ScheduleMissingStateCard className={selectedClass} message={overviewError} />
           )}
         </div>
 
@@ -492,22 +597,10 @@ export default function SchedulesPage() {
                   <CollapsibleContent>
                     {hasScheduleForClass ? (
                       <div className="p-4 pt-0">
-                        <ClassScheduleOverview className={cls.name} schoolYearId={schoolYearId} />
+                        <ClassScheduleOverview className={cls.name} schoolYearId={schoolYearId} showWeekdayControl={true} />
                       </div>
                     ) : (
-                      <Card className="m-4 border-destructive">
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-destructive flex items-center gap-2">
-                            <AlertCircle className="h-5 w-5" />
-                            Kein Wechselplan für Klasse {cls.name} gefunden!
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <p className="text-muted-foreground">
-                            Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.
-                          </p>
-                        </CardContent>
-                      </Card>
+                      <ScheduleMissingStateCard className={cls.name} />
                     )}
                   </CollapsibleContent>
                 </Collapsible>
@@ -518,7 +611,12 @@ export default function SchedulesPage() {
 
         {/* Show single schedule when a specific class is selected */}
         {selectedClass !== 'all' && hasSchedule(selectedClass) && !overviewError && (
-          <ClassScheduleOverview className={selectedClass} schoolYearId={schoolYearId} />
+          <ClassScheduleOverview
+            className={selectedClass}
+            schoolYearId={schoolYearId}
+            weekdayOverride={selectedWeekdayOverride}
+            showWeekdayControl={false}
+          />
         )}
       </div>
     </div>

@@ -5,6 +5,7 @@ import { generateNotensammlerPDF } from '@/lib/pdf-generator'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
+import { badRequest, forbidden, notFound, serverError, unauthorized } from '@/lib/api-response'
 
 /**
  * Handles GET requests to generate and return a PDF of notensammler (grade collector) data for a specific class.
@@ -15,13 +16,13 @@ export async function GET(request: Request) {
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {
-			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+			return unauthorized('Unauthorized')
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+			return forbidden('Forbidden')
 		}
 		if (!(await isFeatureEnabled('notensammler'))) {
-			return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+			return forbidden('Feature not available')
 		}
 
 		const { searchParams } = new URL(request.url)
@@ -29,18 +30,12 @@ export async function GET(request: Request) {
 		const schoolYearIdParam = searchParams.get('schoolYearId')
 
 		if (!classIdParam) {
-			return NextResponse.json(
-				{ error: 'classId parameter is required' },
-				{ status: 400 }
-			)
+			return badRequest('classId parameter is required')
 		}
 
 		const classId = parseInt(classIdParam)
 		if (isNaN(classId)) {
-			return NextResponse.json(
-				{ error: 'Invalid classId' },
-				{ status: 400 }
-			)
+			return badRequest('Invalid classId')
 		}
 
 		let schoolYearId: number | undefined = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
@@ -53,7 +48,7 @@ export async function GET(request: Request) {
 			schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
 		}
 		if (schoolYearId == null) {
-			return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
+			return badRequest('No school year found.')
 		}
 
 		// Fetch class (students by year via ClassMembership below)
@@ -62,10 +57,7 @@ export async function GET(request: Request) {
 		})
 
 		if (!classRecord) {
-			return NextResponse.json(
-				{ error: 'Class not found' },
-				{ status: 404 }
-			)
+			return notFound('Class not found')
 		}
 
 		const memberships = await prisma.classMembership.findMany({
@@ -78,9 +70,24 @@ export async function GET(request: Request) {
 				? await prisma.student.findMany({
 						where: { id: { in: studentIds } },
 						orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
-						select: { id: true, firstName: true, lastName: true, groupId: true }
+						select: { id: true, firstName: true, lastName: true }
 					})
 				: []
+		const weekdayGroups =
+			studentIds.length > 0
+				? await prisma.studentWeekdayGroup.findMany({
+					where: { studentId: { in: studentIds }, schoolYearId, weekday: 1 },
+					select: { studentId: true, groupId: true }
+				})
+				: []
+		const groupByStudentId = new Map<number, number>()
+		for (const row of weekdayGroups) {
+			groupByStudentId.set(row.studentId, row.groupId)
+		}
+		const studentsWithGroup = studentsList.map((student) => ({
+			...student,
+			groupId: groupByStudentId.get(student.id) ?? null
+		}))
 
 		// Fetch teacher assignments for this year
 		const assignments = await prisma.teacherAssignment.findMany({
@@ -207,7 +214,7 @@ export async function GET(request: Request) {
 		const pdfBuffer = await generateNotensammlerPDF({
 			className: classRecord.name,
 			subjectName,
-			students: studentsList,
+			students: studentsWithGroup,
 			amTeachers,
 			pmTeachers,
 			grades: gradesByStudent,
@@ -225,10 +232,7 @@ export async function GET(request: Request) {
 			location: 'api/notensammler/pdf',
 			type: 'export-pdf'
 		})
-		return NextResponse.json(
-			{ error: 'Failed to generate PDF' },
-			{ status: 500 }
-		)
+		return serverError('Failed to generate PDF')
 	}
 }
 

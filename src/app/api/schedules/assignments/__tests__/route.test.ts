@@ -14,9 +14,17 @@ vi.mock('@/lib/prisma', () => ({
     student: {
       findMany: vi.fn(),
     },
-    groupAssignment: {
+    classMembership: {
       findMany: vi.fn(),
-      upsert: vi.fn(),
+    },
+    studentWeekdayGroup: {
+      findMany: vi.fn(),
+    },
+    teacherAssignment: {
+      findMany: vi.fn(),
+    },
+    schoolYear: {
+      findFirst: vi.fn(),
     },
   },
 }));
@@ -38,7 +46,7 @@ describe('Schedule Assignments API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data).toEqual({ error: 'Class ID parameter is required' });
+      expect(data).toEqual({ error: { code: 'BAD_REQUEST', message: 'Class ID parameter is required' } });
     });
 
     test('should return 400 if class ID is not a number', async () => {
@@ -47,7 +55,7 @@ describe('Schedule Assignments API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data).toEqual({ error: 'Class ID must be a number' });
+      expect(data).toEqual({ error: { code: 'BAD_REQUEST', message: 'Class ID must be a number' } });
     });
 
     test('should return assignments for a class', async () => {
@@ -61,14 +69,15 @@ describe('Schedule Assignments API', () => {
         classLeadId: null
       };
 
-      const mockStudents: Array<{ id: number; groupId: number | null }> = [];
-      const mockGroupAssignments: Array<{ groupId: number; class: string }> = [];
+      const mockStudents: Array<{ id: number }> = [];
 
       // Mock Prisma methods
       vi.mocked(prisma.class.findUnique).mockResolvedValue(mockClass as any);
       vi.mocked(prisma.student.findMany).mockResolvedValue(mockStudents as any);
-      vi.mocked(prisma.groupAssignment.findMany).mockResolvedValue(mockGroupAssignments as any);
-      vi.mocked(prisma.groupAssignment.upsert).mockResolvedValue({} as any);
+      vi.mocked(prisma.classMembership.findMany).mockResolvedValue([] as any);
+      vi.mocked(prisma.studentWeekdayGroup.findMany).mockResolvedValue([] as any);
+      vi.mocked(prisma.teacherAssignment.findMany).mockResolvedValue([] as any);
+      vi.mocked(prisma.schoolYear.findFirst).mockResolvedValue({ id: 1 } as any);
 
       const request = new Request('http://localhost/api/schedules/assignments?classId=1');
       const response = await GET(request);
@@ -76,8 +85,10 @@ describe('Schedule Assignments API', () => {
 
       expect(response.status).toBe(200);
       expect(data).toEqual({
+        data: {
         assignments: [],
         unassignedStudents: []
+        }
       });
     });
 
@@ -89,7 +100,7 @@ describe('Schedule Assignments API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(500);
-      expect(data).toEqual({ error: 'Failed to fetch assignments' });
+      expect(data).toEqual({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch assignments' } });
     });
   });
 }); 

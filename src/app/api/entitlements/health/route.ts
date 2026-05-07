@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions, hasRole } from '@/lib/auth'
 import { getEnabledFeatures } from '@/lib/entitlements'
+import { forbidden, ok, serverError, unauthorized } from '@/lib/api-response'
 
 /**
  * GET /api/entitlements/health
@@ -11,20 +12,17 @@ import { getEnabledFeatures } from '@/lib/entitlements'
 export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session?.user?.name) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return unauthorized('Unauthorized')
   }
   const isAdmin = session.user?.role === 'admin' || (await hasRole(session.user.name, 'admin'))
   if (!isAdmin) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return forbidden('Forbidden')
   }
 
   try {
     const features = await getEnabledFeatures()
-    return NextResponse.json({ ok: true, features })
+    return ok({ ok: true, features })
   } catch (err) {
-    return NextResponse.json(
-      { ok: false, error: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 }
-    )
+    return serverError(err instanceof Error ? err.message : 'Unknown error', { ok: false })
   }
 }

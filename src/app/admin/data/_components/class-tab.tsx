@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { RefreshCw } from 'lucide-react'
 import { ClassStudentSyncDialog } from './class-student-sync-dialog'
+import { adminGet, adminWrite } from './admin-data-client'
 
 interface Class {
   id: number
@@ -35,17 +36,17 @@ export function ClassTab() {
     { key: 'id', label: 'ID', type: 'number', readonly: true, sortable: true },
     { key: 'name', label: 'Name', type: 'text', required: true, sortable: true },
     { key: 'description', label: 'Beschreibung', type: 'textarea', sortable: true },
-    { 
-      key: 'classHeadId', 
-      label: 'Klassenvorstand', 
-      type: 'select', 
+    {
+      key: 'classHeadId',
+      label: 'Klassenvorstand (akt. Schuljahr)',
+      type: 'select',
       options: [{ value: '', label: 'Kein Eintrag' }, ...teachers.map(t => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))],
       sortable: true
     },
-    { 
-      key: 'classLeadId', 
-      label: 'Klassenleitung', 
-      type: 'select', 
+    {
+      key: 'classLeadId',
+      label: 'Klassenleitung (akt. Schuljahr)',
+      type: 'select',
       options: [{ value: '', label: 'Kein Eintrag' }, ...teachers.map(t => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))],
       sortable: true
     },
@@ -80,11 +81,8 @@ export function ClassTab() {
   const fetchClasses = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch('/api/admin/data?model=class')
-      if (response.ok) {
-        const data = await response.json() as Class[]
-        setClasses(data)
-      }
+      const data = await adminGet<Class[]>('/api/admin/data?model=class')
+      setClasses(data)
     } catch (error) {
       console.error('Error fetching classes:', error)
     } finally {
@@ -94,15 +92,12 @@ export function ClassTab() {
 
   const fetchTeachers = async () => {
     try {
-      const response = await fetch('/api/admin/data?model=teacher')
-      if (response.ok) {
-        const data = await response.json() as Record<string, unknown>[]
-        setTeachers(data.map((t: Record<string, unknown>) => ({ 
-          id: t.id as number, 
-          firstName: t.firstName as string, 
-          lastName: t.lastName as string 
-        })))
-      }
+      const data = await adminGet<Record<string, unknown>[]>('/api/admin/data?model=teacher')
+      setTeachers(data.map((t: Record<string, unknown>) => ({ 
+        id: t.id as number, 
+        firstName: t.firstName as string, 
+        lastName: t.lastName as string 
+      })))
     } catch (error) {
       console.error('Error fetching teachers:', error)
     }
@@ -114,61 +109,40 @@ export function ClassTab() {
   }, [])
 
   const handleCreate = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
-    const response = await fetch('/api/admin/data?model=class', {
+    return adminWrite<Record<string, unknown>>('/api/admin/data?model=class', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     })
-    
-    if (!response.ok) {
-      const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Klasse konnte nicht erstellt werden')
-    }
-    
-    return response.json() as Promise<Record<string, unknown>>
   }
 
   const handleEdit = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
-    const response = await fetch('/api/admin/data?model=class', {
+    return adminWrite<Record<string, unknown>>('/api/admin/data?model=class', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     })
-    
-    if (!response.ok) {
-      const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Klasse konnte nicht aktualisiert werden')
-    }
-    
-    return response.json() as Promise<Record<string, unknown>>
   }
 
   const handleDelete = async (id: number) => {
-    const response = await fetch(`/api/admin/data?model=class&id=${id}`, {
+    await adminWrite<null>(`/api/admin/data?model=class&id=${id}`, {
       method: 'DELETE'
     })
-    
-    if (!response.ok) {
-      const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Klasse konnte nicht gelöscht werden')
-    }
   }
 
   const handleDeleteAll = async (): Promise<{ deleted?: Record<string, number> }> => {
-    const response = await fetch('/api/admin/data?model=class&bulk=true', {
+    return adminWrite<{ deleted?: Record<string, number> }>('/api/admin/data?model=class&bulk=true', {
       method: 'DELETE'
     })
-
-    if (!response.ok) {
-      const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Klassen konnten nicht gelöscht werden')
-    }
-
-    return response.json() as Promise<{ deleted?: Record<string, number> }>
   }
 
   return (
     <div className="space-y-4">
+      <div className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-100">
+        <strong>Hinweis:</strong> Klassenvorstand und Klassenleitung werden ab sofort pro Schuljahr gespeichert. Die hier sichtbaren
+        Werte beziehen sich auf das aktuelle Schuljahr. Andere Schuljahre können im Tab „Klassenstaff (pro Schuljahr)“ verwaltet werden.
+      </div>
+
       <div className="flex items-center justify-end">
         <Button onClick={() => setIsSyncOpen(true)} variant="secondary">
           <RefreshCw className="mr-2 h-4 w-4" />

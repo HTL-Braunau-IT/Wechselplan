@@ -22,6 +22,9 @@ export default function Home() {
   const { data: session } = useSession()
   const [isChangelogOpen, setIsChangelogOpen] = useState(false)
   const { version, release, allReleases, loading } = useGitHubVersion()
+  const normalizedVersion = typeof version === 'string' && version.length > 0
+    ? (version.startsWith('v') ? version.slice(1) : version)
+    : '0.0.0'
 
   if (!session) {
     return (
@@ -53,7 +56,7 @@ export default function Home() {
               title="Click to view changelog"
               disabled={loading || !release}
             >
-              Version: v{version.startsWith('v') ? version.slice(1) : version}
+              Version: v{normalizedVersion}
             </button>
           </div>
           <ChangelogDialog

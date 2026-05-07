@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import { captureError } from '~/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
+import { badRequest, ok, serverError } from '@/lib/api-response'
 
 const prisma = new PrismaClient()
 
@@ -28,6 +29,9 @@ interface ImportRequest {
 export async function POST(request: Request) {
   try {
     const data = await request.json() as ImportRequest
+    if (!Array.isArray(data.teachers)) {
+      return badRequest('teachers must be an array')
+    }
     let importedCount = 0
 
     // First deduplicate the input data
@@ -48,7 +52,7 @@ export async function POST(request: Request) {
         }).then(() => importedCount++)
       })
     )
-    return NextResponse.json({
+    return ok({
       message: 'Import completed successfully',
       teachers: importedCount,
       total: uniqueTeachers.length,
@@ -59,9 +63,6 @@ export async function POST(request: Request) {
       location: 'api/teachers/import/save',
       type: 'import-teachers'
     })  
-    return NextResponse.json(
-      { error: 'Failed to import teachers' },
-      { status: 500 }
-    )
+    return serverError('Failed to import teachers')
   }
 } 

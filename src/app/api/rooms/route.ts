@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { ok, serverError } from '@/lib/api-response'
 
 /**
  * Handles HTTP GET requests to fetch a list of rooms from the database.
@@ -9,7 +9,8 @@ import { captureError } from '@/lib/sentry'
  */
 export async function GET() {
 	try {
-		const rooms = await prisma.room.findMany({
+		const rooms = await prisma.lookupValue.findMany({
+			where: { kind: 'ROOM' },
 			select: {
 				id: true,
 				name: true
@@ -19,15 +20,12 @@ export async function GET() {
 			}
 		})
 
-		return NextResponse.json({ rooms })
+		return ok(rooms)
 	} catch (error) {
 		captureError(error instanceof Error ? error : new Error(String(error)), {
 			location: 'api/rooms',
 			type: 'fetch-rooms'
 		})
-		return NextResponse.json(
-			{ error: 'Failed to fetch rooms' },
-			{ status: 500 }
-		)
+		return serverError('Failed to fetch rooms')
 	}
 } 

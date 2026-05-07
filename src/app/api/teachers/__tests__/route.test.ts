@@ -41,9 +41,9 @@ describe('Teachers API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(data).toHaveLength(2);
-      expect(data[0]).toMatchObject({ id: 1, firstName: 'John', lastName: 'Doe', username: 'johndoe' });
-      expect(data[1]).toMatchObject({ id: 2, firstName: 'Jane', lastName: 'Smith', username: 'janesmith' });
+      expect(data.data).toHaveLength(2);
+      expect(data.data[0]).toMatchObject({ id: 1, firstName: 'John', lastName: 'Doe', username: 'johndoe' });
+      expect(data.data[1]).toMatchObject({ id: 2, firstName: 'Jane', lastName: 'Smith', username: 'janesmith' });
 
       // Verify prisma call
       expect(prisma.teacher.findMany).toHaveBeenCalledWith({
@@ -69,7 +69,10 @@ describe('Teachers API', () => {
 
       expect(response.status).toBe(500);
       expect(data).toEqual({
-        error: 'Failed to fetch teachers',
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to fetch teachers',
+        },
       });
 
       // Verify error was logged and captured
@@ -114,10 +117,10 @@ describe('Teachers API', () => {
       const response = await POST(request);
       const data = await response.json();
 
-      expect(response.status).toBe(200);
-      expect(data).toMatchObject({ id: 1, ...validTeacher });
-      expect(typeof data.createdAt).toBe('string');
-      expect(typeof data.updatedAt).toBe('string');
+      expect(response.status).toBe(201);
+      expect(data.data).toMatchObject({ id: 1, ...validTeacher });
+      expect(typeof data.data.createdAt).toBe('string');
+      expect(typeof data.data.updatedAt).toBe('string');
 
       // Verify prisma calls
       expect(prisma.teacher.findUnique).toHaveBeenCalledWith({
@@ -147,9 +150,10 @@ describe('Teachers API', () => {
       const response = await POST(request);
       const data = await response.json();
 
-      expect(response.status).toBe(400);
-      expect(data).toHaveProperty('error', 'Validation failed');
-      expect(data).toHaveProperty('details');
+      expect(response.status).toBe(422);
+      expect(data.error).toHaveProperty('code', 'UNPROCESSABLE');
+      expect(data.error).toHaveProperty('message', 'Validation failed');
+      expect(data.error).toHaveProperty('details');
 
       // Verify no database operations were attempted
       expect(prisma.teacher.findUnique).not.toHaveBeenCalled();
@@ -175,9 +179,12 @@ describe('Teachers API', () => {
       const response = await POST(request);
       const data = await response.json();
 
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(409);
       expect(data).toEqual({
-        error: 'Username already exists',
+        error: {
+          code: 'CONFLICT',
+          message: 'Username already exists',
+        },
       });
 
       // Verify no create operation was attempted
@@ -203,7 +210,10 @@ describe('Teachers API', () => {
 
       expect(response.status).toBe(500);
       expect(data).toEqual({
-        error: 'Failed to create teacher',
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to create teacher',
+        },
       });
 
       // Verify error was logged and captured

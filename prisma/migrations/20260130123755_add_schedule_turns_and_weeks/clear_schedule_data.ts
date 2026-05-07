@@ -1,3 +1,4 @@
+// @ts-nocheck — one-off migration helper; `Schedule.scheduleData` was removed from the schema.
 /**
  * Script to clear scheduleData JSON field after migration to normalized tables
  * 

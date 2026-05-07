@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { z } from 'zod'
+import { conflict, created, ok, serverError, unprocessable } from '@/lib/api-response'
 
 const roleSchema = z.object({
   name: z.string()
@@ -25,17 +25,14 @@ export async function GET() {
         name: 'asc'
       }
     })
-    return NextResponse.json(roles)
+    return ok(roles)
   } catch (error) {
 
     captureError(error, {
       location: 'api/roles',
       type: 'fetch-roles'
     })
-    return NextResponse.json(
-      { error: 'Failed to fetch roles' },
-      { status: 500 }
-    )
+    return serverError('Failed to fetch roles')
   }
 }
 
@@ -56,10 +53,7 @@ export async function POST(request: Request) {
     // Validate the request body
     const validationResult = roleSchema.safeParse(body)
     if (!validationResult.success) {
-      return NextResponse.json(
-        { error: 'Invalid role data', details: validationResult.error.format() },
-        { status: 400 }
-      )
+      return unprocessable('Invalid role data', validationResult.error.format())
     }
 
     const { name, description } = validationResult.data
@@ -70,10 +64,7 @@ export async function POST(request: Request) {
     })
 
     if (existingRole) {
-      return NextResponse.json(
-        { error: 'A role with this name already exists' },
-        { status: 409 }
-      )
+      return conflict('A role with this name already exists')
     }
 
     const role = await prisma.role.create({
@@ -83,16 +74,13 @@ export async function POST(request: Request) {
       }
     })
 
-    return NextResponse.json(role, { status: 201 })
+    return created(role)
   } catch (error) {
 
     captureError(error, {
       location: 'api/roles',
       type: 'create-role',
     })
-    return NextResponse.json(
-      { error: 'Failed to create role' },
-      { status: 500 }
-    )
+    return serverError('Failed to create role')
   }
 } 

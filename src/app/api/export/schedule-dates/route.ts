@@ -3,6 +3,7 @@ import { captureError } from '@/lib/sentry'
 import { pdf } from '@react-pdf/renderer'
 import ScheduleTurnusPDF, { type ScheduleData } from '@/components/ScheduleTurnusPDF'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
+import { badRequest, notFound, serverError } from '@/lib/api-response'
 
 import { prisma } from '@/lib/prisma'
 
@@ -20,16 +21,16 @@ export async function POST(request: Request) {
         const selectedWeekday = searchParams.get('selectedWeekday')
 
         if (!selectedWeekday) {
-            return NextResponse.json({ error: 'Selected Weekday is required' }, { status: 400 })
+            return badRequest('Selected Weekday is required')
         }
 
         const weekday = Number(selectedWeekday)
         if (isNaN(weekday) || weekday < 1 || weekday > 5) {
-            return NextResponse.json({ error: 'Selected Weekday is invalid' }, { status: 400 })
+            return badRequest('Selected Weekday is invalid')
         }
 
         if (!className) {
-            return NextResponse.json({ error: 'Class Name is required' }, { status: 400 })
+            return badRequest('Class Name is required')
         }
 
         const schoolYearIdParam = searchParams.get('schoolYearId')
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
             schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id ?? null
         }
         if (schoolYearId == null) {
-            return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
+            return badRequest('No school year found.')
         }
 
         const class_response = await prisma.class.findUnique({
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
         })
 
         if (!class_response) {
-            return NextResponse.json({ error: 'Class not found' }, { status: 404 })
+            return notFound('Class not found')
         }
 
         const schedule = await prisma.schedule.findFirst({
@@ -79,18 +80,15 @@ export async function POST(request: Request) {
         })
 
         if (!schedule) {
-            return NextResponse.json({ error: 'Schedule not found' }, { status: 404 })
+            return notFound('Schedule not found')
         }
 
         const days = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
         const weekdayString = days[weekday];
         
-        // Use normalized turns if available, otherwise fall back to scheduleData
         let scheduleData: ScheduleData = {};
         if (schedule.turns && schedule.turns.length > 0) {
             scheduleData = normalizeToJsonFormat(schedule.turns) as ScheduleData;
-        } else if (schedule.scheduleData && typeof schedule.scheduleData === 'object' && !Array.isArray(schedule.scheduleData)) {
-            scheduleData = schedule.scheduleData as unknown as ScheduleData;
         }
         const doc = ScheduleTurnusPDF({ scheduleData: scheduleData as unknown as ScheduleData, className: className ?? '', weekdayString: weekdayString ?? '' })
         const pdfBuffer = await pdf(doc).toBuffer()
@@ -105,7 +103,7 @@ export async function POST(request: Request) {
             location: 'api/export',
             type: 'export-schedule'
         })
-        return NextResponse.json({ error: 'Failed to generate pdf file' }, { status: 500 })
+        return serverError('Failed to generate pdf file')
     }
 }
 

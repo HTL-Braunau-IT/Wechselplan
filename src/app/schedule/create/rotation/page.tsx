@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { RotationScheduleEditor } from '@/components/schedule/rotation-schedule-editor'
 import type { Schedule } from '@/components/schedule/rotation-schedule-editor'
 import { useSchoolYear } from '@/contexts/school-year-context'
+import { fetchAndUnwrap, getApiErrorMessage, parseJsonSafe } from '@/lib/api-client'
 
 /**
  * Page component for creating and editing rotation schedules.
@@ -25,11 +26,9 @@ export default function RotationPage() {
     semesterPlanning: 'first' | 'second' | null
   ) => {
       // First, get the numeric class ID from the class name
-      const classResponse = await fetch(`/api/classes/get-by-name?name=${className}`)
-      if (!classResponse.ok) {
-        throw new Error('Failed to fetch class information')
-      }
-      const classData = await classResponse.json()
+      const classData = await fetchAndUnwrap<{ id: number }>(
+        `/api/classes/get-by-name?name=${className}`
+      )
       if (!classData?.id) {
         throw new Error('Class not found')
       }
@@ -54,7 +53,8 @@ export default function RotationPage() {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to save schedule')
+        const payload = await parseJsonSafe(response)
+        throw new Error(getApiErrorMessage(payload, 'Failed to save schedule'))
       }
 
       // Navigate to the times page with both class and weekday parameters
@@ -70,6 +70,7 @@ export default function RotationPage() {
       <RotationScheduleEditor
         className={className}
         initialWeekday={weekdayParam ? parseInt(weekdayParam) : null}
+        schoolYearId={schoolYearId}
         onSave={handleSave}
         onCancel={handleCancel}
       />

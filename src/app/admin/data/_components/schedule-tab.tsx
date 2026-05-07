@@ -12,7 +12,6 @@ interface Schedule {
   startDate: string
   endDate: string
   selectedWeekday: number
-  scheduleData: Record<string, unknown>
   additionalInfo?: string
   semesterPlanning?: string
   classId?: number

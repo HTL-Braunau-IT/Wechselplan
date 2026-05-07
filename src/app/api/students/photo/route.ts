@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveStudentPhoto } from '@/lib/student-photo-source'
+import { badRequest, forbidden, notFound } from '@/lib/api-response'
 
 /**
  * GET /api/students/photo?studentId=123
@@ -9,7 +10,7 @@ import { resolveStudentPhoto } from '@/lib/student-photo-source'
  */
 export async function GET(request: Request) {
   if (!(await isFeatureEnabled('student_photos'))) {
-    return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+    return forbidden('Feature not available')
   }
 
   const { searchParams } = new URL(request.url)
@@ -17,12 +18,12 @@ export async function GET(request: Request) {
   const studentId = studentIdParam ? parseInt(studentIdParam, 10) : NaN
 
   if (Number.isNaN(studentId) || studentId < 1) {
-    return NextResponse.json({ error: 'Valid studentId is required' }, { status: 400 })
+    return badRequest('Valid studentId is required')
   }
 
   const photo = await resolveStudentPhoto(studentId)
   if (!photo) {
-    return NextResponse.json({ error: 'Photo not found' }, { status: 404 })
+    return notFound('Photo not found')
   }
 
   const ifNoneMatch = request.headers.get('if-none-match')?.trim()

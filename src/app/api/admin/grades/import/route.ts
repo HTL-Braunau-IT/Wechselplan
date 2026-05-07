@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions, hasRole } from '@/lib/auth'
 import { captureError } from '@/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
+import { badRequest, forbidden, ok, serverError, unauthorized } from '@/lib/api-response'
 
 const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7]
 
@@ -25,14 +26,14 @@ export async function POST(request: Request) {
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {
-			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+			return unauthorized('Unauthorized')
 		}
 		
 		// Check if user has admin or teacher role (either from session or database)
 		const isAdmin = session.user?.role === 'admin' || await hasRole(session.user.name, 'admin')
 		const isTeacher = session.user?.role === 'teacher' || await hasRole(session.user.name, 'teacher')
 		if (!isAdmin && !isTeacher) {
-			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+			return forbidden('Forbidden')
 		}
 
 		const body = JSON.parse(rawBody) as ImportRequest & { schoolYearId?: number }
@@ -52,10 +53,7 @@ export async function POST(request: Request) {
 			schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
 		}
 		if (schoolYearId == null) {
-			return NextResponse.json(
-				{ error: 'No school year found. Create a school year in Admin / Data / School Years first.' },
-				{ status: 400 }
-			)
+			return badRequest('No school year found. Create a school year in Admin / Data / School Years first.')
 		}
 
 		// Parse CSV data
@@ -66,10 +64,7 @@ export async function POST(request: Request) {
 		}) as Record<string, string>[]
 
 		if (records.length === 0) {
-			return NextResponse.json(
-				{ error: 'CSV file is empty' },
-				{ status: 400 }
-			)
+			return badRequest('CSV file is empty')
 		}
 
 		// Validate required columns
@@ -77,10 +72,7 @@ export async function POST(request: Request) {
 		const firstRecord = records[0]!
 		const missingColumns = requiredColumns.filter(col => !(col in firstRecord))
 		if (missingColumns.length > 0) {
-			return NextResponse.json(
-				{ error: `Missing required columns: ${missingColumns.join(', ')}` },
-				{ status: 400 }
-			)
+			return badRequest(`Missing required columns: ${missingColumns.join(', ')}`)
 		}
 
 		// Get all unique classes, students, and teachers to batch fetch (normalize usernames for DB lookup)
@@ -183,10 +175,7 @@ export async function POST(request: Request) {
 		}
 
 		if (errors.length > 0 && processed.length === 0) {
-			return NextResponse.json(
-				{ error: 'All rows failed validation', errors },
-				{ status: 400 }
-			)
+			return badRequest('All rows failed validation', { errors })
 		}
 
 		// Upsert grades in batches
@@ -224,8 +213,7 @@ export async function POST(request: Request) {
 			}
 		}
 
-		return NextResponse.json({
-			success: true,
+		return ok({
 			imported: successCount,
 			errors: errorCount,
 			validationErrors: errors.length > processed.length ? errors : undefined
@@ -236,10 +224,7 @@ export async function POST(request: Request) {
 			type: 'import-grades',
 			extra: { requestBody: rawBody }
 		})
-		return NextResponse.json(
-			{ error: 'Failed to import grades', message: error instanceof Error ? error.message : 'Unknown error' },
-			{ status: 500 }
-		)
+		return serverError('Failed to import grades', error instanceof Error ? { message: error.message } : undefined)
 	}
 }
 

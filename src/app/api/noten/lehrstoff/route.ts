@@ -1,10 +1,10 @@
-import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { normalizeUsername } from '@/lib/username'
+import { badRequest, forbidden, ok, serverError, unauthorized } from '@/lib/api-response'
 
 /**
  * PATCH: Upsert Lehrstoff for a single day (teacher, class, group, date, period).
@@ -13,13 +13,13 @@ export async function PATCH(request: Request) {
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {
-			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+			return unauthorized('Unauthorized')
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+			return forbidden('Forbidden')
 		}
 		if (!(await isFeatureEnabled('noten'))) {
-			return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+			return forbidden('Feature not available')
 		}
 
 		const body = await request.json()
@@ -33,27 +33,27 @@ export async function PATCH(request: Request) {
 		}
 
 		if (classId == null || groupId == null || schoolYearId == null || !date || !period) {
-			return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+			return badRequest('Missing required fields')
 		}
 		if (period !== 'AM' && period !== 'PM') {
-			return NextResponse.json({ error: 'period must be AM or PM' }, { status: 400 })
+			return badRequest('period must be AM or PM')
 		}
 		const dateOnly = new Date(date + 'T00:00:00.000Z')
 		if (Number.isNaN(dateOnly.getTime())) {
-			return NextResponse.json({ error: 'Invalid date' }, { status: 400 })
+			return badRequest('Invalid date')
 		}
 
 		const username = normalizeUsername(session.user.name)
 		const teacher = await prisma.teacher.findUnique({ where: { username } })
 		if (!teacher) {
-			return NextResponse.json({ error: 'Teacher not found' }, { status: 403 })
+			return forbidden('Teacher not found')
 		}
 
 		const isAssignedToClass = await prisma.teacherAssignment.findFirst({
 			where: { teacherId: teacher.id, classId, schoolYearId }
 		})
 		if (!isAssignedToClass) {
-			return NextResponse.json({ error: 'Not assigned to this class' }, { status: 403 })
+			return forbidden('Not assigned to this class')
 		}
 
 		await prisma.lehrstoffPerDay.upsert({
@@ -79,15 +79,12 @@ export async function PATCH(request: Request) {
 			update: { lehrstoff: lehrstoff ?? null }
 		})
 
-		return NextResponse.json({ success: true })
+		return ok({ success: true })
 	} catch (error) {
 		captureError(error, {
 			location: 'api/noten/lehrstoff',
 			type: 'save-lehrstoff'
 		})
-		return NextResponse.json(
-			{ error: 'Failed to save Lehrstoff' },
-			{ status: 500 }
-		)
+		return serverError('Failed to save Lehrstoff')
 	}
 }

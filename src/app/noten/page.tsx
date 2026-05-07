@@ -26,10 +26,17 @@ import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { getStoredToken, storeToken, clearToken } from '@/lib/notenmanagement-token'
 import { normalizeUsername } from '@/lib/username'
+import { fetchAndUnwrap, getApiErrorMessage, parseJsonSafe, unwrapData } from '@/lib/api-client'
 
 type TeachingDay = { date: string; period: string }
 type Student = { id: number; firstName: string; lastName: string; groupId: number | null; sitzplatz?: string | null }
-type ClassItem = { id: number; name: string; groupIds: number[] }
+type ClassItem = {
+	id: number
+	name: string
+	groupIds: number[]
+	teachingGroupsByWeekday?: Record<string, number[]>
+	teachingSlots?: Array<{ selectedWeekday: number; period: 'AM' | 'PM'; groupId: number }>
+}
 type WeightConfig = {
 	weightWiederholung: number
 	weightBericht: number
@@ -137,6 +144,7 @@ export default function NotenPage() {
 	const [classes, setClasses] = useState<ClassItem[]>([])
 	const [selectedClassId, setSelectedClassId] = useState<number | null>(null)
 	const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
+	const [selectedWeekdayFilter, setSelectedWeekdayFilter] = useState<number | null>(null)
 	const [teachingDays, setTeachingDays] = useState<TeachingDay[]>([])
 	const [students, setStudents] = useState<Student[]>([])
 	const [rowGradeVisibility, setRowGradeVisibility] = useState<Record<number, boolean>>({})
@@ -199,6 +207,68 @@ export default function NotenPage() {
 	const urlParamsAppliedRef = useRef(false)
 	const checkboxColumnWidthPx = 40
 
+	const weekdayLabel = useCallback((weekday: number) => {
+		switch (weekday) {
+			case 1:
+				return 'Montag'
+			case 2:
+				return 'Dienstag'
+			case 3:
+				return 'Mittwoch'
+			case 4:
+				return 'Donnerstag'
+			case 5:
+				return 'Freitag'
+			default:
+				return `Tag ${weekday}`
+		}
+	}, [])
+
+	const getCurrentWeekdayAndPeriod = useCallback((): { weekday: number; period: 'AM' | 'PM' } => {
+		const now = new Date()
+		const jsWeekday = now.getDay()
+		const weekday = jsWeekday === 0 || jsWeekday === 6 ? 1 : jsWeekday
+		const period: 'AM' | 'PM' = now.getHours() < 12 ? 'AM' : 'PM'
+		return { weekday, period }
+	}, [])
+
+	const resolveClassGroupSelection = useCallback(
+		async (cls: ClassItem, selectedWeekday?: number | null) => {
+			if (!schoolYearId) return
+			const params = new URLSearchParams({
+				schoolYearId: schoolYearId.toString(),
+				classId: cls.id.toString()
+			})
+			if (selectedWeekday != null) {
+				params.set('selectedWeekday', selectedWeekday.toString())
+			}
+			try {
+				const data = await fetchAndUnwrap<{ classId: number | null; groupId: number | null }>(
+					`/api/noten/auto-select?${params.toString()}`
+				)
+				if (!data) {
+					if (selectedClassIdRef.current === cls.id) setSelectedGroupId(cls.groupIds[0] ?? null)
+					return
+				}
+				const groupId =
+					data.groupId != null && cls.groupIds.includes(data.groupId)
+						? data.groupId
+						: cls.groupIds[0] ?? null
+				if (selectedClassIdRef.current === cls.id) setSelectedGroupId(groupId)
+			} catch {
+				if (selectedClassIdRef.current === cls.id) {
+					setSelectedGroupId(cls.groupIds[0] ?? null)
+				}
+			}
+		},
+		[schoolYearId]
+	)
+
+	const getVisibleGroupIdsForClass = useCallback(
+		(cls: ClassItem): number[] => cls.groupIds,
+		[]
+	)
+
 	// Update sitzplatz column position dynamically based on name column width
 	const [sitzplatzLeft, setSitzplatzLeft] = useState<string>('0px')
 	useEffect(() => {
@@ -242,10 +312,12 @@ export default function NotenPage() {
 		if (!schoolYearId) return
 		setLoadingClasses(true)
 		try {
-			const res = await fetch(`/api/noten/teacher-classes?schoolYearId=${schoolYearId}`)
-			if (!res.ok) return
-			const data = (await res.json()) as { classes?: ClassItem[] }
+			const data = await fetchAndUnwrap<{ classes?: ClassItem[] }>(
+				`/api/noten/teacher-classes?schoolYearId=${schoolYearId}`
+			)
 			setClasses(data.classes ?? [])
+		} catch {
+			setClasses([])
 		} finally {
 			setLoadingClasses(false)
 		}
@@ -290,11 +362,11 @@ export default function NotenPage() {
 				`/api/schedules/data?teacher=${encodeURIComponent(teacherName)}&weekday=${weekday}&schoolYearId=${schoolYearId}`
 			)
 			if (!res.ok || cancelled) return
-			const data = (await res.json()) as {
+			const data = unwrapData<{
 				schedules?: Array<Array<{ classId: number | null; turns?: Array<{ name: string; weeks: Array<{ date: string; isHoliday?: boolean }> }> }>>
-				teacherRotation?: Array<{ teacherId: number; classId: number; period: string; turnId: string; groupId: number }>
+				teacherRotation?: Array<{ teacherId: number; classId: number; period: string; turnId: number; turnName: string; groupId: number }>
 				assignments?: Array<{ teacherId: number; classId: number; period: string; groupId: number }>
-			}
+			}>(await parseJsonSafe(res))
 			if (!data.assignments?.length || !data.schedules?.length || cancelled) {
 				if (classes[0]) {
 					setSelectedClassId(classes[0].id)
@@ -331,7 +403,7 @@ export default function NotenPage() {
 						(r) =>
 							r.classId === assignment.classId &&
 							r.period === period &&
-							r.turnId === turnName &&
+							r.turnName === turnName &&
 							Number(r.teacherId) === Number(assignment.teacherId)
 					)
 					if (rotation) {
@@ -365,6 +437,44 @@ export default function NotenPage() {
 		}
 	}, [classes, selectedClassId, searchParams])
 
+	// Keep teaching slot selector in sync when class/group are set from URL/search/auto-selection.
+	useEffect(() => {
+		if (selectedClassId == null) {
+			setSelectedWeekdayFilter(null)
+			return
+		}
+		const cls = classes.find((c) => c.id === selectedClassId)
+		if (!cls) return
+		const weekdays = Object.keys(cls.teachingGroupsByWeekday ?? {})
+			.map((k) => parseInt(k, 10))
+			.filter((k) => Number.isFinite(k))
+			.sort((a, b) => a - b)
+		if (weekdays.length === 0) {
+			setSelectedWeekdayFilter(null)
+			return
+		}
+		if (selectedWeekdayFilter != null && weekdays.includes(selectedWeekdayFilter)) {
+			return
+		}
+		const { weekday } = getCurrentWeekdayAndPeriod()
+		setSelectedWeekdayFilter(weekdays.includes(weekday) ? weekday : (weekdays[0] ?? null))
+	}, [classes, selectedClassId, selectedWeekdayFilter, getCurrentWeekdayAndPeriod])
+
+	// Keep selected group valid for the currently chosen class + weekday filter.
+	useEffect(() => {
+		if (selectedClassId == null) return
+		const cls = classes.find((c) => c.id === selectedClassId)
+		if (!cls) return
+		const visibleGroups = getVisibleGroupIdsForClass(cls)
+		if (visibleGroups.length === 0) {
+			if (selectedGroupId !== null) setSelectedGroupId(null)
+			return
+		}
+		if (selectedGroupId == null || !visibleGroups.includes(selectedGroupId)) {
+			setSelectedGroupId(visibleGroups[0] ?? null)
+		}
+	}, [classes, selectedClassId, selectedGroupId, getVisibleGroupIdsForClass])
+
 	// Fetch teaching days, students, and data when class+group selected
 	useEffect(() => {
 		if (selectedClassId == null || selectedGroupId == null || !schoolYearId) {
@@ -380,23 +490,27 @@ export default function NotenPage() {
 		let cancelled = false
 		setLoadingGroup(true)
 		void Promise.all([
-			fetch(`/api/noten/teaching-days?classId=${selectedClassId}&groupId=${selectedGroupId}&schoolYearId=${schoolYearId}`),
-			fetch(`/api/noten/students?classId=${selectedClassId}&groupId=${selectedGroupId}&schoolYearId=${schoolYearId}`),
-			fetch(`/api/noten/data?classId=${selectedClassId}&groupId=${selectedGroupId}&schoolYearId=${schoolYearId}`)
+			fetchAndUnwrap<{ teachingDays?: TeachingDay[] }>(
+				`/api/noten/teaching-days?classId=${selectedClassId}&groupId=${selectedGroupId}&schoolYearId=${schoolYearId}${
+					selectedWeekdayFilter != null ? `&selectedWeekday=${selectedWeekdayFilter}` : ''
+				}`
+			),
+			fetchAndUnwrap<{ students?: Student[] }>(
+				`/api/noten/students?classId=${selectedClassId}&groupId=${selectedGroupId}&schoolYearId=${schoolYearId}${
+					selectedWeekdayFilter != null ? `&selectedWeekday=${selectedWeekdayFilter}` : ''
+				}`
+			),
+			fetchAndUnwrap<{
+				weightConfig: WeightConfig | null
+				lehrstoffByDay: Record<string, string>
+				finalGrades?: Record<number, FinalGradePerStudent>
+				teacherId?: number
+				entries: NotenEntryRow[]
+			}>(
+				`/api/noten/data?classId=${selectedClassId}&groupId=${selectedGroupId}&schoolYearId=${schoolYearId}`
+			)
 		])
-			.then(async ([daysRes, studentsRes, dataRes]) => {
-				if (cancelled) return
-				const [daysData, studentsData, notenData] = await Promise.all([
-					daysRes.json() as Promise<{ teachingDays?: TeachingDay[] }>,
-					studentsRes.json() as Promise<{ students?: Student[] }>,
-					dataRes.json() as Promise<{
-						weightConfig: WeightConfig | null
-						lehrstoffByDay: Record<string, string>
-						finalGrades?: Record<number, FinalGradePerStudent>
-						teacherId?: number
-						entries: NotenEntryRow[]
-					}>
-				])
+			.then(([daysData, studentsData, notenData]) => {
 				if (cancelled) return
 				setTeachingDays(daysData.teachingDays ?? [])
 				const fetchedStudents = studentsData.students ?? []
@@ -418,7 +532,7 @@ export default function NotenPage() {
 				if (!cancelled) setLoadingGroup(false)
 			})
 		return () => { cancelled = true }
-	}, [selectedClassId, selectedGroupId, schoolYearId])
+	}, [selectedClassId, selectedGroupId, schoolYearId, selectedWeekdayFilter])
 
 	const updateEntry = useCallback(
 		(studentId: number, date: string, period: string, patch: Partial<NotenEntryRow>) => {
@@ -462,7 +576,10 @@ export default function NotenPage() {
 						entries: payload
 					})
 				})
-				if (!res.ok) throw new Error('Save failed')
+				if (!res.ok) {
+					const payload = await parseJsonSafe(res)
+					throw new Error(getApiErrorMessage(payload, 'Save failed'))
+				}
 			} finally {
 				if (!options?.skipSaving) setSaving(false)
 			}
@@ -491,7 +608,10 @@ export default function NotenPage() {
 						...weightConfig
 					})
 				})
-				if (!res.ok) throw new Error('Save failed')
+				if (!res.ok) {
+					const payload = await parseJsonSafe(res)
+					throw new Error(getApiErrorMessage(payload, 'Save failed'))
+				}
 			} finally {
 				if (!options?.skipSaving) setSaving(false)
 			}
@@ -504,7 +624,7 @@ export default function NotenPage() {
 			if (!selectedClassId || !selectedGroupId || !schoolYearId) return
 			if (!options?.skipSaving) setSaving(true)
 			try {
-				await fetch('/api/noten/lehrstoff', {
+				const res = await fetch('/api/noten/lehrstoff', {
 					method: 'PATCH',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({
@@ -516,6 +636,10 @@ export default function NotenPage() {
 						lehrstoff: value
 					})
 				})
+				if (!res.ok) {
+					const payload = await parseJsonSafe(res)
+					throw new Error(getApiErrorMessage(payload, 'Save failed'))
+				}
 			} finally {
 				if (!options?.skipSaving) setSaving(false)
 			}
@@ -558,14 +682,20 @@ export default function NotenPage() {
 							grades: payload.map((p) => ({ studentId: p.studentId, teacherId, semester: p.semester, grade: p.grade }))
 						})
 					})
-					if (!gradesRes.ok) throw new Error('Save grades failed')
+					if (!gradesRes.ok) {
+						const payload = await parseJsonSafe(gradesRes)
+						throw new Error(getApiErrorMessage(payload, 'Save grades failed'))
+					}
 					const conductPayload = payload.map((p) => ({ studentId: p.studentId, semester: p.semester, conductNoteWish: p.conductNoteWish }))
 					const conductRes = await fetch('/api/noten/conduct', {
 						method: 'PATCH',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({ classId: selectedClassId, schoolYearId, updates: conductPayload })
 					})
-					if (!conductRes.ok) throw new Error('Save conduct failed')
+					if (!conductRes.ok) {
+						const payload = await parseJsonSafe(conductRes)
+						throw new Error(getApiErrorMessage(payload, 'Save conduct failed'))
+					}
 				} else if (!useNotensammler) {
 					const res = await fetch('/api/noten/final-grades', {
 						method: 'PATCH',
@@ -576,7 +706,10 @@ export default function NotenPage() {
 							finalGrades: payload
 						})
 					})
-					if (!res.ok) throw new Error('Save final grades failed')
+					if (!res.ok) {
+						const payload = await parseJsonSafe(res)
+						throw new Error(getApiErrorMessage(payload, 'Save final grades failed'))
+					}
 				}
 			} finally {
 				if (!options?.skipSaving) setSaving(false)
@@ -601,7 +734,12 @@ export default function NotenPage() {
 						period
 					})
 				})
-				if (!res.ok) return
+				if (!res.ok) {
+					const payload = await parseJsonSafe(res)
+					setSaveError(getApiErrorMessage(payload, 'Save failed'))
+					return
+				}
+				setSaveError(null)
 				students.forEach((s) => updateEntry(s.id, date, period, { attendance: 'Anwesend' }))
 			} finally {
 				setSaving(false)
@@ -852,23 +990,22 @@ export default function NotenPage() {
 		if (!query || !schoolYearId) return
 		setDateMatches([])
 		setDateSearchStudentsByGroup({})
-		const res = await fetch(
-			`/api/noten/search?schoolYearId=${schoolYearId}&nameQuery=${encodeURIComponent(query)}`
-		)
-		if (!res.ok) {
+		try {
+			const data = await fetchAndUnwrap<{ byName?: SearchByNameMatch[] }>(
+				`/api/noten/search?schoolYearId=${schoolYearId}&nameQuery=${encodeURIComponent(query)}`
+			)
+			const matches = data.byName ?? []
+			setNameMatches(matches)
+			setActiveNameMatchIndex(0)
+			if (matches.length === 0) {
+				setHighlightedStudentId(null)
+				setSearchMessage(t('noten.searchNoNameResult', { defaultValue: 'Kein passender Schüler gefunden.' }))
+				return
+			}
+			gotoNameMatch(matches[0]!)
+		} catch {
 			setSearchMessage(t('noten.searchError', { defaultValue: 'Suche fehlgeschlagen.' }))
-			return
 		}
-		const data = (await res.json()) as { byName?: SearchByNameMatch[] }
-		const matches = data.byName ?? []
-		setNameMatches(matches)
-		setActiveNameMatchIndex(0)
-		if (matches.length === 0) {
-			setHighlightedStudentId(null)
-			setSearchMessage(t('noten.searchNoNameResult', { defaultValue: 'Kein passender Schüler gefunden.' }))
-			return
-		}
-		gotoNameMatch(matches[0]!)
 	}, [searchText, schoolYearId, t, gotoNameMatch])
 
 	const gotoNextNameMatch = useCallback(() => {
@@ -882,42 +1019,45 @@ export default function NotenPage() {
 		if (!searchDate || !schoolYearId) return
 		setNameMatches([])
 		setHighlightedStudentId(null)
-		const res = await fetch(
-			`/api/noten/search?schoolYearId=${schoolYearId}&dateQuery=${encodeURIComponent(searchDate)}`
-		)
-		if (!res.ok) {
-			setSearchMessage(t('noten.searchError', { defaultValue: 'Suche fehlgeschlagen.' }))
-			return
-		}
-		const data = (await res.json()) as { byDate?: SearchByDateMatch[] }
-		const matches = data.byDate ?? []
-		setDateMatches(matches)
-		setFocusDateYmd(searchDate)
-		if (matches.length === 0) {
-			setSearchMessage(t('noten.searchNoDateResult', { defaultValue: 'An diesem Datum wurden keine Gruppen gefunden.' }))
-			setDateSearchStudentsByGroup({})
-			return
-		}
-		setSearchMessage(
-			t('noten.searchDateResultCount', {
-				defaultValue: '{{count}} Klassen/Gruppen an diesem Datum gefunden.',
-				count: matches.length
-			})
-		)
+		try {
+			const data = await fetchAndUnwrap<{ byDate?: SearchByDateMatch[] }>(
+				`/api/noten/search?schoolYearId=${schoolYearId}&dateQuery=${encodeURIComponent(searchDate)}`
+			)
+			const matches = data.byDate ?? []
+			setDateMatches(matches)
+			setFocusDateYmd(searchDate)
+			if (matches.length === 0) {
+				setSearchMessage(t('noten.searchNoDateResult', { defaultValue: 'An diesem Datum wurden keine Gruppen gefunden.' }))
+				setDateSearchStudentsByGroup({})
+				return
+			}
+			setSearchMessage(
+				t('noten.searchDateResultCount', {
+					defaultValue: '{{count}} Klassen/Gruppen an diesem Datum gefunden.',
+					count: matches.length
+				})
+			)
 
-		const studentsEntries = await Promise.all(
-			matches.map(async (match) => {
-				const key = `${match.classId}-${match.groupId}`
-				const studentsRes = await fetch(
-					`/api/noten/students?classId=${match.classId}&groupId=${match.groupId}&schoolYearId=${schoolYearId}`
-				)
-				if (!studentsRes.ok) return [key, []] as const
-				const studentsData = (await studentsRes.json()) as { students?: Student[] }
-				return [key, studentsData.students ?? []] as const
-			})
-		)
-		setDateSearchStudentsByGroup(Object.fromEntries(studentsEntries))
-	}, [searchDate, schoolYearId, t])
+			const studentsEntries = await Promise.all(
+				matches.map(async (match) => {
+					const key = `${match.classId}-${match.groupId}`
+					try {
+						const studentsData = await fetchAndUnwrap<{ students?: Student[] }>(
+							`/api/noten/students?classId=${match.classId}&groupId=${match.groupId}&schoolYearId=${schoolYearId}${
+								selectedWeekdayFilter != null ? `&selectedWeekday=${selectedWeekdayFilter}` : ''
+							}`
+						)
+						return [key, studentsData.students ?? []] as const
+					} catch {
+						return [key, []] as const
+					}
+				})
+			)
+			setDateSearchStudentsByGroup(Object.fromEntries(studentsEntries))
+		} catch {
+			setSearchMessage(t('noten.searchError', { defaultValue: 'Suche fehlgeschlagen.' }))
+		}
+	}, [searchDate, schoolYearId, selectedWeekdayFilter, t])
 
 	useEffect(() => {
 		if (!highlightedStudentId) return
@@ -955,28 +1095,16 @@ export default function NotenPage() {
 						const cls = classes.find((c) => c.id === id)
 						selectedClassIdRef.current = id
 						setSelectedClassId(id)
-						const fallbackGroupId = cls?.groupIds?.[0] ?? null
-						setSelectedGroupId(fallbackGroupId)
-						if (!schoolYearId || !cls) return
-						void (async () => {
-							try {
-								const res = await fetch(
-									`/api/noten/auto-select?schoolYearId=${schoolYearId}&classId=${id}`
-								)
-								if (!res.ok) {
-									if (selectedClassIdRef.current === id) setSelectedGroupId(cls.groupIds[0] ?? null)
-									return
-								}
-								const data = (await res.json()) as { classId: number | null; groupId: number | null }
-								const groupId =
-									data.groupId != null && cls.groupIds.includes(data.groupId)
-										? data.groupId
-										: cls.groupIds[0] ?? null
-								if (selectedClassIdRef.current === id) setSelectedGroupId(groupId)
-							} catch {
-								if (selectedClassIdRef.current === id) setSelectedGroupId(cls.groupIds[0] ?? null)
-							}
-						})()
+						const weekdays = Object.keys(cls?.teachingGroupsByWeekday ?? {})
+							.map((k) => parseInt(k, 10))
+							.filter((k) => Number.isFinite(k))
+							.sort((a, b) => a - b)
+						const { weekday } = getCurrentWeekdayAndPeriod()
+						const preferredWeekday = weekdays.includes(weekday) ? weekday : (weekdays[0] ?? null)
+						setSelectedWeekdayFilter(preferredWeekday)
+						if (!cls) return
+						setSelectedGroupId(cls.groupIds?.[0] ?? null)
+						void resolveClassGroupSelection(cls, preferredWeekday)
 					}}
 				>
 					<TabsList className="flex flex-wrap gap-2 h-auto p-0 bg-transparent text-foreground">
@@ -993,12 +1121,56 @@ export default function NotenPage() {
 
 					{classes.map((cls) => (
 						<TabsContent key={cls.id} value={cls.id.toString()} className="mt-4">
+							{(() => {
+								const classWeekdays = Object.keys(cls.teachingGroupsByWeekday ?? {})
+									.map((k) => parseInt(k, 10))
+									.filter((k) => Number.isFinite(k))
+									.sort((a, b) => a - b)
+								return classWeekdays.length > 1
+							})() && (
+								<div className="mb-4 flex flex-wrap items-center gap-2">
+									<p className="text-sm text-muted-foreground">
+										{t('noten.teachingSlotLabel', { defaultValue: 'Tag' })}:
+									</p>
+									<Select
+										value={selectedWeekdayFilter != null ? selectedWeekdayFilter.toString() : ''}
+										onValueChange={(value) => {
+											const parsedWeekday = parseInt(value, 10)
+											if (!Number.isFinite(parsedWeekday)) return
+											setSelectedWeekdayFilter(parsedWeekday)
+											selectedClassIdRef.current = cls.id
+											void resolveClassGroupSelection(cls, parsedWeekday)
+										}}
+									>
+										<SelectTrigger className="w-[280px]">
+											<SelectValue
+												placeholder={t('noten.selectTeachingSlot', {
+													defaultValue: 'Tag auswählen'
+												})}
+											/>
+										</SelectTrigger>
+										<SelectContent>
+											{Object.keys(cls.teachingGroupsByWeekday ?? {})
+												.map((k) => parseInt(k, 10))
+												.filter((k) => Number.isFinite(k))
+												.sort((a, b) => a - b)
+												.map((weekday) => {
+												return (
+													<SelectItem key={weekday} value={weekday.toString()}>
+														{weekdayLabel(weekday)}
+													</SelectItem>
+												)
+											})}
+										</SelectContent>
+									</Select>
+								</div>
+							)}
 							<Tabs
 								value={selectedGroupId?.toString() ?? ''}
 								onValueChange={(v) => setSelectedGroupId(parseInt(v, 10))}
 							>
 								<TabsList className="mb-4 flex flex-wrap gap-2 h-auto p-0 bg-transparent text-foreground">
-									{cls.groupIds.map((gid) => (
+									{getVisibleGroupIdsForClass(cls).map((gid) => (
 										<TabsTrigger
 											key={gid}
 											value={gid.toString()}
@@ -1009,7 +1181,7 @@ export default function NotenPage() {
 									))}
 								</TabsList>
 
-								{cls.groupIds.map((gid) => (
+								{getVisibleGroupIdsForClass(cls).map((gid) => (
 									<TabsContent key={gid} value={gid.toString()} className="mt-2">
 										<div className="mb-4 pb-2 border-b border-border flex flex-wrap items-center justify-between gap-2">
 											<h2 className="text-base font-semibold text-foreground">
@@ -1445,8 +1617,8 @@ export default function NotenPage() {
 																							body: JSON.stringify({ studentId: student.id, sitzplatz: e.target.value || null })
 																						})
 																						if (!res.ok) {
-																							const error = await res.json()
-																							console.error('Failed to update sitzplatz:', error)
+																							const errorPayload = await parseJsonSafe(res)
+																							console.error('Failed to update sitzplatz:', getApiErrorMessage(errorPayload))
 																						}
 																					} catch (error) {
 																						console.error('Error updating sitzplatz:', error)
@@ -1837,14 +2009,12 @@ export default function NotenPage() {
 								setNmGroupSemester('first')
 								setNmGroupError(null)
 								try {
-									const res = await fetch(
-										`/api/noten/transfer-prefill?classId=${selectedClassId}&schoolYearId=${schoolYearId}&groupId=${selectedGroupId}`
-									)
-									if (!res.ok) throw new Error('Fetch failed')
-									const data = (await res.json()) as {
+									const data = await fetchAndUnwrap<{
 										students: Student[]
 										prefill: Record<number, { first: number | null; second: number | null }>
-									}
+									}>(
+										`/api/noten/transfer-prefill?classId=${selectedClassId}&schoolYearId=${schoolYearId}&groupId=${selectedGroupId}`
+									)
 									setNmGroupStudents(data.students)
 									const prefill = data.prefill ?? {}
 									const grades: Record<number, number | null> = {}
@@ -1868,14 +2038,12 @@ export default function NotenPage() {
 								setNmGroupSemester('second')
 								setNmGroupError(null)
 								try {
-									const res = await fetch(
-										`/api/noten/transfer-prefill?classId=${selectedClassId}&schoolYearId=${schoolYearId}&groupId=${selectedGroupId}`
-									)
-									if (!res.ok) throw new Error('Fetch failed')
-									const data = (await res.json()) as {
+									const data = await fetchAndUnwrap<{
 										students: Student[]
 										prefill: Record<number, { first: number | null; second: number | null }>
-									}
+									}>(
+										`/api/noten/transfer-prefill?classId=${selectedClassId}&schoolYearId=${schoolYearId}&groupId=${selectedGroupId}`
+									)
 									setNmGroupStudents(data.students)
 									const prefill = data.prefill ?? {}
 									const grades: Record<number, number | null> = {}
@@ -2011,7 +2179,8 @@ export default function NotenPage() {
 											notesByMatrikelnummer: []
 										})
 									})
-									const data = (await res.json()) as { error?: string; details?: unknown; token?: string; tokenExpiresIn?: number }
+									const payload = await parseJsonSafe(res)
+									const data = unwrapData<{ token?: string; tokenExpiresIn?: number }>(payload)
 									if (!res.ok) {
 										if (useStoredToken && password) {
 											clearToken()
@@ -2029,8 +2198,9 @@ export default function NotenPage() {
 													notesByMatrikelnummer: []
 												})
 											})
-											const retryData = (await retryRes.json()) as { error?: string; token?: string; tokenExpiresIn?: number }
-											if (!retryRes.ok) throw new Error(retryData.error ?? 'Transfer failed')
+											const retryPayload = await parseJsonSafe(retryRes)
+											const retryData = unwrapData<{ token?: string; tokenExpiresIn?: number }>(retryPayload)
+											if (!retryRes.ok) throw new Error(getApiErrorMessage(retryPayload, 'Transfer failed'))
 											if (retryData.token && retryData.tokenExpiresIn) {
 												storeToken(retryData.token, retryData.tokenExpiresIn, username)
 											}
@@ -2042,7 +2212,7 @@ export default function NotenPage() {
 											setNmGroupPassword('')
 											return
 										}
-										throw new Error(data.error ?? 'Transfer failed')
+										throw new Error(getApiErrorMessage(payload, 'Transfer failed'))
 									}
 									if (data.token && data.tokenExpiresIn) {
 										storeToken(data.token, data.tokenExpiresIn, username)

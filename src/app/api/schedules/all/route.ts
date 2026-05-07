@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
 import { captureError } from '~/lib/sentry'
 import { prisma } from '@/lib/prisma'
+import { ok, serverError } from '@/lib/api-response'
 
 
 /**
@@ -17,13 +17,13 @@ export async function GET(request: Request) {
     const where =
       schoolYearId != null && !Number.isNaN(schoolYearId) ? { schoolYearId } : undefined
     const schedules = await prisma.schedule.findMany({ where })
-    return NextResponse.json(schedules)
+    return ok(schedules)
   } catch (error) {
     captureError(error, {
       location: 'api/schedules/all',
       type: 'fetch-schedules'
     })
-    return new NextResponse('Failed to fetch schedules', { status: 500 })
+    return serverError('Failed to fetch schedules')
   }
 }
 

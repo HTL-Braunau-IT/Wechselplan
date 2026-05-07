@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getEnabledFeatures } from '@/lib/entitlements'
+import { ok, unauthorized } from '@/lib/api-response'
 
 /**
  * GET /api/entitlements
@@ -11,9 +12,9 @@ import { getEnabledFeatures } from '@/lib/entitlements'
 export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session?.user?.name) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return unauthorized('Unauthorized')
   }
 
   const features = await getEnabledFeatures()
-  return NextResponse.json({ features })
+  return ok({ features })
 }

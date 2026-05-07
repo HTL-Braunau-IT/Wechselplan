@@ -1,10 +1,10 @@
-import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { normalizeUsername } from '@/lib/username'
+import { badRequest, forbidden, ok, serverError, unauthorized } from '@/lib/api-response'
 
 /**
  * PATCH: Upsert NotenWeightConfig for (teacher, class, group, school year). Sum of weights must be 100.
@@ -13,13 +13,13 @@ export async function PATCH(request: Request) {
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {
-			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+			return unauthorized('Unauthorized')
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+			return forbidden('Forbidden')
 		}
 		if (!(await isFeatureEnabled('noten'))) {
-			return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+			return forbidden('Feature not available')
 		}
 
 		const body = await request.json()
@@ -50,7 +50,7 @@ export async function PATCH(request: Request) {
 			weightMitarbeit == null ||
 			weightPraktischeArbeit == null
 		) {
-			return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+			return badRequest('Missing required fields')
 		}
 		const sum =
 			Number(weightWiederholung) +
@@ -58,20 +58,20 @@ export async function PATCH(request: Request) {
 			Number(weightMitarbeit) +
 			Number(weightPraktischeArbeit)
 		if (sum !== 100) {
-			return NextResponse.json({ error: 'Weights must sum to 100' }, { status: 400 })
+			return badRequest('Weights must sum to 100')
 		}
 
 		const username = normalizeUsername(session.user.name)
 		const teacher = await prisma.teacher.findUnique({ where: { username } })
 		if (!teacher) {
-			return NextResponse.json({ error: 'Teacher not found' }, { status: 403 })
+			return forbidden('Teacher not found')
 		}
 
 		const isAssignedToClass = await prisma.teacherAssignment.findFirst({
 			where: { teacherId: teacher.id, classId, schoolYearId }
 		})
 		if (!isAssignedToClass) {
-			return NextResponse.json({ error: 'Not assigned to this class' }, { status: 403 })
+			return forbidden('Not assigned to this class')
 		}
 
 		await prisma.notenWeightConfig.upsert({
@@ -101,15 +101,12 @@ export async function PATCH(request: Request) {
 			}
 		})
 
-		return NextResponse.json({ success: true })
+		return ok({ success: true })
 	} catch (error) {
 		captureError(error, {
 			location: 'api/noten/weights',
 			type: 'save-weights'
 		})
-		return NextResponse.json(
-			{ error: 'Failed to save weights' },
-			{ status: 500 }
-		)
+		return serverError('Failed to save weights')
 	}
 }

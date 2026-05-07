@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { env } from '~/env'
@@ -7,6 +6,7 @@ import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { truncateSubject } from '@/lib/subject-utils'
 import { normalizeUsername } from '@/lib/username'
+import { badRequest, forbidden, notFound, ok, serverError, unauthorized } from '@/lib/api-response'
 
 type Semester = 'first' | 'second'
 
@@ -80,10 +80,10 @@ export async function POST(request: Request) {
     const session = await getServerSession(authOptions)
     const username = session?.user?.name
     if (!username) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return unauthorized('Unauthorized')
     }
     if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return forbidden('Forbidden')
     }
     const body = (await request.json()) as {
       classId?: unknown
@@ -109,11 +109,11 @@ export async function POST(request: Request) {
     const groupId =
       groupIdParam !== null && !Number.isNaN(groupIdParam) ? groupIdParam : null
 
-    if (groupId !== null && !(await isFeatureEnabled('notenmgmt_htl'))) {
-      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+    if (!(await isFeatureEnabled('notenmgmt_htl'))) {
+      return forbidden('Feature not available')
     }
     if (groupId === null && !(await isFeatureEnabled('notensammler'))) {
-      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+      return forbidden('Feature not available')
     }
 
     const classId = typeof body.classId === 'number' ? body.classId : parseInt(String(body.classId))
@@ -130,10 +130,7 @@ export async function POST(request: Request) {
       schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
     }
     if (schoolYearId == null) {
-      return NextResponse.json(
-        { error: 'No school year found. Create a school year in Admin / Data / School Years first.' },
-        { status: 400 }
-      )
+      return badRequest('No school year found. Create a school year in Admin / Data / School Years first.')
     }
     const nmUsername = typeof body.username === 'string' ? body.username : null
     const password = typeof body.password === 'string' ? body.password : null
@@ -142,11 +139,11 @@ export async function POST(request: Request) {
     const notesByMatrikelnummerRaw = Array.isArray(body.notesByMatrikelnummer) ? body.notesByMatrikelnummer : []
 
     if (!classId || Number.isNaN(classId) || !semester || !nmUsername || !notes) {
-      return NextResponse.json({ error: 'Missing or invalid parameters' }, { status: 400 })
+      return badRequest('Missing or invalid parameters')
     }
 
     if (!providedToken && !password) {
-      return NextResponse.json({ error: 'Either token or password is required' }, { status: 400 })
+      return badRequest('Either token or password is required')
     }
 
     const notesByStudentId = new Map<number, 1 | 2 | 3 | 4 | 5 | null>()
@@ -170,23 +167,47 @@ export async function POST(request: Request) {
     }
 
     const classRecord = await prisma.class.findUnique({
-      where: { id: classId },
-      include: {
-        students: {
-          orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
-          select: { id: true, firstName: true, lastName: true, groupId: true },
-        },
-      },
+      where: { id: classId }
     })
     if (!classRecord) {
-      return NextResponse.json({ error: 'Class not found' }, { status: 404 })
+      return notFound('Class not found')
     }
+
+    const memberships = await prisma.classMembership.findMany({
+      where: { classId, schoolYearId },
+      select: { studentId: true }
+    })
+    const classStudentsList = memberships.length > 0
+      ? await prisma.student.findMany({
+          where: { id: { in: memberships.map(m => m.studentId) } },
+          orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+          select: { id: true, firstName: true, lastName: true }
+        })
+      : []
+
+    const weekdayGroups = await prisma.studentWeekdayGroup.findMany({
+      where: {
+        studentId: { in: classStudentsList.map((s) => s.id) },
+        schoolYearId
+      },
+      select: { studentId: true, groupId: true }
+    })
+    const groupByStudentId = new Map<number, number>()
+    for (const row of weekdayGroups) {
+      if (!groupByStudentId.has(row.studentId)) {
+        groupByStudentId.set(row.studentId, row.groupId)
+      }
+    }
+    const classStudentsWithGroup = classStudentsList.map((student) => ({
+      ...student,
+      groupId: groupByStudentId.get(student.id) ?? null
+    }))
 
     // For group transfer (Notenstand): filter students to this group only
     const classStudents =
       groupId !== null
-        ? classRecord.students.filter((st) => st.groupId === groupId)
-        : classRecord.students
+        ? classStudentsWithGroup.filter((st) => st.groupId === groupId)
+        : classStudentsWithGroup
 
     const assignments = await prisma.teacherAssignment.findMany({
       where: { classId },
@@ -196,7 +217,7 @@ export async function POST(request: Request) {
     })
     const teacherIds = Array.from(new Set(assignments.map((a: { teacherId: number }) => a.teacherId)))
     if (teacherIds.length === 0) {
-      return NextResponse.json({ error: 'No teachers assigned to class' }, { status: 400 })
+      return badRequest('No teachers assigned to class')
     }
 
     let subjectName: string | undefined
@@ -214,7 +235,7 @@ export async function POST(request: Request) {
       }
     }
     if (!subjectName) {
-      return NextResponse.json({ error: 'Could not determine subject for this class' }, { status: 400 })
+      return badRequest('Could not determine subject for this class')
     }
     const subjectTruncated = truncateSubject(subjectName)
 
@@ -250,7 +271,7 @@ export async function POST(request: Request) {
       accessToken = providedToken
     } else {
       if (!password) {
-        return NextResponse.json({ error: 'Password required when token is not provided' }, { status: 400 })
+        return badRequest('Password required when token is not provided')
       }
       const tokenData = await getNotenmanagementAccessToken(nmUsername, password)
       accessToken = tokenData.token
@@ -272,9 +293,9 @@ export async function POST(request: Request) {
     const completeStudents =
       groupId !== null
         ? classStudents
-        : classRecord.students
-            .filter((st: (typeof classRecord.students)[number]) => st.groupId !== null && st.groupId !== undefined)
-            .filter((st: (typeof classRecord.students)[number]): st is (typeof classRecord.students)[number] => {
+        : classStudentsWithGroup
+            .filter((st) => st.groupId !== null && st.groupId !== undefined)
+            .filter((st): st is (typeof classStudentsWithGroup)[number] => {
               return teacherIds.every((tid) => {
                 const g = gradeByStudentTeacher.get(`${st.id}:${tid}`)
                 return typeof g === 'number'
@@ -301,7 +322,7 @@ export async function POST(request: Request) {
 
     // Build Noten entries: only matched students, with note (1-5) or "Keine Note" (null)
     const noten = completeStudents
-      .map((st: (typeof classRecord.students)[number]): NotenEntry | null => {
+      .map((st: (typeof classStudentsWithGroup)[number]): NotenEntry | null => {
         if (!notesByStudentId.has(st.id)) return null
         const key = `${normalizeNamePart(classRecord.name)}|${normalizeNamePart(st.lastName)}|${normalizeNamePart(st.firstName)}`
         const matrikelnummer = nmIndex.get(key) ?? null
@@ -335,10 +356,7 @@ export async function POST(request: Request) {
     }
 
     if (noten.length === 0) {
-      return NextResponse.json(
-        { error: 'No matched students with notes to transfer' },
-        { status: 400 }
-      )
+      return badRequest('No matched students with notes to transfer')
     }
 
     // Check for existing transfer (unique: classId, groupId, semester, schoolYearId)
@@ -397,10 +415,7 @@ export async function POST(request: Request) {
       const ct = putRes.headers.get('content-type') ?? ''
       const putBody = ct.includes('application/json') ? await putRes.json() : await putRes.text()
       if (!putRes.ok) {
-        return NextResponse.json(
-          { error: 'Notenmanagement /api/LFs PUT failed', details: putBody },
-          { status: 502 }
-        )
+        return serverError('Notenmanagement /api/LFs PUT failed', putBody)
       }
 
       // Extract new LF_ID from PUT response (may be different from existing)
@@ -433,10 +448,7 @@ export async function POST(request: Request) {
       const ct = postRes.headers.get('content-type') ?? ''
       const postBody = ct.includes('application/json') ? await postRes.json() : await postRes.text()
       if (!postRes.ok) {
-        return NextResponse.json(
-          { error: 'Notenmanagement /api/LFs POST failed', details: postBody },
-          { status: 502 }
-        )
+        return serverError('Notenmanagement /api/LFs POST failed', postBody)
       }
 
       const lfId =
@@ -448,10 +460,7 @@ export async function POST(request: Request) {
           : null
 
       if (typeof lfId !== 'number' && typeof lfId !== 'string') {
-        return NextResponse.json(
-          { error: 'LF created but no LF_ID returned', response: postBody },
-          { status: 502 }
-        )
+        return serverError('LF created but no LF_ID returned', postBody)
       }
 
       lfIdStr = String(lfId)
@@ -484,7 +493,7 @@ export async function POST(request: Request) {
     })
     const confirmation = getRes.ok ? await getRes.json() : null
 
-    return NextResponse.json({
+    return ok({
       success: true,
       lfId: lfIdStr,
       confirmation,
@@ -502,7 +511,7 @@ export async function POST(request: Request) {
       type: 'transfer',
       extra: { requestData },
     })
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Transfer failed' }, { status: 500 })
+    return serverError(error instanceof Error ? error.message : 'Transfer failed')
   }
 }
 

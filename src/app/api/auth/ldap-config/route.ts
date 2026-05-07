@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
 import { captureError } from '@/lib/sentry'
+import { ok, serverError } from '@/lib/api-response'
 
 const envFilePath = path.join(process.cwd(), '.env')
 
@@ -26,7 +27,7 @@ interface LDAPConfig {
  */
 export async function GET() {
 	try {
-		return NextResponse.json({
+		return ok({
 			serverUrl: process.env.LDAP_URL,
 			baseDN: process.env.LDAP_BASE_DN,
 			bindDN: process.env.LDAP_USERNAME,
@@ -42,10 +43,7 @@ export async function GET() {
 			location: 'api/auth/ldap-config',
 			type: 'fetch-config'
 		})
-		return NextResponse.json(
-			{ error: 'Failed to fetch LDAP configuration' },
-			{ status: 500 }
-		)
+		return serverError('Failed to fetch LDAP configuration')
 	}
 }
 
@@ -57,8 +55,10 @@ export async function GET() {
  * @returns A JSON response with `{ success: true }` on success, or an error message with status 500 if the update fails.
  */
 export async function POST(request: Request) {
+	let requestBody = ''
 	try {
-		const config = await request.json() as LDAPConfig
+		requestBody = await request.text()
+		const config = JSON.parse(requestBody) as LDAPConfig
 
 		// Read existing .env file
 		let envContent = ''
@@ -109,18 +109,15 @@ export async function POST(request: Request) {
 		// Write back to .env file
 		fs.writeFileSync(envFilePath, newEnvLines.join('\n'))
 
-		return NextResponse.json({ success: true })
+		return ok({ success: true })
 	} catch (error) {
 		captureError(error, {
 			location: 'api/auth/ldap-config',
 			type: 'update-config',
 			extra: {
-				requestBody: await request.text()
+				requestBody
 			}
 		})
-		return NextResponse.json(
-			{ error: 'Failed to update LDAP configuration' },
-			{ status: 500 }
-		)
+		return serverError('Failed to update LDAP configuration')
 	}
 } 

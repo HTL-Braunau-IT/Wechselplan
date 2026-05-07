@@ -1,12 +1,14 @@
-import { type NextRequest, NextResponse } from 'next/server'
+import { type NextRequest } from 'next/server'
 import { z } from 'zod'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
+import { badRequest, notFound, ok, serverError, unprocessable } from '@/lib/api-response'
+import { resolveSchoolYearId, setClassYearStaff, getClassYearStaff } from '@/lib/year-aware-class-staff'
 
-// Validation schema
 const updateClassSchema = z.object({
   classHeadId: z.number().nullable().optional(),
-  classLeadId: z.number().nullable().optional()
+  classLeadId: z.number().nullable().optional(),
+  schoolYearId: z.number().int().positive().optional()
 }).refine(
   data => data.classHeadId !== undefined || data.classLeadId !== undefined,
   { message: 'Nothing to update' }
@@ -22,7 +24,7 @@ const updateClassSchema = z.object({
 export async function PATCH(
   request: NextRequest,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  context: any 
+  context: any
 ) {
   try {
     const id = context?.params?.id
@@ -30,17 +32,14 @@ export async function PATCH(
     const classId = parseInt(id)
 
     if (isNaN(classId)) {
-      return NextResponse.json({ error: 'Invalid class ID' }, { status: 400 })
+      return badRequest('Invalid class ID')
     }
 
     const body = await request.json()
     const validationResult = updateClassSchema.safeParse(body)
 
     if (!validationResult.success) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: validationResult.error.format() },
-        { status: 400 }
-      )
+      return unprocessable('Validation failed', validationResult.error.format())
     }
 
     const updateData = validationResult.data
@@ -50,11 +49,11 @@ export async function PATCH(
     })
 
     if (!existingClass) {
-        captureError(new Error('Class not found'), {
+      captureError(new Error('Class not found'), {
         location: 'api/classes/[id]',
         type: 'update-class'
       })
-      return NextResponse.json({ error: 'Class not found' }, { status: 404 })
+      return notFound('Class not found')
     }
 
     if (updateData.classHeadId !== undefined && updateData.classHeadId !== null) {
@@ -66,7 +65,7 @@ export async function PATCH(
           location: 'api/classes/[id]',
           type: 'update-class'
         })
-        return NextResponse.json({ error: 'Class head teacher not found' }, { status: 404 })
+        return notFound('Class head teacher not found')
       }
     }
 
@@ -79,28 +78,34 @@ export async function PATCH(
           location: 'api/classes/[id]',
           type: 'update-class'
         })
-        return NextResponse.json({ error: 'Class lead teacher not found' }, { status: 404 })
+        return notFound('Class lead teacher not found')
       }
     }
 
-    const updatedClass = await prisma.class.update({
-      where: { id: classId },
-      data: updateData,
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        classHeadId: true,
-        classLeadId: true
-      }
-    })
+    const schoolYearId = updateData.schoolYearId ?? (await resolveSchoolYearId())
+    if (schoolYearId == null) {
+      return badRequest('No school year configured to write class head/lead against')
+    }
 
-    return NextResponse.json(updatedClass)
+    const staffPatch: { classHeadId?: number | null; classLeadId?: number | null } = {}
+    if (updateData.classHeadId !== undefined) staffPatch.classHeadId = updateData.classHeadId
+    if (updateData.classLeadId !== undefined) staffPatch.classLeadId = updateData.classLeadId
+
+    await setClassYearStaff(classId, schoolYearId, staffPatch)
+
+    const staff = await getClassYearStaff(classId, schoolYearId)
+    return ok({
+      id: existingClass.id,
+      name: existingClass.name,
+      description: existingClass.description,
+      classHeadId: staff.classHeadId,
+      classLeadId: staff.classLeadId
+    })
   } catch (error) {
     captureError(error, {
       location: 'api/classes/[id]',
       type: 'update-class'
     })
-    return NextResponse.json({ error: 'Failed to update class' }, { status: 500 })
+    return serverError('Failed to update class')
   }
 }

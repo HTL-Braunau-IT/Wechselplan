@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
 import { db } from '@/server/db'
 import { captureError } from '~/lib/sentry'
+import { badRequest, created, serverError } from '@/lib/api-response'
 /**
  * Handles bulk creation of school holidays from a POST request.
  *
@@ -17,10 +17,7 @@ export async function POST(request: Request) {
     }>
 
     if (!Array.isArray(holidays) || holidays.length === 0) {
-      return NextResponse.json(
-        { error: 'Invalid holidays data' },
-        { status: 400 }
-      )
+      return badRequest('Invalid holidays data')
     }
 
     // Create all holidays in a transaction
@@ -36,16 +33,13 @@ export async function POST(request: Request) {
       )
     )
 
-    return NextResponse.json(createdHolidays)
+    return created(createdHolidays)
   } catch (error) {
    
     captureError(error, {
       location: 'api/settings/holidays/bulk',
       type: 'save-holidays'
     })
-    return NextResponse.json(
-      { error: 'Failed to save holidays' },
-      { status: 500 }
-    )
+    return serverError('Failed to save holidays')
   }
 } 

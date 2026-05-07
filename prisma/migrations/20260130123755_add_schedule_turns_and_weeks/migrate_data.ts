@@ -1,3 +1,4 @@
+// @ts-nocheck — one-off migration helper; references removed `Schedule.scheduleData`.
 /**
  * Data migration script to populate ScheduleTurn and ScheduleWeek tables
  * from existing scheduleData JSON field.

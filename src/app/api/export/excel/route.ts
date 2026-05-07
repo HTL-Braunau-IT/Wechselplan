@@ -3,6 +3,7 @@ import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import * as XLSX from 'xlsx'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
+import { badRequest, notFound, serverError } from '@/lib/api-response'
 
 interface Week {
     date: string
@@ -41,16 +42,16 @@ export async function POST(request: Request) {
         const selectedWeekday = searchParams.get('selectedWeekday')
 
         if (!selectedWeekday) {
-            return NextResponse.json({ error: 'Selected Weekday is required' }, { status: 400 })
+            return badRequest('Selected Weekday is required')
         }
 
         const weekday = Number(selectedWeekday)
         if (isNaN(weekday) || weekday < 1 || weekday > 5) {
-            return NextResponse.json({ error: 'Selected Weekday is invalid' }, { status: 400 })
+            return badRequest('Selected Weekday is invalid')
         }
 
         if (!className) {
-            return NextResponse.json({ error: 'Class Name is required' }, { status: 400 })
+            return badRequest('Class Name is required')
         }
 
         const schoolYearIdParam = searchParams.get('schoolYearId')
@@ -64,17 +65,24 @@ export async function POST(request: Request) {
             schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id ?? null
         }
         if (schoolYearId == null) {
-            return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
+            return badRequest('No school year found.')
         }
 
         const class_response = await prisma.class.findUnique({
-            where: { name: className },
-            include: { classHead: true, classLead: true }
+            where: { name: className }
         })
 
         if (!class_response) {
-            return NextResponse.json({ error: 'Class not found' }, { status: 404 })
+            return notFound('Class not found')
         }
+
+        const yearStaff = await prisma.classYearStaff.findUnique({
+            where: { classId_schoolYearId: { classId: class_response.id, schoolYearId } },
+            include: {
+                classHead: { select: { firstName: true, lastName: true } },
+                classLead: { select: { firstName: true, lastName: true } }
+            }
+        })
 
         const membershipIds = await prisma.classMembership.findMany({
             where: { classId: class_response.id, schoolYearId },
@@ -85,10 +93,27 @@ export async function POST(request: Request) {
             studentIds.length > 0
                 ? await prisma.student.findMany({
                       where: { id: { in: studentIds } },
-                      orderBy: [{ groupId: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }]
+                      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }]
                   })
                 : []
-        const classWithStudents = { ...class_response, students: studentsList }
+        const weekdayGroups =
+            studentIds.length > 0
+                ? await prisma.studentWeekdayGroup.findMany({
+                    where: { studentId: { in: studentIds }, schoolYearId, weekday },
+                    select: { studentId: true, groupId: true }
+                })
+                : []
+        const groupByStudentId = new Map<number, number>()
+        for (const row of weekdayGroups) {
+            groupByStudentId.set(row.studentId, row.groupId)
+        }
+        const classWithStudents = {
+            ...class_response,
+            students: studentsList.map((student) => ({
+                ...student,
+                groupId: groupByStudentId.get(student.id) ?? null
+            }))
+        }
 
         const schedule = await prisma.schedule.findFirst({
             where: {
@@ -115,7 +140,7 @@ export async function POST(request: Request) {
         })
 
         if (!schedule) {
-            return NextResponse.json({ error: 'Schedule not found' }, { status: 404 })
+            return notFound('Schedule not found')
         }
 
         // Fetch teacher assignments for this year
@@ -158,11 +183,11 @@ export async function POST(request: Request) {
 
         // Add class information
         worksheet.F1 = { v: class_response.name, t: 's' } // Class name
-        const teacherName = class_response.classHead 
-            ? `${class_response.classHead.firstName} ${class_response.classHead.lastName}`
+        const teacherName = yearStaff?.classHead
+            ? `${yearStaff.classHead.firstName} ${yearStaff.classHead.lastName}`
             : ''
-        const leadName = class_response.classLead
-            ? `${class_response.classLead.firstName} ${class_response.classLead.lastName}`
+        const leadName = yearStaff?.classLead
+            ? `${yearStaff.classLead.firstName} ${yearStaff.classLead.lastName}`
             : ''
         worksheet.G1 = { v: teacherName, t: 's' } // Class teacher
         worksheet.H1 = { v: leadName, t: 's' } // Class lead
@@ -206,12 +231,9 @@ export async function POST(request: Request) {
             maxCol = Math.max(maxCol, index + 18)
         })
 
-        // Use normalized turns if available, otherwise fall back to scheduleData
         let scheduleData: ScheduleData = {};
         if (schedule?.turns && schedule.turns.length > 0) {
             scheduleData = normalizeToJsonFormat(schedule.turns) as ScheduleData;
-        } else if (schedule?.scheduleData && typeof schedule.scheduleData === 'object' && !Array.isArray(schedule.scheduleData)) {
-            scheduleData = schedule.scheduleData as unknown as ScheduleData;
         }
         
         // Process schedule data for turns
@@ -379,6 +401,6 @@ export async function POST(request: Request) {
             location: 'api/export',
             type: 'export-schedule'
         })
-        return NextResponse.json({ error: 'Failed to generate Excel file' }, { status: 500 })
+        return serverError('Failed to generate Excel file')
     }
 }

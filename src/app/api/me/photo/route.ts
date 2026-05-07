@@ -4,11 +4,12 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { resolveStudentPhoto } from '@/lib/student-photo-source'
 import { resolveTeacherPhoto } from '@/lib/teacher-photo-source'
+import { notFound, unauthorized } from '@/lib/api-response'
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.name || !session.user.role) {
-    return NextResponse.json({ error: 'Nicht angemeldet' }, { status: 401 })
+    return unauthorized('Nicht angemeldet')
   }
 
   let photo:
@@ -35,7 +36,7 @@ export async function GET(request: Request) {
   }
 
   if (!photo) {
-    return NextResponse.json({ error: 'Foto nicht gefunden' }, { status: 404 })
+    return notFound('Foto nicht gefunden')
   }
 
   const ifNoneMatch = request.headers.get('if-none-match')?.trim()

@@ -7,6 +7,7 @@ import ScheduleTurnusPDF from '@/components/ScheduleTurnusPDF';
 // Create hoisted mock functions
 const mockFindUnique = vi.hoisted(() => vi.fn());
 const mockFindFirst = vi.hoisted(() => vi.fn());
+const mockFindSchoolYear = vi.hoisted(() => vi.fn());
 
 // Mock dependencies
 vi.mock('@/lib/sentry', () => ({
@@ -29,6 +30,9 @@ vi.mock('@/lib/prisma', () => ({
     class: {
       findUnique: mockFindUnique,
     },
+    schoolYear: {
+      findFirst: mockFindSchoolYear,
+    },
     schedule: {
       findFirst: mockFindFirst,
     },
@@ -46,45 +50,57 @@ describe('Schedule Dates Export API', () => {
         name: 'should return 400 if selectedWeekday is missing',
         request: () => new Request('http://localhost/api/export/schedule-dates?className=1A'),
         expectedStatus: 400,
-        expectedData: { error: 'Selected Weekday is required' },
+        expectedData: { error: { code: 'BAD_REQUEST', message: 'Selected Weekday is required' } },
       },
       {
         name: 'should return 400 if selectedWeekday is invalid',
         request: () => new Request('http://localhost/api/export/schedule-dates?className=1A&selectedWeekday=6'),
         expectedStatus: 400,
-        expectedData: { error: 'Selected Weekday is invalid' },
+        expectedData: { error: { code: 'BAD_REQUEST', message: 'Selected Weekday is invalid' } },
       },
       {
         name: 'should return 400 if className is missing',
         request: () => new Request('http://localhost/api/export/schedule-dates?selectedWeekday=1'),
         expectedStatus: 400,
-        expectedData: { error: 'Class Name is required' },
+        expectedData: { error: { code: 'BAD_REQUEST', message: 'Class Name is required' } },
       },
       {
         name: 'should return 404 if class not found',
         setup: () => {
           mockFindUnique.mockResolvedValue(null);
+          mockFindSchoolYear.mockResolvedValue({ id: 1 });
         },
         request: () => new Request('http://localhost/api/export/schedule-dates?className=1A&selectedWeekday=1'),
         expectedStatus: 404,
-        expectedData: { error: 'Class not found' },
+        expectedData: { error: { code: 'NOT_FOUND', message: 'Class not found' } },
       },
       {
         name: 'should return 404 if schedule not found',
         setup: () => {
           mockFindUnique.mockResolvedValue({ id: 1, name: '1A' });
+          mockFindSchoolYear.mockResolvedValue({ id: 1 });
           mockFindFirst.mockResolvedValue(null);
         },
         request: () => new Request('http://localhost/api/export/schedule-dates?className=1A&selectedWeekday=1'),
         expectedStatus: 404,
-        expectedData: { error: 'Schedule not found' },
+        expectedData: { error: { code: 'NOT_FOUND', message: 'Schedule not found' } },
       },
       {
         name: 'should return PDF file on success',
         setup: () => {
           mockFindUnique.mockResolvedValue({ id: 1, name: '1A' });
+          mockFindSchoolYear.mockResolvedValue({ id: 1 });
           mockFindFirst.mockResolvedValue({
-            scheduleData: { turnus1: { weeks: [] } },
+            turns: [
+              {
+                id: 1,
+                name: 'TURNUS 1',
+                customLength: null,
+                order: 0,
+                weeks: [{ date: '01.01.24', week: 'KW1', isHoliday: false }],
+                holidays: [],
+              },
+            ],
             additionalInfo: 'Test info',
           });
         },
@@ -100,10 +116,11 @@ describe('Schedule Dates Export API', () => {
         name: 'should handle database errors',
         setup: () => {
           mockFindUnique.mockRejectedValue(new Error('Database error'));
+          mockFindSchoolYear.mockResolvedValue({ id: 1 });
         },
         request: () => new Request('http://localhost/api/export/schedule-dates?className=1A&selectedWeekday=1'),
         expectedStatus: 500,
-        expectedData: { error: 'Failed to generate pdf file' },
+        expectedData: { error: { code: 'INTERNAL_ERROR', message: 'Failed to generate pdf file' } },
       },
     ];
 

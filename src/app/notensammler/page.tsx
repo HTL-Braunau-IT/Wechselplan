@@ -21,8 +21,10 @@ import { CheckCircle2, X, ChevronDownIcon, CheckIcon } from 'lucide-react'
 import { getStoredToken, storeToken, clearToken } from '@/lib/notenmanagement-token'
 import { normalizeUsername } from '@/lib/username'
 import { useSchoolYear } from '@/contexts/school-year-context'
+import { useEntitlements } from '@/contexts/entitlements-context'
 import { StudentPhoto } from '@/components/student-photo'
 import { truncateSubject } from '@/lib/subject-utils'
+import { fetchAndUnwrap, getApiErrorMessage, parseJsonSafe, unwrapData } from '@/lib/api-client'
 
 interface Student {
 	id: number
@@ -511,6 +513,8 @@ export default function NotensammlerPage() {
 	const router = useRouter()
 	const [classes, setClasses] = useState<Array<{ id: number; name: string }>>([])
 	const [selectedClassId, setSelectedClassId] = useState<string>('')
+	const [availableWeekdays, setAvailableWeekdays] = useState<number[]>([])
+	const [selectedWeekday, setSelectedWeekday] = useState<number | null>(null)
 	const [classData, setClassData] = useState<Class | null>(null)
 	const [grades, setGrades] = useState<GradesData>({})
 	const [finalGrades, setFinalGrades] = useState<FinalGradesData>({})
@@ -581,7 +585,15 @@ export default function NotensammlerPage() {
 	const saveConductWishTimerRef = useRef<NodeJS.Timeout | null>(null)
 
 	const { selectedYear, currentSemester } = useSchoolYear()
+	const { isFeatureEnabled } = useEntitlements()
 	const schoolYearId = selectedYear?.id
+	const weekdayLabels: Record<number, string> = {
+		1: 'Montag',
+		2: 'Dienstag',
+		3: 'Mittwoch',
+		4: 'Donnerstag',
+		5: 'Freitag',
+	}
 
 	// When school year changes, clear class selection so we show the new year's class list
 	const prevSchoolYearIdRef = useRef<number | undefined>(undefined)
@@ -597,9 +609,10 @@ export default function NotensammlerPage() {
 		if (schoolYearId == null) return
 		const fetchClasses = async () => {
 			try {
-				const response = await fetch(`/api/classes?schoolYearId=${schoolYearId}`, { cache: 'no-store' })
-				if (!response.ok) throw new Error('Failed to fetch classes')
-				const data = await response.json() as Array<{ id: number; name: string }>
+				const data = await fetchAndUnwrap<Array<{ id: number; name: string }>>(
+					`/api/classes?schoolYearId=${schoolYearId}`,
+					{ cache: 'no-store' }
+				)
 				setClasses(data)
 			} catch (e) {
 				captureFrontendError(e, {
@@ -615,6 +628,13 @@ export default function NotensammlerPage() {
 	// Preselect class from query parameter when classes are loaded
 	useEffect(() => {
 		const classNameParam = searchParams.get('class')
+		const weekdayParam = searchParams.get('weekday')
+		const parsedWeekday = weekdayParam ? parseInt(weekdayParam, 10) : NaN
+		const initialWeekday =
+			!Number.isNaN(parsedWeekday) && parsedWeekday >= 1 && parsedWeekday <= 5 ? parsedWeekday : null
+		if (initialWeekday != null) {
+			setSelectedWeekday(initialWeekday)
+		}
 		if (classNameParam && classes.length > 0 && !selectedClassId) {
 			// Find class by name (case-insensitive match)
 			const matchingClass = classes.find(
@@ -629,6 +649,54 @@ export default function NotensammlerPage() {
 		}
 	}, [classes, searchParams, selectedClassId, t])
 
+	const selectedClassName = useMemo(
+		() => classes.find((cls) => cls.id.toString() === selectedClassId)?.name ?? null,
+		[classes, selectedClassId]
+	)
+
+	// Fetch available weekdays for selected class (based on existing schedules)
+	useEffect(() => {
+		if (!selectedClassName || schoolYearId == null) {
+			setAvailableWeekdays([])
+			setSelectedWeekday(null)
+			return
+		}
+
+		const fetchWeekdays = async () => {
+			try {
+				const res = await fetch(
+					`/api/schedules?classId=${encodeURIComponent(selectedClassName)}&schoolYearId=${schoolYearId}`,
+					{ cache: 'no-store' }
+				)
+				if (!res.ok) {
+					setAvailableWeekdays([])
+					setSelectedWeekday(null)
+					return
+				}
+				const payload = await parseJsonSafe(res) as { data?: Array<{ selectedWeekday: number }> } | Array<{ selectedWeekday: number }>
+				const schedules = Array.isArray(payload) ? payload : (payload.data ?? [])
+				const weekdays = Array.from(
+					new Set(
+						schedules
+							.map((s) => s.selectedWeekday)
+							.filter((wd) => wd >= 1 && wd <= 5)
+					)
+				).sort((a, b) => a - b)
+				setAvailableWeekdays(weekdays)
+				setSelectedWeekday((prev) => {
+					if (weekdays.length === 0) return null
+					if (prev != null && weekdays.includes(prev)) return prev
+					return weekdays[0] ?? null
+				})
+			} catch {
+				setAvailableWeekdays([])
+				setSelectedWeekday(null)
+			}
+		}
+
+		void fetchWeekdays()
+	}, [selectedClassName, schoolYearId])
+
 	// Handle class selection and sync URL
 	const handleClassChange = useCallback((classId: string) => {
 		setSelectedClassId(classId)
@@ -639,11 +707,24 @@ export default function NotensammlerPage() {
 			if (selectedClass) {
 				params.set('class', selectedClass.name)
 			}
+			if (selectedWeekday != null) {
+				params.set('weekday', String(selectedWeekday))
+			}
 		} else {
 			params.delete('class')
+			params.delete('weekday')
 		}
 		router.replace(`/notensammler?${params.toString()}`, { scroll: false })
-	}, [classes, router, searchParams])
+	}, [classes, router, searchParams, selectedWeekday])
+
+	// Keep weekday in URL for deep-linking when class is selected
+	useEffect(() => {
+		if (!selectedClassId) return
+		const params = new URLSearchParams(searchParams.toString())
+		if (selectedWeekday != null) params.set('weekday', String(selectedWeekday))
+		else params.delete('weekday')
+		router.replace(`/notensammler?${params.toString()}`, { scroll: false })
+	}, [selectedClassId, selectedWeekday, router, searchParams])
 
 	// Cleanup timers on unmount
 	useEffect(() => {
@@ -663,13 +744,10 @@ export default function NotensammlerPage() {
 			}
 
 			try {
-				const teacherResponse = await fetch(`/api/teachers/by-username?username=${session.user.name}`)
-				if (teacherResponse.ok) {
-				const teacher = await teacherResponse.json() as { id: number } | null
+				const teacher = await fetchAndUnwrap<{ id: number } | null>(
+					`/api/teachers/by-username?username=${session.user.name}`
+				)
 				setCurrentTeacherId(teacher?.id ?? null)
-				} else {
-					setCurrentTeacherId(null)
-				}
 			} catch (e) {
 				console.error('Failed to fetch current teacher:', e)
 				setCurrentTeacherId(null)
@@ -687,9 +765,9 @@ export default function NotensammlerPage() {
 		}
 		const fetchTeacherClasses = async () => {
 			try {
-				const response = await fetch(`/api/notensammler/teacher-classes?schoolYearId=${schoolYearId}`, { cache: 'no-store' })
-				if (!response.ok) return
-				const data = await response.json() as { classes: Array<{ id: number; name: string; allGradesEnteredFirst: boolean; allGradesEnteredSecond: boolean }> }
+				const data = await fetchAndUnwrap<{
+					classes: Array<{ id: number; name: string; allGradesEnteredFirst: boolean; allGradesEnteredSecond: boolean }>
+				}>(`/api/notensammler/teacher-classes?schoolYearId=${schoolYearId}`, { cache: 'no-store' })
 				setTeacherClasses(data.classes ?? [])
 			} catch (e) {
 				captureFrontendError(e, { location: 'notensammler', type: 'fetch-teacher-classes' })
@@ -713,16 +791,14 @@ export default function NotensammlerPage() {
 				setLoading(true)
 				setError(null)
 
-				const [classResponse, gradesResponse] = await Promise.all([
-					fetch(`/api/notensammler/class/${selectedClassId}?schoolYearId=${schoolYearId}`, { cache: 'no-store' }),
-					fetch(`/api/notensammler/grades?classId=${selectedClassId}&schoolYearId=${schoolYearId}`, { cache: 'no-store' })
+				const weekdayQ = selectedWeekday != null ? `&weekday=${selectedWeekday}` : ''
+				const [classDataResult, gradesPayload] = await Promise.all([
+					fetchAndUnwrap<Class>(`/api/notensammler/class/${selectedClassId}?schoolYearId=${schoolYearId}${weekdayQ}`, { cache: 'no-store' }),
+					fetchAndUnwrap<{
+						grades: GradesData
+						finalGrades: Record<number, { first?: number | null; second?: number | null; conductWishFirst?: string | null; conductWishSecond?: string | null }>
+					}>(`/api/notensammler/grades?classId=${selectedClassId}&schoolYearId=${schoolYearId}`, { cache: 'no-store' })
 				])
-
-				if (!classResponse.ok) throw new Error('Failed to fetch class data')
-				if (!gradesResponse.ok) throw new Error('Failed to fetch grades')
-
-				const classDataResult = await classResponse.json() as Class
-				const gradesPayload = await gradesResponse.json() as { grades: GradesData; finalGrades: Record<number, { first?: number | null; second?: number | null; conductWishFirst?: string | null; conductWishSecond?: string | null }> }
 				const gradesResult = gradesPayload.grades ?? gradesPayload as unknown as Record<string, unknown>
 				const rawFinal = gradesPayload.finalGrades ?? {}
 				// Normalize finalGrades so every entry has conductWishFirst/Second (for backwards compatibility)
@@ -755,7 +831,7 @@ export default function NotensammlerPage() {
 		}
 
 		void fetchClassData()
-	}, [selectedClassId, schoolYearId])
+	}, [selectedClassId, schoolYearId, selectedWeekday])
 
 	// Save grade function
 	const saveGrade = useCallback(async (
@@ -788,8 +864,8 @@ export default function NotensammlerPage() {
 			})
 
 			if (!response.ok) {
-				const errorData = await response.json() as { error?: string }
-				throw new Error(errorData.error ?? 'Failed to save grade')
+				const errorPayload = await parseJsonSafe(response)
+				throw new Error(getApiErrorMessage(errorPayload, 'Failed to save grade'))
 			}
 
 			// Update local state only if not in bulk save mode
@@ -966,8 +1042,8 @@ export default function NotensammlerPage() {
 					body: JSON.stringify(body)
 				})
 				if (!response.ok) {
-					const errorData = (await response.json()) as { error?: string }
-					throw new Error(errorData.error ?? 'Failed to save final grade')
+					const errorPayload = await parseJsonSafe(response)
+					throw new Error(getApiErrorMessage(errorPayload, 'Failed to save final grade'))
 				}
 				if (!silent) {
 					setFinalGrades(prev => {
@@ -1244,21 +1320,20 @@ export default function NotensammlerPage() {
 			])
 
 			if (!gradesRes.ok) {
-				const err = (await gradesRes.json()) as { error?: string }
-				throw new Error(err.error ?? 'Failed to save grades')
+				const err = await parseJsonSafe(gradesRes)
+				throw new Error(getApiErrorMessage(err, 'Failed to save grades'))
 			}
 			if (!finalGradesRes.ok) {
-				const err = (await finalGradesRes.json()) as { error?: string }
-				throw new Error(err.error ?? 'Failed to save final grades')
+				const err = await parseJsonSafe(finalGradesRes)
+				throw new Error(getApiErrorMessage(err, 'Failed to save final grades'))
 			}
 
 			// Refetch teacher classes so tab icons (1. Sem / 2. Sem check/cross) update
 			try {
-				const tcRes = schoolYearId != null ? await fetch(`/api/notensammler/teacher-classes?schoolYearId=${schoolYearId}`) : await fetch('/api/notensammler/teacher-classes')
-				if (tcRes.ok) {
-					const tcData = await tcRes.json() as { classes: Array<{ id: number; name: string; allGradesEnteredFirst: boolean; allGradesEnteredSecond: boolean }> }
-					setTeacherClasses(tcData.classes ?? [])
-				}
+				const tcData = schoolYearId != null
+					? await fetchAndUnwrap<{ classes: Array<{ id: number; name: string; allGradesEnteredFirst: boolean; allGradesEnteredSecond: boolean }> }>(`/api/notensammler/teacher-classes?schoolYearId=${schoolYearId}`)
+					: await fetchAndUnwrap<{ classes: Array<{ id: number; name: string; allGradesEnteredFirst: boolean; allGradesEnteredSecond: boolean }> }>('/api/notensammler/teacher-classes')
+				setTeacherClasses(tcData.classes ?? [])
 			} catch {
 				// Non-fatal: tab icons may be stale until next load
 			}
@@ -1354,8 +1429,8 @@ export default function NotensammlerPage() {
 			)
 
 			if (!response.ok) {
-				const errorData = await response.json() as { error?: string }
-				throw new Error(errorData.error ?? 'Failed to delete grades')
+				const errorPayload = await parseJsonSafe(response)
+				throw new Error(getApiErrorMessage(errorPayload, 'Failed to delete grades'))
 			}
 
 			// Update local state to remove deleted teacher's grades
@@ -1423,7 +1498,8 @@ export default function NotensammlerPage() {
 				})
 			})
 
-			const data = await res.json() as { error?: string; token?: string; tokenExpiresIn?: number } | TransferPreviewResponse
+			const payload = await parseJsonSafe(res)
+			const data = unwrapData<{ token?: string; tokenExpiresIn?: number } | TransferPreviewResponse>(payload)
 			if (!res.ok) {
 				// If token was invalid, clear it and retry with password
 				if (useStoredToken) {
@@ -1441,9 +1517,10 @@ export default function NotensammlerPage() {
 								password: transferPassword
 							})
 						})
-						const retryData = await retryRes.json() as { error?: string; token?: string; tokenExpiresIn?: number } | TransferPreviewResponse
+						const retryPayload = await parseJsonSafe(retryRes)
+						const retryData = unwrapData<{ token?: string; tokenExpiresIn?: number } | TransferPreviewResponse>(retryPayload)
 						if (!retryRes.ok) {
-							throw new Error((retryData as { error?: string }).error ?? 'Failed to build preview')
+							throw new Error(getApiErrorMessage(retryPayload, 'Failed to build preview'))
 						}
 						// Store new token if provided
 						if ('token' in retryData && retryData.token && 'tokenExpiresIn' in retryData && retryData.tokenExpiresIn) {
@@ -1461,7 +1538,7 @@ export default function NotensammlerPage() {
 						return
 					}
 				}
-				throw new Error((data as { error?: string }).error ?? 'Failed to build preview')
+				throw new Error(getApiErrorMessage(payload, 'Failed to build preview'))
 			}
 
 			// Store new token if provided
@@ -1521,7 +1598,8 @@ export default function NotensammlerPage() {
 				})
 			})
 
-			const data = await res.json() as { error?: string; details?: unknown; token?: string; tokenExpiresIn?: number } | TransferResultResponse
+			const payload = await parseJsonSafe(res)
+			const data = unwrapData<{ error?: string; details?: unknown; token?: string; tokenExpiresIn?: number } | TransferResultResponse>(payload)
 			if (!res.ok) {
 				// If token was invalid, clear it and retry with password
 				if (useStoredToken && transferPassword) {
@@ -1539,10 +1617,11 @@ export default function NotensammlerPage() {
 							notesByMatrikelnummer
 						})
 					})
-			const retryData = await retryRes.json() as { error?: string; details?: unknown; token?: string; tokenExpiresIn?: number } | TransferResultResponse
+			const retryPayload = await parseJsonSafe(retryRes)
+			const retryData = unwrapData<{ error?: string; details?: unknown; token?: string; tokenExpiresIn?: number } | TransferResultResponse>(retryPayload)
 					if (!retryRes.ok) {
 						const details = (retryData as { details?: unknown }).details
-						const msg = (retryData as { error?: string }).error ?? 'Transfer failed'
+						const msg = getApiErrorMessage(retryPayload, 'Transfer failed')
 						throw new Error(details ? `${msg}\n${JSON.stringify(details, null, 2)}` : msg)
 					}
 					// Store new token if provided
@@ -1555,7 +1634,7 @@ export default function NotensammlerPage() {
 					return
 				}
 				const details = (data as { details?: unknown }).details
-				const msg = (data as { error?: string }).error ?? 'Transfer failed'
+				const msg = getApiErrorMessage(payload, 'Transfer failed')
 				throw new Error(details ? `${msg}\n${JSON.stringify(details, null, 2)}` : msg)
 			}
 
@@ -1571,11 +1650,10 @@ export default function NotensammlerPage() {
 			// Refetch class data to update transfer status
 			if (selectedClassId && schoolYearId != null) {
 				try {
-					const classRes = await fetch(`/api/notensammler/class/${selectedClassId}?schoolYearId=${schoolYearId}`)
-					if (classRes.ok) {
-						const updatedClassData = await classRes.json() as Class
-						setClassData(updatedClassData)
-					}
+					const updatedClassData = await fetchAndUnwrap<Class>(
+						`/api/notensammler/class/${selectedClassId}?schoolYearId=${schoolYearId}`
+					)
+					setClassData(updatedClassData)
 				} catch (e) {
 					console.error('Failed to refresh class data:', e)
 				}
@@ -1606,7 +1684,8 @@ export default function NotensammlerPage() {
 				})
 			})
 
-			const data = await res.json() as { error?: string; details?: unknown; success?: boolean; notes?: unknown; token?: string; tokenExpiresIn?: number }
+			const payload = await parseJsonSafe(res)
+			const data = unwrapData<{ error?: string; details?: unknown; success?: boolean; notes?: unknown; token?: string; tokenExpiresIn?: number }>(payload)
 			if (!res.ok) {
 				// If token was invalid, clear it and show password dialog
 				clearToken()
@@ -1680,10 +1759,11 @@ export default function NotensammlerPage() {
 				})
 			})
 
-			const data = await res.json() as { error?: string; details?: unknown; success?: boolean; notes?: unknown; token?: string; tokenExpiresIn?: number }
+			const payload = await parseJsonSafe(res)
+			const data = unwrapData<{ error?: string; details?: unknown; success?: boolean; notes?: unknown; token?: string; tokenExpiresIn?: number }>(payload)
 			if (!res.ok) {
 				const details = (data as { details?: unknown }).details
-				const msg = (data as { error?: string }).error ?? 'Failed to fetch LF data'
+				const msg = getApiErrorMessage(payload, 'Failed to fetch LF data')
 				throw new Error(details ? `${msg}\n${JSON.stringify(details, null, 2)}` : msg)
 			}
 
@@ -1720,7 +1800,7 @@ export default function NotensammlerPage() {
 	return (
 		<div className="container mx-auto p-4">
 			<div className="mb-8">
-				<h1 className="text-3xl font-bold mb-4">{t('notensammler.title', 'Notensammler')}</h1>
+				<h1 className="text-2xl font-bold mb-4">{t('notensammler.title', 'Notensammler')}</h1>
 				{error && (
 					<div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-destructive flex items-start justify-between gap-4">
 						<div className="whitespace-pre-line">{error}</div>
@@ -1825,7 +1905,33 @@ export default function NotensammlerPage() {
 					</Tabs>
 				)}
 				{classData && (
-					<div className="flex items-center gap-6 mb-4">
+					<div className="flex flex-wrap items-end gap-6 mb-4">
+						{selectedClassId && availableWeekdays.length > 1 && (
+							<div>
+								<label className="block text-sm font-medium mb-2">
+									{t('notensammler.selectWeekday', 'Wochentag')}
+								</label>
+								<Select
+									value={selectedWeekday != null ? String(selectedWeekday) : undefined}
+									onValueChange={(value) => {
+										const wd = parseInt(value, 10)
+										if (Number.isNaN(wd)) return
+										setSelectedWeekday(wd)
+									}}
+								>
+									<SelectTrigger className="w-[180px]">
+										<SelectValue placeholder={t('notensammler.selectWeekdayPlaceholder', 'Wochentag wählen...')} />
+									</SelectTrigger>
+									<SelectContent>
+										{availableWeekdays.map((wd) => (
+											<SelectItem key={wd} value={String(wd)}>
+												{weekdayLabels[wd] ?? `Tag ${wd}`}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+						)}
 						{currentSemester != null && (
 							<span className="text-sm text-muted-foreground">
 								{t('notensammler.currentSemester', 'Aktuell')}: {currentSemester === 'first' ? t('notensammler.firstSemester', '1. Semester') : t('notensammler.secondSemester', '2. Semester')}
@@ -1918,14 +2024,16 @@ export default function NotensammlerPage() {
 								t('notensammler.downloadPdf', 'PDF herunterladen')
 							)}
 						</Button>
-						<Button
-							variant="secondary"
-							onClick={openTransferFlow}
-							disabled={!selectedClassId}
-							title={t('notensammler.tooltipTransfer', 'Überträgt die Noten an das Notenmanagement.')}
-						>
-							{t('notensammler.transferToNotenmanagement', 'An Notenmanagement übertragen')}
-						</Button>
+						{isFeatureEnabled('notenmgmt_htl') && (
+							<Button
+								variant="secondary"
+								onClick={openTransferFlow}
+								disabled={!selectedClassId}
+								title={t('notensammler.tooltipTransfer', 'Überträgt die Noten an das Notenmanagement.')}
+							>
+								{t('notensammler.transferToNotenmanagement', 'An Notenmanagement übertragen')}
+							</Button>
+						)}
 					</div>
 				)}
 			</div>

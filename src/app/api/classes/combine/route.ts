@@ -1,12 +1,14 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import type { Student } from '@prisma/client'
+import { badRequest, created, notFound, serverError, unprocessable } from '@/lib/api-response'
+import { resolveSchoolYearId } from '@/lib/year-aware-class-staff'
 
 interface CombineClassesRequest {
 	class1Id: number
 	class2Id: number
 	combinedClassName: string
+	schoolYearId?: number
 }
 
 /**
@@ -19,23 +21,19 @@ interface CombineClassesRequest {
  * @returns A JSON response containing the new class information or an error message
  */
 export async function POST(request: Request) {
+	let requestBody: CombineClassesRequest | Record<string, unknown> = {}
 	try {
 		const body = await request.json() as CombineClassesRequest
+		requestBody = body
 		const { class1Id, class2Id, combinedClassName } = body
 
 		// Validate input
 		if (!class1Id || !class2Id || !combinedClassName) {
-			return NextResponse.json(
-				{ error: 'Missing required fields: class1Id, class2Id, and combinedClassName are required' },
-				{ status: 400 }
-			)
+			return badRequest('Missing required fields: class1Id, class2Id, and combinedClassName are required')
 		}
 
 		if (class1Id === class2Id) {
-			return NextResponse.json(
-				{ error: 'Cannot combine a class with itself' },
-				{ status: 400 }
-			)
+			return badRequest('Cannot combine a class with itself')
 		}
 
 		// Check if combined class name already exists
@@ -44,10 +42,7 @@ export async function POST(request: Request) {
 		})
 
 		if (existingClass) {
-			return NextResponse.json(
-				{ error: 'A class with this name already exists' },
-				{ status: 400 }
-			)
+			return unprocessable('A class with this name already exists')
 		}
 
 		// Verify both source classes exist
@@ -61,30 +56,27 @@ export async function POST(request: Request) {
 		])
 
 		if (!class1) {
-			return NextResponse.json(
-				{ error: `Class with ID ${class1Id} not found` },
-				{ status: 404 }
-			)
+			return notFound(`Class with ID ${class1Id} not found`)
 		}
 
 		if (!class2) {
-			return NextResponse.json(
-				{ error: `Class with ID ${class2Id} not found` },
-				{ status: 404 }
-			)
+			return notFound(`Class with ID ${class2Id} not found`)
 		}
 
-		// Check if both classes have students
+		const schoolYearId = body.schoolYearId ?? (await resolveSchoolYearId())
+		if (schoolYearId == null) {
+			return badRequest('No school year configured. Cannot combine classes without an active school year.')
+		}
+
+		// Check if both classes have students for the active school year
+		// (class assignment now lives on ClassMembership).
 		const [class1StudentCount, class2StudentCount] = await Promise.all([
-			prisma.student.count({ where: { classId: class1Id } }),
-			prisma.student.count({ where: { classId: class2Id } })
+			prisma.classMembership.count({ where: { classId: class1Id, schoolYearId } }),
+			prisma.classMembership.count({ where: { classId: class2Id, schoolYearId } })
 		])
 
 		if (class1StudentCount === 0 && class2StudentCount === 0) {
-			return NextResponse.json(
-				{ error: 'Both classes must have at least one student to combine' },
-				{ status: 400 }
-			)
+			return badRequest('Both classes must have at least one student to combine')
 		}
 
 		// Check if the combined class would exceed the maximum allowed students (36)
@@ -92,17 +84,14 @@ export async function POST(request: Request) {
 		const MAX_COMBINED_STUDENTS = 36
 
 		if (totalStudents > MAX_COMBINED_STUDENTS) {
-			return NextResponse.json(
-				{ 
-					error: `Cannot combine classes: The combined class would have ${totalStudents} students, but the maximum allowed is ${MAX_COMBINED_STUDENTS} students. Please reduce the number of students in one or both classes before combining.`,
-					details: {
-						class1Students: class1StudentCount,
-						class2Students: class2StudentCount,
-						totalStudents,
-						maxAllowed: MAX_COMBINED_STUDENTS
-					}
-				},
-				{ status: 400 }
+			return unprocessable(
+				`Cannot combine classes: The combined class would have ${totalStudents} students, but the maximum allowed is ${MAX_COMBINED_STUDENTS} students. Please reduce the number of students in one or both classes before combining.`,
+				{
+					class1Students: class1StudentCount,
+					class2Students: class2StudentCount,
+					totalStudents,
+					maxAllowed: MAX_COMBINED_STUDENTS
+				}
 			)
 		}
 
@@ -118,10 +107,26 @@ export async function POST(request: Request) {
 				}
 			})
 
-			// Get all students from both classes
+			// Get all students from both classes (year-scoped via ClassMembership)
+			const [class1Memberships, class2Memberships] = await Promise.all([
+				tx.classMembership.findMany({
+					where: { classId: class1Id, schoolYearId },
+					select: { studentId: true }
+				}),
+				tx.classMembership.findMany({
+					where: { classId: class2Id, schoolYearId },
+					select: { studentId: true }
+				})
+			])
+			const class1StudentIds = class1Memberships.map(m => m.studentId)
+			const class2StudentIds = class2Memberships.map(m => m.studentId)
 			const [class1Students, class2Students] = await Promise.all([
-				tx.student.findMany({ where: { classId: class1Id } }),
-				tx.student.findMany({ where: { classId: class2Id } })
+				class1StudentIds.length > 0
+					? tx.student.findMany({ where: { id: { in: class1StudentIds } } })
+					: Promise.resolve([]),
+				class2StudentIds.length > 0
+					? tx.student.findMany({ where: { id: { in: class2StudentIds } } })
+					: Promise.resolve([])
 			])
 			
 			// Add original class information to students
@@ -158,19 +163,24 @@ export async function POST(request: Request) {
 				const originalClassPrefix = student.originalClass ? `${student.originalClass}_` : ''
 				const usernameWithOrigin = `${originalClassPrefix}${finalUsername}`
 
-				// Update student to belong to the new combined class
+				// Update student username only; class assignment moves through
+				// ClassMembership for the active school year.
 				await tx.student.update({
 					where: { id: student.id },
 					data: {
-						classId: combinedClass.id,
 						username: usernameWithOrigin
 					}
+				})
+				await tx.classMembership.upsert({
+					where: { studentId_schoolYearId: { studentId: student.id, schoolYearId } },
+					create: { studentId: student.id, classId: combinedClass.id, schoolYearId },
+					update: { classId: combinedClass.id }
 				})
 			}
 
 			// Get the final count of students in the combined class
-			const finalStudentCount = await tx.student.count({
-				where: { classId: combinedClass.id }
+			const finalStudentCount = await tx.classMembership.count({
+				where: { classId: combinedClass.id, schoolYearId }
 			})
 
 			return {
@@ -183,25 +193,21 @@ export async function POST(request: Request) {
 			}
 		})
 
-		return NextResponse.json({
-			message: 'Classes combined successfully',
+		return created({
 			combinedClass: result.class,
 			studentCount: result.studentCount,
 			originalClasses: result.originalClasses
-		})
+		}, 'Classes combined successfully')
 
 	} catch (error) {
 		captureError(error, {
 			location: 'api/classes/combine',
 			type: 'combine-classes',
 			extra: {
-				requestBody: await request.json().catch(() => ({}))
+				requestBody
 			}
 		})
 
-		return NextResponse.json(
-			{ error: 'Failed to combine classes' },
-			{ status: 500 }
-		)
+		return serverError('Failed to combine classes')
 	}
 }

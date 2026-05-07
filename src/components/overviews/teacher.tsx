@@ -8,6 +8,7 @@ import { parse, isValid, isWithinInterval, addWeeks } from "date-fns"
 import { useTranslation } from "react-i18next"
 import { AlertTriangle } from "lucide-react"
 import { StudentPhoto } from "@/components/student-photo"
+import { getApiErrorMessage, parseJsonSafe, unwrapData } from '@/lib/api-client'
 
 /**
  * Renders a weekly schedule overview for the logged-in teacher with weekday navigation tabs.
@@ -29,12 +30,13 @@ export function TeacherOverview() {
         setError(null)
         if (!session?.user?.name) return
         const response = await fetch(`/api/schedules/data?teacher=${session.user.name}&weekday=${weekday}`)
-        const data = await response.json()
+        const payload = await parseJsonSafe(response)
         
         if (!response.ok) {
-            setError(t('overview.teacher.noSchedule'))
+            setError(getApiErrorMessage(payload, t('overview.teacher.noSchedule')))
             return
         }
+        const data = unwrapData<TeacherScheduleData>(payload)
 
         // Check if we have any schedules
         if (!data.schedules || data.schedules.length === 0 || data.schedules.every((s: TeacherScheduleData['schedules'][0]) => s.length === 0)) {
@@ -144,11 +146,11 @@ export function TeacherOverview() {
             if (currentWeek && scheduleData.teacherRotation?.length) {
                 const turnName = currentWeek.turn.name
                 const rotation = scheduleData.teacherRotation.find(
-                    (r: { teacherId: number | string; classId: number; period: string; turnId: string }) =>
+                    (r: { teacherId: number | string; classId: number; period: string; turnName?: string }) =>
                         Number(r.teacherId) === Number(assignment.teacherId) &&
                         r.classId === assignment.classId &&
                         r.period === assignment.period &&
-                        r.turnId === turnName
+                        r.turnName === turnName
                 )
                 if (rotation) return (rotation as { groupId: number }).groupId
             }
@@ -206,7 +208,7 @@ export function TeacherOverview() {
         }
 
         const getStudentsForGroup = (groupId: number | undefined, classId: number | undefined) => {
-            if (!groupId || !classId) return []
+            if (groupId == null || classId == null) return []
             // Find the array of students for this class
             const classStudents = scheduleData.students.find(students => 
                 students.some(student => student.classId === classId)

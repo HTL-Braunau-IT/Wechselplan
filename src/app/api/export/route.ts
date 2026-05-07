@@ -3,6 +3,7 @@ import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { generateSchedulePDF } from '@/lib/pdf-generator'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
+import { badRequest, notFound, serverError } from '@/lib/api-response'
 
 /**
  * Handles HTTP POST requests to generate and return a PDF schedule for a specified class.
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
         const className = searchParams.get('className')
         const schoolYearId = await resolveSchoolYearId(searchParams.get('schoolYearId'))
         if (schoolYearId == null) {
-            return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
+            return badRequest('No school year found.')
         }
 
         if (!className) {
@@ -37,26 +38,12 @@ export async function POST(request: Request) {
                 location: 'api/export',
                 type: 'export-schedule'
             })
-            return NextResponse.json({ error: 'Class Name is required' }, { status: 400 })
+            return badRequest('Class Name is required')
         }
 
-        // Get class
+        // Get class (head/lead are now per-school-year via ClassYearStaff)
         const class_response = await prisma.class.findUnique({
-            where: { name: className },
-            include: {
-                classHead: {
-                    select: {
-                        firstName: true,
-                        lastName: true
-                    }
-                },
-                classLead: {
-                    select: {
-                        firstName: true,
-                        lastName: true
-                    }
-                }
-            }
+            where: { name: className }
         })
         if (!class_response) {
             const error = new Error('Class not found')
@@ -64,10 +51,18 @@ export async function POST(request: Request) {
                 location: 'api/export',
                 type: 'pdf-data-error'
             })
-            return NextResponse.json({ error: 'Class not found' }, { status: 400 })
+            return notFound('Class not found')
         }
 
-        // Get students with groupId for this year (via ClassMembership)
+        const yearStaff = await prisma.classYearStaff.findUnique({
+            where: { classId_schoolYearId: { classId: class_response.id, schoolYearId } },
+            include: {
+                classHead: { select: { firstName: true, lastName: true } },
+                classLead: { select: { firstName: true, lastName: true } }
+            }
+        })
+
+        // Get students with weekday group (default Monday) for this year (via ClassMembership)
         const membershipIds = await prisma.classMembership.findMany({
             where: { classId: class_response.id, schoolYearId },
             select: { studentId: true }
@@ -76,16 +71,30 @@ export async function POST(request: Request) {
         const students =
             studentIds.length > 0
                 ? await prisma.student.findMany({
-                      where: { id: { in: studentIds }, groupId: { not: null } },
-                      orderBy: [{ groupId: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }]
+                      where: { id: { in: studentIds } },
+                      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }]
                   })
                 : []
+        const weekdayGroups =
+            studentIds.length > 0
+                ? await prisma.studentWeekdayGroup.findMany({
+                    where: { studentId: { in: studentIds }, schoolYearId, weekday: 1 },
+                    select: { studentId: true, groupId: true }
+                })
+                : []
+        const groupByStudentId = new Map<number, number>()
+        for (const row of weekdayGroups) {
+            groupByStudentId.set(row.studentId, row.groupId)
+        }
+        const studentsWithGroup = students
+            .map((student) => ({ ...student, groupId: groupByStudentId.get(student.id) ?? null }))
+            .filter((student) => student.groupId != null)
 
         // Get all groups for this class
-        const groupIds = Array.from(new Set(students.map(s => s.groupId))).filter((id) => id !== null) as number[];
+        const groupIds = Array.from(new Set(studentsWithGroup.map((s) => s.groupId))).filter((id) => id !== null) as number[];
         const groups = groupIds.map((groupId: number) => ({
             id: groupId,
-            students: students.filter(s => s.groupId === groupId)
+            students: studentsWithGroup.filter((s) => s.groupId === groupId)
         }));
         // Get teacher assignments (AM/PM) for this year
         const teacherAssignments = await prisma.teacherAssignment.findMany({
@@ -170,12 +179,9 @@ export async function POST(request: Request) {
             .filter(a => a.period === 'PM')
             .map(mapAssignment); 
     
-        // Use normalized turns if available, otherwise fall back to scheduleData
         let turns: Record<string, unknown> = {};
         if (schedule?.turns && schedule.turns.length > 0) {
             turns = normalizeToJsonFormat(schedule.turns) as Record<string, unknown>;
-        } else if (schedule && typeof schedule.scheduleData === 'object' && schedule.scheduleData !== null && !Array.isArray(schedule.scheduleData)) {
-            turns = schedule.scheduleData as Record<string, unknown>;
         }
 
         // Get schedule times and break times
@@ -189,8 +195,8 @@ export async function POST(request: Request) {
             pmAssignments,
             turns,
             className: class_response.name,
-            classHead: class_response.classHead ? `${class_response.classHead.firstName} ${class_response.classHead.lastName}` : '—',
-            classLead: class_response.classLead ? `${class_response.classLead.firstName} ${class_response.classLead.lastName}` : '—',
+            classHead: yearStaff?.classHead ? `${yearStaff.classHead.firstName} ${yearStaff.classHead.lastName}` : '—',
+            classLead: yearStaff?.classLead ? `${yearStaff.classLead.firstName} ${yearStaff.classLead.lastName}` : '—',
             additionalInfo: schedule?.additionalInfo ?? '—',
             selectedWeekday: schedule?.selectedWeekday ?? 1,
             scheduleTimes,
@@ -209,9 +215,6 @@ export async function POST(request: Request) {
             location: 'api/export',
             type: 'export-schedule'
         })
-        return NextResponse.json(
-            { error: 'Failed to generate PDF' },
-            { status: 500 }
-        )
+        return serverError('Failed to generate PDF')
     }
 }

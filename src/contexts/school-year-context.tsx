@@ -26,6 +26,16 @@ interface SchoolYearContextType {
 
 const SchoolYearContext = createContext<SchoolYearContextType | undefined>(undefined)
 
+function normalizeSchoolYearsPayload(payload: unknown): SchoolYearFromApi[] {
+  if (Array.isArray(payload)) return payload as SchoolYearFromApi[]
+  if (payload && typeof payload === 'object') {
+    const candidate = (payload as { data?: unknown; years?: unknown })
+    if (Array.isArray(candidate.data)) return candidate.data as SchoolYearFromApi[]
+    if (Array.isArray(candidate.years)) return candidate.years as SchoolYearFromApi[]
+  }
+  return []
+}
+
 export function SchoolYearProvider({ children }: { children: ReactNode }) {
   const [years, setYears] = useState<SchoolYearFromApi[]>([])
   const [selectedYear, setSelectedYearState] = useState<SchoolYearFromApi | null>(null)
@@ -36,7 +46,8 @@ export function SchoolYearProvider({ children }: { children: ReactNode }) {
       if (isInitialLoad) setIsLoading(true)
       const res = await fetch('/api/school-years')
       if (!res.ok) return
-      const data = (await res.json()) as SchoolYearFromApi[]
+      const payload = await res.json()
+      const data = normalizeSchoolYearsPayload(payload)
       setYears(data)
       if (data.length === 0) {
         setSelectedYearState(null)

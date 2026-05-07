@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { ok, serverError } from '@/lib/api-response'
 
 /**
  * Handles HTTP GET requests to retrieve all subjects from the database.
@@ -9,7 +9,8 @@ import { captureError } from '@/lib/sentry'
  */
 export async function GET() {
 	try {
-		const subjects = await prisma.subject.findMany({
+		const subjects = await prisma.lookupValue.findMany({
+			where: { kind: 'SUBJECT' },
 			select: {
 				id: true,
 				name: true
@@ -19,16 +20,13 @@ export async function GET() {
 			}
 		})
 
-		return NextResponse.json({ subjects })
+		return ok(subjects)
 	} catch (error) {
 		
 		captureError(error, {
 			location: 'api/subjects',
 			type: 'fetch-subjects'
 		})
-		return NextResponse.json(
-			{ error: 'Failed to fetch subjects' },
-			{ status: 500 }
-		)
+		return serverError('Failed to fetch subjects')
 	}
 } 

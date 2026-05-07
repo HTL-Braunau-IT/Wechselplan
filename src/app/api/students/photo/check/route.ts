@@ -3,6 +3,7 @@ import path from 'path'
 import fs from 'fs'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { hasEffectiveStudentPhoto } from '@/lib/student-photo-source'
+import { badRequest, forbidden, ok } from '@/lib/api-response'
 
 const PHOTO_DIR = path.join(process.cwd(), 'data', 'student-photos')
 const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png'] as const
@@ -26,14 +27,14 @@ function hasPhotoForStudent(studentId: number): boolean {
  */
 export async function GET(request: Request) {
   if (!(await isFeatureEnabled('student_photos'))) {
-    return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+    return forbidden('Feature not available')
   }
 
   const { searchParams } = new URL(request.url)
   const idsParam = searchParams.get('ids')
   const useEffective = searchParams.get('effective') === 'true'
   if (!idsParam || idsParam.trim() === '') {
-    return NextResponse.json({ error: 'ids query parameter required (e.g. ids=1,2,3)' }, { status: 400 })
+    return badRequest('ids query parameter required (e.g. ids=1,2,3)')
   }
   const ids = idsParam
     .split(',')
@@ -45,5 +46,5 @@ export async function GET(request: Request) {
       ? await hasEffectiveStudentPhoto(id)
       : hasPhotoForStudent(id)
   }
-  return NextResponse.json(result)
+  return ok(result)
 }

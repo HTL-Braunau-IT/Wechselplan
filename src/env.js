@@ -39,6 +39,7 @@ export const env = createEnv({
     LICENSE_SERVER_URL: z.string().url().optional(),
     LICENSE_KEY: z.string().optional(),
     DISABLE_ENTITLEMENTS: z.string().optional(),
+    NOTENMANAGEMENT: z.string().optional(),
   },
 
   /**
@@ -86,6 +87,7 @@ export const env = createEnv({
     LICENSE_SERVER_URL: process.env.LICENSE_SERVER_URL,
     LICENSE_KEY: process.env.LICENSE_KEY,
     DISABLE_ENTITLEMENTS: process.env.DISABLE_ENTITLEMENTS,
+    NOTENMANAGEMENT: process.env.NOTENMANAGEMENT,
     NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION,
     NEXT_PUBLIC_BUILD_DATE: process.env.NEXT_PUBLIC_BUILD_DATE,
   },

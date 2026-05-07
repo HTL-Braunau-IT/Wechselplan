@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import path from 'path'
 import fs from 'fs'
 import { hasEffectiveTeacherPhoto } from '@/lib/teacher-photo-source'
+import { badRequest, ok } from '@/lib/api-response'
 
 const PHOTO_DIR = path.join(process.cwd(), 'data', 'teacher-photos')
 const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png'] as const
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
   const idsParam = searchParams.get('ids')
   const useEffective = searchParams.get('effective') === 'true'
   if (!idsParam || idsParam.trim() === '') {
-    return NextResponse.json({ error: 'ids query parameter required (e.g. ids=1,2,3)' }, { status: 400 })
+    return badRequest('ids query parameter required (e.g. ids=1,2,3)')
   }
   const ids = idsParam
     .split(',')
@@ -35,5 +36,5 @@ export async function GET(request: Request) {
   for (const id of ids) {
     result[String(id)] = useEffective ? await hasEffectiveTeacherPhoto(id) : hasPhotoForTeacher(id)
   }
-  return NextResponse.json(result)
+  return ok(result)
 }

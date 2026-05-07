@@ -153,7 +153,7 @@ async function resolveO365Photo(
     where: { id: studentId },
     select: { externalId: true, externalSource: true },
   })
-  if (!student?.externalId || student.externalSource !== 'entra') {
+  if (!student?.externalId) {
     return null
   }
 
@@ -216,7 +216,7 @@ export async function refreshStudentO365PhotoCache(studentId: number): Promise<b
     where: { id: studentId },
     select: { externalId: true, externalSource: true },
   })
-  if (!student?.externalId || student.externalSource !== 'entra') return false
+  if (!student?.externalId) return false
 
   try {
     const photo = await fetchAndCacheO365Photo(studentId, student.externalId)

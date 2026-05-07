@@ -33,7 +33,7 @@ describe('Schedule Times API', () => {
           startTime: '08:00',
           endTime: '09:30',
           hours: 1.5,
-          period: 'AM',
+          period: 'AM' as const,
           createdAt: new Date('2024-03-20T09:30:00Z'),
           updatedAt: new Date('2024-03-20T09:30:00Z'),
         },
@@ -42,7 +42,7 @@ describe('Schedule Times API', () => {
           startTime: '10:00',
           endTime: '11:30',
           hours: 1.5,
-          period: 'AM',
+          period: 'AM' as const,
           createdAt: new Date('2024-03-20T09:30:00Z'),
           updatedAt: new Date('2024-03-20T09:30:00Z'),
         },
@@ -54,11 +54,11 @@ describe('Schedule Times API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(data).toEqual(mockScheduleTimes.map(time => ({
+      expect(data).toEqual({ data: mockScheduleTimes.map(time => ({
         ...time,
         createdAt: time.createdAt.toISOString(),
         updatedAt: time.updatedAt.toISOString(),
-      })));
+      }))});
       expect(prisma.scheduleTime.findMany).toHaveBeenCalledWith({
         orderBy: { startTime: 'asc' },
       });
@@ -72,7 +72,7 @@ describe('Schedule Times API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(500);
-      expect(data).toEqual({ error: 'Failed to fetch schedule times' });
+      expect(data).toEqual({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch schedule times' } });
       
     });
   });
@@ -83,7 +83,7 @@ describe('Schedule Times API', () => {
         startTime: '08:00',
         endTime: '09:30',
         hours: 1.5,
-        period: 'AM',
+        period: 'AM' as const,
       };
 
       const createdScheduleTime = {
@@ -103,12 +103,12 @@ describe('Schedule Times API', () => {
       const response = await POST(request);
       const data = await response.json();
 
-      expect(response.status).toBe(200);
-      expect(data).toEqual({
+      expect(response.status).toBe(201);
+      expect(data).toEqual({ data: {
         ...createdScheduleTime,
         createdAt: createdScheduleTime.createdAt.toISOString(),
         updatedAt: createdScheduleTime.updatedAt.toISOString(),
-      });
+      }});
       expect(prisma.scheduleTime.create).toHaveBeenCalledWith({
         data: newScheduleTime,
       });
@@ -131,7 +131,7 @@ describe('Schedule Times API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data).toEqual({ error: 'Missing required fields' });
+      expect(data).toEqual({ error: { code: 'BAD_REQUEST', message: 'Missing required fields' } });
       expect(prisma.scheduleTime.create).not.toHaveBeenCalled();
     });
 
@@ -152,7 +152,7 @@ describe('Schedule Times API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data).toEqual({ error: 'Hours must be a positive number' });
+      expect(data).toEqual({ error: { code: 'BAD_REQUEST', message: 'Hours must be a positive number' } });
       expect(prisma.scheduleTime.create).not.toHaveBeenCalled();
     });
 
@@ -173,7 +173,7 @@ describe('Schedule Times API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data).toEqual({ error: 'Invalid period. Must be AM or PM' });
+      expect(data).toEqual({ error: { code: 'BAD_REQUEST', message: 'Invalid period. Must be AM or PM' } });
       expect(prisma.scheduleTime.create).not.toHaveBeenCalled();
     });
 
@@ -194,7 +194,7 @@ describe('Schedule Times API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data).toEqual({ error: 'Invalid time format. Use HH:mm' });
+      expect(data).toEqual({ error: { code: 'BAD_REQUEST', message: 'Invalid time format. Use HH:mm' } });
       expect(prisma.scheduleTime.create).not.toHaveBeenCalled();
     });
 
@@ -218,7 +218,7 @@ describe('Schedule Times API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(500);
-      expect(data).toEqual({ error: 'Failed to create schedule time' });
+      expect(data).toEqual({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create schedule time' } });
      
       expect(captureError).toHaveBeenCalledWith(error, {
         location: 'api/settings/schedule-times',

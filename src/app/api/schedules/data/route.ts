@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
+import { badRequest, notFound, ok, serverError } from '@/lib/api-response'
+import { formatScheduleWeekDate, formatScheduleWeekLabel } from '@/lib/schedule-data-helpers'
 
 /**
  * Handles HTTP GET requests to retrieve schedule, student, rotation, assignment, and class information for a specified teacher and weekday.
@@ -15,16 +16,24 @@ import { normalizeUsername } from '@/lib/username'
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     try {
+        type OverviewStudent = {
+            id: number
+            firstName: string
+            lastName: string
+            classId: number
+            groupId: number | null
+        }
+
         const rawTeacherUsername = searchParams.get('teacher')
         const currentWeekday = searchParams.get('weekday') ?? '0'
         const schoolYearIdParam = searchParams.get('schoolYearId')
 
         if (!rawTeacherUsername) {
-            return NextResponse.json({ error: 'Teacher username is required' }, { status: 400 })
+            return badRequest('Teacher username is required')
         }
         const teacherUsername = normalizeUsername(rawTeacherUsername)
         if (!teacherUsername) {
-            return NextResponse.json({ error: 'Teacher username is required' }, { status: 400 })
+            return badRequest('Teacher username is required')
         }
 
         const teacher = await prisma.teacher.findUnique({
@@ -35,7 +44,7 @@ export async function GET(req: Request) {
 
         if (!teacher) {
             console.warn('[username-match] Teacher not found (schedules/data)', { raw: rawTeacherUsername, normalized: teacherUsername })
-            return NextResponse.json({ error: 'Teacher not found' }, { status: 200 })
+            return notFound('Teacher not found')
         }
 
         let schoolYearId: number | undefined = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
@@ -56,58 +65,77 @@ export async function GET(req: Request) {
         })
 
         if (!ownAssignments || ownAssignments.length === 0) {
-            return NextResponse.json({ error: 'No classes assigned to teacher' }, { status: 200 })
+            return notFound('No classes assigned to teacher')
         }
 
-        const teacherRotation = await prisma.teacherRotation.findMany({
+        const weekdayNum = parseInt(currentWeekday, 10)
+        if (Number.isNaN(weekdayNum) || weekdayNum < 1 || weekdayNum > 5) {
+            return badRequest('weekday must be between 1 and 5')
+        }
+
+        const teacherRotationRows = await prisma.teacherRotation.findMany({
             where: {
-                teacherId: teacher.id
+                teacherId: teacher.id,
+                ...(schoolYearId != null ? { schoolYearId } : {}),
+                selectedWeekday: weekdayNum
+            },
+            include: {
+                turn: { select: { name: true } }
             }
         })
 
-        if (!teacherRotation || teacherRotation.length === 0) {
-            return NextResponse.json({ error: 'No teacher rotation found' }, { status: 200 })
+        if (!teacherRotationRows || teacherRotationRows.length === 0) {
+            return notFound('No teacher rotation found')
         }
+
+        // Expose both `turnId` (numeric FK) and `turnName` (legacy string identifier)
+        // so existing UI clients comparing on the turn label keep working.
+        const teacherRotation = teacherRotationRows.map(r => ({
+            id: r.id,
+            classId: r.classId,
+            groupId: r.groupId,
+            teacherId: r.teacherId,
+            turnId: r.turnId,
+            turnName: r.turn.name,
+            period: r.period,
+            schoolYearId: r.schoolYearId,
+            selectedWeekday: r.selectedWeekday,
+            createdAt: r.createdAt,
+            updatedAt: r.updatedAt
+        }))
 
         const classIds = [...new Set(ownAssignments.map(assignment => assignment.classId))]
         const schedules = []
-        const students = []
+        const students: OverviewStudent[][] = []
         const classdata: { id: number; name: string; classHead: string | null; classLead: string | null }[] = []
         const validClassIds = new Set<number>()
 
-        // First fetch all class data
+        // First fetch all class data (head/lead now resolved per school year via ClassYearStaff).
         for (const classId of classIds) {
             const classInfo = await prisma.class.findUnique({
-                where: {
-                    id: classId
-                },
-                include: {
-                    classHead: {
-                        select: {
-                            firstName: true,
-                            lastName: true
-                        }
-                    },
-                    classLead: {
-                        select: {
-                            firstName: true,
-                            lastName: true
-                        }
-                    }
-                }
+                where: { id: classId }
             })
-            if (classInfo) {
-                classdata.push({
-                    id: classInfo.id,
-                    name: classInfo.name,
-                    classHead: classInfo.classHead ? `${classInfo.classHead.firstName} ${classInfo.classHead.lastName}` : null,
-                    classLead: classInfo.classLead ? `${classInfo.classLead.firstName} ${classInfo.classLead.lastName}` : null
-                })
-            }
+            if (!classInfo) continue
+
+            const yearStaff = schoolYearId != null
+                ? await prisma.classYearStaff.findUnique({
+                      where: { classId_schoolYearId: { classId, schoolYearId } },
+                      include: {
+                          classHead: { select: { firstName: true, lastName: true } },
+                          classLead: { select: { firstName: true, lastName: true } }
+                      }
+                  })
+                : null
+
+            classdata.push({
+                id: classInfo.id,
+                name: classInfo.name,
+                classHead: yearStaff?.classHead ? `${yearStaff.classHead.firstName} ${yearStaff.classHead.lastName}` : null,
+                classLead: yearStaff?.classLead ? `${yearStaff.classLead.firstName} ${yearStaff.classLead.lastName}` : null
+            })
         }
 
         // Then fetch schedules and students for each class
-        const weekdayNum = parseInt(currentWeekday)
         for (const classId of classIds) {
             const schedule = await prisma.schedule.findFirst({
                 where: {
@@ -137,35 +165,81 @@ export async function GET(req: Request) {
                 }
             })
         
-            // Add schedule if it exists for this weekday
+            // Add schedule if it exists for this weekday.
+            // Weeks are stored as DATE/INT in the DB; format them back to the
+            // legacy "dd.MM.yy" / "KW##" strings so existing clients keep working.
             if (schedule) {
-                schedules.push([schedule])
+                const formattedSchedule = {
+                    ...schedule,
+                    turns: schedule.turns.map((turn) => ({
+                        ...turn,
+                        weeks: turn.weeks.map((w) => ({
+                            ...w,
+                            date: formatScheduleWeekDate(w.date),
+                            week: formatScheduleWeekLabel(w.week)
+                        }))
+                    }))
+                }
+                schedules.push([formattedSchedule])
                 validClassIds.add(classId)
             } else {
                 // Add empty array to maintain index alignment with classIds
                 schedules.push([])
             }
             
-            // Fetch students for this class: by ClassMembership when schoolYearId set, else by Student.classId
-            // Scheduling view only shows active students; historical grade queries remain unfiltered.
-            let studentList: Awaited<ReturnType<typeof prisma.student.findMany>>
+            // Fetch students for this class and derive weekday group membership.
+            // Class assignment now lives on ClassMembership (year-scoped); when no
+            // school year is in scope, we treat the class as having no students.
+            let studentIds: number[] = []
             if (schoolYearId != null) {
                 const memberships = await prisma.classMembership.findMany({
                     where: { classId, schoolYearId },
                     select: { studentId: true }
                 })
-                const ids = memberships.map((m) => m.studentId)
-                studentList = ids.length > 0
-                    ? await prisma.student.findMany({ where: { id: { in: ids }, isActive: true } })
+                studentIds = memberships.map((membership) => membership.studentId)
+            }
+
+            const weekdayMemberships =
+                schoolYearId != null && studentIds.length > 0
+                    ? await prisma.studentWeekdayGroup.findMany({
+                        where: {
+                            studentId: { in: studentIds },
+                            schoolYearId,
+                            weekday: weekdayNum
+                        },
+                        select: {
+                            studentId: true,
+                            groupId: true
+                        }
+                    })
                     : []
-            } else {
-                studentList = await prisma.student.findMany({
-                    where: { classId, isActive: true }
-                })
+
+            const groupByStudentId = new Map<number, number>()
+            for (const membership of weekdayMemberships) {
+                groupByStudentId.set(membership.studentId, membership.groupId)
             }
-            if (studentList) {
-                students.push(studentList)
-            }
+
+            const classStudents =
+                studentIds.length > 0
+                    ? await prisma.student.findMany({
+                        where: { id: { in: studentIds }, isActive: true },
+                        select: {
+                            id: true,
+                            firstName: true,
+                            lastName: true
+                        },
+                        orderBy: [
+                            { lastName: 'asc' },
+                            { firstName: 'asc' }
+                        ]
+                    })
+                    : []
+
+            students.push(classStudents.map((student) => ({
+                ...student,
+                classId,
+                groupId: groupByStudentId.get(student.id) ?? null
+            })))
         }
 
         // Filter assignments to only include those with valid schedules for this weekday
@@ -215,28 +289,24 @@ export async function GET(req: Request) {
 
         // If no valid schedules found for this weekday, return empty data structure
         if (validClassIds.size === 0) {
-            return NextResponse.json({
+            return ok({
                 schedules: [],
                 students: [],
                 teacherRotation: [],
                 assignments: [],
+                classAssignments: [],
                 classdata: []
-            }, { status: 200 })
-        }
-
-        // Only return error if we have no students
-        if (students.flat().length === 0) {
-            return NextResponse.json({ error: 'No students found' }, { status: 200 })
+            })
         }
         
-        return NextResponse.json({
+        return ok({
             schedules,
             students,
             teacherRotation,
             assignments: filteredOwnAssignments,
             classAssignments: filteredAssignments,
             classdata: classdata
-        }, { status: 200 })
+        })
     } catch (error) {
         captureError(error, {
             location: 'api/schedules/data',
@@ -246,6 +316,6 @@ export async function GET(req: Request) {
                 weekday: searchParams.get('weekday')
             }
         })
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+        return serverError('Internal server error')
     }
 }

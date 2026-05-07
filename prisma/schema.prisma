@@ -7,12 +7,70 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/* ---------- Shared enums (Phase 3b) ---------- */
+
+/// Semester within a school year.
+enum Semester {
+  first
+  second
+}
+
+/// AM/PM half-day periods.
+enum DayPart {
+  AM
+  PM
+}
+
+/// Break-time slots: AM and PM mirror DayPart, LUNCH is a midday-only slot.
+enum BreakPeriod {
+  AM
+  PM
+  LUNCH
+}
+
+/// Attendance state for a single Noten entry.
+enum AttendanceState {
+  Anwesend
+  Krank
+  Entschuldigt
+  Unentschuldigt
+}
+
+/// Mode used by the Entra/AD directory sync job.
+enum SyncMode {
+  hybrid
+  nightly_only
+}
+
+/// Status of a synced student in our system.
+enum StudentSyncStatus {
+  active
+  unassigned
+}
+
+/// Whether a schedule covers the full year or a single semester.
+enum SemesterPlan {
+  first
+  second
+}
+
+/// Source of truth preference when both manual and Office 365 photos exist.
+enum PhotoSourcePriority {
+  manual_first
+  o365_first
+}
+
+/// Kind of LookupValue: distinguishes Subject / Learning Content / Room rows.
+enum LookupKind {
+  SUBJECT
+  LEARNING_CONTENT
+  ROOM
+}
+
 model Student {
   id              Int               @id @default(autoincrement())
   firstName       String
   lastName        String
-  classId         Int?
-  groupId         Int?
   sitzplatz       String?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
@@ -23,15 +81,14 @@ model Student {
   isActive        Boolean           @default(true)
   deactivatedAt   DateTime?
   lastSyncedAt    DateTime?
-  syncStatus      String?           // "active" | "unassigned" (ambiguous membership)
-  class           Class?            @relation(fields: [classId], references: [id])
+  syncStatus      StudentSyncStatus?
   grades          Grade[]
   finalGrades     FinalGrade[]
   classMemberships ClassMembership[]
+  weekdayGroups   StudentWeekdayGroup[]
+  notenEntries    NotenEntry[]
 
   @@index([firstName, lastName])
-  @@index([groupId])
-  @@index([classId])
   @@index([isActive])
 }
 
@@ -49,9 +106,12 @@ model Teacher {
   deactivatedAt  DateTime?
   lastSyncedAt   DateTime?
   assignments    TeacherAssignment[]
-  headClasses    Class[]             @relation("ClassHead")
-  leadClasses    Class[]             @relation("ClassLead")
+  headYears      ClassYearStaff[]    @relation("ClassHeadYear")
+  leadYears      ClassYearStaff[]    @relation("ClassLeadYear")
   grades         Grade[]
+  notenWeightConfigs NotenWeightConfig[]
+  lehrstoffPerDays   LehrstoffPerDay[]
+  notenEntries       NotenEntry[]
 
   @@index([firstName, lastName])
   @@index([isActive])
@@ -63,25 +123,47 @@ model Class {
   description      String?
   createdAt        DateTime                @default(now())
   updatedAt        DateTime                @updatedAt
-  classHeadId      Int?
-  classLeadId      Int?
   externalId       String?                 @unique
   externalSource   String?
   isActive         Boolean                 @default(true)
   deactivatedAt    DateTime?
   lastSyncedAt     DateTime?
   schedules        Schedule[]
-  students         Student[]
   assignments      TeacherAssignment[]
   grades           Grade[]
   finalGrades      FinalGrade[]
   transfers        NotenmanagementTransfer[]
   classMemberships ClassMembership[]
-  classHead        Teacher?                @relation("ClassHead", fields: [classHeadId], references: [id])
-  classLead        Teacher?                @relation("ClassLead", fields: [classLeadId], references: [id])
+  notenWeightConfigs NotenWeightConfig[]
+  lehrstoffPerDays   LehrstoffPerDay[]
+  notenEntries       NotenEntry[]
+  yearStaff        ClassYearStaff[]
 
   @@index([name])
   @@index([isActive])
+}
+
+/// Per-school-year class head and class lead assignments.
+/// Replaces the old global Class.classHeadId / Class.classLeadId columns so
+/// staff can change between school years without losing history.
+model ClassYearStaff {
+  id           Int        @id @default(autoincrement())
+  classId      Int
+  schoolYearId Int
+  classHeadId  Int?
+  classLeadId  Int?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  class        Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+  classHead    Teacher?   @relation("ClassHeadYear", fields: [classHeadId], references: [id])
+  classLead    Teacher?   @relation("ClassLeadYear", fields: [classLeadId], references: [id])
+
+  @@unique([classId, schoolYearId])
+  @@index([classId])
+  @@index([schoolYearId])
+  @@index([classHeadId])
+  @@index([classLeadId])
 }
 
 model SchoolYear {
@@ -99,8 +181,31 @@ model SchoolYear {
   finalGrades           FinalGrade[]
   notenmanagementTransfers NotenmanagementTransfer[]
   classMemberships      ClassMembership[]
+  studentWeekdayGroups  StudentWeekdayGroup[]
+  teacherRotations      TeacherRotation[]
+  notenWeightConfigs    NotenWeightConfig[]
+  lehrstoffPerDays      LehrstoffPerDay[]
+  notenEntries          NotenEntry[]
+  classYearStaff        ClassYearStaff[]
 
   @@index([label])
+}
+
+/// Per-weekday group membership for a student within a school year (Wechselplan).
+model StudentWeekdayGroup {
+  id           Int        @id @default(autoincrement())
+  studentId    Int
+  schoolYearId Int
+  weekday      Int
+  groupId      Int
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  student      Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, schoolYearId, weekday])
+  @@index([studentId])
+  @@index([schoolYearId])
 }
 
 model ClassMembership {
@@ -127,9 +232,8 @@ model Schedule {
   startDate         DateTime
   endDate           DateTime
   selectedWeekday   Int
-  scheduleData      Json?          // Deprecated: will be removed after migration
   additionalInfo    String?
-  semesterPlanning  String?        // "first", "second", or null for full year
+  semesterPlanning  SemesterPlan?  // null = full-year plan
   classId           Int?
   schoolYearId      Int
   createdAt         DateTime       @default(now())
@@ -155,6 +259,7 @@ model ScheduleTurn {
   schedule          Schedule       @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
   weeks             ScheduleWeek[]
   holidays          ScheduleTurnHoliday[]
+  teacherRotations  TeacherRotation[]
 
   @@unique([scheduleId, order])
   @@index([scheduleId])
@@ -163,8 +268,8 @@ model ScheduleTurn {
 model ScheduleWeek {
   id                Int            @id @default(autoincrement())
   turnId            Int
-  date              String         // Date in format "dd.MM.yy"
-  week              String         // Week number in format "KW##"
+  date              DateTime       @db.Date
+  week              Int            // ISO week number
   isHoliday         Boolean        @default(false)
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
@@ -188,21 +293,10 @@ model ScheduleTurnHoliday {
   @@index([holidayId])
 }
 
-model GroupAssignment {
-  id        Int      @id @default(autoincrement())
-  groupId   Int
-  class     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([class, groupId])
-  @@index([class])
-}
-
 model TeacherAssignment {
   id                Int             @id @default(autoincrement())
   classId           Int
-  period            String
+  period            DayPart
   groupId           Int
   teacherId         Int
   subjectId         Int
@@ -213,13 +307,13 @@ model TeacherAssignment {
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   class             Class           @relation(fields: [classId], references: [id])
-  learningContent   LearningContent @relation(fields: [learningContentId], references: [id])
-  room              Room            @relation(fields: [roomId], references: [id])
-  subject           Subject         @relation(fields: [subjectId], references: [id])
+  learningContent   LookupValue     @relation("TeacherAssignmentLearningContent", fields: [learningContentId], references: [id])
+  room              LookupValue     @relation("TeacherAssignmentRoom", fields: [roomId], references: [id])
+  subject           LookupValue     @relation("TeacherAssignmentSubject", fields: [subjectId], references: [id])
   teacher           Teacher         @relation(fields: [teacherId], references: [id])
   schoolYear        SchoolYear      @relation(fields: [schoolYearId], references: [id])
 
-  @@unique([classId, period, groupId, schoolYearId])
+  @@unique([classId, period, groupId, schoolYearId, selectedWeekday])
   @@index([classId])
   @@index([teacherId])
   @@index([subjectId])
@@ -228,40 +322,23 @@ model TeacherAssignment {
   @@index([schoolYearId])
 }
 
-model Room {
+/// Unified Subject / Learning Content / Room lookup table.
+/// Replaces the legacy Room, Subject, and LearningContent models which were structurally identical.
+model LookupValue {
   id          Int                 @id @default(autoincrement())
-  name        String              @unique
-  capacity    Int?
+  kind        LookupKind
+  name        String
   description String?
+  capacity    Int?                // only meaningful for ROOM rows
   isCustom    Boolean             @default(false) // True if created by user, false if from seed/import
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
-  assignments TeacherAssignment[]
+  subjectAssignments         TeacherAssignment[] @relation("TeacherAssignmentSubject")
+  learningContentAssignments TeacherAssignment[] @relation("TeacherAssignmentLearningContent")
+  roomAssignments            TeacherAssignment[] @relation("TeacherAssignmentRoom")
 
-  @@index([name])
-}
-
-model Subject {
-  id                Int                 @id @default(autoincrement())
-  name              String              @unique
-  description       String?
-  isCustom          Boolean             @default(false) // True if created by user, false if from seed/import
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  TeacherAssignment TeacherAssignment[]
-
-  @@index([name])
-}
-
-model LearningContent {
-  id                Int                 @id @default(autoincrement())
-  name              String              @unique
-  description       String?
-  isCustom          Boolean             @default(false) // True if created by user, false if from seed/import
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  TeacherAssignment TeacherAssignment[]
-
+  @@unique([kind, name])
+  @@index([kind])
   @@index([name])
 }
 
@@ -280,7 +357,7 @@ model ScheduleTime {
   startTime String
   endTime   String
   hours     Float
-  period    String
+  period    DayPart
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   schedules Schedule[] @relation("ScheduleToScheduleTime")
@@ -293,7 +370,7 @@ model BreakTime {
   name      String
   startTime String
   endTime   String
-  period    String
+  period    BreakPeriod
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   schedules Schedule[] @relation("BreakTimeToSchedule")
@@ -301,25 +378,24 @@ model BreakTime {
   @@unique([startTime, endTime, period])
 }
 
-model SchedulePDF {
-  id        String   @id @default(cuid())
-  classId   String   @unique
-  pdfData   Bytes
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
 model TeacherRotation {
   id        Int      @id @default(autoincrement())
   classId   Int
   groupId   Int
   teacherId Int
-  turnId    String
-  period    String
+  turnId    Int
+  period    DayPart
+  schoolYearId Int
+  selectedWeekday Int
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  schoolYear SchoolYear @relation(fields: [schoolYearId], references: [id])
+  turn       ScheduleTurn @relation(fields: [turnId], references: [id], onDelete: Cascade)
 
-  @@unique([classId, groupId, turnId, period])
+  @@unique([classId, groupId, turnId, period, schoolYearId, selectedWeekday])
+  @@index([teacherId, schoolYearId, selectedWeekday])
+  @@index([classId, schoolYearId, selectedWeekday])
+  @@index([turnId])
 }
 
 model Role {
@@ -362,10 +438,10 @@ model SupportMessage {
 model DirectorySyncSettings {
   id                  Int       @id @default(1)
   syncedClassGroupIds String[]  @default([])
-  syncMode            String    @default("hybrid")
+  syncMode            SyncMode  @default(hybrid)
   syncEnabled         Boolean   @default(false)
-  studentPhotoSourcePriority String @default("manual_first")
-  teacherPhotoSourcePriority String @default("manual_first")
+  studentPhotoSourcePriority PhotoSourcePriority @default(manual_first)
+  teacherPhotoSourcePriority PhotoSourcePriority @default(manual_first)
   lastSyncAt          DateTime?
   lastSyncStatus      String?
   lastSyncSummary     Json?
@@ -378,7 +454,7 @@ model Grade {
   studentId   Int
   teacherId   Int
   classId     Int
-  semester    String       // 'first' or 'second'
+  semester    Semester
   grade       Float?
   schoolYearId Int
   createdAt   DateTime     @default(now())
@@ -400,7 +476,7 @@ model FinalGrade {
   id               Int         @id @default(autoincrement())
   studentId        Int
   classId          Int
-  semester         String      // 'first' or 'second'
+  semester         Semester
   grade            Float?
   conductNoteWish  String?     // Betragensnote (Wunsch): Sehr zufriedenstellend, etc.
   schoolYearId     Int
@@ -421,7 +497,7 @@ model NotenmanagementTransfer {
   id            Int         @id @default(autoincrement())
   classId       Int
   groupId       Int?        // null = class-level transfer, set = group-level (Notenstand)
-  semester      String      // 'first' or 'second'
+  semester      Semester
   lfId          String
   schoolYearId  Int
   createdAt     DateTime    @default(now())
@@ -448,6 +524,9 @@ model NotenWeightConfig {
   weightPraktischeArbeit Int  @default(25)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+  teacher               Teacher    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  class                 Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  schoolYear            SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
 
   @@unique([teacherId, classId, groupId, schoolYearId])
   @@index([teacherId])
@@ -462,10 +541,13 @@ model LehrstoffPerDay {
   groupId      Int
   schoolYearId Int
   date         DateTime @db.Date
-  period       String   // 'AM' | 'PM'
+  period       DayPart
   lehrstoff    String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  teacher      Teacher    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  class        Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
 
   @@unique([teacherId, classId, groupId, schoolYearId, date, period])
   @@index([teacherId])
@@ -481,8 +563,8 @@ model NotenEntry {
   groupId            Int
   schoolYearId       Int
   date               DateTime @db.Date
-  period             String   // 'AM' | 'PM'
-  attendance         String?  // Anwesend | Krank | Entschuldigt | Unentschuldigt
+  period             DayPart
+  attendance         AttendanceState?
   wiederholung1      Float?
   wiederholung2      Float?
   bericht1           Float?
@@ -494,6 +576,10 @@ model NotenEntry {
   notizen            String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+  student            Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher            Teacher    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  class              Class      @relation(fields: [classId], references: [id], onDelete: Cascade)
+  schoolYear         SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, teacherId, classId, groupId, schoolYearId, date, period])
   @@index([studentId])

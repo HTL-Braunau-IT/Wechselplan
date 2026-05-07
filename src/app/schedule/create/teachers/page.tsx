@@ -7,14 +7,11 @@ import { useCachedData } from '@/hooks/use-cached-data'
 import { useClassDataByName } from '@/hooks/use-class-data'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Label } from '@/components/ui/label'
 import { captureFrontendError } from '@/lib/frontend-error'
-import { TeacherSelect } from '@/components/schedule/teacher-select'
-import { SubjectSelect } from '@/components/schedule/subject-select'
-import { LearningContentSelect } from '@/components/schedule/learning-content-select'
-import { RoomSelect } from '@/components/schedule/room-select'
 import { useSchoolYear } from '@/contexts/school-year-context'
+import { fetchAndUnwrap, getApiErrorMessage, parseJsonSafe, unwrapData } from '@/lib/api-client'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { AssignmentPeriodSection } from '@/components/schedule/assignment-period-section'
 
 interface Student {
 	id: number
@@ -40,13 +37,8 @@ interface TeacherAssignment {
 	customRoom?: string
 }
 
-interface GroupAssignment {
-	groupId: number
-	students: Student[]
-}
-
 interface AssignmentsResponse {
-	assignments: GroupAssignment[]
+	assignments: { groupId: number; studentIds: number[] }[]
 }
 
 interface TeacherAssignmentResponse {
@@ -63,19 +55,6 @@ interface TeacherAssignmentsResponse {
 	selectedWeekday?: number
 }
 
-interface ApiError {
-	error: string
-	message: string
-}
-
-const WEEKDAYS = [
-	{ value: 1, label: 'Monday' },
-	{ value: 2, label: 'Tuesday' },
-	{ value: 3, label: 'Wednesday' },
-	{ value: 4, label: 'Thursday' },
-	{ value: 5, label: 'Friday' }
-]
-
 /**
  * React component for assigning teachers, subjects, learning contents, and rooms to student groups for a selected class and weekday.
  *
@@ -87,11 +66,17 @@ export default function TeacherAssignmentPage() {
 	const router = useRouter()
 	const searchParams = useSearchParams()
 	const { t } = useTranslation('schedule')
+	const { t: tCommon } = useTranslation('common')
 	const { selectedYear } = useSchoolYear()
 	const schoolYearId = selectedYear?.id
+	const existingAssignmentsWarning = t('existingAssignmentsWarning').replace('Lehrerzuweisungen', 'Schülerzuweisungen')
 	const selectedClass = searchParams.get('class')
 	const [selectedClassId, setSelectedClassId] = useState<number | null>(null)
-	const [selectedWeekday, setSelectedWeekday] = useState<number | null>(null)
+	const weekdayFromUrl = searchParams.get('weekday')
+	const parsedWeekday = weekdayFromUrl ? parseInt(weekdayFromUrl, 10) : NaN
+	const initialWeekday =
+		!Number.isNaN(parsedWeekday) && parsedWeekday >= 1 && parsedWeekday <= 5 ? parsedWeekday : 1
+	const [selectedWeekday, setSelectedWeekday] = useState<number>(initialWeekday)
 
 	const { rooms, subjects, learningContents, teachers, isLoading: isLoadingCachedData } = useCachedData()
 	const [groups, setGroups] = useState<Group[]>([])
@@ -134,6 +119,14 @@ export default function TeacherAssignmentPage() {
 		}
 	}, [classData, selectedClass])
 
+	useEffect(() => {
+		const w = searchParams.get('weekday')
+		const n = w ? parseInt(w, 10) : NaN
+		if (!Number.isNaN(n) && n >= 1 && n <= 5) {
+			setSelectedWeekday(n)
+		}
+	}, [searchParams])
+
 	// Add effect to ensure assignments are initialized for all groups
 	useEffect(() => {
 		// Create initial assignments for any new groups
@@ -161,27 +154,34 @@ export default function TeacherAssignmentPage() {
 
 			setLoading(true)
 			try {
-				// Fetch groups
-				const groupsRes = await fetch(`/api/schedules/assignments?classId=${selectedClassId}`)
-				if (!groupsRes.ok) throw new Error('Failed to fetch groups')
-				const groupsData = await groupsRes.json() as AssignmentsResponse
-				setGroups(groupsData.assignments.map(assignment => ({
-					id: assignment.groupId,
-					students: assignment.students
-				})))
+				const wd = selectedWeekday
+				const yearQ = schoolYearId != null ? `&schoolYearId=${schoolYearId}` : ''
+				const groupsData = await fetchAndUnwrap<AssignmentsResponse>(
+					`/api/schedules/assignments?classId=${selectedClassId}&weekday=${wd}${yearQ}`
+				)
+				const studentsRes = await fetch(`/api/students?class=${encodeURIComponent(selectedClass)}${yearQ}`)
+				let studentsList: Student[] = []
+				if (studentsRes.ok) {
+					const sp = await parseJsonSafe(studentsRes)
+					const raw = sp as { data?: Student[] } | Student[]
+					studentsList = Array.isArray(raw) ? raw : (raw.data ?? [])
+				}
+				setGroups(
+					groupsData.assignments.map(assignment => ({
+						id: assignment.groupId,
+						students: assignment.studentIds
+							.map(id => studentsList.find(s => s.id === id))
+							.filter((s): s is Student => s != null)
+					}))
+				)
 
-				// Fetch existing teacher assignments for selected school year
-				const teacherAssignmentsUrl = schoolYearId != null
-					? `/api/schedules/teacher-assignments?classId=${selectedClassId}&schoolYearId=${schoolYearId}`
-					: `/api/schedules/teacher-assignments?classId=${selectedClassId}`
+				const teacherAssignmentsUrl = `/api/schedules/teacher-assignments?classId=${selectedClassId}&selectedWeekday=${wd}${yearQ}`
 				const teacherAssignmentsRes = await fetch(teacherAssignmentsUrl)
 				if (teacherAssignmentsRes.ok) {
-					const teacherAssignmentsData = await teacherAssignmentsRes.json() as TeacherAssignmentsResponse
+					const teacherAssignmentsPayload = await parseJsonSafe(teacherAssignmentsRes)
+					const teacherAssignmentsData = unwrapData<TeacherAssignmentsResponse>(teacherAssignmentsPayload)
 					const hasExistingAmAssignments = teacherAssignmentsData.amAssignments.some(a => a.teacherId !== 0)
 					const hasExistingPmAssignments = teacherAssignmentsData.pmAssignments.some(a => a.teacherId !== 0)
-					
-					// Set the weekday from the response
-					setSelectedWeekday(teacherAssignmentsData.selectedWeekday ?? 1)
 					
 					// Initialize base assignments for all groups
 					const initialAssignments: TeacherAssignment[] = groupsData.assignments.map(assignment => ({
@@ -253,13 +253,13 @@ export default function TeacherAssignmentPage() {
 						selectedClass
 					}
 				})
-				setError('Failed to load data. Please try again.')
+				setError(t('errors.loadTeacherAssignments'))
 			} finally {
 				setLoading(false)
 			}
 		}
 		void fetchData()
-	}, [selectedClass, selectedClassId, schoolYearId, isLoadingCachedData, subjects, learningContents, rooms])
+	}, [selectedClass, selectedClassId, schoolYearId, isLoadingCachedData, subjects, learningContents, rooms, selectedWeekday])
 
 	function handleAssignmentChange(
 		period: 'am' | 'pm',
@@ -485,8 +485,16 @@ export default function TeacherAssignmentPage() {
 			})
 
 			if (!response.ok) {
-				const errorData = await response.json() as ApiError
-				if (response.status === 409 && errorData.error === 'EXISTING_ASSIGNMENTS') {
+				const errorData = await parseJsonSafe(response)
+				const conflictCode = (
+					errorData &&
+					typeof errorData === 'object' &&
+					'error' in errorData &&
+					typeof (errorData as { error?: { code?: string } }).error === 'object'
+				)
+					? (errorData as { error?: { code?: string } }).error?.code
+					: undefined
+				if (response.status === 409 && conflictCode === 'EXISTING_ASSIGNMENTS') {
 					setPendingAssignments({
 						amAssignments: validAmAssignments,
 						pmAssignments: validPmAssignments
@@ -494,7 +502,7 @@ export default function TeacherAssignmentPage() {
 					setShowConfirmDialog(true)
 					return
 				}
-				throw new Error(errorData.message ?? 'Failed to save teacher assignments')
+				throw new Error(getApiErrorMessage(errorData, 'Failed to save teacher assignments'))
 			}
 
 			// Navigate to the rotation page with both class and weekday parameters
@@ -512,7 +520,7 @@ export default function TeacherAssignmentPage() {
 					}
 				}
 			})
-			setError('Failed to save assignments. Please try again.')
+			setError(t('errors.saveTeacherAssignments'))
 		}
 	}
 
@@ -551,7 +559,8 @@ export default function TeacherAssignmentPage() {
 			})
 
 			if (!response.ok) {
-				throw new Error('Failed to update teacher assignments')
+				const errorData = await parseJsonSafe(response)
+				throw new Error(getApiErrorMessage(errorData, 'Failed to update teacher assignments'))
 			}
 
 			setShowConfirmDialog(false)
@@ -570,7 +579,7 @@ export default function TeacherAssignmentPage() {
 					}
 				}
 			})
-			setError('Failed to update assignments. Please try again.')
+			setError(t('errors.updateTeacherAssignments'))
 		}
 	}
 
@@ -594,6 +603,9 @@ export default function TeacherAssignmentPage() {
 					<CardTitle>{t('teacherAssignment')} - {selectedClass}</CardTitle>
 				</CardHeader>
 				<CardContent>
+					<div className="mb-4 rounded-lg border bg-muted/50 p-4 text-sm text-muted-foreground">
+						{t('help.teachers')}
+					</div>
 					{error && (
 						<div className="mb-4 p-4 text-red-500 bg-red-50 rounded-md">
 							{error}
@@ -602,158 +614,50 @@ export default function TeacherAssignmentPage() {
 
 					{hasExistingAssignments && (
 						<div className="mb-4 p-4 bg-muted text-muted-foreground rounded-lg">
-							{t('existingAssignmentsWarning')}
+							{existingAssignmentsWarning}
 						</div>
 					)}
 
-					<div className="mb-4">
-						<Label htmlFor="weekday">{t('rotationDay')}</Label>
-						<Select
-							value={selectedWeekday?.toString() ?? ''}
-							onValueChange={(value) => setSelectedWeekday(parseInt(value))}
-						>
-							<SelectTrigger className="w-[180px]">
-								<SelectValue placeholder={t('selectWeekday')} />
-							</SelectTrigger>
-							<SelectContent>
-								{WEEKDAYS.map((day) => (
-									<SelectItem key={day.value} value={day.value.toString()}>
-										{day.label}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</div>
+					<p className="text-sm text-muted-foreground mb-4">
+						{t('rotationDay')}:{' '}
+						{tCommon(
+							`overview.weekdays.${(['monday', 'tuesday', 'wednesday', 'thursday', 'friday'][selectedWeekday - 1] ?? 'monday')}`
+						)}
+					</p>
 
-					{/* AM Assignments */}
-					<Card className="mb-8">
-						<CardHeader>
-							<CardTitle>{t('morningAssignments')}</CardTitle>
-						</CardHeader>
-						<CardContent>
-							<div className="space-y-4">
-								{groups.map((group) => (
-									<div key={group.id} className="p-4 border rounded-lg">
-										<div className="flex justify-between items-center mb-4">
-											<h3 className="font-semibold">{t('group')} {group.id}</h3>
-											<Button
-												variant="ghost"
-												size="sm"
-												onClick={() => handleClearRow('am', group.id)}
-												className="text-destructive hover:text-destructive/90"
-											>
-												{t('clearRow')}
-											</Button>
-										</div>
-										<div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]">
-											<div>
-												<Label className="block text-sm font-medium mb-1">{t('teacher')}</Label>
-												<TeacherSelect
-													value={amAssignments.find(a => a.groupId === group.id)?.teacherId}
-													onChange={(value) => handleAssignmentChange('am', group.id, 'teacherId', value)}
-													teachers={teachers}
-												/>
-											</div>
-											<div>
-												<Label className="block text-sm font-medium mb-1">{t('subject')}</Label>
-												<SubjectSelect
-													value={getDisplayValue(amAssignments.find(a => a.groupId === group.id) ?? { groupId: group.id, teacherId: 0, subjectId: 0, learningContentId: 0, roomId: 0 }, 'subject')}
-													onChange={(value) => handleStringFieldChange('am', group.id, 'subject', value)}
-													subjects={subjects}
-												/>
-											</div>
-											<div>
-												<Label className="block text-sm font-medium mb-1">{t('learningContent')}</Label>
-												<LearningContentSelect
-													value={getDisplayValue(amAssignments.find(a => a.groupId === group.id) ?? { groupId: group.id, teacherId: 0, subjectId: 0, learningContentId: 0, roomId: 0 }, 'learningContent')}
-													onChange={(value) => handleStringFieldChange('am', group.id, 'learningContent', value)}
-													learningContents={learningContents}
-												/>
-											</div>
-											<div>
-												<Label className="block text-sm font-medium mb-1">{t('room')}</Label>
-												<RoomSelect
-													value={getDisplayValue(amAssignments.find(a => a.groupId === group.id) ?? { groupId: group.id, teacherId: 0, subjectId: 0, learningContentId: 0, roomId: 0 }, 'room')}
-													onChange={(value) => handleStringFieldChange('am', group.id, 'room', value)}
-													rooms={rooms}
-												/>
-											</div>
-										</div>
-									</div>
-								))}
-							</div>
-						</CardContent>
-					</Card>
-
-					{/* PM Assignments */}
-					<Card>
-						<CardHeader>
-							<div className="flex justify-between items-center">
-								<CardTitle>{t('afternoonAssignments')}</CardTitle>
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={handleCopyAmToPm}
-									className="ml-4"
-								>
-									{t('copyFromAm')}
-								</Button>
-							</div>
-						</CardHeader>
-						<CardContent>
-							<div className="space-y-4">
-								{groups.map((group) => (
-									<div key={group.id} className="p-4 border rounded-lg">
-										<div className="flex justify-between items-center mb-4">
-											<h3 className="font-semibold">{t('group')} {group.id}</h3>
-											<Button
-												variant="ghost"
-												size="sm"
-												onClick={() => handleClearRow('pm', group.id)}
-												className="text-destructive hover:text-destructive/90"
-											>
-												{t('clearRow')}
-											</Button>
-										</div>
-										<div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]">
-											<div>
-												<Label className="block text-sm font-medium mb-1">{t('teacher')}</Label>
-												<TeacherSelect
-													value={pmAssignments.find(a => a.groupId === group.id)?.teacherId}
-													onChange={(value) => handleAssignmentChange('pm', group.id, 'teacherId', value)}
-													teachers={teachers}
-												/>
-											</div>
-											<div>
-												<Label className="block text-sm font-medium mb-1">{t('subject')}</Label>
-												<SubjectSelect
-													value={getDisplayValue(pmAssignments.find(a => a.groupId === group.id) ?? { groupId: group.id, teacherId: 0, subjectId: 0, learningContentId: 0, roomId: 0 }, 'subject')}
-													onChange={(value) => handleStringFieldChange('pm', group.id, 'subject', value)}
-													subjects={subjects}
-												/>
-											</div>
-											<div>
-												<Label className="block text-sm font-medium mb-1">{t('learningContent')}</Label>
-												<LearningContentSelect
-													value={getDisplayValue(pmAssignments.find(a => a.groupId === group.id) ?? { groupId: group.id, teacherId: 0, subjectId: 0, learningContentId: 0, roomId: 0 }, 'learningContent')}
-													onChange={(value) => handleStringFieldChange('pm', group.id, 'learningContent', value)}
-													learningContents={learningContents}
-												/>
-											</div>
-											<div>
-												<Label className="block text-sm font-medium mb-1">{t('room')}</Label>
-												<RoomSelect
-													value={getDisplayValue(pmAssignments.find(a => a.groupId === group.id) ?? { groupId: group.id, teacherId: 0, subjectId: 0, learningContentId: 0, roomId: 0 }, 'room')}
-													onChange={(value) => handleStringFieldChange('pm', group.id, 'room', value)}
-													rooms={rooms}
-												/>
-											</div>
-										</div>
-									</div>
-								))}
-							</div>
-						</CardContent>
-					</Card>
+					<AssignmentPeriodSection
+						title={t('morningAssignments')}
+						groups={groups}
+						assignments={amAssignments}
+						teachers={teachers}
+						subjects={subjects}
+						learningContents={learningContents}
+						rooms={rooms}
+						onAssignmentChange={(groupId, field, value) => handleAssignmentChange('am', groupId, field, value)}
+						onStringFieldChange={(groupId, field, value) => handleStringFieldChange('am', groupId, field, value)}
+						onClearRow={(groupId) => handleClearRow('am', groupId)}
+						getDisplayValue={getDisplayValue}
+						t={t}
+					/>
+					<AssignmentPeriodSection
+						title={t('afternoonAssignments')}
+						groups={groups}
+						assignments={pmAssignments}
+						teachers={teachers}
+						subjects={subjects}
+						learningContents={learningContents}
+						rooms={rooms}
+						onAssignmentChange={(groupId, field, value) => handleAssignmentChange('pm', groupId, field, value)}
+						onStringFieldChange={(groupId, field, value) => handleStringFieldChange('pm', groupId, field, value)}
+						onClearRow={(groupId) => handleClearRow('pm', groupId)}
+						getDisplayValue={getDisplayValue}
+						t={t}
+						rightAction={
+							<Button variant="outline" size="sm" onClick={handleCopyAmToPm} className="ml-4">
+								{t('copyFromAm')}
+							</Button>
+						}
+					/>
 
 					<div className="mt-8 flex justify-end gap-4">
 						<Button variant="outline" onClick={() => router.back()}>
@@ -767,35 +671,30 @@ export default function TeacherAssignmentPage() {
 			</Card>
 
 			{/* Confirmation Dialog */}
-			{showConfirmDialog && (
-				<div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center">
-					<div className="bg-card p-6 rounded-lg max-w-md shadow-xl">
-						<h2 className="text-xl font-bold mb-4">{t('updateAssignmentsTitle')}</h2>
-						<p className="mb-6">{t('existingAssignmentsWarning')}</p>
-						<div className="flex justify-end space-x-4">
-							<button
-								onClick={handleCancelUpdate}
-								className="px-4 py-2 text-muted-foreground hover:text-foreground"
-							>
-								{t('cancel')}
-							</button>
-							<button
-								onClick={handleConfirmUpdate}
-								className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
-							>
-								{t('update')}
-							</button>
-						</div>
+			<Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>{t('updateAssignmentsTitle')}</DialogTitle>
+					</DialogHeader>
+					<p className="mb-2">{existingAssignmentsWarning}</p>
+					<div className="flex justify-end space-x-4">
+						<Button variant="outline" onClick={handleCancelUpdate}>
+							{t('cancel')}
+						</Button>
+						<Button onClick={handleConfirmUpdate}>
+							{t('update')}
+						</Button>
 					</div>
-				</div>
-			)}
+				</DialogContent>
+			</Dialog>
 
 			{/* Error Dialog */}
-			{showErrorDialog && (
-				<div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center">
-					<div className="bg-card p-6 rounded-lg max-w-2xl shadow-xl">
-						<h2 className="text-xl font-bold mb-4 text-foreground">{t('validationErrorsTitle')}</h2>
-						<div className="mb-6 space-y-4">
+			<Dialog open={showErrorDialog} onOpenChange={setShowErrorDialog}>
+				<DialogContent className="max-w-2xl">
+					<DialogHeader>
+						<DialogTitle>{t('validationErrorsTitle')}</DialogTitle>
+					</DialogHeader>
+					<div className="mb-2 space-y-4">
 							{validationErrors.am.length > 0 && (
 								<div>
 									<h3 className="font-semibold mb-2 text-foreground">{t('morningAssignments')}</h3>
@@ -820,18 +719,12 @@ export default function TeacherAssignmentPage() {
 									</ul>
 								</div>
 							)}
-						</div>
-						<div className="flex justify-end">
-							<button
-								onClick={() => setShowErrorDialog(false)}
-								className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
-							>
-								{t('ok')}
-							</button>
-						</div>
 					</div>
-				</div>
-			)}
+					<div className="flex justify-end">
+						<Button onClick={() => setShowErrorDialog(false)}>{t('ok')}</Button>
+					</div>
+				</DialogContent>
+			</Dialog>
 		</div>
 	)
 } 

@@ -42,7 +42,8 @@ export function getCurrentSemesterFromSchoolYear(
 }
 
 /** Derive which school year is "current" by comparing today with each year's startDate/endDate */
-export function getCurrentSchoolYearFromList(years: SchoolYearFromApi[]): SchoolYearFromApi | null {
+export function getCurrentSchoolYearFromList(years: SchoolYearFromApi[] | null | undefined): SchoolYearFromApi | null {
+  if (!Array.isArray(years) || years.length === 0) return null
   const now = new Date()
   for (const y of years) {
     const start = new Date(y.startDate)

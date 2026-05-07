@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
+import { badRequest, notFound, ok, serverError } from '@/lib/api-response'
 
 /**
  * Handles GET requests to retrieve a teacher's information by username.
@@ -15,17 +15,11 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const rawUsername = searchParams.get('username')
     if (!rawUsername) {
-      return NextResponse.json(
-        { error: 'Username parameter is required' },
-        { status: 400 }
-      )
+      return badRequest('Username parameter is required')
     }
     const username = normalizeUsername(rawUsername)
     if (!username) {
-      return NextResponse.json(
-        { error: 'Username parameter is required' },
-        { status: 400 }
-      )
+      return badRequest('Username parameter is required')
     }
 
     const teacher = await prisma.teacher.findUnique({
@@ -34,21 +28,15 @@ export async function GET(request: Request) {
 
     if (!teacher) {
       console.warn('[username-match] Teacher not found', { raw: rawUsername, normalized: username })
-      return NextResponse.json(
-        { error: 'Teacher not found' },
-        { status: 404 }
-      )
+      return notFound('Teacher not found')
     }
 
-    return NextResponse.json(teacher)
+    return ok(teacher)
   } catch (error) {
     captureError(error, {
       location: 'api/teachers/by-username',
       type: 'fetch-teacher-by-username'
     })
-    return NextResponse.json(
-      { error: 'Failed to fetch teacher' },
-      { status: 500 }
-    )
+    return serverError('Failed to fetch teacher')
   }
 } 

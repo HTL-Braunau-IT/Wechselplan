@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { addWeeks, format, setDay, isWithinInterval } from 'date-fns'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useTranslation } from 'next-i18next'
 import { captureFrontendError } from '@/lib/frontend-error'
+import { fetchAndUnwrap } from '@/lib/api-client'
+import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
 
 interface WeekInfo {
   week: string
@@ -32,6 +33,12 @@ type ScheduleEntry = {
 
 export type Schedule = Record<string, ScheduleEntry>
 
+interface ScheduleTurnRecord {
+  order: number
+  name: string
+  weeks: Array<{ date: string; week: string; isHoliday: boolean }>
+}
+
 interface ScheduleResponse {
   id: number
   name: string
@@ -39,24 +46,24 @@ interface ScheduleResponse {
   startDate: string
   endDate: string
   selectedWeekday: number
-  scheduleData: unknown
+  turns?: ScheduleTurnRecord[]
   additionalInfo?: string
   semesterPlanning?: string
   className?: number
   createdAt: string
 }
 
-const WEEKDAYS = [
-  { value: 1, label: 'Monday' },
-  { value: 2, label: 'Tuesday' },
-  { value: 3, label: 'Wednesday' },
-  { value: 4, label: 'Thursday' },
-  { value: 5, label: 'Friday' }
-]
+function scheduleResponseToUiSchedule(s: ScheduleResponse): Schedule {
+  if (s.turns && s.turns.length > 0) {
+    return normalizeToJsonFormat(s.turns as Parameters<typeof normalizeToJsonFormat>[0]) as Schedule
+  }
+  return {}
+}
 
 interface RotationScheduleEditorProps {
   className: string | null
   initialWeekday?: number | null
+  schoolYearId?: number
   onSave: (schedule: Schedule, selectedWeekday: number, additionalInfo: string, semesterPlanning: 'first' | 'second' | null) => Promise<void>
   onCancel?: () => void
 }
@@ -66,7 +73,7 @@ interface RotationScheduleEditorProps {
  *
  * Users can specify the number of terms, select a rotation weekday, assign custom week lengths per term, and provide additional schedule information. The component automatically distributes weeks among terms, excludes holidays, and displays a summary table of the resulting schedule.
  */
-export function RotationScheduleEditor({ className, initialWeekday, onSave, onCancel }: RotationScheduleEditorProps) {
+export function RotationScheduleEditor({ className, initialWeekday, schoolYearId, onSave, onCancel }: RotationScheduleEditorProps) {
   const { t } = useTranslation('schedule')
   const isManualChangeRef = useRef(false)
   const shouldUpdateScheduleRef = useRef(false)
@@ -223,8 +230,9 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
     if (!isLoading && allSchedules.length > 0 && selectedWeekday !== null && !isManualChangeRef.current) {
       const scheduleForWeekday = allSchedules.find(s => s.selectedWeekday === selectedWeekday)
       if (scheduleForWeekday) {
-        setSchedule((scheduleForWeekday.scheduleData as Schedule) ?? {})
-        setNumberOfTerms(Object.keys((scheduleForWeekday.scheduleData as Schedule) ?? {}).length)
+        const ui = scheduleResponseToUiSchedule(scheduleForWeekday)
+        setSchedule(ui)
+        setNumberOfTerms(Object.keys(ui).length)
         setAdditionalInfo(scheduleForWeekday.additionalInfo ?? '')
         setIsCustomLength(false)
       }
@@ -240,7 +248,7 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
       }
     }
     void loadInitialData()
-  }, [className])
+  }, [className, schoolYearId])
 
   // Update effect to handle weekday changes
   useEffect(() => {
@@ -265,16 +273,15 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
       setIsLoading(true)
 
       // First, get the numeric class ID from the class name
-      const classResponse = await fetch(`/api/classes/get-by-name?name=${className}`)
-      if (!classResponse.ok) {
-        throw new Error('Failed to fetch class information')
-      }
-      const classData = await classResponse.json()
+      const classData = await fetchAndUnwrap<{ id: number }>(
+        `/api/classes/get-by-name?name=${className}`
+      )
       if (!classData?.id) {
         throw new Error('Class not found')
       }
 
-      const response = await fetch(`/api/schedules?classId=${className}`)
+      const yearQ = schoolYearId != null ? `&schoolYearId=${schoolYearId}` : ''
+      const response = await fetch(`/api/schedules?classId=${className}${yearQ}`)
       if (!response.ok) {
         // Handle missing schedule gracefully
         setSelectedWeekday(initialWeekday ?? 1)
@@ -284,7 +291,8 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
         return
       }
 
-      const schedules = await response.json() as ScheduleResponse[]
+      const schedulesPayload = await response.json() as { data?: ScheduleResponse[] } | ScheduleResponse[]
+      const schedules = Array.isArray(schedulesPayload) ? schedulesPayload : (schedulesPayload.data ?? [])
 
       if (schedules && schedules.length > 0) {
         setAllSchedules(schedules)
@@ -305,9 +313,9 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
           // Find the schedule for the selected weekday
           const currentSchedule = schedules.find(s => s.selectedWeekday === weekdayToUse)
           if (currentSchedule) {
-            // Populate state from loaded schedule
-            setSchedule((currentSchedule.scheduleData as Schedule) ?? {})
-            setNumberOfTerms(Object.keys((currentSchedule.scheduleData as Schedule) ?? {}).length)
+            const ui = scheduleResponseToUiSchedule(currentSchedule)
+            setSchedule(ui)
+            setNumberOfTerms(Object.keys(ui).length)
             setAdditionalInfo(currentSchedule.additionalInfo ?? '')
 
             // Set semester planning state based on loaded data
@@ -360,7 +368,8 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
     try {
       const response = await fetch('/api/settings/holidays')
       if (!response.ok) throw new Error('Failed to fetch holidays')
-      const data = await response.json() as Holiday[]
+      const payload = await response.json() as { data?: Holiday[] } | Holiday[]
+      const data = Array.isArray(payload) ? payload : (payload.data ?? [])
       setHolidays(data.map(holiday => ({
         ...holiday,
         startDate: new Date(holiday.startDate),
@@ -463,6 +472,9 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
         <CardTitle>{t('rotationPeriods')}</CardTitle>
       </CardHeader>
       <CardContent>
+        <div className="mb-4 rounded-lg border bg-muted/50 p-4 text-sm text-muted-foreground">
+          {t('help.rotation')}
+        </div>
         {fetchError && (
           <div className="mb-4 p-4 text-red-500 bg-red-50 rounded-md">
             {t('failedToLoadHolidays')}
@@ -485,27 +497,6 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
               max={8}
               className="w-32"
             />
-          </div>
-          <div>
-            <Label htmlFor="weekday">{t('rotationDay')}</Label>
-            <Select
-              value={selectedWeekday?.toString() ?? ''}
-              onValueChange={(value) => {
-                setSelectedWeekday(parseInt(value))
-                shouldUpdateScheduleRef.current = true
-              }}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder={t('selectWeekday')} />
-              </SelectTrigger>
-              <SelectContent>
-                {WEEKDAYS.map((day) => (
-                  <SelectItem key={day.value} value={day.value.toString()}>
-                    {day.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </div>
 
@@ -665,7 +656,7 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
             </Button>
           )}
           <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? t('saving') : t('saveSchedule')}
+            {isSaving ? t('saving') : t('next')}
           </Button>
         </div>
 

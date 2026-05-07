@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { badRequest, created, ok, serverError } from '@/lib/api-response'
 
 
 /**
@@ -22,16 +22,13 @@ export async function GET() {
       console.log('Schedule times fetched successfully')
     }
 
-    return NextResponse.json(scheduleTimes)
+    return ok(scheduleTimes)
   } catch (error) {
     captureError(error, {
       location: 'api/settings/schedule-times',
       type: 'fetch-schedule-times'
     })
-    return NextResponse.json(
-      { error: 'Failed to fetch schedule times' },
-      { status: 500 }
-    )
+    return serverError('Failed to fetch schedule times')
   }
 }
 
@@ -49,36 +46,24 @@ export async function POST(request: Request) {
     
     // Validate required fields
     if (!data.startTime || !data.endTime || data.hours == null || !data.period) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      )
+      return badRequest('Missing required fields')
     }
 
     // Validate hours
     const hours = Number(data.hours)
     if (!Number.isFinite(hours) || hours <= 0) {
-      return NextResponse.json(
-        { error: 'Hours must be a positive number' },
-        { status: 400 }
-      )
+      return badRequest('Hours must be a positive number')
     }
 
     // Validate period
     if (data.period !== 'AM' && data.period !== 'PM') {
-      return NextResponse.json(
-        { error: 'Invalid period. Must be AM or PM' },
-        { status: 400 }
-      )
+      return badRequest('Invalid period. Must be AM or PM')
     }
 
     // Validate time format
     const timeRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/
     if (!timeRegex.test(data.startTime as string) || !timeRegex.test(data.endTime as string)) {
-      return NextResponse.json(
-        { error: 'Invalid time format. Use HH:mm' },
-        { status: 400 }
-      )
+      return badRequest('Invalid time format. Use HH:mm')
     }
 
     // Create new schedule time
@@ -91,15 +76,12 @@ export async function POST(request: Request) {
       }
     })
 
-    return NextResponse.json(scheduleTime)
+    return created(scheduleTime)
   } catch (error) {
     captureError(error, {
       location: 'api/settings/schedule-times',
       type: 'create-schedule-time',
     })
-    return NextResponse.json(
-      { error: 'Failed to create schedule time' },
-      { status: 500 }
-    )
+    return serverError('Failed to create schedule time')
   }
 } 

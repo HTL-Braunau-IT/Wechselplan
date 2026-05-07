@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import type { Student, GroupAssignment } from '@/types/schedule'
+import { unwrapData } from '@/lib/api-client'
 
 interface AssignmentsResponse {
 	assignments: GroupAssignment[]
@@ -9,25 +10,31 @@ interface AssignmentsResponse {
 }
 
 /**
- * Hook to fetch group assignments for a class using React Query
- * 
- * @param classId - The class ID to fetch assignments for, or null to skip the query
- * @returns React Query result with assignments and unassigned students
+ * Hook to fetch group assignments for a class and optional weekday (school year scoped).
  */
-export function useGroupAssignments(classId: number | null) {
+export function useGroupAssignments(
+	classId: number | null,
+	opts?: { weekday?: number; schoolYearId?: number }
+) {
+	const weekday = opts?.weekday ?? 1
+	const schoolYearId = opts?.schoolYearId
+
 	return useQuery<AssignmentsResponse>({
-		queryKey: ['group-assignments', classId],
+		queryKey: ['group-assignments', classId, weekday, schoolYearId ?? null],
 		queryFn: async () => {
 			if (!classId) throw new Error('Class ID is required')
-			
-			const response = await fetch(`/api/schedules/assignments?classId=${classId}`)
+
+			const yearQ = schoolYearId != null ? `&schoolYearId=${schoolYearId}` : ''
+			const response = await fetch(
+				`/api/schedules/assignments?classId=${classId}&weekday=${weekday}${yearQ}`
+			)
 			if (!response.ok) {
 				throw new Error('Failed to fetch group assignments')
 			}
-			return response.json() as Promise<AssignmentsResponse>
+			const payload = await response.json()
+			return unwrapData<AssignmentsResponse>(payload)
 		},
 		enabled: classId !== null,
-		staleTime: 1000 * 60 * 5, // 5 minutes
+		staleTime: 1000 * 60 * 5,
 	})
 }
-

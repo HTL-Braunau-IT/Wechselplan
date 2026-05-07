@@ -1,9 +1,9 @@
 export const runtime = 'nodejs'
 
-import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { requireAdmin } from '@/lib/require-admin'
 import { collectGroups, type EntraGroup } from '@/lib/graph'
+import { forbidden, ok, serverError } from '@/lib/api-response'
 
 function isMailEnabledSecurityGroup(group: EntraGroup): boolean {
   return group.mailEnabled === true && group.securityEnabled === true
@@ -17,10 +17,7 @@ function isWindowsServerAdSourced(group: EntraGroup): boolean {
 export async function GET(request: Request) {
   const auth = await requireAdmin()
   if (!auth.ok) {
-    return NextResponse.json(
-      { error: 'Unauthorized: admin role required' },
-      { status: 403 },
-    )
+    return forbidden('Unauthorized: admin role required')
   }
 
   try {
@@ -41,13 +38,13 @@ export async function GET(request: Request) {
       }),
     )
 
-    return NextResponse.json(sorted)
+    return ok(sorted)
   } catch (error) {
     captureError(error, {
       location: 'api/admin/entra/groups',
       type: 'list_entra_groups_error',
     })
     const message = error instanceof Error ? error.message : 'Failed to list Entra groups'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return serverError(message)
   }
 }

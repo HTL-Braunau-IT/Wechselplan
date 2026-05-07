@@ -1,10 +1,10 @@
-import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { normalizeUsername } from '@/lib/username'
+import { badRequest, forbidden, ok, serverError, unauthorized } from '@/lib/api-response'
 
 type WeightConfig = {
 	weightWiederholung: number
@@ -80,32 +80,40 @@ export async function GET(request: Request) {
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {
-			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+			return unauthorized('Unauthorized')
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+			return forbidden('Forbidden')
 		}
 		if (!(await isFeatureEnabled('noten'))) {
-			return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+			return forbidden('Feature not available')
 		}
 
 		const { searchParams } = new URL(request.url)
 		const classIdParam = searchParams.get('classId')
 		const schoolYearIdParam = searchParams.get('schoolYearId')
 		const groupIdParam = searchParams.get('groupId')
+		const selectedWeekdayParam = searchParams.get('selectedWeekday')
 
 		if (!classIdParam) {
-			return NextResponse.json({ error: 'classId required' }, { status: 400 })
+			return badRequest('classId required')
 		}
 		const classId = parseInt(classIdParam, 10)
 		if (Number.isNaN(classId)) {
-			return NextResponse.json({ error: 'Invalid classId' }, { status: 400 })
+			return badRequest('Invalid classId')
 		}
 
 		const groupId =
 			groupIdParam !== null && groupIdParam !== '' ? parseInt(groupIdParam, 10) : null
+		const selectedWeekday =
+			selectedWeekdayParam != null && selectedWeekdayParam !== ''
+				? parseInt(selectedWeekdayParam, 10)
+				: 1
 		if (groupId !== null && Number.isNaN(groupId)) {
-			return NextResponse.json({ error: 'Invalid groupId' }, { status: 400 })
+			return badRequest('Invalid groupId')
+		}
+		if (Number.isNaN(selectedWeekday) || selectedWeekday < 1 || selectedWeekday > 5) {
+			return badRequest('Invalid selectedWeekday')
 		}
 
 		let schoolYearId: number | undefined = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
@@ -120,7 +128,7 @@ export async function GET(request: Request) {
 				(await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true, semesterChangeDate: true } }))?.id
 		}
 		if (schoolYearId == null) {
-			return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
+			return badRequest('No school year found.')
 		}
 
 		const username = normalizeUsername(session.user.name)
@@ -129,7 +137,7 @@ export async function GET(request: Request) {
 			select: { id: true, firstName: true, lastName: true }
 		})
 		if (!teacher) {
-			return NextResponse.json({ error: 'Teacher not found' }, { status: 403 })
+			return forbidden('Teacher not found')
 		}
 
 		const assignments = await prisma.teacherAssignment.findMany({
@@ -139,7 +147,7 @@ export async function GET(request: Request) {
 		let assignedGroupIds = [...new Set(assignments.map((a) => a.groupId))]
 		if (groupId !== null) {
 			if (!assignedGroupIds.includes(groupId)) {
-				return NextResponse.json({ error: 'Not assigned to this group' }, { status: 403 })
+				return forbidden('Not assigned to this group')
 			}
 			assignedGroupIds = [groupId]
 		}
@@ -174,7 +182,7 @@ export async function GET(request: Request) {
 		})
 		const studentIds = membershipIds.map((m) => m.studentId)
 		if (studentIds.length === 0) {
-			return NextResponse.json({
+			return ok({
 				students: [],
 				prefill: {},
 				teacherId: teacher.id,
@@ -184,15 +192,33 @@ export async function GET(request: Request) {
 
 		const students = await prisma.student.findMany({
 			where: {
-				id: { in: studentIds },
-				...(groupId !== null ? { groupId } : {})
+				id: { in: studentIds }
 			},
-			select: { id: true, firstName: true, lastName: true, groupId: true },
+			select: { id: true, firstName: true, lastName: true },
 			orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }]
 		})
+		const weekdayGroups = await prisma.studentWeekdayGroup.findMany({
+			where: {
+				studentId: { in: studentIds },
+				schoolYearId,
+				weekday: selectedWeekday,
+				...(groupId !== null ? { groupId } : {})
+			},
+			select: { studentId: true, groupId: true }
+		})
+		const groupByStudentId = new Map<number, number>()
+		for (const row of weekdayGroups) {
+			groupByStudentId.set(row.studentId, row.groupId)
+		}
+		const studentsWithGroup = students
+			.filter((student) => groupId == null || groupByStudentId.has(student.id))
+			.map((student) => ({
+				...student,
+				groupId: groupByStudentId.get(student.id) ?? null
+			}))
 
 		const prefill: Record<number, { first: number | null; second: number | null }> = {}
-		for (const s of students) {
+		for (const s of studentsWithGroup) {
 			prefill[s.id] = { first: null, second: null }
 		}
 
@@ -218,7 +244,7 @@ export async function GET(request: Request) {
 		}
 
 		// Apply stored grades to prefill (only for students in our list)
-		for (const s of students) {
+		for (const s of studentsWithGroup) {
 			const stored = storedGrades[s.id]
 			if (stored) {
 				prefill[s.id]!.first = stored.first ?? prefill[s.id]!.first
@@ -227,8 +253,8 @@ export async function GET(request: Request) {
 		}
 
 		if (assignedGroupIds.length === 0) {
-			return NextResponse.json({
-				students,
+			return ok({
+				students: studentsWithGroup,
 				prefill,
 				teacherId: teacher.id,
 				teacher: { id: teacher.id, firstName: teacher.firstName, lastName: teacher.lastName }
@@ -294,7 +320,7 @@ export async function GET(request: Request) {
 				entriesByStudent.set(e.studentId, list)
 			}
 
-			for (const s of students) {
+			for (const s of studentsWithGroup) {
 				if (s.groupId !== gid) continue
 				const list = entriesByStudent.get(s.id)
 				if (!list || list.length === 0) continue
@@ -325,8 +351,8 @@ export async function GET(request: Request) {
 			}
 		}
 
-		return NextResponse.json({
-			students,
+		return ok({
+			students: studentsWithGroup,
 			prefill,
 			teacherId: teacher.id,
 			teacher: { id: teacher.id, firstName: teacher.firstName, lastName: teacher.lastName }
@@ -336,9 +362,6 @@ export async function GET(request: Request) {
 			location: 'api/noten/transfer-prefill',
 			type: 'transfer-prefill'
 		})
-		return NextResponse.json(
-			{ error: 'Failed to fetch transfer prefill' },
-			{ status: 500 }
-		)
+		return serverError('Failed to fetch transfer prefill')
 	}
 }

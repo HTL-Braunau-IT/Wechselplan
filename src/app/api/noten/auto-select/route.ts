@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
@@ -6,8 +5,13 @@ import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { normalizeUsername } from '@/lib/username'
 import { toLocalDateString } from '@/lib/date-utils'
+import { forbidden, ok, serverError, unauthorized } from '@/lib/api-response'
 
-function parseDateString(d: string): Date | null {
+function toWeekStartDate(d: Date | string): Date | null {
+	if (d instanceof Date) {
+		// DB returns DATE columns as midnight UTC; rebase to local-noon for comparison.
+		return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+	}
 	const parts = d.split('.')
 	if (parts.length !== 3 || parts[0] == null || parts[1] == null || parts[2] == null) return null
 	const day = parseInt(parts[0], 10)
@@ -37,19 +41,19 @@ function isDateInWeek(todayYmd: string, weekStart: Date): boolean {
 }
 
 /**
- * Find the first turn (in order) whose weeks contain todayYmd. Returns turn name or null.
- * Mirrors teacher overview getCurrentWeek(turns) -> turn.name.
+ * Find the first turn (in order) whose weeks contain todayYmd. Returns turn id or null.
+ * Mirrors teacher overview getCurrentWeek(turns).
  */
-function getCurrentTurnName(
-	turns: Array<{ name: string; weeks: Array<{ date: string; isHoliday: boolean }> }>,
+function getCurrentTurnId(
+	turns: Array<{ id: number; weeks: Array<{ date: Date | string; isHoliday: boolean }> }>,
 	todayYmd: string
-): string | null {
+): number | null {
 	for (const turn of turns) {
 		for (const week of turn.weeks) {
 			if (week.isHoliday) continue
-			const weekStart = parseDateString(week.date)
+			const weekStart = toWeekStartDate(week.date)
 			if (!weekStart) continue
-			if (isDateInWeek(todayYmd, weekStart)) return turn.name
+			if (isDateInWeek(todayYmd, weekStart)) return turn.id
 		}
 	}
 	return null
@@ -63,13 +67,13 @@ export async function GET(request: Request) {
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {
-			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+			return unauthorized('Unauthorized')
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+			return forbidden('Forbidden')
 		}
 		if (!(await isFeatureEnabled('noten'))) {
-			return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+			return forbidden('Feature not available')
 		}
 
 		const { searchParams } = new URL(request.url)
@@ -77,6 +81,13 @@ export async function GET(request: Request) {
 		const dateParam = searchParams.get('date')
 		const periodParam = searchParams.get('period')
 		const classIdParam = searchParams.get('classId')
+		const selectedWeekdayParam = searchParams.get('selectedWeekday')
+		const parsedSelectedWeekday =
+			selectedWeekdayParam != null ? parseInt(selectedWeekdayParam, 10) : Number.NaN
+		const hasParsedSelectedWeekday =
+			!Number.isNaN(parsedSelectedWeekday) &&
+			parsedSelectedWeekday >= 1 &&
+			parsedSelectedWeekday <= 5
 		const now = new Date()
 		let schoolYearId: number | undefined = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
 		if (schoolYearId == null || Number.isNaN(schoolYearId)) {
@@ -87,13 +98,13 @@ export async function GET(request: Request) {
 			schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
 		}
 		if (schoolYearId == null) {
-			return NextResponse.json({ classId: null, groupId: null })
+			return ok({ classId: null, groupId: null })
 		}
 
 		const username = normalizeUsername(session.user.name)
 		const teacher = await prisma.teacher.findUnique({ where: { username } })
 		if (!teacher) {
-			return NextResponse.json({ classId: null, groupId: null })
+			return ok({ classId: null, groupId: null })
 		}
 
 		// Use client-provided date/period when given so timezone matches the user (e.g. noten page in Austria, server in UTC)
@@ -102,29 +113,49 @@ export async function GET(request: Request) {
 		const period =
 			periodParam === 'AM' || periodParam === 'PM' ? periodParam : now.getHours() < 12 ? 'AM' : 'PM'
 		const currentWeekday =
-			dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
-				? new Date(dateParam + 'T12:00:00').getDay()
-				: now.getDay()
+			hasParsedSelectedWeekday
+				? parsedSelectedWeekday
+				: dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
+					? new Date(dateParam + 'T12:00:00').getDay()
+					: now.getDay()
 
 		// When classId is provided: return groupId for that class's current turn (week-based), regardless of today's weekday
 		const requestedClassId = classIdParam != null ? parseInt(classIdParam, 10) : NaN
+		const requestedSelectedWeekday = parsedSelectedWeekday
+		const hasRequestedSelectedWeekday = hasParsedSelectedWeekday
+		const requestedPeriod =
+			periodParam === 'AM' || periodParam === 'PM' ? periodParam : null
 		if (!Number.isNaN(requestedClassId)) {
 			const classAssignments = await prisma.teacherAssignment.findMany({
 				where: { teacherId: teacher.id, schoolYearId, classId: requestedClassId },
 				select: { classId: true, groupId: true, selectedWeekday: true, period: true }
 			})
 			if (classAssignments.length === 0) {
-				return NextResponse.json({ classId: requestedClassId, groupId: null })
+				return ok({ classId: requestedClassId, groupId: null })
 			}
 			const firstAssignment = classAssignments[0]
 			if (!firstAssignment) {
-				return NextResponse.json({ classId: requestedClassId, groupId: null })
+				return ok({ classId: requestedClassId, groupId: null })
+			}
+			const filteredAssignments = classAssignments.filter((assignment) => {
+				if (hasRequestedSelectedWeekday && assignment.selectedWeekday !== requestedSelectedWeekday) {
+					return false
+				}
+				if (requestedPeriod && assignment.period !== requestedPeriod) {
+					return false
+				}
+				return true
+			})
+			const targetAssignments = filteredAssignments.length > 0 ? filteredAssignments : classAssignments
+			const targetAssignment = targetAssignments[0]
+			if (!targetAssignment) {
+				return ok({ classId: requestedClassId, groupId: null })
 			}
 			const schedule = await prisma.schedule.findFirst({
 				where: {
 					classId: requestedClassId,
 					schoolYearId,
-					selectedWeekday: firstAssignment.selectedWeekday
+					selectedWeekday: targetAssignment.selectedWeekday
 				},
 				orderBy: { createdAt: 'desc' },
 				include: {
@@ -132,30 +163,36 @@ export async function GET(request: Request) {
 				}
 			})
 			const rotations = await prisma.teacherRotation.findMany({
-				where: { teacherId: teacher.id }
+				where: {
+					teacherId: teacher.id,
+					classId: requestedClassId,
+					schoolYearId,
+					selectedWeekday: targetAssignment.selectedWeekday
+				}
 			})
 			if (schedule?.turns?.length) {
 				const turnsForCurrentTurn = schedule.turns.map((t) => ({
-					name: t.name,
+					id: t.id,
 					weeks: t.weeks.map((w) => ({ date: w.date, isHoliday: w.isHoliday }))
 				}))
-				const currentTurnName = getCurrentTurnName(turnsForCurrentTurn, todayLocal)
-				if (currentTurnName) {
+				const currentTurnId = getCurrentTurnId(turnsForCurrentTurn, todayLocal)
+				if (currentTurnId != null) {
 					const rot = rotations.find(
 						(r) =>
 							r.classId === requestedClassId &&
-							r.period === firstAssignment.period &&
-							r.turnId === currentTurnName &&
+							r.selectedWeekday === targetAssignment.selectedWeekday &&
+							r.period === targetAssignment.period &&
+							r.turnId === currentTurnId &&
 							r.teacherId === teacher.id
 					)
 					if (rot && classAssignments.some((a) => a.groupId === rot.groupId)) {
-						return NextResponse.json({ classId: requestedClassId, groupId: rot.groupId })
+						return ok({ classId: requestedClassId, groupId: rot.groupId })
 					}
 				}
 			}
-			return NextResponse.json({
+			return ok({
 				classId: requestedClassId,
-				groupId: firstAssignment.groupId
+				groupId: targetAssignment.groupId
 			})
 		}
 
@@ -164,7 +201,11 @@ export async function GET(request: Request) {
 			select: { classId: true, groupId: true, selectedWeekday: true, period: true }
 		})
 		const rotations = await prisma.teacherRotation.findMany({
-			where: { teacherId: teacher.id }
+			where: {
+				teacherId: teacher.id,
+				schoolYearId,
+				selectedWeekday: currentWeekday
+			}
 		})
 
 		const classIds = [...new Set(assignments.map((a) => a.classId))]
@@ -189,37 +230,35 @@ export async function GET(request: Request) {
 				const schedule = scheduleByClass.get(a.classId)
 				if (!schedule?.turns?.length) continue
 				const turnsForCurrentTurn = schedule.turns.map((t) => ({
-					name: t.name,
+					id: t.id,
 					weeks: t.weeks.map((w) => ({ date: w.date, isHoliday: w.isHoliday }))
 				}))
-				const currentTurnName = getCurrentTurnName(turnsForCurrentTurn, todayLocal)
-				if (!currentTurnName) continue
+				const currentTurnId = getCurrentTurnId(turnsForCurrentTurn, todayLocal)
+				if (currentTurnId == null) continue
 				const rot = rotations.find(
 					(r) =>
 						r.classId === a.classId &&
+						r.selectedWeekday === currentWeekday &&
 						r.period === period &&
-						r.turnId === currentTurnName &&
+						r.turnId === currentTurnId &&
 						r.teacherId === teacher.id
 				)
 				if (rot && assignments.some((as) => as.classId === rot.classId && as.groupId === rot.groupId)) {
-					return NextResponse.json({ classId: rot.classId, groupId: rot.groupId })
+					return ok({ classId: rot.classId, groupId: rot.groupId })
 				}
 			}
 			const firstAssignment = periodAssignments[0]
 			if (firstAssignment) {
-				return NextResponse.json({ classId: firstAssignment.classId, groupId: firstAssignment.groupId })
+				return ok({ classId: firstAssignment.classId, groupId: firstAssignment.groupId })
 			}
 		}
 
-		return NextResponse.json({ classId: null, groupId: null })
+		return ok({ classId: null, groupId: null })
 	} catch (error) {
 		captureError(error, {
 			location: 'api/noten/auto-select',
 			type: 'auto-select'
 		})
-		return NextResponse.json(
-			{ error: 'Failed to auto-select' },
-			{ status: 500 }
-		)
+		return serverError('Failed to auto-select')
 	}
 }

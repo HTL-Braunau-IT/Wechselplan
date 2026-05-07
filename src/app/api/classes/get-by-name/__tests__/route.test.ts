@@ -3,16 +3,20 @@ import { GET } from '../route';
 import { prisma } from '@/lib/prisma';
 import { captureError } from '@/lib/sentry';
 
-// Mock prisma
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     class: {
       findUnique: vi.fn(),
     },
+    schoolYear: {
+      findFirst: vi.fn(),
+    },
+    classYearStaff: {
+      findUnique: vi.fn(),
+    },
   },
 }));
 
-// Mock sentry
 vi.mock('@/lib/sentry', () => ({
   captureError: vi.fn(),
 }));
@@ -23,26 +27,23 @@ describe('Classes Get By Name API', () => {
   });
 
   describe('GET /api/classes/get-by-name', () => {
-    it('should return class by name', async () => {
+    it('should return class by name with year-scoped staff', async () => {
       const mockClass = {
         id: 1,
         name: 'Class A',
         description: 'Description A',
         createdAt: new Date('2024-03-20T09:30:00Z'),
         updatedAt: new Date('2024-03-20T09:30:00Z'),
-        classHeadId: 1,
-        classLeadId: 2,
-        classHead: {
-          firstName: 'John',
-          lastName: 'Doe'
-        },
-        classLead: {
-          firstName: 'Jane',
-          lastName: 'Smith'
-        }
       };
 
-      vi.mocked(prisma.class.findUnique).mockResolvedValue(mockClass);
+      vi.mocked(prisma.class.findUnique).mockResolvedValue(mockClass as never);
+      vi.mocked(prisma.schoolYear.findFirst).mockResolvedValue({ id: 1 } as never);
+      vi.mocked(prisma.classYearStaff.findUnique).mockResolvedValue({
+        classHeadId: 1,
+        classLeadId: 2,
+        classHead: { firstName: 'John', lastName: 'Doe' },
+        classLead: { firstName: 'Jane', lastName: 'Smith' },
+      } as never);
 
       const request = new Request('http://localhost/api/classes/get-by-name?name=Class%20A');
       const response = await GET(request);
@@ -50,26 +51,18 @@ describe('Classes Get By Name API', () => {
 
       expect(response.status).toBe(200);
       expect(data).toEqual({
-        ...mockClass,
-        createdAt: mockClass.createdAt.toISOString(),
-        updatedAt: mockClass.updatedAt.toISOString()
+        data: {
+          ...mockClass,
+          createdAt: mockClass.createdAt.toISOString(),
+          updatedAt: mockClass.updatedAt.toISOString(),
+          classHeadId: 1,
+          classLeadId: 2,
+          classHead: { firstName: 'John', lastName: 'Doe' },
+          classLead: { firstName: 'Jane', lastName: 'Smith' },
+        },
       });
       expect(prisma.class.findUnique).toHaveBeenCalledWith({
         where: { name: 'Class A' },
-        include: {
-          classHead: {
-            select: {
-              firstName: true,
-              lastName: true
-            }
-          },
-          classLead: {
-            select: {
-              firstName: true,
-              lastName: true
-            }
-          }
-        }
       });
     });
 
@@ -79,7 +72,7 @@ describe('Classes Get By Name API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(400);
-      expect(data).toEqual({ error: 'Class name is required' });
+      expect(data).toEqual({ error: { code: 'BAD_REQUEST', message: 'Class name is required' } });
       expect(prisma.class.findUnique).not.toHaveBeenCalled();
     });
 
@@ -91,23 +84,9 @@ describe('Classes Get By Name API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(404);
-      expect(data).toEqual({ error: 'Class not found' });
+      expect(data).toEqual({ error: { code: 'NOT_FOUND', message: 'Class not found' } });
       expect(prisma.class.findUnique).toHaveBeenCalledWith({
         where: { name: 'NonexistentClass' },
-        include: {
-          classHead: {
-            select: {
-              firstName: true,
-              lastName: true
-            }
-          },
-          classLead: {
-            select: {
-              firstName: true,
-              lastName: true
-            }
-          }
-        }
       });
     });
 
@@ -120,14 +99,14 @@ describe('Classes Get By Name API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(500);
-      expect(data).toEqual({ error: 'Failed to fetch class' });
+      expect(data).toEqual({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch class' } });
       expect(captureError).toHaveBeenCalledWith(error, {
         location: 'api/classes/get-by-name',
         type: 'fetch-class-by-name',
         extra: {
-          searchParams: { name: 'Class A' }
-        }
+          searchParams: { name: 'Class A' },
+        },
       });
     });
   });
-}); 
+});

@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { badRequest, notFound, ok, serverError, unprocessable } from '@/lib/api-response'
 
 const transferSchema = z.object({
 	targetClassId: z.number().int().positive(),
@@ -12,9 +13,11 @@ const transferSchema = z.object({
 /**
  * Handles POST requests to transfer a student to another class.
  *
- * Updates the student's `classId` and `groupId`, upserts the `ClassMembership`
- * row for the given school year to point to the new class, and ensures a
- * `GroupAssignment` row exists for the target group/class combination.
+ * Upserts the `ClassMembership` row for the given school year to point to
+ * the new class and updates weekday group membership in
+ * `StudentWeekdayGroup`. Class assignment is now stored exclusively in
+ * `ClassMembership`; the legacy `Student.classId` column is no longer
+ * read or written.
  *
  * Historical grade data (Grade, FinalGrade, NotenEntry) is intentionally left
  * untouched so it stays attached to the class in which it was produced.
@@ -29,10 +32,7 @@ export async function POST(
 		const studentId = idParam ? parseInt(idParam, 10) : NaN
 
 		if (!studentId || Number.isNaN(studentId)) {
-			return NextResponse.json(
-				{ error: 'Invalid student ID' },
-				{ status: 400 }
-			)
+			return badRequest('Invalid student ID')
 		}
 
 		rawBody = await request.text()
@@ -40,46 +40,37 @@ export async function POST(
 		try {
 			parsedBody = JSON.parse(rawBody)
 		} catch {
-			return NextResponse.json(
-				{ error: 'Invalid request body' },
-				{ status: 400 }
-			)
+			return badRequest('Invalid request body')
 		}
 
 		const validation = transferSchema.safeParse(parsedBody)
 		if (!validation.success) {
-			return NextResponse.json(
-				{ error: 'Validation failed', details: validation.error.format() },
-				{ status: 400 }
-			)
+			return unprocessable('Validation failed', validation.error.format())
 		}
 
 		const { targetClassId, targetGroupId, schoolYearId } = validation.data
 
 		const student = await prisma.student.findUnique({
-			where: { id: studentId },
-			include: { class: true }
+			where: { id: studentId }
 		})
 
 		if (!student) {
-			return NextResponse.json(
-				{ error: 'Student not found' },
-				{ status: 404 }
-			)
+			return notFound('Student not found')
 		}
 
-		if (!student.classId) {
-			return NextResponse.json(
-				{ error: 'Student has no current class assigned' },
-				{ status: 400 }
-			)
+		const existingMembership = await prisma.classMembership.findUnique({
+			where: {
+				studentId_schoolYearId: { studentId, schoolYearId }
+			},
+			select: { classId: true }
+		})
+
+		if (!existingMembership) {
+			return badRequest('Student has no current class assigned for this school year')
 		}
 
-		if (student.classId === targetClassId) {
-			return NextResponse.json(
-				{ error: 'Student is already in the target class' },
-				{ status: 400 }
-			)
+		if (existingMembership.classId === targetClassId) {
+			return badRequest('Student is already in the target class')
 		}
 
 		const targetClass = await prisma.class.findUnique({
@@ -87,10 +78,7 @@ export async function POST(
 		})
 
 		if (!targetClass) {
-			return NextResponse.json(
-				{ error: 'Target class not found' },
-				{ status: 404 }
-			)
+			return notFound('Target class not found')
 		}
 
 		const schoolYear = await prisma.schoolYear.findUnique({
@@ -98,21 +86,10 @@ export async function POST(
 		})
 
 		if (!schoolYear) {
-			return NextResponse.json(
-				{ error: 'School year not found' },
-				{ status: 404 }
-			)
+			return notFound('School year not found')
 		}
 
 		await prisma.$transaction(async (tx) => {
-			await tx.student.update({
-				where: { id: studentId },
-				data: {
-					classId: targetClassId,
-					groupId: targetGroupId
-				}
-			})
-
 			await tx.classMembership.upsert({
 				where: {
 					studentId_schoolYearId: {
@@ -131,23 +108,27 @@ export async function POST(
 			})
 
 			if (targetGroupId != null && targetGroupId !== 0) {
-				await tx.groupAssignment.upsert({
-					where: {
-						class_groupId: {
-							class: targetClass.name,
-							groupId: targetGroupId
-						}
-					},
-					update: {},
-					create: {
-						class: targetClass.name,
-						groupId: targetGroupId
-					}
+				for (const weekday of [1, 2, 3, 4, 5]) {
+					await tx.studentWeekdayGroup.upsert({
+						where: {
+							studentId_schoolYearId_weekday: {
+								studentId,
+								schoolYearId,
+								weekday
+							}
+						},
+						update: { groupId: targetGroupId },
+						create: { studentId, schoolYearId, weekday, groupId: targetGroupId }
+					})
+				}
+			} else {
+				await tx.studentWeekdayGroup.deleteMany({
+					where: { studentId, schoolYearId }
 				})
 			}
 		})
 
-		return NextResponse.json({
+		return ok({
 			success: true,
 			student: {
 				id: studentId,
@@ -161,9 +142,6 @@ export async function POST(
 			type: 'transfer-student',
 			extra: { requestBody: rawBody }
 		})
-		return NextResponse.json(
-			{ error: 'Failed to transfer student' },
-			{ status: 500 }
-		)
+		return serverError('Failed to transfer student')
 	}
 }

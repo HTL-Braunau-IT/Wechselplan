@@ -7,6 +7,7 @@ import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { normalizeUsername } from '@/lib/username'
 import type { NotensammlerAllClassesClassData } from '@/lib/pdf-generator'
+import { badRequest, forbidden, notFound, serverError, unauthorized } from '@/lib/api-response'
 
 /**
  * Handles GET requests to generate a PDF of the current teacher's grades for all classes they are assigned to in the given school year.
@@ -17,13 +18,13 @@ export async function GET(request: Request) {
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {
-			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+			return unauthorized('Unauthorized')
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+			return forbidden('Forbidden')
 		}
 		if (!(await isFeatureEnabled('notensammler'))) {
-			return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+			return forbidden('Feature not available')
 		}
 
 		const { searchParams } = new URL(request.url)
@@ -38,7 +39,7 @@ export async function GET(request: Request) {
 			schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
 		}
 		if (schoolYearId == null) {
-			return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
+			return badRequest('No school year found.')
 		}
 
 		const username = normalizeUsername(session.user.name)
@@ -48,10 +49,7 @@ export async function GET(request: Request) {
 		})
 
 		if (!teacher) {
-			return NextResponse.json(
-				{ error: 'Teacher not found' },
-				{ status: 404 }
-			)
+			return notFound('Teacher not found')
 		}
 
 		const assignments = await prisma.teacherAssignment.findMany({
@@ -61,10 +59,7 @@ export async function GET(request: Request) {
 		const distinctClassIds = Array.from(new Set(assignments.map((a) => a.classId)))
 
 		if (distinctClassIds.length === 0) {
-			return NextResponse.json(
-				{ error: 'No classes assigned' },
-				{ status: 400 }
-			)
+			return badRequest('No classes assigned')
 		}
 
 		const classRecords = await prisma.class.findMany({
@@ -85,9 +80,22 @@ export async function GET(request: Request) {
 					? await prisma.student.findMany({
 							where: { id: { in: studentIds } },
 							orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
-							select: { id: true, firstName: true, lastName: true, groupId: true }
+							select: { id: true, firstName: true, lastName: true }
 						})
 					: []
+			const weekdayGroups =
+				studentIds.length > 0
+					? await prisma.studentWeekdayGroup.findMany({
+						where: { studentId: { in: studentIds }, schoolYearId, weekday: 1 },
+						select: { studentId: true, groupId: true }
+					})
+					: []
+			const groupByStudentId = new Map<number, number>()
+			for (const row of weekdayGroups) groupByStudentId.set(row.studentId, row.groupId)
+			const studentsWithGroup = studentsList.map((student) => ({
+				...student,
+				groupId: groupByStudentId.get(student.id) ?? null
+			}))
 
 			const assignmentsForClass = await prisma.teacherAssignment.findMany({
 				where: { classId: classRecord.id, schoolYearId },
@@ -140,7 +148,7 @@ export async function GET(request: Request) {
 			classesPayload.push({
 				className: classRecord.name,
 				subjectName,
-				students: studentsList,
+				students: studentsWithGroup,
 				grades: gradesForTeacher,
 				finalGrades
 			})
@@ -164,9 +172,6 @@ export async function GET(request: Request) {
 			location: 'api/notensammler/pdf/all',
 			type: 'export-pdf-all'
 		})
-		return NextResponse.json(
-			{ error: 'Failed to generate PDF' },
-			{ status: 500 }
-		)
+		return serverError('Failed to generate PDF')
 	}
 }

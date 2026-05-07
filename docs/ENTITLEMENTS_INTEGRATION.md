@@ -94,7 +94,7 @@ An optional **health/debug** endpoint `GET /api/entitlements/health` (admin-only
 
 File: [`src/middleware.ts`](../src/middleware.ts).
 
-Current behaviour: routes under `/schedule`, `/admin`, `/schedueles`, `/students`, `/notensammler` require an authenticated user with role `teacher`.
+Current behaviour: routes under `/schedule`, `/admin`, `/schedueles`, `/notensammler` require an authenticated user with role `teacher`.
 
 Add entitlement checks **after** auth:
 
@@ -155,7 +155,6 @@ Components that display student photos:
 
 - [`src/app/notensammler/page.tsx`](../src/app/notensammler/page.tsx) – `StudentPhoto`
 - [`src/components/overviews/teacher.tsx`](../src/components/overviews/teacher.tsx) – `StudentPhoto`
-- [`src/app/students/page.tsx`](../src/app/students/page.tsx) – `StudentPhoto`
 - [`src/components/schedule/student-item.tsx`](../src/components/schedule/student-item.tsx) – `StudentPhoto`
 
 When `student_photos` is disabled: **do not** hide or remove these components. Keep them rendered; they always show the same fallback as when no photo is stored (placeholder / no image). Do not call the photo API when the feature is disabled so no photo is loaded—the component simply renders the fallback.

@@ -31,7 +31,7 @@ describe('Break Times API', () => {
           name: 'Morning Break',
           startTime: '2024-03-20T09:30:00Z',
           endTime: '2024-03-20T09:45:00Z',
-          period: '1',
+          period: 'AM' as const,
           createdAt: new Date('2025-06-11T11:28:21.934Z'),
           updatedAt: new Date('2025-06-11T11:28:21.934Z'),
         },
@@ -40,7 +40,7 @@ describe('Break Times API', () => {
           name: 'Lunch Break',
           startTime: '2024-03-20T12:00:00Z',
           endTime: '2024-03-20T12:30:00Z',
-          period: '2',
+          period: 'LUNCH' as const,
           createdAt: new Date('2025-06-11T11:28:21.934Z'),
           updatedAt: new Date('2025-06-11T11:28:21.934Z'),
         },
@@ -52,7 +52,7 @@ describe('Break Times API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(data).toEqual([
+      expect(data).toEqual({ data: [
         {
           ...mockBreakTimes[0]!,
           createdAt: mockBreakTimes[0]!.createdAt.toISOString(),
@@ -63,7 +63,7 @@ describe('Break Times API', () => {
           createdAt: mockBreakTimes[1]!.createdAt.toISOString(),
           updatedAt: mockBreakTimes[1]!.updatedAt.toISOString(),
         },
-      ]);
+      ]});
       expect(prisma.breakTime.findMany).toHaveBeenCalledWith({
         orderBy: { startTime: 'asc' },
       });
@@ -77,7 +77,7 @@ describe('Break Times API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(500);
-      expect(data).toEqual({ error: 'Failed to fetch break times' });
+      expect(data).toEqual({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch break times' } });
       expect(captureError).toHaveBeenCalledWith(error, {
         location: 'api/settings/break-times',
         type: 'fetch-break-times',
@@ -99,7 +99,7 @@ describe('Break Times API', () => {
         name: 'Afternoon Break',
         startTime: '14:00',
         endTime: '14:15',
-        period: 'PM',
+        period: 'PM' as const,
         createdAt: '2025-06-11T11:30:12.849Z',
         updatedAt: '2025-06-11T11:30:12.849Z',
       };
@@ -118,12 +118,12 @@ describe('Break Times API', () => {
       const response = await POST(request);
       const data = await response.json();
 
-      expect(response.status).toBe(200);
-      expect(data).toEqual({
+      expect(response.status).toBe(201);
+      expect(data).toEqual({ data: {
         ...createdBreakTime,
         createdAt: new Date(createdBreakTime.createdAt).toISOString(),
         updatedAt: new Date(createdBreakTime.updatedAt).toISOString(),
-      });
+      }});
       expect(prisma.breakTime.create).toHaveBeenCalledWith({
         data: newBreakTime,
       });
@@ -145,9 +145,10 @@ describe('Break Times API', () => {
       const response = await POST(request);
       const data = await response.json();
 
-      expect(response.status).toBe(400);
-      expect(data).toHaveProperty('error', 'Validation failed');
-      expect(data).toHaveProperty('details');
+      expect(response.status).toBe(422);
+      expect(data).toHaveProperty('error.code', 'UNPROCESSABLE');
+      expect(data).toHaveProperty('error.message', 'Validation failed');
+      expect(data).toHaveProperty('error.details');
       expect(prisma.breakTime.create).not.toHaveBeenCalled();
     });
 
@@ -171,7 +172,7 @@ describe('Break Times API', () => {
       const data = await response.json();
 
       expect(response.status).toBe(500);
-      expect(data).toEqual({ error: 'Failed to create break time' });
+      expect(data).toEqual({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create break time' } });
     });
   });
 }); 

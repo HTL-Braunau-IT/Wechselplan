@@ -50,7 +50,8 @@ describe('Break Times API', () => {
           vi.mocked(prisma.breakTime.findMany).mockResolvedValue(mockBreakTimes);
         },
         expectedStatus: 200,
-        expectedData: (data: BreakTime[]) => {
+        expectedData: (payload: { data: BreakTime[] }) => {
+          const data = payload.data
           expect(Array.isArray(data)).toBe(true);
           expect(data.length).toBe(1);
           expect(data[0]).toHaveProperty('name', 'Morning Break');
@@ -64,7 +65,7 @@ describe('Break Times API', () => {
           vi.mocked(prisma.breakTime.findMany).mockRejectedValue(new Error('DB error'));
         },
         expectedStatus: 500,
-        expectedData: { error: 'Failed to fetch break times' },
+        expectedData: { error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch break times' } },
       },
     ];
 
@@ -98,7 +99,7 @@ describe('Break Times API', () => {
           }),
         }),
         expectedStatus: 400,
-        expectedData: { error: 'Missing required fields' },
+        expectedData: { error: { code: 'BAD_REQUEST', message: 'Missing required fields' } },
       },
       {
         name: 'should return 400 if period is invalid',
@@ -113,7 +114,7 @@ describe('Break Times API', () => {
           }),
         }),
         expectedStatus: 400,
-        expectedData: { error: 'Invalid period. Must be AM or PM' },
+        expectedData: { error: { code: 'BAD_REQUEST', message: 'Invalid period. Must be AM or PM' } },
       },
       {
         name: 'should return 400 if time format is invalid',
@@ -128,10 +129,10 @@ describe('Break Times API', () => {
           }),
         }),
         expectedStatus: 400,
-        expectedData: { error: 'Invalid time format. Use HH:mm' },
+        expectedData: { error: { code: 'BAD_REQUEST', message: 'Invalid time format. Use HH:mm' } },
       },
       {
-        name: 'should return 200 with created break time if successful',
+        name: 'should return 201 with created break time if successful',
         setup: () => {
           const mockBreakTime: BreakTime = {
             id: 1,
@@ -153,8 +154,9 @@ describe('Break Times API', () => {
             period: 'AM',
           }),
         }),
-        expectedStatus: 200,
-        expectedData: (data: BreakTime) => {
+        expectedStatus: 201,
+        expectedData: (payload: { data: BreakTime }) => {
+          const data = payload.data
           expect(data).toHaveProperty('name', 'Morning Break');
           expect(data).toHaveProperty('startTime', '09:00');
           expect(data).toHaveProperty('endTime', '09:15');
@@ -176,7 +178,7 @@ describe('Break Times API', () => {
           }),
         }),
         expectedStatus: 500,
-        expectedData: { error: 'Failed to create break time' },
+        expectedData: { error: { code: 'INTERNAL_ERROR', message: 'Failed to create break time' } },
       },
     ];
 

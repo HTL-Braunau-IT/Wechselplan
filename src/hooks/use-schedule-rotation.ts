@@ -4,7 +4,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 interface TeacherRotationRequest {
 	classId: number
-	turns: string[]
+	/** Turn names ("TURNUS 1") or numeric ScheduleTurn ids — both accepted by the API. */
+	turns: Array<string | number>
 	amRotation: {
 		groupId: number
 		turns: (number | null)[]

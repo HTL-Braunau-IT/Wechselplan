@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
@@ -6,6 +5,7 @@ import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { normalizeUsername } from '@/lib/username'
 import { toLocalDateString } from '@/lib/date-utils'
+import { badRequest, forbidden, ok, serverError, unauthorized } from '@/lib/api-response'
 
 function dateToLocalString(d: Date | string): string {
 	return d instanceof Date ? toLocalDateString(d) : String(d)
@@ -18,13 +18,13 @@ export async function GET(request: Request) {
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {
-			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+			return unauthorized('Unauthorized')
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+			return forbidden('Forbidden')
 		}
 		if (!(await isFeatureEnabled('noten'))) {
-			return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+			return forbidden('Feature not available')
 		}
 
 		const { searchParams } = new URL(request.url)
@@ -33,12 +33,12 @@ export async function GET(request: Request) {
 		const schoolYearIdParam = searchParams.get('schoolYearId')
 
 		if (!classIdParam || !groupIdParam) {
-			return NextResponse.json({ error: 'classId and groupId required' }, { status: 400 })
+			return badRequest('classId and groupId required')
 		}
 		const classId = parseInt(classIdParam, 10)
 		const groupId = parseInt(groupIdParam, 10)
 		if (Number.isNaN(classId) || Number.isNaN(groupId)) {
-			return NextResponse.json({ error: 'Invalid classId or groupId' }, { status: 400 })
+			return badRequest('Invalid classId or groupId')
 		}
 
 		let schoolYearId: number | undefined = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
@@ -51,20 +51,20 @@ export async function GET(request: Request) {
 			schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
 		}
 		if (schoolYearId == null) {
-			return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
+			return badRequest('No school year found.')
 		}
 
 		const username = normalizeUsername(session.user.name)
 		const teacher = await prisma.teacher.findUnique({ where: { username } })
 		if (!teacher) {
-			return NextResponse.json({ error: 'Teacher not found' }, { status: 403 })
+			return forbidden('Teacher not found')
 		}
 
 		const isAssignedToClass = await prisma.teacherAssignment.findFirst({
 			where: { teacherId: teacher.id, classId, schoolYearId }
 		})
 		if (!isAssignedToClass) {
-			return NextResponse.json({ error: 'Not assigned to this class' }, { status: 403 })
+			return forbidden('Not assigned to this class')
 		}
 
 		const notensammlerEnabled = await isFeatureEnabled('notensammler')
@@ -139,7 +139,7 @@ export async function GET(request: Request) {
 			}
 		}
 
-		return NextResponse.json({
+		return ok({
 			weightConfig: weightConfig
 				? {
 						weightWiederholung: weightConfig.weightWiederholung,
@@ -172,9 +172,6 @@ export async function GET(request: Request) {
 			location: 'api/noten/data',
 			type: 'fetch-data'
 		})
-		return NextResponse.json(
-			{ error: 'Failed to fetch data' },
-			{ status: 500 }
-		)
+		return serverError('Failed to fetch data')
 	}
 }

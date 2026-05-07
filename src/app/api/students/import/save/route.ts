@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { captureError } from '~/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
 import * as ldap from 'ldapjs'
+import { badRequest, ok, serverError } from '@/lib/api-response'
 
 interface ImportRequest {
   classes: string[]
@@ -231,10 +232,7 @@ export async function POST(request: Request) {
       schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
     }
     if (schoolYearId == null) {
-      return NextResponse.json(
-        { error: 'No school year found. Create a school year in Admin / Data / School Years first.' },
-        { status: 400 }
-      )
+      return badRequest('No school year found. Create a school year in Admin / Data / School Years first.')
     }
 
     let importedCount = 0
@@ -255,35 +253,31 @@ export async function POST(request: Request) {
         create: { name: className }
       })
 
-      // Note: We delete all students and recreate them to sync with LDAP.
-      // This means groupId values are lost, but GroupAssignment records remain.
-      // The GET endpoint for group assignments will auto-create missing GroupAssignment
-      // records when students are later assigned to groups.
+      // Note: We delete all students currently linked to this class via
+      // ClassMembership (for the current year) and recreate them to sync
+      // with LDAP. Weekday-specific group memberships are recreated later
+      // in schedule assignments.
 
-      // Delete existing students in this class
-      await prisma.student.deleteMany({
-        where: {
-          classId: classRecord.id
-        }
+      const existingMemberships = await prisma.classMembership.findMany({
+        where: { classId: classRecord.id, schoolYearId },
+        select: { studentId: true }
       })
+      const existingStudentIds = existingMemberships.map(m => m.studentId)
+      if (existingStudentIds.length > 0) {
+        await prisma.student.deleteMany({
+          where: { id: { in: existingStudentIds } }
+        })
+      }
 
-      // Clean up orphaned GroupAssignment records (groups with no students)
-      // These will be recreated automatically when students are assigned to groups
-      await prisma.groupAssignment.deleteMany({
-        where: {
-          class: className
-        }
-      })
-
-      // Import new students for this class (normalize username for storage) and ClassMembership for the year
+      // Import new students for this class (normalize username for storage)
+      // and create their ClassMembership rows for the current school year.
       for (const student of classData.students) {
         const username = normalizeUsername(student.username) || student.username
         const newStudent = await prisma.student.create({
           data: {
             firstName: student.firstName,
             lastName: student.lastName,
-            username,
-            classId: classRecord.id
+            username
           }
         })
         await prisma.classMembership.upsert({
@@ -305,7 +299,7 @@ export async function POST(request: Request) {
       updatedCount++
     }
 
-    return NextResponse.json({
+    return ok({
       message: 'Import completed successfully',
       students: importedCount,
       classes: updatedCount
@@ -316,9 +310,6 @@ export async function POST(request: Request) {
       location: 'api/students/import/save',
       type: 'import-students'
     })
-    return NextResponse.json(
-      { error: 'Failed to import students' },
-      { status: 500 }
-    )
+    return serverError('Failed to import students')
   }
 } 

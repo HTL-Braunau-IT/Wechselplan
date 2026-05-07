@@ -86,53 +86,28 @@ const SEEDED_LEARNING_CONTENTS = [
 async function migrateCustomValues() {
   console.log('Starting custom values migration...')
 
-  // Mark rooms as custom if not in seed data
-  const allRooms = await prisma.room.findMany()
-  const seededRoomSet = new Set(SEEDED_ROOMS)
-  
-  let customRoomsCount = 0
-  for (const room of allRooms) {
-    if (!seededRoomSet.has(room.name)) {
-      await (prisma as any).room.update({
-        where: { id: room.id },
-        data: { isCustom: true }
-      })
-      customRoomsCount++
+  const markCustom = async (
+    kind: 'ROOM' | 'SUBJECT' | 'LEARNING_CONTENT',
+    seedSet: Set<string>,
+    label: string
+  ) => {
+    const rows = await prisma.lookupValue.findMany({ where: { kind } })
+    let count = 0
+    for (const row of rows) {
+      if (!seedSet.has(row.name)) {
+        await prisma.lookupValue.update({
+          where: { id: row.id },
+          data: { isCustom: true }
+        })
+        count++
+      }
     }
+    console.log(`✓ Marked ${count} ${label} as custom`)
   }
-  console.log(`✓ Marked ${customRoomsCount} rooms as custom`)
 
-  // Mark subjects as custom if not in seed data
-  const allSubjects = await prisma.subject.findMany()
-  const seededSubjectSet = new Set(SEEDED_SUBJECTS)
-  
-  let customSubjectsCount = 0
-  for (const subject of allSubjects) {
-    if (!seededSubjectSet.has(subject.name)) {
-      await (prisma as any).subject.update({
-        where: { id: subject.id },
-        data: { isCustom: true }
-      })
-      customSubjectsCount++
-    }
-  }
-  console.log(`✓ Marked ${customSubjectsCount} subjects as custom`)
-
-  // Mark learning contents as custom if not in seed data
-  const allLearningContents = await prisma.learningContent.findMany()
-  const seededLearningContentSet = new Set(SEEDED_LEARNING_CONTENTS)
-  
-  let customLearningContentsCount = 0
-  for (const learningContent of allLearningContents) {
-    if (!seededLearningContentSet.has(learningContent.name)) {
-      await (prisma as any).learningContent.update({
-        where: { id: learningContent.id },
-        data: { isCustom: true }
-      })
-      customLearningContentsCount++
-    }
-  }
-  console.log(`✓ Marked ${customLearningContentsCount} learning contents as custom`)
+  await markCustom('ROOM', new Set(SEEDED_ROOMS), 'rooms')
+  await markCustom('SUBJECT', new Set(SEEDED_SUBJECTS), 'subjects')
+  await markCustom('LEARNING_CONTENT', new Set(SEEDED_LEARNING_CONTENTS), 'learning contents')
 
   console.log('Migration completed!')
 }

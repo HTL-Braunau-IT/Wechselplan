@@ -3,6 +3,7 @@ export const runtime = 'nodejs'
 import { NextResponse } from 'next/server'
 import ldap from 'ldapjs'
 import { captureError } from '@/lib/sentry'
+import { ok, serverError } from '@/lib/api-response'
 
 
 interface LDAPConfig {
@@ -94,7 +95,7 @@ export async function POST(): Promise<Response> {
             }
           })
           client.unbind()
-          resolve(NextResponse.json({ error: 'LDAP bind failed' }, { status: 500 }))
+          resolve(serverError('LDAP bind failed'))
           return
         }
 
@@ -121,7 +122,7 @@ export async function POST(): Promise<Response> {
               }
             })
             client.unbind()
-            resolve(NextResponse.json({ error: 'LDAP search failed' }, { status: 500 }))
+            resolve(serverError('LDAP search failed'))
             return
           }
 
@@ -149,12 +150,12 @@ export async function POST(): Promise<Response> {
               }
             })
             client.unbind()
-            resolve(NextResponse.json({ error: 'LDAP search failed' }, { status: 500 }))
+            resolve(serverError('LDAP search failed'))
           })
 
           res.on('end', () => {
             client.unbind()
-            resolve(NextResponse.json({
+            resolve(ok({
               teachers: teachers.map(teacher => ({
                 firstName: teacher.givenName,
                 lastName: teacher.sn,
@@ -176,6 +177,6 @@ export async function POST(): Promise<Response> {
         nodeEnv: process.env.NODE_ENV
       }
     })
-    return NextResponse.json({ error: 'Failed to import teachers' }, { status: 500 })
+    return serverError('Failed to import teachers')
   }
 } 

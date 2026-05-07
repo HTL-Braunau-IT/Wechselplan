@@ -12,9 +12,6 @@ vi.mock('@/lib/prisma', () => ({
       deleteMany: vi.fn(),
       create: vi.fn(),
     },
-    groupAssignment: {
-      deleteMany: vi.fn(),
-    },
     schoolYear: {
       findFirst: vi.fn(),
     },
@@ -138,7 +135,7 @@ describe('Students Import Save API', () => {
 
     test('should save selected classes and their students', async () => {
       // Mock prisma responses
-      vi.mocked(prisma.schoolYear.findFirst).mockResolvedValue({ id: 1 });
+      vi.mocked(prisma.schoolYear.findFirst).mockResolvedValue({ id: 1 } as never);
 
       vi.mocked(prisma.class.upsert).mockResolvedValue({
         id: 1,
@@ -146,13 +143,11 @@ describe('Students Import Save API', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         description: null,
-        classHeadId: null,
-        classLeadId: null,
-      });
+      } as never);
 
+      // No existing memberships for this class+year ⇒ deleteMany skipped.
+      vi.mocked(prisma.classMembership.findMany).mockResolvedValue([] as never);
       vi.mocked(prisma.student.deleteMany).mockResolvedValue({ count: 0 });
-
-      vi.mocked(prisma.groupAssignment.deleteMany).mockResolvedValue({ count: 0 });
 
       vi.mocked(prisma.student.create)
         .mockResolvedValueOnce({
@@ -160,21 +155,17 @@ describe('Students Import Save API', () => {
           firstName: 'John',
           lastName: 'Doe',
           username: 'john.doe',
-          classId: 1,
-          groupId: null,
           createdAt: new Date(),
           updatedAt: new Date(),
-        })
+        } as never)
         .mockResolvedValueOnce({
           id: 11,
           firstName: 'Jane',
           lastName: 'Smith',
           username: 'jane.smith',
-          classId: 1,
-          groupId: null,
           createdAt: new Date(),
           updatedAt: new Date(),
-        });
+        } as never);
 
       vi.mocked(prisma.classMembership.upsert).mockResolvedValue({} as any);
 
@@ -205,9 +196,9 @@ describe('Students Import Save API', () => {
         create: { name: '1A' },
       });
 
-      expect(prisma.student.deleteMany).toHaveBeenCalledWith({
-        where: { classId: 1 },
-      });
+      // No existing memberships, so deleteMany should not be called for
+      // this class+year combo.
+      expect(prisma.student.deleteMany).not.toHaveBeenCalled();
 
       expect(prisma.student.create).toHaveBeenCalledTimes(2);
       expect(prisma.student.create).toHaveBeenCalledWith({
@@ -215,7 +206,6 @@ describe('Students Import Save API', () => {
           firstName: 'John',
           lastName: 'Doe',
           username: 'john.doe',
-          classId: 1,
         },
       });
       expect(prisma.classMembership.upsert).toHaveBeenCalledTimes(2);

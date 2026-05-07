@@ -1,10 +1,10 @@
-import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { normalizeUsername } from '@/lib/username'
+import { badRequest, forbidden, ok, serverError, unauthorized } from '@/lib/api-response'
 
 /**
  * Handles GET requests to retrieve classes where the current teacher has an assignment for the given school year,
@@ -16,13 +16,13 @@ export async function GET(request: Request) {
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {
-			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+			return unauthorized('Unauthorized')
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+			return forbidden('Forbidden')
 		}
 		if (!(await isFeatureEnabled('notensammler'))) {
-			return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+			return forbidden('Feature not available')
 		}
 
 		const { searchParams } = new URL(request.url)
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
 			schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
 		}
 		if (schoolYearId == null) {
-			return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
+			return badRequest('No school year found.')
 		}
 
 		const username = normalizeUsername(session.user.name)
@@ -47,7 +47,7 @@ export async function GET(request: Request) {
 
 		if (!teacher) {
 			console.warn('[username-match] Teacher not found (teacher-classes)', { sessionName: session.user.name, normalized: username })
-			return NextResponse.json({ classes: [] })
+			return ok({ classes: [] })
 		}
 
 		const assignments = await prisma.teacherAssignment.findMany({
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
 		const distinctClassIds = Array.from(new Set(assignments.map((a) => a.classId)))
 
 		if (distinctClassIds.length === 0) {
-			return NextResponse.json({ classes: [] })
+			return ok({ classes: [] })
 		}
 
 		const classRecords = await prisma.class.findMany({
@@ -73,11 +73,14 @@ export async function GET(request: Request) {
 		const result = await Promise.all(
 			classRecords.map(async (cls) => {
 				const [activeStudentCount, firstCount, secondCount] = await Promise.all([
-					prisma.classMembership.count({
+					prisma.studentWeekdayGroup.count({
 						where: {
-							classId: cls.id,
 							schoolYearId,
-							student: { groupId: { not: null } }
+							student: {
+								classMemberships: {
+									some: { classId: cls.id, schoolYearId }
+								}
+							}
 						}
 					}),
 					prisma.grade.count({
@@ -112,15 +115,12 @@ export async function GET(request: Request) {
 			})
 		)
 
-		return NextResponse.json({ classes: result })
+		return ok({ classes: result })
 	} catch (error) {
 		captureError(error, {
 			location: 'api/notensammler/teacher-classes',
 			type: 'fetch-teacher-classes'
 		})
-		return NextResponse.json(
-			{ error: 'Failed to fetch teacher classes' },
-			{ status: 500 }
-		)
+		return serverError('Failed to fetch teacher classes')
 	}
 }

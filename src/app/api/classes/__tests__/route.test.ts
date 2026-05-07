@@ -2,59 +2,63 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GET } from '../route';
 import { captureError } from '@/lib/sentry';
 
+const mockFindManyClasses = vi.hoisted(() => vi.fn());
+const mockFindFirstSchoolYear = vi.hoisted(() => vi.fn());
+const mockFindManyClassYearStaff = vi.hoisted(() => vi.fn());
 
-// Create hoisted mock function
-const mockFindMany = vi.hoisted(() => vi.fn());
-
-// Mock PrismaClient
-vi.mock('@prisma/client', () => ({
-  PrismaClient: vi.fn().mockImplementation(() => ({
+vi.mock('@/lib/prisma', () => ({
+  prisma: {
     class: {
-      findMany: mockFindMany,
+      findMany: mockFindManyClasses,
     },
-  })),
+    schoolYear: {
+      findFirst: mockFindFirstSchoolYear,
+    },
+    classYearStaff: {
+      findMany: mockFindManyClassYearStaff,
+    },
+  },
 }));
 
-// Mock sentry
 vi.mock('@/lib/sentry', () => ({
   captureError: vi.fn(),
 }));
 
-
 describe('Classes API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockFindFirstSchoolYear.mockResolvedValue({ id: 1 });
+    mockFindManyClassYearStaff.mockResolvedValue([]);
   });
 
   describe('GET /api/classes', () => {
-    it('should return all classes ordered by name', async () => {
+    it('should return all classes ordered by name with year-scoped staff', async () => {
       const mockClasses = [
-        {
-          id: 1,
-          name: '1AFELC',
-          description: null,
-        },
-        {
-          id: 2,
-          name: '1AHELS',
-          description: null,
-        },
+        { id: 1, name: '1AFELC', description: null },
+        { id: 2, name: '1AHELS', description: null },
       ];
 
-      mockFindMany.mockResolvedValue(mockClasses);
+      mockFindManyClasses.mockResolvedValue(mockClasses);
+      mockFindManyClassYearStaff.mockResolvedValue([
+        { classId: 1, classHeadId: 10, classLeadId: 11 },
+      ]);
 
-      const response = await GET();
+      const response = await GET(new Request('http://localhost/api/classes'));
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(data).toEqual(mockClasses);
-      expect(mockFindMany).toHaveBeenCalledWith({
+      expect(data).toEqual({
+        data: [
+          { id: 1, name: '1AFELC', description: null, classHeadId: 10, classLeadId: 11 },
+          { id: 2, name: '1AHELS', description: null, classHeadId: null, classLeadId: null },
+        ],
+      });
+      expect(mockFindManyClasses).toHaveBeenCalledWith({
+        where: undefined,
         select: {
           id: true,
           name: true,
           description: true,
-          classHeadId: true,
-          classLeadId: true,
         },
         orderBy: { name: 'asc' },
       });
@@ -62,13 +66,18 @@ describe('Classes API', () => {
 
     it('should handle database errors', async () => {
       const error = new Error('Database error');
-      mockFindMany.mockRejectedValue(error);
+      mockFindManyClasses.mockRejectedValue(error);
 
-      const response = await GET();
+      const response = await GET(new Request('http://localhost/api/classes'));
       const data = await response.json();
 
       expect(response.status).toBe(500);
-      expect(data).toEqual({ error: 'Failed to fetch classes' });
+      expect(data).toEqual({
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to fetch classes',
+        },
+      });
       expect(captureError).toHaveBeenCalledWith(error, {
         location: 'api/classes',
         type: 'fetch-classes',

@@ -9,7 +9,7 @@ interface TeacherRotation {
   classId: number
   groupId: number
   teacherId: number
-  turnId: string
+  turnId: number
   period: string
   createdAt: string
   updatedAt: string
@@ -24,7 +24,7 @@ export function TeacherRotationTab() {
     { key: 'classId', label: 'Class ID', type: 'number', required: true },
     { key: 'groupId', label: 'Gruppen-ID', type: 'number', required: true },
     { key: 'teacherId', label: 'Teacher ID', type: 'number', required: true },
-    { key: 'turnId', label: 'Turn ID', type: 'text', required: true },
+    { key: 'turnId', label: 'Turn ID', type: 'number', required: true },
     { key: 'period', label: 'Period', type: 'text', required: true },
     { key: 'createdAt', label: 'Erstellt am', type: 'date', readonly: true },
     { key: 'updatedAt', label: 'Aktualisiert am', type: 'date', readonly: true }

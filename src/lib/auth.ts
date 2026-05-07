@@ -1,4 +1,4 @@
-import { type NextAuthOptions } from 'next-auth'
+import { getServerSession, type NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import AzureADProvider from 'next-auth/providers/azure-ad'
 import { LDAPClient } from '@/lib/ldap'
@@ -520,3 +520,26 @@ export async function requireRole(userId: string, roleName: string): Promise<boo
     throw error
   }
 } 
+
+export async function getServerSessionSafe() {
+  try {
+    return await getServerSession(authOptions)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    // Common during dev or after secret/provider changes; treat as signed-out.
+    const isInvalidJwt =
+      message.includes('Invalid Compact JWE') ||
+      message.includes('JWEInvalid') ||
+      message.includes('JWT_SESSION_ERROR')
+
+    if (isInvalidJwt) {
+      captureError(error, {
+        location: 'auth',
+        type: 'jwt_session_invalid_cookie',
+      })
+      return null
+    }
+
+    throw error
+  }
+}

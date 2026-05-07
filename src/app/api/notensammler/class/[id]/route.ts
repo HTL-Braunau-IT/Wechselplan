@@ -1,10 +1,10 @@
-import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { getSubjectKey } from '@/lib/subject-utils'
+import { badRequest, forbidden, notFound, ok, serverError, unauthorized } from '@/lib/api-response'
 
 /**
  * Handles GET requests to retrieve class data with students and unique teachers.
@@ -22,13 +22,13 @@ export async function GET(
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {
-			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+			return unauthorized('Unauthorized')
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+			return forbidden('Forbidden')
 		}
 		if (!(await isFeatureEnabled('notensammler'))) {
-			return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+			return forbidden('Feature not available')
 		}
 
 		const id = context?.params?.id
@@ -36,12 +36,17 @@ export async function GET(
 		const classId = parseInt(id)
 
 		if (isNaN(classId)) {
-			return NextResponse.json({ error: 'Invalid class ID' }, { status: 400 })
+			return badRequest('Invalid class ID')
 		}
 
 		const { searchParams } = new URL(request.url)
 		const schoolYearIdParam = searchParams.get('schoolYearId')
+		const weekdayParam = searchParams.get('weekday')
 		let schoolYearId: number | undefined = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
+		const weekday = weekdayParam ? parseInt(weekdayParam, 10) : undefined
+		if (weekdayParam && (weekday == null || Number.isNaN(weekday) || weekday < 1 || weekday > 5)) {
+			return badRequest('weekday must be between 1 and 5')
+		}
 		if (schoolYearId == null || Number.isNaN(schoolYearId)) {
 			const now = new Date()
 			const current = await prisma.schoolYear.findFirst({
@@ -51,25 +56,24 @@ export async function GET(
 			schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
 		}
 		if (schoolYearId == null) {
-			return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
+			return badRequest('No school year found.')
 		}
 
-		// Fetch class with class lead (students loaded by year below)
+		// Fetch class plus the per-school-year staff (class lead is shown on the page)
 		const classRecord = await prisma.class.findUnique({
-			where: { id: classId },
-			include: {
-				classLead: {
-					select: {
-						firstName: true,
-						lastName: true
-					}
-				}
-			}
+			where: { id: classId }
 		})
 
 		if (!classRecord) {
-			return NextResponse.json({ error: 'Class not found' }, { status: 404 })
+			return notFound('Class not found')
 		}
+
+		const yearStaff = await prisma.classYearStaff.findUnique({
+			where: { classId_schoolYearId: { classId, schoolYearId } },
+			include: {
+				classLead: { select: { firstName: true, lastName: true } }
+			}
+		})
 
 		// Students for this class and school year via ClassMembership
 		const memberships = await prisma.classMembership.findMany({
@@ -83,13 +87,37 @@ export async function GET(
 				? await prisma.student.findMany({
 						where: { id: { in: studentIds } },
 						orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
-						select: { id: true, firstName: true, lastName: true, groupId: true }
+						select: { id: true, firstName: true, lastName: true }
 					})
 				: []
 
+		const weekdayGroups =
+			weekday != null && studentIds.length > 0
+				? await prisma.studentWeekdayGroup.findMany({
+						where: {
+							studentId: { in: studentIds },
+							schoolYearId,
+							weekday
+						},
+						select: { studentId: true, groupId: true }
+					})
+				: []
+		const weekdayGroupMap = new Map<number, number>()
+		for (const row of weekdayGroups) {
+			weekdayGroupMap.set(row.studentId, row.groupId)
+		}
+		const studentsWithEffectiveGroup = studentsList.map((s) => ({
+			...s,
+			groupId: weekdayGroupMap.get(s.id) ?? null
+		}))
+
 		// Fetch all teacher assignments for this class and year
 		const assignments = await prisma.teacherAssignment.findMany({
-			where: { classId, schoolYearId },
+			where: {
+				classId,
+				schoolYearId,
+				...(weekday != null ? { selectedWeekday: weekday } : {})
+			},
 			include: {
 				teacher: {
 					select: {
@@ -188,17 +216,17 @@ export async function GET(
 		}
 	}
 
-	return NextResponse.json({
+	return ok({
 		id: classRecord.id,
 		name: classRecord.name,
 		description: classRecord.description,
 		subjectName,
 		hasSeparateAmPmSubjects,
 		...(hasSeparateAmPmSubjects && { subjectNameAm, subjectNamePm }),
-		classLead: classRecord.classLead
-			? `${classRecord.classLead.firstName} ${classRecord.classLead.lastName}`
+		classLead: yearStaff?.classLead
+			? `${yearStaff.classLead.firstName} ${yearStaff.classLead.lastName}`
 			: null,
-		students: studentsList,
+		students: studentsWithEffectiveGroup,
 		amTeachers,
 		pmTeachers,
 		transferStatus,
@@ -208,10 +236,7 @@ export async function GET(
 			location: 'api/notensammler/class/[id]',
 			type: 'fetch-class-data'
 		})
-		return NextResponse.json(
-			{ error: 'Failed to fetch class data' },
-			{ status: 500 }
-		)
+		return serverError('Failed to fetch class data')
 	}
 }
 

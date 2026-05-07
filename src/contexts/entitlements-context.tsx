@@ -36,9 +36,11 @@ export function EntitlementsProvider({ children }: { children: ReactNode }) {
     setIsLoading(true)
 
     fetch('/api/entitlements')
-      .then((res) => (res.ok ? res.json() : { features: [] }))
-      .then((data: { features?: string[] }) => {
-        const raw = Array.isArray(data?.features) ? data.features : []
+      .then((res) => (res.ok ? res.json() : { data: { features: [] } }))
+      .then((payload: { data?: { features?: string[] }; features?: string[] }) => {
+        const raw = Array.isArray(payload?.data?.features)
+          ? payload.data.features
+          : (Array.isArray(payload?.features) ? payload.features : [])
         const valid: FeatureKey[] = raw.filter(
           (k): k is FeatureKey => typeof k === 'string' && isKnownFeatureKey(k)
         )

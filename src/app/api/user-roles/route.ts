@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { badRequest, created, forbidden, notFound, ok, serverError } from '@/lib/api-response'
 
 async function requireSuperAdmin() {
   const session = await getServerSession(authOptions)
@@ -27,16 +27,13 @@ export async function GET(request: Request) {
   try {
     const isSuperAdmin = await requireSuperAdmin()
     if (!isSuperAdmin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+      return forbidden('Unauthorized')
     }
 
     const { searchParams } = new URL(request.url)
     const rawUserId = searchParams.get('userId')
     if (!rawUserId) {
-      return NextResponse.json(
-        { error: 'User ID is required' },
-        { status: 400 }
-      )
+      return badRequest('User ID is required')
     }
     const userId = normalizeUsername(rawUserId)
 
@@ -49,7 +46,7 @@ export async function GET(request: Request) {
       }
     })
 
-    return NextResponse.json(userRoles)
+    return ok(userRoles)
   } catch (error) {
    
     captureError(error, {
@@ -59,10 +56,7 @@ export async function GET(request: Request) {
         searchParams: Object.fromEntries(new URL(request.url).searchParams)
       }
     })
-    return NextResponse.json(
-      { error: 'Failed to fetch user roles' },
-      { status: 500 }
-    )
+    return serverError('Failed to fetch user roles')
   }
 }
 
@@ -72,20 +66,19 @@ export async function GET(request: Request) {
  * Parses the request body for `userId` and `roleId`, validates their presence, checks for the existence of the specified role and user (as either a teacher or student), and creates the user-role assignment if all checks pass. Returns the created user-role assignment with role details as JSON. Responds with appropriate error messages and status codes for invalid input, missing entities, or unexpected failures.
  */
 export async function POST(request: Request) {
+  let requestBody: { userId?: string; roleId?: string | number } = {}
   try {
     const isSuperAdmin = await requireSuperAdmin()
     if (!isSuperAdmin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+      return forbidden('Unauthorized')
     }
 
-    const { userId, roleId } = await request.json() as { userId?: string; roleId?: string | number }
+    requestBody = await request.json() as { userId?: string; roleId?: string | number }
+    const { userId, roleId } = requestBody
     const numericRoleId = Number(roleId)
  
     if (!userId || Number.isNaN(numericRoleId)) {
-      return NextResponse.json(
-        { error: 'User ID and Role ID are required' },
-        { status: 400 }
-      )
+      return badRequest('User ID and Role ID are required')
     }
 
     // Check if the role exists
@@ -94,10 +87,7 @@ export async function POST(request: Request) {
     })
 
     if (!role) {
-      return NextResponse.json(
-        { error: 'Role not found' },
-        { status: 404 }
-      )
+      return notFound('Role not found')
     }
 
     // Check if the user exists (either as a teacher or student)
@@ -111,10 +101,7 @@ export async function POST(request: Request) {
     })
 
     if (!teacher && !student) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      )
+      return notFound('User not found')
     }
 
     // Create the user role assignment (store normalized userId)
@@ -128,20 +115,17 @@ export async function POST(request: Request) {
       }
     })
 
-    return NextResponse.json(userRole)
+    return created(userRole)
   } catch (error) {
    
     captureError(error, {
       location: 'api/user-roles',
       type: 'assign-role',
       extra: {
-        requestBody: await request.text()
+        requestBody
       }
     })
-    return NextResponse.json(
-      { error: 'Failed to assign role to user' },
-      { status: 500 }
-    )
+    return serverError('Failed to assign role to user')
   }
 }
 
@@ -154,7 +138,7 @@ export async function DELETE(request: Request) {
   try {
     const isSuperAdmin = await requireSuperAdmin()
     if (!isSuperAdmin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+      return forbidden('Unauthorized')
     }
 
     const { searchParams } = new URL(request.url)
@@ -162,19 +146,13 @@ export async function DELETE(request: Request) {
     const roleId = searchParams.get('roleId')
 
     if (!rawUserId || !roleId) {
-      return NextResponse.json(
-        { error: 'User ID and Role ID are required' },
-        { status: 400 }
-      )
+      return badRequest('User ID and Role ID are required')
     }
     const userId = normalizeUsername(rawUserId)
 
     const numericRoleId = Number(roleId)
     if (Number.isNaN(numericRoleId)) {
-      return NextResponse.json(
-        { error: 'Invalid Role ID format' },
-        { status: 400 }
-      )
+      return badRequest('Invalid Role ID format')
     }
 
     await prisma.userRole.delete({
@@ -186,19 +164,14 @@ export async function DELETE(request: Request) {
       }
     })
 
-    return NextResponse.json({ message: 'Role assignment removed successfully' })
+    return ok(null, 'Role assignment removed successfully')
   } catch (error) {
     
     captureError(error, {
       location: 'api/user-roles',
       type: 'remove-role',
-      extra: {
-        requestBody: await request.text()
-      }
+      extra: { url: request.url }
     })
-    return NextResponse.json(
-      { error: 'Failed to remove role assignment' },
-      { status: 500 }
-    )
+    return serverError('Failed to remove role assignment')
   }
 } 

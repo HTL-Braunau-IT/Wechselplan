@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
+import { badRequest, conflict, notFound, ok, serverError } from '@/lib/api-response'
 
 
 /**
@@ -18,18 +18,12 @@ export async function GET(request: Request) {
 		const schoolYearIdParam = searchParams.get('schoolYearId')
 
 		if (!classIdParam) {
-			return NextResponse.json(
-				{ error: 'Class ID parameter is required' },
-				{ status: 400 }
-			)
+			return badRequest('Class ID parameter is required')
 		}
 
 		const classId = parseInt(classIdParam, 10)
 		if (isNaN(classId)) {
-			return NextResponse.json(
-				{ error: 'Class ID must be a number' },
-				{ status: 400 }
-			)
+			return badRequest('Class ID must be a number')
 		}
 
 		// Find the class by ID
@@ -45,10 +39,7 @@ export async function GET(request: Request) {
 					searchParams: Object.fromEntries(new URL(request.url).searchParams)
 				}
 			})
-			return NextResponse.json(
-				{ error: 'Class not found' },
-				{ status: 404 }
-			)
+			return notFound('Class not found')
 		}
 
 		// Resolve school year: from query or current
@@ -62,10 +53,7 @@ export async function GET(request: Request) {
 			schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
 		}
 		if (schoolYearId == null) {
-			return NextResponse.json(
-				{ error: 'No school year found.' },
-				{ status: 400 }
-			)
+			return badRequest('No school year found.')
 		}
 
 		// Build where clause with optional weekday filter
@@ -123,7 +111,7 @@ export async function GET(request: Request) {
 				room: a.room.name
 			}))
 
-		return NextResponse.json({
+		return ok({
 			amAssignments,
 			pmAssignments,
 			selectedWeekday
@@ -136,10 +124,7 @@ export async function GET(request: Request) {
 				searchParams: Object.fromEntries(new URL(request.url).searchParams)
 			}
 		})
-		return NextResponse.json(
-			{ error: 'Failed to fetch teacher assignments' },
-			{ status: 500 }
-		)
+		return serverError('Failed to fetch teacher assignments')
 	}
 }
 
@@ -151,10 +136,36 @@ export async function GET(request: Request) {
  * @returns A JSON response with `{ success: true }` on success, or an error message with the appropriate HTTP status code if validation fails or an error occurs.
  */
 export async function POST(request: Request) {
-	let requestData;
+	let requestData: Record<string, unknown> = {};
 	try {
 		requestData = await request.json()
-		const { classId, amAssignments, pmAssignments, updateExisting, selectedWeekday, schoolYearId: bodySchoolYearId } = requestData
+		const {
+			classId,
+			amAssignments,
+			pmAssignments,
+			updateExisting,
+			selectedWeekday,
+			schoolYearId: bodySchoolYearId
+		} = requestData as {
+			classId?: unknown
+			amAssignments: Array<{
+				groupId: number
+				teacherId: number
+				subject: string
+				learningContent: string
+				room: string
+			}>
+			pmAssignments: Array<{
+				groupId: number
+				teacherId: number
+				subject: string
+				learningContent: string
+				room: string
+			}>
+			updateExisting?: boolean
+			selectedWeekday?: unknown
+			schoolYearId?: unknown
+		}
 
 		if (!classId || typeof classId !== 'number') {
 			captureError(new Error('Class ID parameter is required'), {
@@ -164,10 +175,7 @@ export async function POST(request: Request) {
 					searchParams: Object.fromEntries(new URL(request.url).searchParams)
 				}
 			})
-			return NextResponse.json(
-				{ error: 'Class ID parameter is required' },
-				{ status: 400 }
-			)
+			return badRequest('Class ID parameter is required')
 		}
 
 		// Find the class by ID
@@ -183,10 +191,7 @@ export async function POST(request: Request) {
 					searchParams: Object.fromEntries(new URL(request.url).searchParams)
 				}
 			})
-			return NextResponse.json(
-				{ error: 'Class not found' },
-				{ status: 404 }
-			)
+			return notFound('Class not found')
 		}
 
 		// Resolve school year: from body or current
@@ -200,132 +205,68 @@ export async function POST(request: Request) {
 			schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
 		}
 		if (schoolYearId == null) {
-			return NextResponse.json(
-				{ error: 'No school year found. Create a school year in Admin / Data / School Years first.' },
-				{ status: 400 }
-			)
+			return badRequest('No school year found. Create a school year in Admin / Data / School Years first.')
 		}
 
-		// Check for existing assignments for this class and year
-		const existingAssignments = await prisma.teacherAssignment.findMany({
-			where: { classId: classRecord.id, schoolYearId }
+		const weekdayForStore = (typeof selectedWeekday === 'number' && selectedWeekday >= 1 && selectedWeekday <= 5
+			? selectedWeekday
+			: 1) as number
+
+		const existingForWeekday = await prisma.teacherAssignment.findMany({
+			where: { classId: classRecord.id, schoolYearId, selectedWeekday: weekdayForStore }
 		})
 
-		if (existingAssignments.length > 0 && !updateExisting) {
-			return NextResponse.json(
-				{ error: 'EXISTING_ASSIGNMENTS' },
-				{ status: 409 }
-			)
+		if (existingForWeekday.length > 0 && !updateExisting) {
+			return conflict('EXISTING_ASSIGNMENTS')
 		}
 
-		// Delete existing assignments for this class and year if updating
 		if (updateExisting) {
 			await prisma.teacherAssignment.deleteMany({
-				where: { classId: classRecord.id, schoolYearId }
+				where: { classId: classRecord.id, schoolYearId, selectedWeekday: weekdayForStore }
 			})
 		}
 
-		// Process AM assignments
+		const upsertLookup = (kind: 'SUBJECT' | 'LEARNING_CONTENT' | 'ROOM', name: string) =>
+			prisma.lookupValue.upsert({
+				where: { kind_name: { kind, name } },
+				update: {},
+				create: { kind, name, isCustom: true }
+			})
+
+		const writeAssignment = async (
+			assignment: { groupId: number; teacherId: number; subject: string; learningContent: string; room: string },
+			period: 'AM' | 'PM'
+		) => {
+			const [subject, learningContent, room] = await Promise.all([
+				upsertLookup('SUBJECT', assignment.subject),
+				upsertLookup('LEARNING_CONTENT', assignment.learningContent),
+				upsertLookup('ROOM', assignment.room)
+			])
+
+			await prisma.teacherAssignment.create({
+				data: {
+					classId: classRecord.id,
+					schoolYearId,
+					period,
+					groupId: assignment.groupId,
+					teacherId: assignment.teacherId,
+					subjectId: subject.id,
+					learningContentId: learningContent.id,
+					roomId: room.id,
+					selectedWeekday: weekdayForStore
+				}
+			})
+		}
+
 		for (const assignment of amAssignments) {
-			// Use upsert to create subject if it doesn't exist
-			// If creating new, mark as custom (user-created)
-			const subject = await prisma.subject.upsert({
-				where: { name: assignment.subject },
-				update: {},
-				create: { 
-					name: assignment.subject,
-					isCustom: true // User-created values are custom
-				}
-			})
-			
-			// Use upsert to create learning content if it doesn't exist
-			// If creating new, mark as custom (user-created)
-			const learningContent = await prisma.learningContent.upsert({
-				where: { name: assignment.learningContent },
-				update: {},
-				create: { 
-					name: assignment.learningContent,
-					isCustom: true // User-created values are custom
-				}
-			})
-			
-			// Use upsert to create room if it doesn't exist
-			// If creating new, mark as custom (user-created)
-			const room = await prisma.room.upsert({
-				where: { name: assignment.room },
-				update: {},
-				create: { 
-					name: assignment.room,
-					isCustom: true // User-created values are custom
-				}
-			})
-
-			await prisma.teacherAssignment.create({
-				data: {
-					classId: classRecord.id,
-					schoolYearId,
-					period: 'AM',
-					groupId: assignment.groupId === 0 ? null : assignment.groupId,
-					teacherId: assignment.teacherId,
-					subjectId: subject.id,
-					learningContentId: learningContent.id,
-					roomId: room.id,
-					selectedWeekday: selectedWeekday ?? 1
-				}
-			})
+			await writeAssignment(assignment, 'AM')
 		}
 
-		// Process PM assignments
 		for (const assignment of pmAssignments) {
-			// Use upsert to create subject if it doesn't exist
-			// If creating new, mark as custom (user-created)
-			const subject = await prisma.subject.upsert({
-				where: { name: assignment.subject },
-				update: {},
-				create: { 
-					name: assignment.subject,
-					isCustom: true // User-created values are custom
-				}
-			})
-			
-			// Use upsert to create learning content if it doesn't exist
-			// If creating new, mark as custom (user-created)
-			const learningContent = await prisma.learningContent.upsert({
-				where: { name: assignment.learningContent },
-				update: {},
-				create: { 
-					name: assignment.learningContent,
-					isCustom: true // User-created values are custom
-				}
-			})
-			
-			// Use upsert to create room if it doesn't exist
-			// If creating new, mark as custom (user-created)
-			const room = await prisma.room.upsert({
-				where: { name: assignment.room },
-				update: {},
-				create: { 
-					name: assignment.room,
-					isCustom: true // User-created values are custom
-				}
-			})
-
-			await prisma.teacherAssignment.create({
-				data: {
-					classId: classRecord.id,
-					schoolYearId,
-					period: 'PM',
-					groupId: assignment.groupId === 0 ? null : assignment.groupId,
-					teacherId: assignment.teacherId,
-					subjectId: subject.id,
-					learningContentId: learningContent.id,
-					roomId: room.id,
-					selectedWeekday: selectedWeekday ?? 1
-				}
-			})
+			await writeAssignment(assignment, 'PM')
 		}
 
-		return NextResponse.json({ success: true })
+		return ok(null, 'Teacher assignments saved successfully')
 	} catch (error) {
 		captureError(error, {
 			location: 'api/schedules/teacher-assignments',
@@ -334,10 +275,7 @@ export async function POST(request: Request) {
 				requestData
 			}
 		})
-		return NextResponse.json(
-			{ error: 'Failed to save teacher assignments' },
-			{ status: 500 }
-		)
+		return serverError('Failed to save teacher assignments')
 	}
 }
 

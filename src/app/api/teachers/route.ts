@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
 import { z } from 'zod'
+import { badRequest, conflict, created, ok, serverError, unprocessable } from '@/lib/api-response'
 
 const teacherSchema = z.object({
 	firstName: z.string().min(1, 'First name is required').trim(),
@@ -34,17 +34,14 @@ export async function GET() {
 			}
 		})
 
-		return NextResponse.json(teachers)
+		return ok(teachers)
 	} catch (error) {
 
 		captureError(error, {
 			location: 'api/teachers',
 			type: 'fetch-teachers'
 		})
-		return NextResponse.json(
-			{ error: 'Failed to fetch teachers' },
-			{ status: 500 }
-		)
+		return serverError('Failed to fetch teachers')
 	}
 }
 
@@ -57,7 +54,7 @@ export async function GET() {
  */
 export async function POST(request: Request) {
 	if (!prisma) {
-		return NextResponse.json({ error: 'Database not initialized' }, { status: 500 })
+		return serverError('Database not initialized')
 	}
 
 	let requestBody: z.infer<typeof teacherSchema> = {
@@ -71,19 +68,13 @@ export async function POST(request: Request) {
 		const validationResult = teacherSchema.safeParse(rawBody)
 		
 		if (!validationResult.success) {
-			return NextResponse.json(
-				{ error: 'Validation failed', details: validationResult.error.format() },
-				{ status: 400 }
-			)
+			return unprocessable('Validation failed', validationResult.error.format())
 		}
 
 		requestBody = validationResult.data
 		const username = normalizeUsername(requestBody.username)
 		if (!username) {
-			return NextResponse.json(
-				{ error: 'Username is required' },
-				{ status: 400 }
-			)
+			return badRequest('Username is required')
 		}
 
 		// Check for username uniqueness
@@ -92,10 +83,7 @@ export async function POST(request: Request) {
 		})
 
 		if (existingTeacher) {
-			return NextResponse.json(
-				{ error: 'Username already exists' },
-				{ status: 400 }
-			)
+			return conflict('Username already exists')
 		}
 
 		const teacher = await prisma.teacher.create({
@@ -106,7 +94,7 @@ export async function POST(request: Request) {
 				email: requestBody.email
 			}
 		})
-		return NextResponse.json(teacher)
+		return created(teacher)
 	} catch (error) {
 
 		captureError(error, {
@@ -116,6 +104,6 @@ export async function POST(request: Request) {
 				requestBody
 			}
 		})
-		return NextResponse.json({ error: 'Failed to create teacher' }, { status: 500 })
+		return serverError('Failed to create teacher')
 	}
 } 

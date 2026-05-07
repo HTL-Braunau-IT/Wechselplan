@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
+import { badRequest, forbidden, notFound, ok, serverError, unauthorized } from '@/lib/api-response'
 
 // Force dynamic rendering - no caching
 export const dynamic = 'force-dynamic'
@@ -33,13 +33,13 @@ export async function POST(request: Request) {
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {
-			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+			return unauthorized('Unauthorized')
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+			return forbidden('Forbidden')
 		}
 		if (!(await isFeatureEnabled('notensammler'))) {
-			return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+			return forbidden('Feature not available')
 		}
 
 		const body = (await request.json()) as {
@@ -64,10 +64,7 @@ export async function POST(request: Request) {
 			schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
 		}
 		if (schoolYearId == null) {
-			return NextResponse.json(
-				{ error: 'No school year found. Create a school year in Admin / Data / School Years first.' },
-				{ status: 400 }
-			)
+			return badRequest('No school year found. Create a school year in Admin / Data / School Years first.')
 		}
 
 		// Validate required fields
@@ -76,18 +73,12 @@ export async function POST(request: Request) {
 			classId === undefined ||
 			semester === undefined
 		) {
-			return NextResponse.json(
-				{ error: 'Missing required fields: studentId, classId, semester' },
-				{ status: 400 }
-			)
+			return badRequest('Missing required fields: studentId, classId, semester')
 		}
 
 		// Validate semester
 		if (semester !== 'first' && semester !== 'second') {
-			return NextResponse.json(
-				{ error: 'Semester must be "first" or "second"' },
-				{ status: 400 }
-			)
+			return badRequest('Semester must be "first" or "second"')
 		}
 
 		// Validate grade value (can be null or one of the allowed integer values)
@@ -103,12 +94,7 @@ export async function POST(request: Request) {
 				!ALLOWED_FINAL_GRADES.includes(gradeNum) ||
 				(typeof grade === 'number' && grade !== gradeNum)
 			) {
-				return NextResponse.json(
-					{
-						error: `Final grade must be one of: ${ALLOWED_FINAL_GRADES.join(', ')} (integer only) or null`
-					},
-					{ status: 400 }
-				)
+				return badRequest(`Final grade must be one of: ${ALLOWED_FINAL_GRADES.join(', ')} (integer only) or null`)
 			}
 		}
 
@@ -119,10 +105,7 @@ export async function POST(request: Request) {
 			typeof classId === 'string' ? parseInt(classId, 10) : typeof classId === 'number' ? classId : NaN
 
 		if (isNaN(studentIdNum) || isNaN(classIdNum)) {
-			return NextResponse.json(
-				{ error: 'Invalid ID format' },
-				{ status: 400 }
-			)
+			return badRequest('Invalid ID format')
 		}
 
 		// Verify student exists
@@ -130,10 +113,7 @@ export async function POST(request: Request) {
 			where: { id: studentIdNum }
 		})
 		if (!student) {
-			return NextResponse.json(
-				{ error: 'Student not found' },
-				{ status: 404 }
-			)
+			return notFound('Student not found')
 		}
 
 		// Verify class exists
@@ -141,10 +121,7 @@ export async function POST(request: Request) {
 			where: { id: classIdNum }
 		})
 		if (!classRecord) {
-			return NextResponse.json(
-				{ error: 'Class not found' },
-				{ status: 404 }
-			)
+			return notFound('Class not found')
 		}
 
 		// Parse grade value
@@ -165,12 +142,7 @@ export async function POST(request: Request) {
 			} else if (typeof conductNoteWish === 'string' && ALLOWED_CONDUCT_NOTE_WISH.includes(conductNoteWish as typeof ALLOWED_CONDUCT_NOTE_WISH[number])) {
 				conductNoteWishValue = conductNoteWish
 			} else {
-				return NextResponse.json(
-					{
-						error: `conductNoteWish must be one of: ${ALLOWED_CONDUCT_NOTE_WISH.join(', ')} or null`
-					},
-					{ status: 400 }
-				)
+				return badRequest(`conductNoteWish must be one of: ${ALLOWED_CONDUCT_NOTE_WISH.join(', ')} or null`)
 			}
 		}
 
@@ -197,7 +169,7 @@ export async function POST(request: Request) {
 			}
 		})
 
-		return NextResponse.json({ success: true, finalGrade: result })
+		return ok({ success: true, finalGrade: result })
 	} catch (error) {
 		captureError(error, {
 			location: 'api/notensammler/final-grades',
@@ -207,12 +179,6 @@ export async function POST(request: Request) {
 				errorMessage: error instanceof Error ? error.message : String(error)
 			}
 		})
-		return NextResponse.json(
-			{
-				error: 'Failed to save final grade',
-				details: error instanceof Error ? error.message : String(error)
-			},
-			{ status: 500 }
-		)
+		return serverError('Failed to save final grade', { details: error instanceof Error ? error.message : String(error) })
 	}
 }

@@ -49,10 +49,10 @@ describe('Holidays API', () => {
           vi.mocked(prisma.schoolHoliday.findMany).mockResolvedValue(mockHolidays);
         },
         expectedStatus: 200,
-        expectedData: (data: SchoolHoliday[]) => {
-          expect(Array.isArray(data)).toBe(true);
-          expect(data.length).toBe(1);
-          const first = data[0]!;
+        expectedData: (payload: { data: SchoolHoliday[] }) => {
+          expect(Array.isArray(payload.data)).toBe(true);
+          expect(payload.data.length).toBe(1);
+          const first = payload.data[0]!;
           expect(first).toHaveProperty('name', 'Summer Break');
           expect(new Date(first.startDate)).toEqual(new Date('2024-07-01'));
           expect(new Date(first.endDate)).toEqual(new Date('2024-09-01'));
@@ -64,7 +64,7 @@ describe('Holidays API', () => {
           vi.mocked(prisma.schoolHoliday.findMany).mockRejectedValue(new Error('DB error'));
         },
         expectedStatus: 500,
-        expectedData: { error: 'Failed to fetch holidays' },
+        expectedData: { error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch holidays' } },
       },
     ];
 
@@ -97,7 +97,7 @@ describe('Holidays API', () => {
           }),
         }),
         expectedStatus: 400,
-        expectedData: { error: 'Missing required fields' },
+        expectedData: { error: { code: 'BAD_REQUEST', message: 'Missing required fields' } },
       },
       {
         name: 'should return 400 if date format is invalid',
@@ -111,7 +111,7 @@ describe('Holidays API', () => {
           }),
         }),
         expectedStatus: 400,
-        expectedData: { error: 'Invalid date format' },
+        expectedData: { error: { code: 'BAD_REQUEST', message: 'Invalid date format' } },
       },
       {
         name: 'should return 400 if end date is before start date',
@@ -125,10 +125,10 @@ describe('Holidays API', () => {
           }),
         }),
         expectedStatus: 400,
-        expectedData: { error: 'End date must be after start date' },
+        expectedData: { error: { code: 'BAD_REQUEST', message: 'End date must be after start date' } },
       },
       {
-        name: 'should return 200 with created holiday if successful',
+        name: 'should return 201 with created holiday if successful',
         setup: () => {
           const mockHoliday: SchoolHoliday = {
             id: 1,
@@ -148,11 +148,11 @@ describe('Holidays API', () => {
             endDate: '2024-09-01',
           }),
         }),
-        expectedStatus: 200,
-        expectedData: (data: SchoolHoliday) => {
-          expect(data).toHaveProperty('name', 'Summer Break');
-          expect(new Date(data.startDate)).toEqual(new Date('2024-07-01'));
-          expect(new Date(data.endDate)).toEqual(new Date('2024-09-01'));
+        expectedStatus: 201,
+        expectedData: (payload: { data: SchoolHoliday }) => {
+          expect(payload.data).toHaveProperty('name', 'Summer Break');
+          expect(new Date(payload.data.startDate)).toEqual(new Date('2024-07-01'));
+          expect(new Date(payload.data.endDate)).toEqual(new Date('2024-09-01'));
         },
       },
       {
@@ -169,7 +169,7 @@ describe('Holidays API', () => {
           }),
         }),
         expectedStatus: 500,
-        expectedData: { error: 'Failed to create holiday' },
+        expectedData: { error: { code: 'INTERNAL_ERROR', message: 'Failed to create holiday' } },
       },
     ];
 

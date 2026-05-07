@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions, hasRole } from '@/lib/auth'
 import { captureError } from '@/lib/sentry'
+import { forbidden, serverError, unauthorized } from '@/lib/api-response'
 
 /**
  * Handles GET requests to export all grades from all classes as a CSV file.
@@ -15,14 +16,14 @@ export async function GET() {
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {
-			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+			return unauthorized('Unauthorized')
 		}
 		
 		// Check if user has admin or teacher role (either from session or database)
 		const isAdmin = session.user?.role === 'admin' || await hasRole(session.user.name, 'admin')
 		const isTeacher = session.user?.role === 'teacher' || await hasRole(session.user.name, 'teacher')
 		if (!isAdmin && !isTeacher) {
-			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+			return forbidden('Forbidden')
 		}
 
 		// Fetch all grades with related data
@@ -109,10 +110,7 @@ export async function GET() {
 			location: 'api/admin/grades/export',
 			type: 'export-grades'
 		})
-		return NextResponse.json(
-			{ error: 'Failed to export grades' },
-			{ status: 500 }
-		)
+		return serverError('Failed to export grades')
 	}
 }
 

@@ -1,24 +1,20 @@
-import { describe, test, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
+import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { GET } from '../route';
 import { captureError } from '@/lib/sentry';
-import { NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 
-// Mock prisma
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    learningContent: {
+    lookupValue: {
       findMany: vi.fn(),
     },
   },
 }));
 
-// Mock sentry
 vi.mock('@/lib/sentry', () => ({
   captureError: vi.fn(),
 }));
 
-// Mock NextResponse
 vi.mock('next/server', () => ({
   NextResponse: {
     json: vi.fn().mockImplementation((data: unknown, init?: ResponseInit) => {
@@ -26,8 +22,6 @@ vi.mock('next/server', () => ({
     }),
   },
 }));
-
-
 
 describe('Learning Contents API', () => {
   beforeEach(() => {
@@ -37,25 +31,26 @@ describe('Learning Contents API', () => {
   describe('GET /api/learning-contents', () => {
     test('should return learning contents sorted by name', async () => {
       const mockContents = [
-        { id: 1, name: 'Algebra', description: null, isCustom: false, createdAt: new Date(), updatedAt: new Date() },
-        { id: 2, name: 'Biology', description: null, isCustom: false, createdAt: new Date(), updatedAt: new Date() },
-        { id: 3, name: 'Chemistry', description: null, isCustom: false, createdAt: new Date(), updatedAt: new Date() },
+        { id: 1, name: 'Algebra' },
+        { id: 2, name: 'Biology' },
+        { id: 3, name: 'Chemistry' },
       ];
 
       const prisma = (await import('@/lib/prisma')).prisma;
-      vi.mocked(prisma.learningContent.findMany).mockResolvedValue(mockContents);
+      vi.mocked(prisma.lookupValue.findMany).mockResolvedValue(mockContents as never);
 
       const response = await GET();
       const data = await response.json();
 
       expect(response.status).toBe(200);
-      expect(data.learningContents).toHaveLength(3);
-      expect(data.learningContents.map((c: { id: number; name: string }) => ({ id: c.id, name: c.name }))).toEqual([
+      expect(data.data).toHaveLength(3);
+      expect(data.data.map((c: { id: number; name: string }) => ({ id: c.id, name: c.name }))).toEqual([
         { id: 1, name: 'Algebra' },
         { id: 2, name: 'Biology' },
         { id: 3, name: 'Chemistry' },
       ]);
-      expect(prisma.learningContent.findMany).toHaveBeenCalledWith({
+      expect(prisma.lookupValue.findMany).toHaveBeenCalledWith({
+        where: { kind: 'LEARNING_CONTENT' },
         select: {
           id: true,
           name: true,
@@ -73,14 +68,14 @@ describe('Learning Contents API', () => {
       });
 
       const prisma = (await import('@/lib/prisma')).prisma;
-      vi.mocked(prisma.learningContent.findMany).mockRejectedValue(prismaError);
+      vi.mocked(prisma.lookupValue.findMany).mockRejectedValue(prismaError);
 
       const response = await GET();
       const data = await response.json();
 
       expect(response.status).toBe(500);
-      expect(data).toEqual({ error: 'Failed to fetch learning contents' });
-      
+      expect(data).toEqual({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch learning contents' } });
+
       expect(captureError).toHaveBeenCalledWith(
         prismaError,
         expect.objectContaining({
@@ -93,14 +88,14 @@ describe('Learning Contents API', () => {
     test('should handle general errors', async () => {
       const error = new Error('Test error');
       const prisma = (await import('@/lib/prisma')).prisma;
-      vi.mocked(prisma.learningContent.findMany).mockRejectedValue(error);
+      vi.mocked(prisma.lookupValue.findMany).mockRejectedValue(error);
 
       const response = await GET();
       const data = await response.json();
 
       expect(response.status).toBe(500);
-      expect(data).toEqual({ error: 'Failed to fetch learning contents' });
-      
+      expect(data).toEqual({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch learning contents' } });
+
       expect(captureError).toHaveBeenCalledWith(
         error,
         expect.objectContaining({
@@ -113,13 +108,13 @@ describe('Learning Contents API', () => {
     test('should handle unknown errors', async () => {
       const unknownError = 'Unknown error';
       const prisma = (await import('@/lib/prisma')).prisma;
-      vi.mocked(prisma.learningContent.findMany).mockRejectedValue(unknownError);
+      vi.mocked(prisma.lookupValue.findMany).mockRejectedValue(unknownError);
 
       const response = await GET();
       const data = await response.json();
 
       expect(response.status).toBe(500);
-      expect(data).toEqual({ error: 'Failed to fetch learning contents' });
+      expect(data).toEqual({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch learning contents' } });
 
       expect(captureError).toHaveBeenCalledWith(
         unknownError,
@@ -130,4 +125,4 @@ describe('Learning Contents API', () => {
       );
     });
   });
-}); 
+});

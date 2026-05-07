@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { badRequest, created, ok, serverError } from '@/lib/api-response'
 
 /**
  * Retrieves all break time records from the database, ordered by start time.
@@ -14,17 +14,14 @@ export async function GET() {
         startTime: 'asc'
       }
     })
-    return NextResponse.json(breakTimes)
+    return ok(breakTimes)
   } catch (error) {
 
     captureError(error, {
       type: 'fetch-break-times',
       location: 'api/settings/break-times'
     })
-    return NextResponse.json(
-      { error: 'Failed to fetch break times' },
-      { status: 500 }
-    )
+    return serverError('Failed to fetch break times')
   }
 }
 
@@ -45,35 +42,24 @@ interface BreakTimeRequest {
 export async function POST(request: Request) {
 
   try {
-    // Clone the request before reading its body
-    
     const body = await request.json() as BreakTimeRequest
 
     const { name, startTime, endTime, period } = body
 
     // Validate required fields
     if (!name || !startTime || !endTime || !period) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      )
+      return badRequest('Missing required fields')
     }
 
     // Validate period
     if (period !== 'AM' && period !== 'PM') {
-      return NextResponse.json(
-        { error: 'Invalid period. Must be AM or PM' },
-        { status: 400 }
-      )
+      return badRequest('Invalid period. Must be AM or PM')
     }
 
     // Validate time format
     const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
     if (!timeRegex.test(startTime) || !timeRegex.test(endTime)) {
-      return NextResponse.json(
-        { error: 'Invalid time format. Use HH:mm' },
-        { status: 400 }
-      )
+      return badRequest('Invalid time format. Use HH:mm')
     }
 
     const breakTime = await prisma.breakTime.create({
@@ -85,16 +71,13 @@ export async function POST(request: Request) {
       }
     })
 
-    return NextResponse.json(breakTime)
+    return created(breakTime)
   } catch (error) {
 
     captureError(error, {
       type: 'create-break-time',
       location: 'api/settings/break-times',
     })
-    return NextResponse.json(
-      { error: 'Failed to create break time' },
-      { status: 500 }
-    )
+    return serverError('Failed to create break time')
   }
 } 

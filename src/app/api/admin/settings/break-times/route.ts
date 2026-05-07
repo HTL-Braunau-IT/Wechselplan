@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { captureError } from '~/lib/sentry'
+import { created, ok, serverError, unprocessable } from '@/lib/api-response'
 
 const breakTimeSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -42,16 +42,13 @@ export async function GET() {
         startTime: 'asc'
       }
     })
-    return NextResponse.json(breakTimes)
+    return ok(breakTimes)
   } catch (error) {
     captureError(error, {
       location: 'api/settings/break-times',
       type: 'fetch-break-times'
     })
-    return NextResponse.json(
-      { error: 'Failed to fetch break times' },
-      { status: 500 }
-    )
+    return serverError('Failed to fetch break times')
   }
 }
 
@@ -67,13 +64,7 @@ export async function POST(request: Request) {
     // Validate data against schema
     const validationResult = breakTimeSchema.safeParse(data)
     if (!validationResult.success) {
-      return NextResponse.json(
-        { 
-          error: 'Validation failed',
-          details: validationResult.error.format()
-        },
-        { status: 400 }
-      )
+      return unprocessable('Validation failed', validationResult.error.format())
     }
 
     // Create new break time
@@ -81,15 +72,12 @@ export async function POST(request: Request) {
       data: validationResult.data
     })
 
-    return NextResponse.json(breakTime)
+    return created(breakTime)
   } catch (error) {
     captureError(error, {
       location: 'api/settings/break-times',
       type: 'create-break-time'
     })
-    return NextResponse.json(
-      { error: 'Failed to create break time' },
-      { status: 500 }
-    )
+    return serverError('Failed to create break time')
   }
 } 

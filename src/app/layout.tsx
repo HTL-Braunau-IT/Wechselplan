@@ -1,11 +1,10 @@
 import type { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
 import './globals.css'
 import { Providers } from './providers'
 import QueryProvider from '@/providers/query-provider'
 import { Toaster } from 'sonner'
 import { ThemeProvider } from "~/components/providers/theme-provider"
-import { authOptions } from '@/lib/auth'
+import { getServerSessionSafe } from '@/lib/auth'
 import { getEnabledFeatures } from '@/lib/entitlements'
 
 export const metadata: Metadata = {
@@ -25,7 +24,7 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  const session = await getServerSession(authOptions)
+  const session = await getServerSessionSafe()
   const features = await getEnabledFeatures()
   const hasBase = features.includes('base')
 

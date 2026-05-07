@@ -1,7 +1,7 @@
 'use client'
 
 import { useTranslation } from 'next-i18next'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
 interface Step {
@@ -25,8 +25,14 @@ const steps: Step[] = [
 export function CreationProgress() {
 	const { t } = useTranslation('schedule')
 	const pathname = usePathname()
-	const searchParams = new URLSearchParams(window.location.search)
+	const searchParams = useSearchParams()
 	const selectedClass = searchParams.get('class')
+	const weekday = searchParams.get('weekday')
+	const classAndWeekdayQuery = (() => {
+		if (!selectedClass) return ''
+		const wq = weekday != null && weekday !== '' ? `&weekday=${encodeURIComponent(weekday)}` : ''
+		return `?class=${encodeURIComponent(selectedClass)}${wq}`
+	})()
 
 	const currentStepIndex = steps.findIndex(step => pathname === step.path)
 
@@ -37,8 +43,8 @@ export function CreationProgress() {
 				const isCurrent = index === currentStepIndex
 				const isClickable = isCompleted || isCurrent
 				const href = isClickable 
-					? selectedClass 
-						? `${step.path}?class=${selectedClass}`
+					? classAndWeekdayQuery
+						? `${step.path}${classAndWeekdayQuery}`
 						: step.path
 					: '#'
 

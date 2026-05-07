@@ -21,28 +21,32 @@ interface Teacher {
 	lastName: string
 }
 
-async function fetchRooms(): Promise<{ rooms: Room[] }> {
+async function fetchRooms(): Promise<Room[]> {
 	const response = await fetch('/api/rooms')
 	if (!response.ok) throw new Error('Failed to fetch rooms')
-	return response.json() as Promise<{ rooms: Room[] }>
+	const payload = await response.json() as { data?: Room[] } | Room[]
+	return Array.isArray(payload) ? payload : (payload.data ?? [])
 }
 
-async function fetchSubjects(): Promise<{ subjects: Subject[] }> {
+async function fetchSubjects(): Promise<Subject[]> {
 	const response = await fetch('/api/subjects')
 	if (!response.ok) throw new Error('Failed to fetch subjects')
-	return response.json() as Promise<{ subjects: Subject[] }>
+	const payload = await response.json() as { data?: Subject[] } | Subject[]
+	return Array.isArray(payload) ? payload : (payload.data ?? [])
 }
 
-async function fetchLearningContents(): Promise<{ learningContents: LearningContent[] }> {
+async function fetchLearningContents(): Promise<LearningContent[]> {
 	const response = await fetch('/api/learning-contents')
 	if (!response.ok) throw new Error('Failed to fetch learning contents')
-	return response.json() as Promise<{ learningContents: LearningContent[] }>
+	const payload = await response.json() as { data?: LearningContent[] } | LearningContent[]
+	return Array.isArray(payload) ? payload : (payload.data ?? [])
 }
 
 async function fetchTeachers(): Promise<Teacher[]> {
 	const response = await fetch('/api/teachers')
 	if (!response.ok) throw new Error('Failed to fetch teachers')
-	return response.json() as Promise<Teacher[]>
+	const payload = await response.json() as { data?: Teacher[] } | Teacher[]
+	return Array.isArray(payload) ? payload : (payload.data ?? [])
 }
 
 export function useCachedData() {
@@ -75,9 +79,9 @@ export function useCachedData() {
 	})
 
 	return {
-		rooms: roomsData?.rooms ?? [],
-		subjects: subjectsData?.subjects ?? [],
-		learningContents: learningContentsData?.learningContents ?? [],
+		rooms: roomsData ?? [],
+		subjects: subjectsData ?? [],
+		learningContents: learningContentsData ?? [],
 		teachers: teachers ?? [],
 		isLoading: isLoadingRooms || isLoadingSubjects || isLoadingLearningContents || isLoadingTeachers
 	}

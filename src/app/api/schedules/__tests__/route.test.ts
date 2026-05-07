@@ -1,6 +1,5 @@
 import { describe, expect, it, beforeEach, afterAll, vi } from 'vitest'
 import { GET, POST } from '../route'
-import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -17,7 +16,14 @@ vi.mock('@/lib/prisma', () => ({
       findFirst: vi.fn(),
       findMany: vi.fn(),
       deleteMany: vi.fn(),
-      create: vi.fn()
+      create: vi.fn(),
+      update: vi.fn()
+    },
+    schoolYear: {
+      findFirst: vi.fn()
+    },
+    scheduleTurn: {
+      deleteMany: vi.fn()
     }
   }
 }))
@@ -25,6 +31,7 @@ vi.mock('@/lib/prisma', () => ({
 describe('Schedules API', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(prisma.schoolYear.findFirst).mockResolvedValue({ id: 1 } as never)
   })
 
 
@@ -50,17 +57,17 @@ describe('Schedules API', () => {
           endDate: new Date('2024-01-31T00:00:00.000Z'),
           selectedWeekday: 1,
           classId: 1,
-          scheduleData: null,
+          schoolYearId: 1,
           additionalInfo: null,
           semesterPlanning: null,
           createdAt: new Date('2025-06-11T11:56:57.353Z'),
           updatedAt: new Date('2025-06-11T11:56:57.353Z'),
           turns: []
         }
-      ]
+      ] as never[]
 
       // Mock the database responses
-      vi.mocked(prisma.class.findFirst).mockResolvedValue(mockClass)
+      vi.mocked(prisma.class.findFirst).mockResolvedValue(mockClass as never)
       vi.mocked(prisma.schedule.findMany).mockResolvedValue(mockSchedules)
 
       // Create request with query parameters
@@ -68,22 +75,20 @@ describe('Schedules API', () => {
 
       // Call the GET handler
       const response = await GET(request)
-      const text = await response.text()
-      const data = text === 'Internal Error' ? null : JSON.parse(text)
+      const data = await response.json()
 
       // Verify the response (API returns JSON so dates are serialized as strings)
       expect(response).toBeInstanceOf(NextResponse)
       expect(response.status).toBe(200)
-      expect(data).toHaveLength(1)
-      expect(data[0]).toMatchObject({
+      expect(data.data).toHaveLength(1)
+      expect(data.data[0]).toMatchObject({
         id: 1,
         name: 'Schedule 1',
         classId: 1,
-        scheduleData: null,
         turns: []
       })
-      expect(typeof data[0].createdAt).toBe('string')
-      expect(typeof data[0].updatedAt).toBe('string')
+      expect(typeof data.data[0].createdAt).toBe('string')
+      expect(typeof data.data[0].updatedAt).toBe('string')
 
       // Verify the database calls
       expect(prisma.class.findFirst).toHaveBeenCalledWith({
@@ -95,6 +100,7 @@ describe('Schedules API', () => {
       expect(prisma.schedule.findMany).toHaveBeenCalledWith({
         where: {
           classId: 1,
+          schoolYearId: 1,
           selectedWeekday: 1
         },
         include: {
@@ -128,11 +134,17 @@ describe('Schedules API', () => {
 
       // Call the GET handler
       const response = await GET(request)
+      const data = await response.json()
 
       // Verify the error response
       expect(response).toBeInstanceOf(NextResponse)
       expect(response.status).toBe(500)
-      expect(await response.text()).toBe('Internal Error')
+      expect(data).toEqual({
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to fetch schedules'
+        }
+      })
     })
   })
 
@@ -147,7 +159,7 @@ describe('Schedules API', () => {
         endDate: new Date('2024-01-31T00:00:00.000Z'),
         selectedWeekday: 1,
         classId: 1,
-        scheduleData: {},
+        schoolYearId: 1,
         additionalInfo: null,
         semesterPlanning: null,
         createdAt: new Date('2025-06-11T11:56:57.353Z'),
@@ -157,7 +169,7 @@ describe('Schedules API', () => {
       // Mock the database responses
       vi.mocked(prisma.schedule.findFirst).mockResolvedValue(null) // No existing schedule
       vi.mocked(prisma.schedule.deleteMany).mockResolvedValue({ count: 1 })
-      vi.mocked(prisma.schedule.create).mockResolvedValue(mockSchedule)
+      vi.mocked(prisma.schedule.create).mockResolvedValue(mockSchedule as never)
 
       // Create request with valid data
       const request = new Request('http://localhost/api/schedules', {
@@ -180,33 +192,32 @@ describe('Schedules API', () => {
 
       // Call the POST handler
       const response = await POST(request)
-      const text = await response.text()
-      const data = text === 'Internal Error' ? null : JSON.parse(text)
+      const data = await response.json()
 
 
       // Verify the response (API returns JSON so dates are strings)
       expect(response).toBeInstanceOf(NextResponse)
-      expect(response.status).toBe(200)
-      expect(data).toMatchObject({
+      expect(response.status).toBe(201)
+      expect(data.data).toMatchObject({
         id: 1,
         name: 'New Schedule',
         description: 'Test schedule',
         classId: 1,
         selectedWeekday: 1,
-        scheduleData: {},
         additionalInfo: null,
         semesterPlanning: null,
       })
-      expect(typeof data.createdAt).toBe('string')
-      expect(typeof data.updatedAt).toBe('string')
-      expect(typeof data.startDate).toBe('string')
-      expect(typeof data.endDate).toBe('string')
+      expect(typeof data.data.createdAt).toBe('string')
+      expect(typeof data.data.updatedAt).toBe('string')
+      expect(typeof data.data.startDate).toBe('string')
+      expect(typeof data.data.endDate).toBe('string')
 
       // Verify the database calls
       expect(prisma.schedule.findFirst).toHaveBeenCalledWith({
         where: {
           classId: 1,
-          selectedWeekday: 1
+          selectedWeekday: 1,
+          schoolYearId: 1
         },
         include: {
           scheduleTimes: true,
@@ -218,11 +229,11 @@ describe('Schedules API', () => {
         data: {
           name: 'New Schedule',
           description: 'Test schedule',
-          startDate: expect.any(Date),
-          endDate: expect.any(Date),
+          startDate: new Date('2024-01-01'),
+          endDate: new Date('2024-01-31'),
           selectedWeekday: 1,
+          schoolYearId: 1,
           classId: 1,
-          scheduleData: expect.anything(), // JsonNull after migration
           additionalInfo: null,
           semesterPlanning: null,
           turns: {
@@ -270,9 +281,10 @@ describe('Schedules API', () => {
 
       // Verify the error response
       expect(response).toBeInstanceOf(NextResponse)
-      expect(response.status).toBe(400)
-      expect(data).toHaveProperty('error', 'Invalid request data')
-      expect(data).toHaveProperty('details')
+      expect(response.status).toBe(422)
+      expect(data).toHaveProperty('error.code', 'UNPROCESSABLE')
+      expect(data).toHaveProperty('error.message', 'Invalid request data')
+      expect(data).toHaveProperty('error.details')
     })
 
     it('should handle database errors', async () => {
@@ -302,11 +314,17 @@ describe('Schedules API', () => {
 
       // Call the POST handler
       const response = await POST(request)
+      const data = await response.json()
 
       // Verify the error response
       expect(response).toBeInstanceOf(NextResponse)
       expect(response.status).toBe(500)
-      expect(await response.text()).toBe('Internal Error')
+      expect(data).toEqual({
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to create schedule'
+        }
+      })
     })
 
     it('should create a schedule with first semester planning', async () => {
@@ -319,7 +337,7 @@ describe('Schedules API', () => {
         endDate: new Date('2024-01-31T00:00:00.000Z'),
         selectedWeekday: 1,
         classId: 1,
-        scheduleData: {},
+        schoolYearId: 1,
         additionalInfo: null,
         semesterPlanning: 'first',
         createdAt: new Date('2025-06-11T11:56:57.353Z'),
@@ -328,7 +346,7 @@ describe('Schedules API', () => {
 
       // Mock the database responses
       vi.mocked(prisma.schedule.findFirst).mockResolvedValue(null) // No existing schedule
-      vi.mocked(prisma.schedule.create).mockResolvedValue(mockSchedule)
+      vi.mocked(prisma.schedule.create).mockResolvedValue(mockSchedule as never)
 
       // Create request with first semester planning
       const request = new Request('http://localhost/api/schedules', {
@@ -351,35 +369,33 @@ describe('Schedules API', () => {
 
       // Call the POST handler
       const response = await POST(request)
-      const text = await response.text()
-      const data = text === 'Internal Error' ? null : JSON.parse(text)
+      const data = await response.json()
 
       // Verify the response (API returns JSON so dates are strings)
       expect(response).toBeInstanceOf(NextResponse)
-      expect(response.status).toBe(200)
-      expect(data).toMatchObject({
+      expect(response.status).toBe(201)
+      expect(data.data).toMatchObject({
         id: 1,
         name: 'First Semester Schedule',
         description: 'Test first semester schedule',
         classId: 1,
         selectedWeekday: 1,
-        scheduleData: {},
         additionalInfo: null,
         semesterPlanning: 'first',
       })
-      expect(typeof data.createdAt).toBe('string')
-      expect(typeof data.updatedAt).toBe('string')
+      expect(typeof data.data.createdAt).toBe('string')
+      expect(typeof data.data.updatedAt).toBe('string')
 
       // Verify the database call includes semesterPlanning
       expect(prisma.schedule.create).toHaveBeenCalledWith({
         data: {
           name: 'First Semester Schedule',
           description: 'Test first semester schedule',
-          startDate: expect.any(Date),
-          endDate: expect.any(Date),
+          startDate: new Date('2024-01-01'),
+          endDate: new Date('2024-01-31'),
           selectedWeekday: 1,
+          schoolYearId: 1,
           classId: 1,
-          scheduleData: expect.anything(), // JsonNull after migration
           additionalInfo: null,
           semesterPlanning: 'first',
           turns: {

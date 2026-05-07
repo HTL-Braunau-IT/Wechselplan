@@ -1,8 +1,8 @@
 export const runtime = 'nodejs'
 
-import { NextResponse } from 'next/server'
 import * as ldap from 'ldapjs'
 import { captureError } from '@/lib/sentry'
+import { notFound, ok, serverError, unauthorized } from '@/lib/api-response'
 
 // Add runtime check
 
@@ -102,15 +102,9 @@ export async function POST() {
           nodeEnv: process.env.NODE_ENV
         }
       })
-      return NextResponse.json(
-        { 
-          error: 'LDAP configuration error',
-          details: error instanceof Error ? error.message : 'Unknown error',
-          userMessage: 'LDAP configuration is incomplete. Please check your environment variables.',
-          runtime: process.env.NEXT_RUNTIME,
-          nodeEnv: process.env.NODE_ENV
-        },
-        { status: 500 }
+      return serverError(
+        'LDAP configuration error',
+        error instanceof Error ? error.message : 'Unknown error'
       )
     }
 
@@ -170,20 +164,15 @@ export async function POST() {
         errorMessage.includes('invalid dn') ||
         errorMessage.includes('invalid password')
       
-      return NextResponse.json(
-        { 
-          error: isAuthError ? 'Authentication failed' : 'Failed to connect to LDAP server',
-          details: error instanceof Error ? error.message : 'Unknown error',
-          userMessage: isAuthError 
-            ? 'Invalid LDAP credentials. Please check your username and password.'
-            : 'Failed to connect to LDAP server. Please try again later.',
-          config: {
-            url: LDAP_CONFIG.url,
-            baseDN: LDAP_CONFIG.baseDN,
-            studentsOU: LDAP_CONFIG.studentsOU
-          }
-        },
-        { status: isAuthError ? 401 : 503 }
+      if (isAuthError) {
+        return unauthorized(
+          'Authentication failed',
+          error instanceof Error ? error.message : 'Unknown error'
+        )
+      }
+      return serverError(
+        'Failed to connect to LDAP server',
+        error instanceof Error ? error.message : 'Unknown error'
       )
     }
 
@@ -248,15 +237,9 @@ export async function POST() {
           }
         }
       })
-      return NextResponse.json(
-        { 
-          error: 'Failed to perform basic LDAP search',
-          details: error instanceof Error ? error.message : 'Unknown error',
-          userMessage: 'Failed to perform basic LDAP search. Please check LDAP permissions.',
-          runtime: process.env.NEXT_RUNTIME,
-          nodeEnv: process.env.NODE_ENV
-        },
-        { status: 503 }
+      return serverError(
+        'Failed to perform basic LDAP search',
+        error instanceof Error ? error.message : 'Unknown error'
       )
     }
 
@@ -323,17 +306,7 @@ export async function POST() {
         location: 'api/students/import',
         type: 'students-ou-not-found'
       })
-      return NextResponse.json(
-        { 
-          error: 'Students OU not found',
-          details: `Could not find OU at path: ${LDAP_CONFIG.studentsOU}`,
-          config: {
-            baseDN: LDAP_CONFIG.baseDN,
-            studentsOU: LDAP_CONFIG.studentsOU
-          }
-        },
-        { status: 404 }
-      )
+      return notFound('Students OU not found', `Could not find OU at path: ${LDAP_CONFIG.studentsOU}`)
     }
 
     // Search for class OUs under the Students OU
@@ -454,7 +427,7 @@ export async function POST() {
     // Clean up
     client.unbind()
 
-    return NextResponse.json(importData, { status: 200 })
+    return ok(importData)
   } catch (error) {
     
     captureError(error, {
@@ -465,15 +438,9 @@ export async function POST() {
         nodeEnv: process.env.NODE_ENV
       }
     })
-    return NextResponse.json(
-      { 
-        error: 'Internal server error',
-        details: error instanceof Error ? error.message : 'Unknown error',
-        userMessage: 'An unexpected error occurred. Please try again later.',
-        runtime: process.env.NEXT_RUNTIME,
-        nodeEnv: process.env.NODE_ENV
-      },
-      { status: 500 }
+    return serverError(
+      'Internal server error',
+      error instanceof Error ? error.message : 'Unknown error'
     )
   }
 } 

@@ -23,6 +23,8 @@ export interface StudentPhotoProps {
   nameFormat?: 'lastFirst' | 'firstLast'
   /** Content to show next to the avatar (e.g. name). If not provided, uses lastName, firstName. */
   children?: React.ReactNode
+  /** If true, defers image loading until the avatar is in/near viewport. */
+  lazy?: boolean
 }
 
 /**
@@ -36,7 +38,8 @@ export function StudentPhoto({
   className,
   avatarOnly = false,
   nameFormat = 'lastFirst',
-  children
+  children,
+  lazy = false
 }: StudentPhotoProps) {
   const [open, setOpen] = useState(false)
   const [position, setPosition] = useState({ top: 0, left: 0 })
@@ -47,6 +50,11 @@ export function StudentPhoto({
   const { isFeatureEnabled } = useEntitlements()
   const photoEnabled = isFeatureEnabled('student_photos')
   const photoUrl = photoEnabled ? `/api/students/photo?studentId=${studentId}` : undefined
+
+  useEffect(() => {
+    setLoaded(false)
+    setError(false)
+  }, [studentId, photoEnabled])
 
   const displayName =
     lastName && firstName
@@ -112,6 +120,13 @@ export function StudentPhoto({
               width={PHOTO_SIZE_LARGE}
               height={PHOTO_SIZE_LARGE}
               className={cn('h-full w-full object-cover', error && 'hidden')}
+              loading={lazy ? 'lazy' : 'eager'}
+              decoding="async"
+              onLoad={() => {
+                setLoaded(true)
+                setError(false)
+              }}
+              onError={() => setError(true)}
             />
             {error && (
               <span className="flex h-full w-full items-center justify-center text-2xl font-medium text-muted-foreground">
@@ -152,6 +167,8 @@ export function StudentPhoto({
                 width={size}
                 height={size}
                 className={cn('h-full w-full object-cover', (error || !loaded) && 'hidden')}
+                loading={lazy ? 'lazy' : 'eager'}
+                decoding="async"
                 onLoad={() => {
                   setLoaded(true)
                   setError(false)

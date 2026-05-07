@@ -32,7 +32,6 @@ export interface ScheduleResponse {
 	startDate: string
 	endDate: string
 	selectedWeekday: number
-	scheduleData: unknown
 	additionalInfo?: string
 	semesterPlanning?: string | null
 	classId?: number

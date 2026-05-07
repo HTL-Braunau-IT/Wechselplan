@@ -77,8 +77,8 @@ async function dependencyCounts(teacherId: number): Promise<DependencyCounts> {
     prisma.notenWeightConfig.count({ where: { teacherId } }),
     prisma.lehrstoffPerDay.count({ where: { teacherId } }),
     prisma.notenEntry.count({ where: { teacherId } }),
-    prisma.class.count({ where: { classHeadId: teacherId } }),
-    prisma.class.count({ where: { classLeadId: teacherId } }),
+    prisma.classYearStaff.count({ where: { classHeadId: teacherId } }),
+    prisma.classYearStaff.count({ where: { classLeadId: teacherId } }),
   ])
 
   return {

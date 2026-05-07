@@ -6,6 +6,7 @@ import { authOptions, hasRole } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { badRequest, forbidden, notFound, ok, serverError, unauthorized } from '@/lib/api-response'
 
 const PHOTO_DIR = path.join(process.cwd(), 'data', 'student-photos')
 const ALLOWED_MIMES = ['image/jpeg', 'image/png', 'image/jpg'] as const
@@ -32,15 +33,15 @@ export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.name) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return unauthorized('Unauthorized')
     }
     const isAdmin = session.user?.role === 'admin' || (await hasRole(session.user.name, 'admin'))
     const isTeacher = session.user?.role === 'teacher' || (await hasRole(session.user.name, 'teacher'))
     if (!isAdmin && !isTeacher) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return forbidden('Forbidden')
     }
     if (!(await isFeatureEnabled('student_photos'))) {
-      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+      return forbidden('Feature not available')
     }
 
     const formData = await request.formData()
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
         select: { id: true }
       })
       if (!student) {
-        return NextResponse.json({ error: 'Student not found', results: [] }, { status: 404 })
+        return notFound('Student not found', { results: [] })
       }
       const files: File[] = formData.getAll('files') as File[]
       const file = files[0] ?? (() => {
@@ -68,24 +69,24 @@ export async function POST(request: Request) {
         return null
       })()
       if (!file) {
-        return NextResponse.json({ error: 'No file provided', results: [] }, { status: 400 })
+        return badRequest('No file provided', { results: [] })
       }
       const mime = file.type?.toLowerCase() || ''
       if (!ALLOWED_MIMES.includes(mime as (typeof ALLOWED_MIMES)[number])) {
-        return NextResponse.json({
+        return badRequest('Invalid file type (use JPEG or PNG)', {
           results: [{ filename: file.name, success: false, error: 'Invalid file type (use JPEG or PNG)' }]
-        }, { status: 400 })
+        })
       }
       const outExt = EXT_BY_MIME[mime] ?? '.jpg'
       const outPath = path.join(PHOTO_DIR, `${student.id}${outExt}`)
       if (!path.resolve(outPath).startsWith(path.resolve(PHOTO_DIR))) {
-        return NextResponse.json({ error: 'Invalid path', results: [] }, { status: 400 })
+        return badRequest('Invalid path', { results: [] })
       }
       try {
         fs.mkdirSync(PHOTO_DIR, { recursive: true })
         const buffer = Buffer.from(await file.arrayBuffer())
         fs.writeFileSync(outPath, buffer)
-        return NextResponse.json({
+        return ok({
           results: [{ filename: file.name, success: true, studentId: student.id }]
         })
       } catch (err) {
@@ -94,9 +95,9 @@ export async function POST(request: Request) {
           type: 'write-photo',
           extra: { studentId: student.id, filename: file.name }
         })
-        return NextResponse.json({
+        return serverError('Failed to save file', {
           results: [{ filename: file.name, success: false, error: 'Failed to save file' }]
-        }, { status: 500 })
+        })
       }
     }
 
@@ -121,29 +122,30 @@ export async function POST(request: Request) {
     } else {
       const classId = parseInt(classIdParam, 10)
       const isNumericClassId = !Number.isNaN(classId)
-      students = isNumericClassId
-        ? await prisma.student.findMany({
-            where: { classId },
-            select: { id: true, firstName: true, lastName: true }
-          })
-        : await prisma.class
+      const resolvedClassId = isNumericClassId
+        ? classId
+        : (await prisma.class
             .findUnique({
               where: { name: classIdParam.trim() },
               select: { id: true }
+            }))?.id ?? null
+      if (resolvedClassId == null) {
+        students = []
+      } else {
+        const memberships = await prisma.classMembership.findMany({
+          where: { classId: resolvedClassId },
+          select: { studentId: true }
+        })
+        const studentIds = memberships.map(m => m.studentId)
+        students = studentIds.length > 0
+          ? await prisma.student.findMany({
+              where: { id: { in: studentIds } },
+              select: { id: true, firstName: true, lastName: true }
             })
-            .then((c) =>
-              c
-                ? prisma.student.findMany({
-                    where: { classId: c.id },
-                    select: { id: true, firstName: true, lastName: true }
-                  })
-                : []
-            )
+          : []
+      }
       if (students.length === 0) {
-        return NextResponse.json(
-          { error: 'No students found for this class', results: [] },
-          { status: 400 }
-        )
+        return badRequest('No students found for this class', { results: [] })
       }
       findStudents = (lastName: string, firstName: string) =>
         students.filter(
@@ -161,7 +163,7 @@ export async function POST(request: Request) {
       }
     }
     if (files.length === 0) {
-      return NextResponse.json({ error: 'No files provided', results: [] }, { status: 400 })
+      return badRequest('No files provided', { results: [] })
     }
 
     async function processFile(file: File) {
@@ -238,16 +240,13 @@ export async function POST(request: Request) {
     for (const file of files) {
       await processFile(file)
     }
-    return NextResponse.json({ results })
+    return ok({ results })
   } catch (error) {
     captureError(error, {
       location: 'api/admin/student-photos/upload',
       type: 'upload-photos',
       extra: {}
     })
-    return NextResponse.json(
-      { error: 'Failed to process upload', results: [] },
-      { status: 500 }
-    )
+    return serverError('Failed to process upload', { results: [] })
   }
 }

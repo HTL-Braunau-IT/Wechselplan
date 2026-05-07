@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import type { Student, Group, TeacherAssignmentResponse, TeacherAssignmentsResponse, ScheduleTime, BreakTime, TurnSchedule, ScheduleResponse } from '@/types/types'
 import { captureFrontendError } from '@/lib/frontend-error'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
+import { fetchAndUnwrap, parseJsonSafe, unwrapData } from '@/lib/api-client'
 
 interface UseScheduleOverviewResult {
   groups: Group[]
@@ -27,7 +28,11 @@ interface UseScheduleOverviewResult {
  * @param schoolYearId - Optional school year id; when provided, schedule and assignment data are filtered by this year.
  * @returns An object containing groups, teacher assignments, schedule times, break times, rotation schedule, class head and lead names, additional info, selected weekday, loading status, and error message.
  */
-export function useScheduleOverview(classId: string | null, schoolYearId?: number): UseScheduleOverviewResult {
+export function useScheduleOverview(
+  classId: string | null,
+  schoolYearId?: number,
+  weekdayOverride?: number | null
+): UseScheduleOverviewResult {
   const [groups, setGroups] = useState<Group[]>([])
   const [amAssignments, setAmAssignments] = useState<TeacherAssignmentResponse[]>([])
   const [pmAssignments, setPmAssignments] = useState<TeacherAssignmentResponse[]>([])
@@ -52,9 +57,7 @@ export function useScheduleOverview(classId: string | null, schoolYearId?: numbe
         return
       }
       try {
-        const res = await fetch(`/api/classes/get-by-name?name=${classId}`)
-        if (!res.ok) throw new Error('Failed to fetch class ID')
-        const data = await res.json() as { id: number }
+        const data = await fetchAndUnwrap<{ id: number }>(`/api/classes/get-by-name?name=${classId}`)
         setResolvedClassId(data.id)
       } catch (err) {
         console.error('Error resolving class ID:', err)
@@ -81,24 +84,49 @@ export function useScheduleOverview(classId: string | null, schoolYearId?: numbe
         // Fetch all students for the class (optionally for school year)
         const studentsRes = await fetch(`/api/students?class=${classId}${yearQ}`, { cache: 'no-store' })
         if (!studentsRes.ok) throw new Error('Failed to fetch students')
-        const students: Student[] = await studentsRes.json()
+        const studentsPayload = await studentsRes.json() as { data?: Student[] } | Student[]
+        const students: Student[] = Array.isArray(studentsPayload) ? studentsPayload : (studentsPayload.data ?? [])
 
-        // Fetch group assignments
-        const groupRes = await fetch(`/api/schedules/assignments?classId=${resolvedClassId}${yearQ}`, { cache: 'no-store' })
+        const schedulesListRes = await fetch(`/api/schedules?classId=${classId}${yearQ}`, { cache: 'no-store' })
+        let list: ScheduleResponse[] = []
+        if (schedulesListRes.ok) {
+          const raw = await schedulesListRes.json() as { data?: ScheduleResponse[] } | ScheduleResponse[]
+          list = Array.isArray(raw) ? raw : (raw.data ?? [])
+        }
+
+        let effectiveWd = 1
+        if (weekdayOverride != null && weekdayOverride >= 1 && weekdayOverride <= 5) {
+          effectiveWd = weekdayOverride
+        } else if (list[0]) {
+          effectiveWd = list[0].selectedWeekday
+        }
+
+        const weekdayQ = `&weekday=${effectiveWd}`
+
+        const groupRes = await fetch(
+          `/api/schedules/assignments?classId=${resolvedClassId}${yearQ}${weekdayQ}`,
+          { cache: 'no-store' }
+        )
         if (!groupRes.ok) throw new Error('Failed to fetch group assignments')
-        const groupData: { assignments: { groupId: number; studentIds: number[] }[] } = await groupRes.json()
+        const groupPayload = await parseJsonSafe(groupRes)
+        const groupData = unwrapData<{ assignments?: { groupId: number; studentIds: number[] }[] }>(
+          groupPayload ?? {}
+        )
+        const assignmentRows = groupData.assignments ?? []
         setGroups(
-          groupData.assignments.map((g) => ({
+          assignmentRows.map((g) => ({
             id: g.groupId,
             students: g.studentIds.map(id => students.find(s => s.id === id)).filter(Boolean) as Student[]
           }))
         )
 
-        // Fetch selected schedule times (optional - continue if this fails)
         try {
-          const timesRes = await fetch(`/api/schedules/times?classId=${resolvedClassId}`)
+          const timesQ = `${yearQ}${weekdayQ}`
+          const timesRes = await fetch(`/api/schedules/times?classId=${resolvedClassId}${timesQ}`)
           if (timesRes.ok) {
-            const timesData: { times: { scheduleTimes: ScheduleTime[]; breakTimes: BreakTime[] } } = await timesRes.json()
+            const timesData = unwrapData<{ times: { scheduleTimes: ScheduleTime[]; breakTimes: BreakTime[] } }>(
+              await parseJsonSafe(timesRes)
+            )
             setScheduleTimes(timesData.times.scheduleTimes)
             setBreakTimes(timesData.times.breakTimes)
           } else {
@@ -112,44 +140,36 @@ export function useScheduleOverview(classId: string | null, schoolYearId?: numbe
           setBreakTimes([])
         }
 
-        // Fetch rotation/turn schedule (filtered by school year when provided)
-        const schedulesRes = await fetch(`/api/schedules?classId=${classId}${yearQ}`, { cache: 'no-store' })
-        let latestSchedule: ScheduleResponse | undefined
-        let selectedWeekday = 6
-        
-        if (schedulesRes.ok) {
-          const schedules = await schedulesRes.json() as ScheduleResponse[]
-          // Get the most recent schedule (ordered by createdAt desc from API)
-          latestSchedule = schedules[0]
-          selectedWeekday = latestSchedule?.selectedWeekday ?? 6
-        } else if (schedulesRes.status === 404) {
-          // No schedules found - this is okay, we'll use defaults
-          console.warn(`No schedules found for class ${classId}`)
-        } else {
+        let latestSchedule: ScheduleResponse | undefined =
+          list.find((s) => s.selectedWeekday === effectiveWd) ?? list[0]
+        const selectedWeekday = latestSchedule?.selectedWeekday ?? effectiveWd
+
+        if (!schedulesListRes.ok && schedulesListRes.status !== 404) {
           throw new Error('Failed to fetch rotation schedule')
         }
-        
+        if (schedulesListRes.status === 404) {
+          console.warn(`No schedules found for class ${classId}`)
+        }
+
         setAdditionalInfo(latestSchedule?.additionalInfo ?? '')
         setWeekday(selectedWeekday)
         
-        // Convert normalized turns to legacy format, or fall back to scheduleData if available
         if (latestSchedule?.turns && Array.isArray(latestSchedule.turns) && latestSchedule.turns.length > 0) {
-          // Use normalized turns data
           const normalizedTurns = normalizeToJsonFormat(latestSchedule.turns)
           setTurns(normalizedTurns)
-        } else if (latestSchedule?.scheduleData && typeof latestSchedule.scheduleData === 'object') {
-          // Fall back to scheduleData for backward compatibility
-          setTurns(latestSchedule.scheduleData as TurnSchedule)
         } else {
-          // No turn data available
           setTurns({})
         }
 
-        // Fetch teacher assignments (no weekday filter needed - each class has one schedule)
         try {
-          const teacherRes = await fetch(`/api/schedules/teacher-assignments?classId=${resolvedClassId}${yearQ}`, { cache: 'no-store' })
+          const teacherWd = `&selectedWeekday=${selectedWeekday}`
+          const teacherRes = await fetch(
+            `/api/schedules/teacher-assignments?classId=${resolvedClassId}${yearQ}${teacherWd}`,
+            { cache: 'no-store' }
+          )
           if (teacherRes.ok) {
-            const teacherData: TeacherAssignmentsResponse = await teacherRes.json()
+            const teacherPayload = await parseJsonSafe(teacherRes)
+            const teacherData = unwrapData<TeacherAssignmentsResponse>(teacherPayload)
             setAmAssignments(teacherData.amAssignments)
             setPmAssignments(teacherData.pmAssignments)
           } else {
@@ -164,9 +184,9 @@ export function useScheduleOverview(classId: string | null, schoolYearId?: numbe
         }
 
         // Fetch class data
-        const classRes = await fetch(`/api/classes/get-by-name?name=${classId}`)
-        if (!classRes.ok) throw new Error('Failed to fetch class data')
-        const classData = await classRes.json() as { classHead: { firstName: string, lastName: string } | null; classLead: { firstName: string, lastName: string } | null }
+        const classData = await fetchAndUnwrap<{ classHead: { firstName: string, lastName: string } | null; classLead: { firstName: string, lastName: string } | null }>(
+          `/api/classes/get-by-name?name=${classId}`
+        )
         setClassHead(classData.classHead ? `${classData.classHead.firstName} ${classData.classHead.lastName}` : '—')
         setClassLead(classData.classLead ? `${classData.classLead.firstName} ${classData.classLead.lastName}` : '—')
 
@@ -187,7 +207,7 @@ export function useScheduleOverview(classId: string | null, schoolYearId?: numbe
     }
 
     void fetchData()
-  }, [classId, resolvedClassId, yearQ])
+  }, [classId, resolvedClassId, yearQ, weekdayOverride])
 
   return {
     groups,

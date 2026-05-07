@@ -11,6 +11,9 @@ vi.mock('@/lib/prisma', () => ({
     student: {
       findMany: vi.fn(),
     },
+    classMembership: {
+      findMany: vi.fn(),
+    },
   },
 }));
 
@@ -39,14 +42,12 @@ describe('Students All API', () => {
       {
         name: 'should return 200 with all students if found',
         setup: () => {
-          const mockStudents: Student[] = [
+          const mockStudents = [
             {
               id: 1,
               firstName: 'John',
               lastName: 'Doe',
               username: 'john.doe',
-              classId: 1,
-              groupId: null,
               createdAt: new Date(),
               updatedAt: new Date(),
             },
@@ -55,16 +56,15 @@ describe('Students All API', () => {
               firstName: 'Jane',
               lastName: 'Smith',
               username: 'jane.smith',
-              classId: 1,
-              groupId: null,
               createdAt: new Date(),
               updatedAt: new Date(),
             },
-          ];
-          vi.mocked(prisma.student.findMany).mockResolvedValue(mockStudents);
+          ] as unknown as Student[];
+          vi.mocked(prisma.student.findMany).mockResolvedValue(mockStudents as never);
         },
         expectedStatus: 200,
-        expectedData: (data: Student[]) => {
+        expectedData: (payload: { data: Student[] }) => {
+          const data = payload.data
           expect(Array.isArray(data)).toBe(true);
           expect(data.length).toBe(2);
           const first = data[0]!;
@@ -82,7 +82,8 @@ describe('Students All API', () => {
           vi.mocked(prisma.student.findMany).mockResolvedValue([]);
         },
         expectedStatus: 200,
-        expectedData: (data: Student[]) => {
+        expectedData: (payload: { data: Student[] }) => {
+          const data = payload.data
           expect(Array.isArray(data)).toBe(true);
           expect(data.length).toBe(0);
         },
@@ -93,14 +94,15 @@ describe('Students All API', () => {
           vi.mocked(prisma.student.findMany).mockRejectedValue(new Error('DB error'));
         },
         expectedStatus: 500,
-        expectedData: { error: 'Failed to fetch students' },
+        expectedData: { error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch students' } },
       },
     ];
 
     testCases.forEach(({ name, setup, expectedStatus, expectedData }) => {
       test(name, async () => {
         if (setup) setup();
-        const res = await GET();
+        const req = new Request('http://localhost/api/students/all');
+        const res = await GET(req);
         const data = await res.json();
         expect(res.status).toBe(expectedStatus);
         if (typeof expectedData === 'function') {

@@ -1,13 +1,14 @@
-import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { normalizeUsername } from '@/lib/username'
+import { badRequest, forbidden, ok, serverError, unauthorized } from '@/lib/api-response'
 
 const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
-const ALLOWED_ATTENDANCE = ['Anwesend', 'Krank', 'Entschuldigt', 'Unentschuldigt']
+const ALLOWED_ATTENDANCE = ['Anwesend', 'Krank', 'Entschuldigt', 'Unentschuldigt'] as const
+type AttendanceValue = typeof ALLOWED_ATTENDANCE[number]
 
 type EntryPayload = {
 	studentId: number
@@ -32,13 +33,13 @@ export async function PATCH(request: Request) {
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {
-			return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+			return unauthorized('Unauthorized')
 		}
 		if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-			return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+			return forbidden('Forbidden')
 		}
 		if (!(await isFeatureEnabled('noten'))) {
-			return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+			return forbidden('Feature not available')
 		}
 
 		const body = await request.json()
@@ -50,20 +51,20 @@ export async function PATCH(request: Request) {
 		}
 
 		if (classId == null || groupId == null || schoolYearId == null || !Array.isArray(entries)) {
-			return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+			return badRequest('Missing required fields')
 		}
 
 		const username = normalizeUsername(session.user.name)
 		const teacher = await prisma.teacher.findUnique({ where: { username } })
 		if (!teacher) {
-			return NextResponse.json({ error: 'Teacher not found' }, { status: 403 })
+			return forbidden('Teacher not found')
 		}
 
 		const isAssignedToClass = await prisma.teacherAssignment.findFirst({
 			where: { teacherId: teacher.id, classId, schoolYearId }
 		})
 		if (!isAssignedToClass) {
-			return NextResponse.json({ error: 'Not assigned to this class' }, { status: 403 })
+			return forbidden('Not assigned to this class')
 		}
 
 		for (const e of entries) {
@@ -71,8 +72,10 @@ export async function PATCH(request: Request) {
 			if (e.period !== 'AM' && e.period !== 'PM') continue
 			const dateOnly = new Date(e.date + 'T00:00:00.000Z')
 			if (Number.isNaN(dateOnly.getTime())) continue
-			const attendance =
-				e.attendance != null && ALLOWED_ATTENDANCE.includes(e.attendance) ? e.attendance : null
+			const attendance: AttendanceValue | null =
+				e.attendance != null && (ALLOWED_ATTENDANCE as readonly string[]).includes(e.attendance)
+					? (e.attendance as AttendanceValue)
+					: null
 			const clampGrade = (v: unknown): number | null => {
 				if (v == null) return null
 				const n = Number(v)
@@ -124,16 +127,13 @@ export async function PATCH(request: Request) {
 			})
 		}
 
-		return NextResponse.json({ success: true })
+		return ok({ success: true })
 	} catch (error) {
 		captureError(error, {
 			location: 'api/noten/entries',
 			type: 'save-entries'
 		})
-		return NextResponse.json(
-			{ error: 'Failed to save entries' },
-			{ status: 500 }
-		)
+		return serverError('Failed to save entries')
 	}
 }
 

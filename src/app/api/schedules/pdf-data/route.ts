@@ -1,19 +1,20 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { badRequest, notFound, ok, serverError } from '@/lib/api-response'
+import { resolveSchoolYearId } from '@/lib/year-aware-class-staff'
 
 /**
- * Handles GET requests to retrieve students in a specified class who have a non-null group ID.
+ * Handles GET requests to retrieve students in a specified class who have a
+ * weekday group assignment (StudentWeekdayGroup) for the requested (or
+ * current) school year. Class membership is sourced from ClassMembership.
  *
- * Extracts the `className` query parameter from the request URL and returns a JSON response with the list of students in that class. Responds with a 400 status if the class name is missing or the class does not exist, a 404 status if no students are found, and a 500 status for unexpected errors.
- *
- * @returns A JSON response containing the list of students with a 200 status on success, or an error message with an appropriate status code on failure.
+ * Returns the list of students with a 200 status on success, or an error
+ * message with an appropriate status code on failure.
  */
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     try {
         const className = searchParams.get('className')
-
 
         if (!className) {
             const error = new Error('Class Name is required')
@@ -21,13 +22,11 @@ export async function GET(req: Request) {
                 location: 'api/schedules/pdf-data',
                 type: 'pdf-data-error'
             })
-            return NextResponse.json({ error: 'Class Name is required' }, { status: 400 })
-        } 
+            return badRequest('Class Name is required')
+        }
 
         const class_response = await prisma.class.findUnique({
-            where: {
-                name: className
-            }
+            where: { name: className }
         })
 
         if (!class_response) {
@@ -36,36 +35,48 @@ export async function GET(req: Request) {
                 location: 'api/schedules/pdf-data',
                 type: 'pdf-data-error'
             })
-            return NextResponse.json({ error: 'Class not found' }, { status: 400 })
+            return notFound('Class not found')
         }
+
+        const schoolYearIdParam = searchParams.get('schoolYearId')
+        let schoolYearId: number | null = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : null
+        if (schoolYearId == null || Number.isNaN(schoolYearId)) {
+            schoolYearId = await resolveSchoolYearId()
+        }
+        if (schoolYearId == null) {
+            return notFound('No school year found')
+        }
+
+        const memberships = await prisma.classMembership.findMany({
+            where: { classId: class_response.id, schoolYearId },
+            select: { studentId: true }
+        })
+        const studentIds = memberships.map(m => m.studentId)
+
+        if (studentIds.length === 0) {
+            return notFound('No students found')
+        }
+
         const student_response = await prisma.student.findMany({
             where: {
-                classId: class_response.id,
-                groupId: {
-                    not: null
+                id: { in: studentIds },
+                weekdayGroups: {
+                    some: { schoolYearId }
                 }
             }
         })
 
         if (student_response.length === 0) {
-            const error = new Error('No students found')
-            captureError(error, {
-                location: 'api/schedules/pdf-data',
-                type: 'pdf-data-error'
-            })
-            return NextResponse.json({ error: 'No students found' }, { status: 404 })
+            return notFound('No students found')
         }
 
-        return NextResponse.json({
-            students: student_response
-        }, { status: 200 })
+        return ok({ students: student_response })
     } catch (error) {
-
         captureError(error, {
             location: 'api/schedules/data',
             type: 'pdf_data_error',
             extra: { className: searchParams.get('className') }
         })
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+        return serverError('Internal server error')
     }
 }

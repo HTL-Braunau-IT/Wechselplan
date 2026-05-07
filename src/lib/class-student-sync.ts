@@ -1,4 +1,5 @@
-import type { Class, Prisma, Student } from '@prisma/client'
+import type { Class, Student } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import {
@@ -232,7 +233,8 @@ function toClassRowSummary(row: Class): ClassRowSummary {
 }
 
 function toStudentRowSummary(
-  row: Student & { class: { name: string } | null },
+  row: Student,
+  membership?: { classId: number; className: string | null } | null,
 ): StudentRowSummary {
   return {
     id: row.id,
@@ -240,8 +242,8 @@ function toStudentRowSummary(
     lastName: row.lastName,
     username: row.username,
     email: row.email ?? null,
-    classId: row.classId ?? null,
-    className: row.class?.name ?? null,
+    classId: membership?.classId ?? null,
+    className: membership?.className ?? null,
     externalId: row.externalId ?? null,
     externalSource: row.externalSource ?? null,
     isActive: row.isActive,
@@ -433,9 +435,18 @@ export async function previewClassStudentSync(
 
   /* ----- Student diff ----- */
 
-  const studentRows = await prisma.student.findMany({
+  const studentRows = await prisma.student.findMany()
+  const yearMemberships = await prisma.classMembership.findMany({
+    where: { schoolYearId: schoolYear.id },
     include: { class: { select: { name: true } } },
   })
+  const membershipByStudentId = new Map<number, { classId: number; className: string | null }>()
+  for (const m of yearMemberships) {
+    membershipByStudentId.set(m.studentId, {
+      classId: m.classId,
+      className: m.class?.name ?? null,
+    })
+  }
   const studentByExternalId = new Map<string, (typeof studentRows)[number]>()
   const studentByUsername = new Map<string, (typeof studentRows)[number]>()
   for (const row of studentRows) {
@@ -499,7 +510,8 @@ export async function previewClassStudentSync(
 
     matchedStudentIds.add(existing.id)
 
-    const summary = toStudentRowSummary(existing)
+    const existingMembership = membershipByStudentId.get(existing.id) ?? null
+    const summary = toStudentRowSummary(existing, existingMembership)
     const willAdopt =
       !existing.externalId || existing.externalSource !== EXTERNAL_SOURCE_ENTRA
 
@@ -507,7 +519,7 @@ export async function previewClassStudentSync(
     const localClassForGroup = localClassByGroupId.get(targetGroupId)
     const localClassIdForGroup = localClassForGroup?.id ?? null
     const classWillChange =
-      localClassIdForGroup != null && existing.classId !== localClassIdForGroup
+      localClassIdForGroup != null && existingMembership?.classId !== localClassIdForGroup
     const classIsNewGroup = localClassIdForGroup == null
 
     const changes: StudentChange[] = [...profileChanges]
@@ -545,7 +557,7 @@ export async function previewClassStudentSync(
     if (matchedStudentIds.has(row.id)) continue
     if (!row.isActive) continue
     if (row.externalSource !== EXTERNAL_SOURCE_ENTRA) continue
-    studentsToDeactivate.push({ existing: toStudentRowSummary(row) })
+    studentsToDeactivate.push({ existing: toStudentRowSummary(row, membershipByStudentId.get(row.id) ?? null) })
   }
 
   /* ----- Sort & return ----- */
@@ -647,6 +659,7 @@ export async function applyClassStudentSync(
 ): Promise<ClassStudentSyncSummary> {
   const diff = await previewClassStudentSync(options)
   const now = new Date()
+  const applyIssues = [...diff.issues]
 
   try {
     const classSelection = selection?.classes ?? {}
@@ -708,6 +721,47 @@ export async function applyClassStudentSync(
     const studentAdoptedCount = studentUpdates.filter(s => s.willAdopt).length
 
     await prisma.$transaction(async tx => {
+      const resolveUniqueStudentUsername = async (
+        preferred: string,
+        currentStudentId?: number,
+      ): Promise<string> => {
+        const base = preferred.trim()
+        if (!base) return preferred
+
+        const isTakenByOther = async (candidate: string): Promise<boolean> => {
+          const existing = await tx.student.findUnique({
+            where: { username: candidate },
+            select: { id: true },
+          })
+          if (!existing) return false
+          return currentStudentId == null || existing.id !== currentStudentId
+        }
+
+        if (!(await isTakenByOther(base))) {
+          return base
+        }
+
+        for (let i = 1; i <= 500; i += 1) {
+          const candidate = `${base}.${i}`
+          if (!(await isTakenByOther(candidate))) {
+            return candidate
+          }
+        }
+        return `${base}.${Date.now()}`
+      }
+
+      const canAssignExternalId = async (
+        externalId: string,
+        currentStudentId?: number,
+      ): Promise<boolean> => {
+        const existing = await tx.student.findUnique({
+          where: { externalId },
+          select: { id: true },
+        })
+        if (!existing) return true
+        return currentStudentId != null && existing.id === currentStudentId
+      }
+
       /* --- Classes --- */
 
       // Map of Entra group id -> local class id after this transaction.
@@ -804,13 +858,21 @@ export async function applyClassStudentSync(
 
       for (const { entra, target } of studentCreates) {
         const classId = await resolveClassIdForGroup(target.groupId)
+        const username = await resolveUniqueStudentUsername(entra.username)
+        if (username !== entra.username) {
+          applyIssues.push({
+            oid: entra.oid,
+            upn: entra.username,
+            displayName: entra.displayName ?? undefined,
+            reason: `Username conflict on create ("${entra.username}"). Using "${username}" instead.`,
+          })
+        }
         const created = await tx.student.create({
           data: {
             firstName: entra.firstName,
             lastName: entra.lastName,
-            username: entra.username,
+            username,
             email: entra.email,
-            classId: classId ?? undefined,
             externalId: entra.oid,
             externalSource: EXTERNAL_SOURCE_ENTRA,
             isActive: true,
@@ -825,22 +887,50 @@ export async function applyClassStudentSync(
 
       for (const update of studentUpdates) {
         const classId = await resolveClassIdForGroup(update.target.groupId)
+        const username = await resolveUniqueStudentUsername(update.entra.username, update.existing.id)
+        if (username !== update.entra.username) {
+          applyIssues.push({
+            oid: update.entra.oid,
+            upn: update.entra.username,
+            displayName: update.entra.displayName ?? undefined,
+            reason: `Username conflict on update ("${update.entra.username}"). Using "${username}" instead.`,
+          })
+        }
         const data: Prisma.StudentUpdateInput = {
           firstName: update.entra.firstName,
           lastName: update.entra.lastName,
-          username: update.entra.username,
+          username,
           email: update.entra.email,
           lastSyncedAt: now,
           syncStatus: 'active',
         }
-        if (classId != null) {
-          data.class = { connect: { id: classId } }
-        }
         if (update.willAdopt) {
-          data.externalId = update.entra.oid
-          data.externalSource = EXTERNAL_SOURCE_ENTRA
+          if (await canAssignExternalId(update.entra.oid, update.existing.id)) {
+            data.externalId = update.entra.oid
+            data.externalSource = EXTERNAL_SOURCE_ENTRA
+          } else {
+            applyIssues.push({
+              oid: update.entra.oid,
+              upn: update.entra.username,
+              displayName: update.entra.displayName ?? undefined,
+              reason: 'Skipped externalId adoption because that Entra oid is already assigned to another student.',
+            })
+          }
         }
-        await tx.student.update({ where: { id: update.existing.id }, data })
+        try {
+          await tx.student.update({ where: { id: update.existing.id }, data })
+        } catch (error) {
+          if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            applyIssues.push({
+              oid: update.entra.oid,
+              upn: update.entra.username,
+              displayName: update.entra.displayName ?? undefined,
+              reason: 'Skipped student update due to unique-field conflict (username/externalId).',
+            })
+            continue
+          }
+          throw error
+        }
         if (classId != null) {
           await upsertMembership(update.existing.id, classId)
         }
@@ -848,22 +938,56 @@ export async function applyClassStudentSync(
 
       for (const reactivate of studentReactivations) {
         const classId = await resolveClassIdForGroup(reactivate.target.groupId)
-        await tx.student.update({
+        const username = await resolveUniqueStudentUsername(reactivate.entra.username, reactivate.existing.id)
+        if (username !== reactivate.entra.username) {
+          applyIssues.push({
+            oid: reactivate.entra.oid,
+            upn: reactivate.entra.username,
+            displayName: reactivate.entra.displayName ?? undefined,
+            reason: `Username conflict on reactivation ("${reactivate.entra.username}"). Using "${username}" instead.`,
+          })
+        }
+        const externalIdAssignable = await canAssignExternalId(reactivate.entra.oid, reactivate.existing.id)
+        if (!externalIdAssignable) {
+          applyIssues.push({
+            oid: reactivate.entra.oid,
+            upn: reactivate.entra.username,
+            displayName: reactivate.entra.displayName ?? undefined,
+            reason: 'Skipped externalId adoption on reactivation because that Entra oid is already assigned to another student.',
+          })
+        }
+        try {
+          await tx.student.update({
           where: { id: reactivate.existing.id },
           data: {
             firstName: reactivate.entra.firstName,
             lastName: reactivate.entra.lastName,
-            username: reactivate.entra.username,
+            username,
             email: reactivate.entra.email,
-            externalId: reactivate.entra.oid,
-            externalSource: EXTERNAL_SOURCE_ENTRA,
-            classId: classId ?? undefined,
+            ...(externalIdAssignable
+              ? {
+                  externalId: reactivate.entra.oid,
+                  externalSource: EXTERNAL_SOURCE_ENTRA,
+                }
+              : {}),
             isActive: true,
             deactivatedAt: null,
             lastSyncedAt: now,
             syncStatus: 'active',
           },
         })
+        } catch (error) {
+          if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            applyIssues.push({
+              oid: reactivate.entra.oid,
+              upn: reactivate.entra.username,
+              displayName: reactivate.entra.displayName ?? undefined,
+              reason: 'Skipped student reactivation due to unique-field conflict (username/externalId).',
+            })
+            continue
+          }
+          throw error
+        }
         if (classId != null) {
           await upsertMembership(reactivate.existing.id, classId)
         }
@@ -898,13 +1022,13 @@ export async function applyClassStudentSync(
         reactivated: studentReactivations.length,
         unchanged: diff.students.unchanged.length,
       },
-      issues: diff.issues,
+      issues: applyIssues,
       schoolYearId: diff.schoolYearId,
       completedAt: now.toISOString(),
     }
 
     await recordSyncRun({
-      status: diff.issues.length > 0 ? 'partial' : 'success',
+      status: applyIssues.length > 0 ? 'partial' : 'success',
       summary: { scope: 'classes_students', ...summary },
     })
 

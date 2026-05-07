@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/table'
 import { AlertCircle, CheckCircle2, RefreshCw, Save, Search, Image as ImageIcon } from 'lucide-react'
 import { toast } from 'sonner'
+import { getApiErrorMessage, parseJsonSafe, unwrapData } from '@/lib/api-client'
 
 interface EntraGroup {
   id: string
@@ -101,11 +102,11 @@ export default function EntraSyncSettingsPage() {
     setIsLoadingSettings(true)
     try {
       const res = await fetch('/api/admin/directory-sync-settings', { cache: 'no-store' })
+      const payload = await parseJsonSafe(res)
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        throw new Error(body.error ?? `Einstellungen konnten nicht geladen werden (${res.status})`)
+        throw new Error(getApiErrorMessage(payload, `Einstellungen konnten nicht geladen werden (${res.status})`))
       }
-      const data = (await res.json()) as DirectorySyncSettings
+      const data = unwrapData<DirectorySyncSettings>(payload)
       setSettings(data)
       setSelectedIds(new Set(data.syncedClassGroupIds))
       setFotoQuellePriority(data.studentFotoQuellePriority ?? 'manual_first')
@@ -122,11 +123,11 @@ export default function EntraSyncSettingsPage() {
     setError(null)
     try {
       const res = await fetch('/api/admin/entra/groups', { cache: 'no-store' })
+      const payload = await parseJsonSafe(res)
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        throw new Error(body.error ?? `Gruppen konnten nicht geladen werden (${res.status})`)
+        throw new Error(getApiErrorMessage(payload, `Gruppen konnten nicht geladen werden (${res.status})`))
       }
-      const data = (await res.json()) as EntraGroup[]
+      const data = unwrapData<EntraGroup[]>(payload)
       setGroups(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gruppen konnten nicht geladen werden')
@@ -266,11 +267,11 @@ export default function EntraSyncSettingsPage() {
           teacherPhotoSourcePriority,
         }),
       })
+      const payload = await parseJsonSafe(res)
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        throw new Error(body.error ?? `Save fehlgeschlagen (${res.status})`)
+        throw new Error(getApiErrorMessage(payload, `Save fehlgeschlagen (${res.status})`))
       }
-      const data = (await res.json()) as DirectorySyncSettings
+      const data = unwrapData<DirectorySyncSettings>(payload)
       setSettings(data)
       setSelectedIds(new Set(data.syncedClassGroupIds))
       setFotoQuellePriority(data.studentFotoQuellePriority ?? 'manual_first')
@@ -294,13 +295,13 @@ export default function EntraSyncSettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       })
+      const payload = await parseJsonSafe(res)
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        throw new Error(body.error ?? `O365-Lehrerfotos konnten nicht aktualisiert werden (${res.status})`)
+        throw new Error(getApiErrorMessage(payload, `O365-Lehrerfotos konnten nicht aktualisiert werden (${res.status})`))
       }
 
-      const body = (await res.json()) as { refreshed: number; withFoto: number }
-      toast.success(`${body.refreshed} Lehrkraft(en) aktualisiert, ${body.withFoto} mit Foto`)
+      const body = unwrapData<{ refreshed: number; withPhoto: number }>(payload)
+      toast.success(`${body.refreshed} Lehrkraft(en) aktualisiert, ${body.withPhoto} mit Foto`)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'O365-Lehrerfotos konnten nicht aktualisiert werden'
       setError(message)
@@ -319,13 +320,13 @@ export default function EntraSyncSettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       })
+      const payload = await parseJsonSafe(res)
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        throw new Error(body.error ?? `O365-Schülerfotos konnten nicht aktualisiert werden (${res.status})`)
+        throw new Error(getApiErrorMessage(payload, `O365-Schülerfotos konnten nicht aktualisiert werden (${res.status})`))
       }
 
-      const body = (await res.json()) as { refreshed: number; withFoto: number }
-      toast.success(`${body.refreshed} Schüler(innen) aktualisiert, ${body.withFoto} mit Foto`)
+      const body = unwrapData<{ refreshed: number; withPhoto: number }>(payload)
+      toast.success(`${body.refreshed} Schüler(innen) aktualisiert, ${body.withPhoto} mit Foto`)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'O365-Schülerfotos konnten nicht aktualisiert werden'
       setError(message)

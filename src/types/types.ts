@@ -23,7 +23,7 @@ export interface Student {
     firstName: string
     lastName: string
     classId: number
-    groupId: number
+    groupId: number | null
 }
 
 // Holiday moved to schedule.ts - see re-exports above
@@ -57,7 +57,9 @@ export type TeacherRotation = {
     teacherId: string
     classId: number
     groupId: number
-    turnId: string
+    turnId: number
+    /** Turn name (e.g. "TURNUS 1") — derived from the related ScheduleTurn for backwards compat. */
+    turnName?: string
     startDate: Date
     endDate: Date
     period: string

@@ -1,9 +1,8 @@
-import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { Prisma } from '@prisma/client'
 import { captureError } from '~/lib/sentry'
 import { prisma } from '@/lib/prisma'
-import { parseJsonToNormalized, createScheduleTurnData, normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
+import { parseJsonToNormalized, createScheduleTurnData } from '@/lib/schedule-data-helpers'
+import { badRequest, created, notFound, ok, serverError, unprocessable } from '@/lib/api-response'
 
 const scheduleSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -36,10 +35,7 @@ export async function POST(req: Request) {
     // Validate the request body against the schema
     const validationResult = scheduleSchema.safeParse(body)
     if (!validationResult.success) {
-      return NextResponse.json(
-        { error: 'Invalid request data', details: validationResult.error.format() },
-        { status: 400 }
-      )
+      return unprocessable('Invalid request data', validationResult.error.format())
     }
 
     const { name, description, startDate, endDate, selectedWeekday, scheduleData, classId, schoolYearId: bodySchoolYearId, additionalInfo, semesterPlanning } = validationResult.data
@@ -55,10 +51,7 @@ export async function POST(req: Request) {
       schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
     }
     if (schoolYearId == null) {
-      return NextResponse.json(
-        { error: 'No school year found. Create a school year in Admin / Data / School Years first.' },
-        { status: 400 }
-      )
+      return badRequest('No school year found. Create a school year in Admin / Data / School Years first.')
     }
 
     // Find existing schedule for this class, weekday, and school year
@@ -90,10 +83,8 @@ export async function POST(req: Request) {
           startDate: new Date(startDate),
           endDate: new Date(endDate),
           schoolYearId,
-          scheduleData: Prisma.JsonNull, // No longer storing JSON - using normalized turns instead
           additionalInfo,
           semesterPlanning,
-          // Create normalized turns if scheduleData is provided
           ...(scheduleData ? {
             turns: {
               create: parseJsonToNormalized(scheduleData).map((turnData, order) =>
@@ -131,10 +122,8 @@ export async function POST(req: Request) {
           selectedWeekday,
           schoolYearId,
           classId: classId ? parseInt(classId) : null,
-          scheduleData: Prisma.JsonNull, // No longer storing JSON - using normalized turns instead
           additionalInfo,
           semesterPlanning,
-          // Create normalized turns if scheduleData is provided
           ...(scheduleData ? {
             turns: {
               create: parseJsonToNormalized(scheduleData).map((turnData, order) =>
@@ -163,13 +152,13 @@ export async function POST(req: Request) {
       })
     }
 
-    return NextResponse.json(newSchedule)
+    return created(newSchedule)
   } catch (error) {
     captureError(error, {
       location: 'api/schedules',
       type: 'create-schedule'
     })
-    return new NextResponse('Internal Error', { status: 500 })
+    return serverError('Failed to create schedule')
   }
 }
 
@@ -197,7 +186,7 @@ export async function GET(req: Request) {
     }
 
     if (!className) {
-      return NextResponse.json({ error: 'Class ID is required' }, { status: 400 })
+      return badRequest('Class ID is required')
     }
 
     const classRecord = await prisma.class.findFirst({
@@ -207,7 +196,7 @@ export async function GET(req: Request) {
     })
 
     if (!classRecord) {
-      return NextResponse.json({ error: `Class '${className}' not found` }, { status: 404 })
+      return notFound(`Class '${className}' not found`)
     }
 
     const schedules = await prisma.schedule.findMany({
@@ -241,23 +230,15 @@ export async function GET(req: Request) {
         location: 'api/schedules',
         type: 'fetch-schedules'
       })
-      return NextResponse.json({ error: 'No schedules found' }, { status: 404 })
+      return notFound('No schedules found')
     }
 
-    // Convert normalized turns back to scheduleData JSON format for backward compatibility
-    const schedulesWithData = schedules.map(schedule => ({
-      ...schedule,
-      scheduleData: schedule.turns && schedule.turns.length > 0
-        ? normalizeToJsonFormat(schedule.turns)
-        : null
-    }))
-
-    return NextResponse.json(schedulesWithData)
+    return ok(schedules)
   } catch (error) {
     captureError(error, {
       location: 'api/schedules',
       type: 'fetch-schedules'
     })
-    return new NextResponse('Internal Error', { status: 500 })
+    return serverError('Failed to fetch schedules')
   }
 } 

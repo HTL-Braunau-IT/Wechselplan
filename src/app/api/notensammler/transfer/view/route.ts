@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { env } from '~/env'
 import { captureError } from '@/lib/sentry'
+import { badRequest, forbidden, ok, serverError, unauthorized } from '@/lib/api-response'
 
 type NotenmanagementTokenResponse = {
   expires_in: number
@@ -51,13 +51,16 @@ export async function POST(request: Request) {
     const session = await getServerSession(authOptions)
     const username = session?.user?.name
     if (!username) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return unauthorized('Unauthorized')
     }
     if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return forbidden('Forbidden')
     }
     if (!(await isFeatureEnabled('notensammler'))) {
-      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+      return forbidden('Feature not available')
+    }
+    if (!(await isFeatureEnabled('notenmgmt_htl'))) {
+      return forbidden('Feature not available')
     }
 
     const body = (await request.json()) as {
@@ -68,10 +71,10 @@ export async function POST(request: Request) {
     }
 
     if (typeof body.lfId !== 'string' || !body.lfId) {
-      return NextResponse.json({ error: 'Invalid lfId' }, { status: 400 })
+      return badRequest('Invalid lfId')
     }
     if (typeof body.username !== 'string' || !body.username) {
-      return NextResponse.json({ error: 'Username required' }, { status: 400 })
+      return badRequest('Username required')
     }
 
     const lfId = body.lfId
@@ -80,7 +83,7 @@ export async function POST(request: Request) {
     const providedToken = typeof body.token === 'string' ? body.token : null
 
     if (!providedToken && !password) {
-      return NextResponse.json({ error: 'Either token or password is required' }, { status: 400 })
+      return badRequest('Either token or password is required')
     }
 
     // Use provided token or get new one with password
@@ -90,7 +93,7 @@ export async function POST(request: Request) {
       accessToken = providedToken
     } else {
       if (!password) {
-        return NextResponse.json({ error: 'Password required when token is not provided' }, { status: 400 })
+        return badRequest('Password required when token is not provided')
       }
       const tokenData = await getNotenmanagementAccessToken(nmUsername, password)
       accessToken = tokenData.token
@@ -111,16 +114,13 @@ export async function POST(request: Request) {
 
     if (!res.ok) {
       const errorText = await res.text()
-      return NextResponse.json(
-        { error: 'Failed to fetch LF data from Notenmanagement', details: errorText },
-        { status: 502 }
-      )
+      return serverError('Failed to fetch LF data from Notenmanagement', errorText)
     }
 
     const data = (await res.json()) as NotenmanagementNote[]
     const notes = Array.isArray(data) ? data : []
 
-    return NextResponse.json({
+    return ok({
       success: true,
       notes,
       // Include token data if a new token was generated
@@ -131,10 +131,7 @@ export async function POST(request: Request) {
       location: 'api/notensammler/transfer/view',
       type: 'view',
     })
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch LF data' },
-      { status: 500 }
-    )
+    return serverError(error instanceof Error ? error.message : 'Failed to fetch LF data')
   }
 }
 

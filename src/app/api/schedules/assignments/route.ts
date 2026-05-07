@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { badRequest, notFound, ok, serverError } from '@/lib/api-response'
 
 interface Assignment {
 	groupId: number
@@ -11,141 +11,137 @@ interface RequestBody {
 	classId: number
 	assignments: Assignment[]
 	removedStudentIds?: number[]
+	/** 1–5 (Mo–Fr). Required for writes; optional on reads (defaults to 1). */
+	weekday?: number
+	schoolYearId?: number
+}
+
+async function resolveSchoolYearId(param: string | null): Promise<number | undefined> {
+	let schoolYearId = param ? parseInt(param, 10) : undefined
+	if (schoolYearId == null || Number.isNaN(schoolYearId)) {
+		const now = new Date()
+		const current = await prisma.schoolYear.findFirst({
+			where: { startDate: { lte: now }, endDate: { gte: now } },
+			select: { id: true }
+		})
+		schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
+	}
+	return schoolYearId ?? undefined
 }
 
 /**
- * Retrieves group assignments and unassigned students for a specified class.
- *
- * Returns a JSON response containing an array of group assignments and a list of students without a group assignment for the given class.
- *
- * @param request - The HTTP request containing the `classId` query parameter.
- * @returns A JSON response with `assignments` (group assignments) and `unassignedStudents` (students not assigned to any group).
+ * Retrieves group assignments and unassigned students for a specified class and weekday (school year scoped).
  */
 export async function GET(request: Request) {
 	try {
 		const { searchParams } = new URL(request.url)
 		const classIdParam = searchParams.get('classId')
+		const weekdayParam = searchParams.get('weekday')
+		const schoolYearId = await resolveSchoolYearId(searchParams.get('schoolYearId'))
 
 		if (!classIdParam) {
-			captureError(new Error('Class ID parameter is required'), {
-				location: 'api/schedules/assignments',
-				type: 'validation-error',
-				extra: {
-					searchParams: Object.fromEntries(new URL(request.url).searchParams)
-				}
-			})
-			return NextResponse.json(
-				{ error: 'Class ID parameter is required' },
-				{ status: 400 }
-			)
+			return badRequest('Class ID parameter is required')
 		}
 
 		const classId = parseInt(classIdParam, 10)
 		if (isNaN(classId)) {
-			captureError(new Error('Class ID must be a number'), {
-				location: 'api/schedules/assignments',
-				type: 'validation-error',
-				extra: {
-					searchParams: Object.fromEntries(new URL(request.url).searchParams)
-				}
-			})
-			return NextResponse.json(
-				{ error: 'Class ID must be a number' },
-				{ status: 400 }
-			)
+			return badRequest('Class ID must be a number')
 		}
 
-		// Find the class by ID
+		const weekday =
+			weekdayParam != null && weekdayParam !== ''
+				? parseInt(weekdayParam, 10)
+				: 1
+		if (isNaN(weekday) || weekday < 1 || weekday > 5) {
+			return badRequest('weekday must be between 1 and 5')
+		}
+
+		if (schoolYearId == null) {
+			return badRequest('No school year found.')
+		}
+
 		const classRecord = await prisma.class.findUnique({
 			where: { id: classId }
 		})
 
 		if (!classRecord) {
-			captureError(new Error('Class not found'), {
-				location: 'api/schedules/assignments',
-				type: 'not-found',
-				extra: {
-					classId,
-					searchParams: Object.fromEntries(new URL(request.url).searchParams)
-				}
-			})
-			return NextResponse.json(
-				{ error: 'Class not found' },
-				{ status: 404 }
-			)
+			return notFound('Class not found')
 		}
 
-		// Get all students with their group assignments for this class
-		const students = await prisma.student.findMany({
-			where: {
-				classId: classRecord.id
-			},
-			orderBy: [
-				{ lastName: 'asc' },
-				{ firstName: 'asc' }
-			]
+		const classMembershipsForYear = await prisma.classMembership.findMany({
+			where: { classId: classRecord.id, schoolYearId },
+			select: { studentId: true }
 		})
-
-		// Group students by their groupId
-		const groups = new Map<number, typeof students>()
-		students.forEach(student => {
-			if (student.groupId) {
-				if (!groups.has(student.groupId as number)) {
-					groups.set(student.groupId as number, [])
-				}
-				groups.get(student.groupId as number)!.push(student)
-			}
-		})
-
-		// Get all group assignments for this class (including empty groups)
-		const groupAssignments = await prisma.groupAssignment.findMany({
-			where: { class: classRecord.name },
-			orderBy: { groupId: 'asc' }
-		})
-
-		// Get all group IDs that students actually have (even if not in GroupAssignment table)
-		const studentGroupIds = Array.from(groups.keys())
-		
-		// Ensure GroupAssignment records exist for all groups that students are in
-		// This fixes cases where GroupAssignment records are missing
-		for (const groupId of studentGroupIds) {
-			const existingGroupAssignment = groupAssignments.find(ga => ga.groupId === groupId)
-			if (!existingGroupAssignment) {
-				// Create missing GroupAssignment record
-				await prisma.groupAssignment.upsert({
-					where: {
-						class_groupId: {
-							class: classRecord.name,
-							groupId: groupId
-						}
-					},
-					update: {},
-					create: {
-						groupId: groupId,
-						class: classRecord.name
-					}
+		const memberStudentIds = classMembershipsForYear.map(m => m.studentId)
+		const students = memberStudentIds.length > 0
+			? await prisma.student.findMany({
+					where: { id: { in: memberStudentIds } },
+					orderBy: [
+						{ lastName: 'asc' },
+						{ firstName: 'asc' }
+					]
 				})
+			: []
+
+		const studentIds = students.map(s => s.id)
+		const weekdayMemberships =
+			studentIds.length > 0
+				? await prisma.studentWeekdayGroup.findMany({
+						where: {
+							studentId: { in: studentIds },
+							schoolYearId,
+							weekday
+						}
+					})
+				: []
+
+		const membershipByStudent = new Map<number, number>()
+		for (const m of weekdayMemberships) {
+			membershipByStudent.set(m.studentId, m.groupId)
+		}
+
+		function effectiveGroupId(studentId: number): number | null {
+			const fromDay = membershipByStudent.get(studentId)
+			return fromDay !== undefined && fromDay !== 0 ? fromDay : null
+		}
+
+		const groups = new Map<number, typeof students>()
+		for (const student of students) {
+			const gid = effectiveGroupId(student.id)
+			if (gid != null && gid !== 0) {
+				if (!groups.has(gid)) {
+					groups.set(gid, [])
+				}
+				groups.get(gid)!.push(student)
 			}
 		}
 
-		// Get updated group assignments (including newly created ones)
-		const allGroupAssignments = await prisma.groupAssignment.findMany({
-			where: { class: classRecord.name },
+		const groupsFromAssignments = await prisma.teacherAssignment.findMany({
+			where: { classId: classRecord.id, schoolYearId, selectedWeekday: weekday },
+			select: { groupId: true },
+			distinct: ['groupId'],
 			orderBy: { groupId: 'asc' }
 		})
-
-		// Convert to the expected format, including empty groups
-		const assignments: Assignment[] = allGroupAssignments.map(groupAssignment => ({
-			groupId: groupAssignment.groupId,
-			studentIds: groups.get(groupAssignment.groupId)?.map((s: { id: number }) => s.id) ?? []
+		const allGroupIds = Array.from(
+			new Set([
+				...Array.from(groups.keys()),
+				...groupsFromAssignments.map((row) => row.groupId)
+			])
+		).sort((a, b) => a - b)
+		const assignments: Assignment[] = allGroupIds.map((groupId) => ({
+			groupId,
+			studentIds: groups.get(groupId)?.map((s: { id: number }) => s.id) ?? []
 		}))
 
-		return NextResponse.json({
+		const unassignedStudents = students.filter((s) => effectiveGroupId(s.id) == null)
+
+		return ok({
 			assignments,
-			unassignedStudents: students.filter(s => !s.groupId)
+			unassignedStudents,
+			weekday,
+			schoolYearId
 		})
 	} catch (error) {
-		
 		captureError(error, {
 			location: 'api/schedules/assignments',
 			type: 'fetch-assignments',
@@ -153,194 +149,124 @@ export async function GET(request: Request) {
 				searchParams: Object.fromEntries(new URL(request.url).searchParams)
 			}
 		})
-		return NextResponse.json(
-			{ error: 'Failed to fetch assignments' },
-			{ status: 500 }
-		)
+		return serverError('Failed to fetch assignments')
 	}
 }
 
 /**
- * Handles POST requests to update student group assignments for a given class.
- *
- * Expects a JSON payload with the class ID, an array of group assignments, and optionally an array of student IDs to unassign. Validates the input, updates each student's group assignment in the database, and unassigns students as specified. Returns a JSON response indicating success or an error message with the appropriate HTTP status code.
- *
- * @returns A JSON response indicating success, or an error message with HTTP status 400, 404, or 500.
+ * Updates student group assignments for one weekday.
  */
 export async function POST(request: Request) {
 	let rawBody = ''
 	try {
-		// Capture raw body once so it can be reused in error reporting
 		rawBody = await request.text()
 		let body: RequestBody
 		try {
 			body = JSON.parse(rawBody)
-		} catch  {
+		} catch {
 			captureError(new Error('Invalid request body'), {
 				location: 'api/schedules/assignments',
 				type: 'validation-error',
 				extra: { requestBody: rawBody }
 			})
-			return NextResponse.json(
-				{ error: 'Invalid request body' },
-				{ status: 400 }
-			)
+			return badRequest('Invalid request body')
 		}
 
-		const { classId, assignments, removedStudentIds } = body
+		const { classId, assignments, removedStudentIds, weekday: bodyWeekday, schoolYearId: bodySchoolYearId } = body
 
 		if (!classId || typeof classId !== 'number') {
-			captureError(new Error('Class ID parameter is required'), {
-				location: 'api/schedules/assignments',
-				type: 'validation-error',
-				extra: { requestBody: rawBody }
+			return badRequest('Class ID parameter is required')
+		}
+
+		const weekday =
+			typeof bodyWeekday === 'number' && bodyWeekday >= 1 && bodyWeekday <= 5 ? bodyWeekday : null
+		if (weekday == null) {
+			return badRequest('weekday is required and must be 1–5')
+		}
+
+		let schoolYearId = typeof bodySchoolYearId === 'number' ? bodySchoolYearId : undefined
+		if (schoolYearId == null) {
+			const now = new Date()
+			const current = await prisma.schoolYear.findFirst({
+				where: { startDate: { lte: now }, endDate: { gte: now } },
+				select: { id: true }
 			})
-			return NextResponse.json(
-				{ error: 'Class ID parameter is required' },
-				{ status: 400 }
-			)
+			schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
+		}
+		if (schoolYearId == null) {
+			return badRequest('No school year found.')
 		}
 
 		if (!Array.isArray(assignments)) {
-			captureError(new Error('Assignments must be an array'), {
-				location: 'api/schedules/assignments',
-				type: 'validation-error',
-				extra: { requestBody: rawBody }
-			})
-			return NextResponse.json(
-				{ error: 'Assignments must be an array' },
-				{ status: 400 }
-			)
+			return badRequest('Assignments must be an array')
 		}
 
-		// Validate each assignment
 		for (const assignment of assignments) {
 			if (!assignment.studentIds) {
-				captureError(new Error('Each assignment must have studentIds'), {
-					location: 'api/schedules/assignments',
-					type: 'validation-error',
-					extra: { requestBody: rawBody }
-				})
-				return NextResponse.json(
-					{ error: 'Each assignment must have studentIds' },
-					{ status: 400 }
-				)
+				return badRequest('Each assignment must have studentIds')
 			}
 
 			if (typeof assignment.groupId !== 'number') {
-				captureError(new Error('groupId must be a number'), {
-					location: 'api/schedules/assignments',
-					type: 'validation-error',
-					extra: { requestBody: rawBody }
-				})
-				return NextResponse.json(
-					{ error: 'groupId must be a number' },
-					{ status: 400 }
-				)
+				return badRequest('groupId must be a number')
 			}
 		}
 
-		// Find the class by ID
 		const classRecord = await prisma.class.findUnique({
 			where: { id: classId }
 		})
 
 		if (!classRecord) {
-			captureError(new Error('Class not found'), {
-				location: 'api/schedules/assignments',
-				type: 'not-found',
-				extra: {
-					classId,
-					requestBody: rawBody
-				}
-			})
-			return NextResponse.json(
-				{ error: 'Class not found' },
-				{ status: 404 }
-			)
+			return notFound('Class not found')
 		}
 
-		// First, ensure all groups exist in GroupAssignment table
-		const requestedGroupIds = assignments.map(a => a.groupId).filter(id => id !== 0) // Exclude unassigned group
-
-		// Create or update GroupAssignment records for all requested groups
-		for (const groupId of requestedGroupIds) {
-			await prisma.groupAssignment.upsert({
-				where: {
-					class_groupId: {
-						class: classRecord.name,
-						groupId: groupId
-					}
-				},
-				update: {},
-				create: {
-					groupId: groupId,
-					class: classRecord.name
-				}
-			})
-		}
-
-		// Remove orphan GroupAssignment rows for this class (e.g. empty group 3 after reducing to 2 groups)
-		if (requestedGroupIds.length > 0) {
-			await prisma.groupAssignment.deleteMany({
-				where: {
-					class: classRecord.name,
-					groupId: { notIn: requestedGroupIds }
-				}
-			})
-		} else {
-			await prisma.groupAssignment.deleteMany({
-				where: { class: classRecord.name }
-			})
-		}
-
-		// Update each student's groupId
 		for (const assignment of assignments) {
-			// Skip the unassigned group (groupId: 0)
 			if (assignment.groupId === 0) {
-				await prisma.student.updateMany({
+				await prisma.studentWeekdayGroup.deleteMany({
 					where: {
-						id: { in: assignment.studentIds }
-					},
-					data: {
-						groupId: null
+						studentId: { in: assignment.studentIds },
+						schoolYearId,
+						weekday
 					}
 				})
 			} else {
-				await prisma.student.updateMany({
-					where: {
-						id: { in: assignment.studentIds }
-					},
-					data: {
-						groupId: assignment.groupId
-					}
-				})
+				for (const sid of assignment.studentIds) {
+					await prisma.studentWeekdayGroup.upsert({
+						where: {
+							studentId_schoolYearId_weekday: {
+								studentId: sid,
+								schoolYearId,
+								weekday
+							}
+						},
+						update: { groupId: assignment.groupId },
+						create: {
+							studentId: sid,
+							schoolYearId,
+							weekday,
+							groupId: assignment.groupId
+						}
+					})
+				}
 			}
 		}
 
-		// Remove groupId from removed students (this is now handled by the unassigned group)
 		if (Array.isArray(removedStudentIds) && removedStudentIds.length > 0) {
-			await prisma.student.updateMany({
+			await prisma.studentWeekdayGroup.deleteMany({
 				where: {
-					id: { in: removedStudentIds }
-				},
-				data: {
-					groupId: null
+					studentId: { in: removedStudentIds },
+					schoolYearId,
+					weekday
 				}
 			})
 		}
 
-		return NextResponse.json({ success: true })
+		return ok(null, 'Assignments saved successfully')
 	} catch (error) {
-
 		captureError(error, {
 			location: 'api/schedules/assignments',
 			type: 'create-assignments',
 			extra: { requestBody: rawBody }
 		})
-		return NextResponse.json(
-			{ error: 'Failed to create assignments' },
-			{ status: 500 }
-		)
+		return serverError('Failed to create assignments')
 	}
 }

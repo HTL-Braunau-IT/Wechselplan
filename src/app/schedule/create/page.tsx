@@ -5,21 +5,21 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import { useTranslation } from 'next-i18next'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { CheckCircle2, Circle } from 'lucide-react'
 import { captureFrontendError } from '@/lib/frontend-error'
 import { StudentItem } from '@/components/schedule/student-item'
 import { GroupContainer } from '@/components/schedule/group-container'
-import { AddStudentDialog } from '@/components/schedule/add-student-dialog'
 import { CombineClassesDialog } from '@/components/schedule/combine-classes-dialog'
-import { TransferStudentDialog } from '@/components/schedule/transfer-student-dialog'
 import { useClassDataByName } from '@/hooks/use-class-data'
 import { useGroupAssignments } from '@/hooks/use-group-assignments'
 import { useSchoolYear } from '@/contexts/school-year-context'
+import { fetchAndUnwrap, getApiErrorMessage, parseJsonSafe, unwrapData } from '@/lib/api-client'
 
 
 interface Student {
@@ -53,6 +53,8 @@ interface AssignmentsResponse {
 
 // Add constant for unassigned group ID
 const UNASSIGNED_GROUP_ID = 0
+
+const WEEKDAY_LABEL_KEYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as const
 
 // Add constant for maximum group size
 const MAX_GROUP_SIZE = 12
@@ -102,16 +104,24 @@ function distributeStudentsEvenly(students: Student[], numGroups: number): Group
 /**
  * Provides an interactive interface for assigning students to groups within a selected class using drag-and-drop.
  *
- * Enables teachers to select a class, view and manage its students, create groups, assign students to groups, add or remove students, and save group assignments. Integrates with backend APIs for data retrieval and persistence, enforces maximum group size constraints, and prompts for confirmation when updating existing assignments.
+ * Enables teachers to pick a class and weekday, then assign students to groups via drag-and-drop and save per-weekday group assignments. Integrates with backend APIs for data retrieval and persistence, enforces maximum group size constraints, and prompts for confirmation when updating existing assignments.
  *
  * @returns The React component for the class scheduling and group assignment interface.
  *
- * @remark The unassigned group (ID 0) is always present and preserved across group changes. Students cannot be moved into the unassigned group via drag-and-drop, but can be moved there using the remove action. If a group assignment would exceed the maximum group size, a warning dialog is shown and the action is blocked. When existing assignments are detected and changes are made, a confirmation dialog is displayed before updating assignments.
+ * @remark The unassigned group (ID 0) is always present. Students cannot be moved into the unassigned group via drag-and-drop, but can be moved there using the remove action. If a group assignment would exceed the maximum group size, a warning dialog is shown and the action is blocked. When existing assignments are detected and changes are made, a confirmation dialog is displayed before updating assignments.
  */
 export default function ScheduleClassSelectPage() {
 	const router = useRouter()
 	const { t } = useTranslation('schedule')
+	const { t: tCommon } = useTranslation('common')
 	const searchParams = useSearchParams()
+	const weekdayRaw = searchParams.get('weekday')
+	const parsedWeekFromUrl = weekdayRaw ? parseInt(weekdayRaw, 10) : NaN
+	const scheduleWeekday =
+		!Number.isNaN(parsedWeekFromUrl) && parsedWeekFromUrl >= 1 && parsedWeekFromUrl <= 5
+			? parsedWeekFromUrl
+			: null
+	const needsWeekdayPick = scheduleWeekday === null
 
 	const [classes, setClasses] = useState<Class[]>([])
 	const [selectedClass, setSelectedClass] = useState<string>(searchParams.get('class') ?? '')
@@ -135,12 +145,6 @@ export default function ScheduleClassSelectPage() {
 		removedStudentIds: number[]
 	} | null>(null)
 	const hasExistingAssignmentsRef = useRef(false)
-	const [showAddStudentDialog, setShowAddStudentDialog] = useState(false)
-	const [newStudent, setNewStudent] = useState({
-		firstName: '',
-		lastName: '',
-		username: ''
-	})
 	const [showCombineClassesDialog, setShowCombineClassesDialog] = useState(false)
 	const [combineClasses, setCombineClasses] = useState({
 		class1Id: '',
@@ -149,10 +153,7 @@ export default function ScheduleClassSelectPage() {
 	})
 	const [combiningClasses, setCombiningClasses] = useState(false)
 	const [isManualGroupChange, setIsManualGroupChange] = useState(false)
-	const [showTransferDialog, setShowTransferDialog] = useState(false)
-	const [transferTargetStudent, setTransferTargetStudent] = useState<Student | null>(null)
-	const [transferring, setTransferring] = useState(false)
-	const queryClient = useQueryClient()
+	const [entrySelectedWeekday, setEntrySelectedWeekday] = useState<number | null>(null)
 
 	/**
 	 * Determines whether all groups, except the unassigned group, do not exceed the maximum allowed size.
@@ -189,16 +190,6 @@ export default function ScheduleClassSelectPage() {
 		setGroups(newGroups)
 	}
 
-	// Add effect to automatically generate username
-	useEffect(() => {
-		if (newStudent.firstName && newStudent.lastName) {
-			setNewStudent(prev => ({
-				...prev,
-				username: `${newStudent.firstName.toLowerCase()}.${newStudent.lastName.toLowerCase()}`
-			}))
-		}
-	}, [newStudent.firstName, newStudent.lastName])
-
 	const sensors = useSensors(
 		useSensor(MouseSensor, {
 			activationConstraint: {
@@ -215,15 +206,14 @@ export default function ScheduleClassSelectPage() {
 
 	const { selectedYear } = useSchoolYear()
 	const schoolYearId = selectedYear?.id
+	const updateAssignmentsMessage = t('updateAssignmentsMessage').replace('Lehrerzuweisungen', 'Schülerzuweisungen')
 
 	// Fetch classes using React Query (filtered by selected school year)
 	const { data: classesData, isLoading: isLoadingClassesData } = useQuery<Class[]>({
 		queryKey: ['classes', schoolYearId],
 		queryFn: async () => {
 			const url = schoolYearId != null ? `/api/classes?schoolYearId=${schoolYearId}` : '/api/classes'
-			const res = await fetch(url)
-			if (!res.ok) throw new Error('Failed to fetch classes')
-			return res.json() as Promise<Class[]>
+			return fetchAndUnwrap<Class[]>(url)
 		},
 		enabled: schoolYearId != null,
 		staleTime: 1000 * 60 * 5, // 5 minutes
@@ -250,21 +240,44 @@ export default function ScheduleClassSelectPage() {
 		}
 	}, [classData, selectedClass])
 
+	// Per-weekday schedule presence (Mo–Fr) for entry step
+	const { data: weekdayPresence, isLoading: isLoadingPresence } = useQuery<Record<number, boolean>>({
+		queryKey: ['schedule-weekday-presence', selectedClass, schoolYearId],
+		queryFn: async () => {
+			if (!selectedClass || schoolYearId == null) throw new Error('Class and school year required')
+			const out: Record<number, boolean> = {}
+			await Promise.all(
+				[1, 2, 3, 4, 5].map(async (wd) => {
+					const url = `/api/schedules?classId=${encodeURIComponent(selectedClass)}&schoolYearId=${schoolYearId}&weekday=${wd}`
+					const res = await fetch(url)
+					out[wd] = res.ok
+				})
+			)
+			return out
+		},
+		enabled: needsWeekdayPick && !!selectedClass && schoolYearId != null,
+		staleTime: 1000 * 60,
+	})
+
 	// Fetch students
 	const { data: studentsData, isLoading: isLoadingStudents } = useQuery<Student[]>({
 		queryKey: ['students', selectedClass],
 		queryFn: async () => {
 			if (!selectedClass) throw new Error('Class name is required')
-			const res = await fetch(`/api/students?class=${selectedClass}`)
-			if (!res.ok) throw new Error('Failed to fetch students')
-			return res.json() as Promise<Student[]>
+			return fetchAndUnwrap<Student[]>(`/api/students?class=${selectedClass}`)
 		},
-		enabled: !!selectedClass,
+		enabled: !!selectedClass && !needsWeekdayPick,
 		staleTime: 1000 * 60 * 5, // 5 minutes
 	})
 
 	// Fetch group assignments
-	const { data: assignmentsData, isLoading: isLoadingAssignments } = useGroupAssignments(selectedClassId)
+	const { data: assignmentsData, isLoading: isLoadingAssignments } = useGroupAssignments(
+		needsWeekdayPick ? null : selectedClassId,
+		{
+			weekday: scheduleWeekday ?? 1,
+			schoolYearId: schoolYearId ?? undefined,
+		}
+	)
 
 	// Update students when data is fetched
 	useEffect(() => {
@@ -275,8 +288,8 @@ export default function ScheduleClassSelectPage() {
 
 	// Initialize groups when students and assignments are loaded
 	useEffect(() => {
-		if (!selectedClass || !selectedClassId || isLoadingStudents || isLoadingAssignments) {
-			setLoading(isLoadingStudents || isLoadingAssignments)
+		if (needsWeekdayPick || !selectedClass || !selectedClassId || isLoadingStudents || isLoadingAssignments) {
+			setLoading(needsWeekdayPick ? false : isLoadingStudents || isLoadingAssignments)
 			return
 		}
 
@@ -339,7 +352,7 @@ export default function ScheduleClassSelectPage() {
 		} finally {
 			setLoading(false)
 		}
-	}, [selectedClass, selectedClassId, studentsData, assignmentsData, isLoadingStudents, isLoadingAssignments, t])
+	}, [needsWeekdayPick, selectedClass, selectedClassId, studentsData, assignmentsData, isLoadingStudents, isLoadingAssignments, t])
 
 	useEffect(() => {
 		if (students.length === 0) return
@@ -479,6 +492,11 @@ export default function ScheduleClassSelectPage() {
 
 	async function handleNext() {
 		try {
+			if (scheduleWeekday == null || !schoolYearId) {
+				setError('Schuljahr fehlt oder ungültiger Wochentag. Bitte Seite neu laden oder Schuljahr wählen.')
+				return
+			}
+
 			// Get all students that are still in groups
 			const activeStudents = groups.flatMap(group => group.students)
 			const activeStudentIds = activeStudents.map(student => student.id)
@@ -494,9 +512,10 @@ export default function ScheduleClassSelectPage() {
 
 			// Check if there are existing assignments
 			if (!selectedClassId) throw new Error('Class ID not available')
-			const existingAssignmentsRes = await fetch(`/api/schedules/assignments?classId=${selectedClassId}`)
-			if (!existingAssignmentsRes.ok) throw new Error('Failed to fetch existing assignments')
-			const existingAssignmentsData = await existingAssignmentsRes.json() as AssignmentsResponse
+			const yearQ = `&schoolYearId=${schoolYearId}`
+			const existingAssignmentsData = await fetchAndUnwrap<AssignmentsResponse>(
+				`/api/schedules/assignments?classId=${selectedClassId}&weekday=${scheduleWeekday}${yearQ}`
+			)
 
 			// Only show confirmation if there are existing assignments
 			if (existingAssignmentsData.assignments && existingAssignmentsData.assignments.length > 0) {
@@ -535,7 +554,9 @@ export default function ScheduleClassSelectPage() {
 				body: JSON.stringify({
 					classId: selectedClassId,
 					assignments,
-					removedStudentIds: removedStudents.map(student => student.id)
+					removedStudentIds: removedStudents.map(student => student.id),
+					weekday: scheduleWeekday,
+					schoolYearId,
 				}),
 			})
 
@@ -544,7 +565,9 @@ export default function ScheduleClassSelectPage() {
 			}
 
 			// Navigate to the teachers page
-			router.push(`/schedule/create/teachers?class=${selectedClass}`)
+			router.push(
+				`/schedule/create/teachers?class=${encodeURIComponent(selectedClass)}&weekday=${scheduleWeekday}`
+			)
 		} catch (err) {
 			console.error('Error saving assignments:', err)
 			captureFrontendError(err, {
@@ -561,7 +584,7 @@ export default function ScheduleClassSelectPage() {
 	}
 
 	async function handleConfirmUpdate() {
-		if (!pendingAssignments || !selectedClassId) return
+		if (!pendingAssignments || !selectedClassId || scheduleWeekday == null || !schoolYearId) return
 
 		try {
 			const response = await fetch('/api/schedules/assignments', {
@@ -572,7 +595,9 @@ export default function ScheduleClassSelectPage() {
 				body: JSON.stringify({
 					classId: selectedClassId,
 					assignments: pendingAssignments.assignments,
-					removedStudentIds: pendingAssignments.removedStudentIds
+					removedStudentIds: pendingAssignments.removedStudentIds,
+					weekday: scheduleWeekday,
+					schoolYearId,
 				}),
 			})
 
@@ -581,7 +606,9 @@ export default function ScheduleClassSelectPage() {
 			}
 
 			// Navigate to the teachers page
-			router.push(`/schedule/create/teachers?class=${selectedClass}`)
+			router.push(
+				`/schedule/create/teachers?class=${encodeURIComponent(selectedClass)}&weekday=${scheduleWeekday}`
+			)
 		} catch (err) {
 			console.error('Error updating assignments:', err)
 			captureFrontendError(err, {
@@ -731,50 +758,21 @@ export default function ScheduleClassSelectPage() {
 		setActiveStudent(null)
 	}
 
-	async function handleAddStudent(e: React.FormEvent) {
-		e.preventDefault() // Prevent form submission
-		if (!selectedClass) return
-
-		try {
-			// Create the new student
-			const response = await fetch('/api/students', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-				body: JSON.stringify({
-					...newStudent,
-					className: selectedClass
-				}),
-			})
-
-			if (!response.ok) {
-				const error = await response.json() as { error?: string }
-				throw new Error(error.error ?? 'Failed to create student')
-			}
-
-			// Reset form and close dialog
-			setNewStudent({
-				firstName: '',
-				lastName: '',
-				username: ''
-			})
-			setShowAddStudentDialog(false)
-
-			// Reload the page with the class parameter
-			router.push(`/schedule/create?class=${selectedClass}`)
-		} catch (err) {
-			console.error('Error adding student:', err)
-			captureFrontendError(err, {
-				location: 'schedule/create',
-				type: 'add-student',
-				extra: {
-					selectedClass,
-					newStudent
-				}
-			})
-			setError('Fehler beim Hinzufügen des Schülers.')
+	function handleClassSelectOnEntry(value: string) {
+		setSelectedClass(value)
+		if (value) {
+			router.replace(`/schedule/create?class=${encodeURIComponent(value)}`)
+		} else {
+			router.replace('/schedule/create')
 		}
+		setEntrySelectedWeekday(null)
+	}
+
+	function handleEntryContinue() {
+		if (!selectedClass || entrySelectedWeekday == null) return
+		router.push(
+			`/schedule/create?class=${encodeURIComponent(selectedClass)}&weekday=${entrySelectedWeekday}`
+		)
 	}
 
 	async function handleCombineClasses(e: React.FormEvent) {
@@ -813,8 +811,8 @@ export default function ScheduleClassSelectPage() {
 			})
 
 			if (!response.ok) {
-				const error = await response.json() as { error?: string, details?: unknown }
-				throw new Error(error.error ?? 'Failed to combine classes')
+				const errorPayload = await parseJsonSafe(response)
+				throw new Error(getApiErrorMessage(errorPayload, 'Failed to combine classes'))
 			}
 
 			await response.json()
@@ -831,7 +829,8 @@ export default function ScheduleClassSelectPage() {
 			const url = schoolYearId != null ? `/api/classes?schoolYearId=${schoolYearId}` : '/api/classes'
 			const classesRes = await fetch(url)
 			if (classesRes.ok) {
-				const classesData = await classesRes.json() as Class[]
+				const classesPayload = await parseJsonSafe(classesRes)
+				const classesData = unwrapData<Class[]>(classesPayload)
 				setClasses(classesData)
 			}
 
@@ -859,96 +858,40 @@ export default function ScheduleClassSelectPage() {
 		}
 	}
 
-	function handleOpenTransferDialog(student: Student) {
-		setTransferTargetStudent(student)
-		setShowTransferDialog(true)
-	}
-
-	async function handleTransferStudent(targetClassId: number, targetGroupId: number | null) {
-		if (!transferTargetStudent) return
-		if (!schoolYearId) {
-			setError(t('transferError'))
-			throw new Error('School year not selected')
-		}
-
-		setTransferring(true)
-		try {
-			const response = await fetch(`/api/students/${transferTargetStudent.id}/transfer`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					targetClassId,
-					targetGroupId,
-					schoolYearId
-				})
-			})
-
-			if (!response.ok) {
-				const err = await response.json().catch(() => ({})) as { error?: string }
-				throw new Error(err.error ?? 'Failed to transfer student')
-			}
-
-			const transferredId = transferTargetStudent.id
-
-			setStudents(prev => prev.filter(s => s.id !== transferredId))
-			setGroups(prev => prev.map(group => ({
-				...group,
-				students: group.students.filter(s => s.id !== transferredId)
-			})))
-
-			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: ['students', selectedClass] }),
-				queryClient.invalidateQueries({ queryKey: ['group-assignments', selectedClassId] }),
-				queryClient.invalidateQueries({ queryKey: ['group-assignments', targetClassId] })
-			])
-
-			setShowTransferDialog(false)
-			setTransferTargetStudent(null)
-		} catch (err) {
-			console.error('Error transferring student:', err)
-			captureFrontendError(err, {
-				location: 'schedule/create',
-				type: 'transfer-student',
-				extra: {
-					studentId: transferTargetStudent.id,
-					targetClassId,
-					targetGroupId,
-					schoolYearId
-				}
-			})
-			setError(err instanceof Error ? err.message : t('transferError'))
-			throw err
-		} finally {
-			setTransferring(false)
-		}
-	}
-
 	return (
 		<div className="container mx-auto p-4">
 			<Card>
 				<CardHeader>
-					<CardTitle>{t('selectClass')}</CardTitle>
+					<CardTitle>
+						{needsWeekdayPick ? t('selectClass') : t('studentsOfClass', { class: selectedClass })}
+					</CardTitle>
+					{!needsWeekdayPick && scheduleWeekday != null && (
+						<p className="text-sm text-muted-foreground mt-1">
+							{tCommon(`overview.weekdays.${WEEKDAY_LABEL_KEYS[scheduleWeekday - 1]}`)}
+						</p>
+					)}
 				</CardHeader>
-				<CardContent>
-					{loadingClasses && !selectedClass ? (
+				<CardContent className="space-y-6">
+					{loadingClasses && classes.length === 0 ? (
 						<p>{t('loadingClasses')}</p>
-					) : error ? (
-						<p className="text-destructive">{error}</p>
 					) : (
-						<div className="space-y-6">
-							<form onSubmit={async e => { 
-								e.preventDefault()
-								await handleNext()
-							}} className="mb-8">
-								<div className="space-y-4">
+						<>
+							<div className="rounded-lg border bg-muted/50 p-4 text-sm text-muted-foreground">
+								{needsWeekdayPick ? t('help.classSelection') : t('help.groupAssignment')}
+							</div>
+							{error && (
+								<div className="p-4 bg-destructive/10 text-destructive rounded-lg border border-destructive/20 text-sm">
+									{error}
+								</div>
+							)}
+							{needsWeekdayPick ? (
+								<div className="space-y-6">
 									<div>
-										<Label htmlFor="class-select" className="block mb-2 font-medium">{t('class')}</Label>
-										<Select
-											value={selectedClass}
-											onValueChange={setSelectedClass}
-											required
-										>
-											<SelectTrigger id="class-select" className="w-full">
+										<Label htmlFor="class-select-entry" className="block mb-2 font-medium">
+											{t('class')}
+										</Label>
+										<Select value={selectedClass} onValueChange={handleClassSelectOnEntry}>
+											<SelectTrigger id="class-select-entry" className="w-full">
 												<SelectValue placeholder={t('pleaseSelect')} />
 											</SelectTrigger>
 											<SelectContent>
@@ -960,143 +903,194 @@ export default function ScheduleClassSelectPage() {
 											</SelectContent>
 										</Select>
 									</div>
-									<div className="flex gap-2">
-										<Button
-											type="submit"
-											disabled={!selectedClass}
-											className="bg-primary text-primary-foreground hover:bg-primary/90"
-										>
-											{t('next')}
-										</Button>
-									</div>
-								</div>
-							</form>
-							<div className="flex gap-2 mb-8">
-								<Button
-									onClick={() => setShowAddStudentDialog(true)}
-									className="bg-primary text-primary-foreground hover:bg-primary/90"
-								>
-									{t('addStudent')}
-								</Button>
-								<Button
-									onClick={() => setShowCombineClassesDialog(true)}
-									variant="outline"
-									className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-								>
-									{t('combineClasses')}
-								</Button>
-							</div>
-
-							{selectedClass && (
-								<div>
-									<div className="flex justify-between items-center mb-4">
-										<h2 className="text-xl font-semibold">{t('studentsOfClass', { class: selectedClass })}</h2>
-										<div className="flex items-center gap-4">
-											<div className="flex items-center gap-2">
-												<label htmlFor="group-size" className="text-sm font-medium">
-													{t('numberOfGroups')}:
-												</label>
-												<select
-													id="group-size"
-													value={numberOfGroups}
-													onChange={handleGroupSizeChange}
-													className="border rounded px-2 py-1"
+									{schoolYearId == null && (
+										<p className="text-sm text-muted-foreground">
+											Bitte ein Schuljahr auswählen (Kopfzeile der Anwendung).
+										</p>
+									)}
+									{selectedClass && schoolYearId != null && (
+										<div className="space-y-4">
+											<Label className="block font-medium">{t('selectWeekday')}</Label>
+											{isLoadingPresence ? (
+												<p className="text-sm text-muted-foreground">{t('loadingStudents')}</p>
+											) : (
+												<ul className="space-y-2" role="list">
+													{[1, 2, 3, 4, 5].map((wd) => (
+														<li key={wd}>
+															<button
+																type="button"
+																onClick={() => setEntrySelectedWeekday(wd)}
+																className={`w-full flex items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
+																	entrySelectedWeekday === wd
+																		? 'border-primary ring-2 ring-primary/30 bg-accent/30'
+																		: 'border-border hover:bg-accent/50'
+																}`}
+															>
+																{weekdayPresence?.[wd] ? (
+																	<CheckCircle2
+																		className="h-5 w-5 text-green-600 shrink-0"
+																		aria-hidden
+																	/>
+																) : (
+																	<Circle
+																		className="h-5 w-5 text-muted-foreground shrink-0"
+																		aria-hidden
+																	/>
+																)}
+																<span className="font-medium">
+																	{tCommon(`overview.weekdays.${WEEKDAY_LABEL_KEYS[wd - 1]}`)}
+																</span>
+															</button>
+														</li>
+													))}
+												</ul>
+											)}
+											<div className="mt-8 flex justify-end gap-4">
+												<Button
+													type="button"
+													onClick={handleEntryContinue}
+													disabled={!selectedClass || entrySelectedWeekday == null}
+													className="bg-primary text-primary-foreground hover:bg-primary/90"
 												>
-													<option value="2">2</option>
-													<option value="3">3</option>
-													<option value="4">4</option>
-												</select>
-											</div>
-											<Button
-												onClick={handleReset}
-												variant="outline"
-												className="text-sm"
-											>
-												{t('resetGroups')}
-											</Button>
-										</div>
-									</div>
-									{error && (
-										<div className="mb-4 p-4 bg-destructive/10 text-destructive rounded-lg border border-destructive/20">
-											<div className="flex items-start space-x-2">
-												<svg className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-													<path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-												</svg>
-												<div className="text-sm leading-relaxed break-words">
-													{error}
-												</div>
+													{t('next')}
+												</Button>
 											</div>
 										</div>
 									)}
-									{loading ? (
-										<p>{t('loadingStudents')}</p>
-									) : (
-										<DndContext
-											sensors={sensors}
-											onDragStart={handleDragStart}
-											onDragEnd={handleDragEnd}
+								</div>
+							) : (
+								<div className="space-y-6">
+									<div className="flex flex-wrap gap-2">
+										<Button
+											type="button"
+											onClick={() => setShowCombineClassesDialog(true)}
+											variant="outline"
+											className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
 										>
-											<div className={`grid gap-6 ${
-												numberOfGroups === 2 
-													? 'grid-cols-1 md:grid-cols-2 justify-items-center' 
-													: numberOfGroups === 3 
-														? 'grid-cols-1 md:grid-cols-2 justify-items-center [&>*:nth-child(3)]:md:col-span-2 [&>*:nth-child(3)]:max-w-md [&>*:nth-child(3)]:mx-auto' 
-														: 'grid-cols-1 md:grid-cols-2 justify-items-center'
-											}`}>
-												{/* Regular groups first */}
-												{groups.filter(g => g.id !== UNASSIGNED_GROUP_ID).sort((a, b) => a.id - b.id).map((group) => (
-													<GroupContainer key={group.id} group={group}>
-														<div className="space-y-2">
-															{group.students.map((student, index) => (
-																<StudentItem 
-																	key={student.id} 
-																	student={student} 
-																	index={index}
-																	onRemove={handleStudentRemoval}
-																	onTransfer={handleOpenTransferDialog}
-																	t={t}
-																/>
-															))}
-														</div>
-													</GroupContainer>
-												))}
-												{/* Unassigned group last, only if it has students */}
-												{groups.find(g => g.id === UNASSIGNED_GROUP_ID)?.students.length ? (
-													<div className="flex flex-col items-center gap-4">
-														<GroupContainer 
-															key={UNASSIGNED_GROUP_ID} 
-															group={{
-																id: UNASSIGNED_GROUP_ID,
-																students: groups.find(g => g.id === UNASSIGNED_GROUP_ID)?.students ?? []
-															}}
+											{t('combineClasses')}
+										</Button>
+									</div>
+									{selectedClass && (
+										<form
+											onSubmit={async (e) => {
+												e.preventDefault()
+												await handleNext()
+											}}
+											className="space-y-6"
+										>
+											<div className="flex justify-between items-center mb-4 flex-wrap gap-4">
+												<h2 className="text-lg font-semibold sr-only">{t('studentsOfClass', { class: selectedClass })}</h2>
+												<div className="flex items-center gap-4">
+													<div className="flex items-center gap-2">
+														<label htmlFor="group-size" className="text-sm font-medium">
+															{t('numberOfGroups')}:
+														</label>
+														<select
+															id="group-size"
+															value={numberOfGroups}
+															onChange={handleGroupSizeChange}
+															className="border rounded px-2 py-1"
 														>
-															<div className="space-y-2">
-																{(groups.find(g => g.id === UNASSIGNED_GROUP_ID)?.students ?? []).map((student, index) => (
-																	<StudentItem 
-																		key={student.id} 
-																		student={student} 
-																		index={index}
-																		onRemove={handleStudentRemoval}
-																		t={t}
-																	/>
-																))}
-															</div>
-														</GroupContainer>
+															<option value="2">2</option>
+															<option value="3">3</option>
+															<option value="4">4</option>
+														</select>
 													</div>
-												) : null}
+													<Button
+														type="button"
+														onClick={handleReset}
+														variant="outline"
+														className="text-sm"
+													>
+														{t('resetGroups')}
+													</Button>
+												</div>
 											</div>
-											<DragOverlay>
-												{activeStudent ? (
-													<div className="text-sm p-2 bg-card border rounded shadow-lg">
-														{`${activeStudent.lastName}, ${activeStudent.firstName}`}
+											{loading ? (
+												<p>{t('loadingStudents')}</p>
+											) : (
+												<DndContext
+													sensors={sensors}
+													onDragStart={handleDragStart}
+													onDragEnd={handleDragEnd}
+												>
+													<div
+														className={`grid gap-6 ${
+															numberOfGroups === 2
+																? 'grid-cols-1 md:grid-cols-2 justify-items-center'
+																: numberOfGroups === 3
+																	? 'grid-cols-1 md:grid-cols-2 justify-items-center [&>*:nth-child(3)]:md:col-span-2 [&>*:nth-child(3)]:max-w-md [&>*:nth-child(3)]:mx-auto'
+																	: 'grid-cols-1 md:grid-cols-2 justify-items-center'
+														}`}
+													>
+														{groups
+															.filter((g) => g.id !== UNASSIGNED_GROUP_ID)
+															.sort((a, b) => a.id - b.id)
+															.map((group) => (
+																<GroupContainer key={group.id} group={group}>
+																	<div className="space-y-2">
+																		{group.students.map((student, index) => (
+																			<StudentItem
+																				key={student.id}
+																				student={student}
+																				index={index}
+																				onRemove={handleStudentRemoval}
+																				t={t}
+																			/>
+																		))}
+																	</div>
+																</GroupContainer>
+															))}
+														{groups.find((g) => g.id === UNASSIGNED_GROUP_ID)?.students.length ? (
+															<div className="flex flex-col items-center gap-4">
+																<GroupContainer
+																	key={UNASSIGNED_GROUP_ID}
+																	group={{
+																		id: UNASSIGNED_GROUP_ID,
+																		students:
+																			groups.find((g) => g.id === UNASSIGNED_GROUP_ID)?.students ?? [],
+																	}}
+																>
+																	<div className="space-y-2">
+																		{(groups.find((g) => g.id === UNASSIGNED_GROUP_ID)?.students ?? []).map(
+																			(student, index) => (
+																				<StudentItem
+																					key={student.id}
+																					student={student}
+																					index={index}
+																					onRemove={handleStudentRemoval}
+																					t={t}
+																				/>
+																			)
+																		)}
+																	</div>
+																</GroupContainer>
+															</div>
+														) : null}
 													</div>
-												) : null}
-											</DragOverlay>
-										</DndContext>
+													<DragOverlay>
+														{activeStudent ? (
+															<div className="text-sm p-2 bg-card border rounded shadow-lg">
+																{`${activeStudent.lastName}, ${activeStudent.firstName}`}
+															</div>
+														) : null}
+													</DragOverlay>
+												</DndContext>
+											)}
+											<div className="mt-8 flex justify-end gap-4">
+												<Button
+													type="submit"
+													disabled={!selectedClass}
+													className="bg-primary text-primary-foreground hover:bg-primary/90"
+												>
+													{t('next')}
+												</Button>
+											</div>
+										</form>
 									)}
 								</div>
 							)}
-						</div>
+						</>
 					)}
 				</CardContent>
 			</Card>
@@ -1118,54 +1112,22 @@ export default function ScheduleClassSelectPage() {
 				</DialogContent>
 			</Dialog>
 
-			{/* Confirmation Dialog */}
-			{showConfirmDialog && (
-				<div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center">
-					<div className="bg-card p-6 rounded-lg max-w-md shadow-xl">
-						<h2 className="text-xl font-bold mb-4">{t('updateAssignmentsTitle')}</h2>
-						<p className="mb-6">{t('updateAssignmentsMessage')}</p>
-						<div className="flex justify-end space-x-4">
-							<button
-								onClick={handleCancelUpdate}
-								className="px-4 py-2 text-muted-foreground hover:text-foreground"
-							>
-								{t('cancel')}
-							</button>
-							<button
-								onClick={handleConfirmUpdate}
-								className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
-							>
-								{t('update')}
-							</button>
-						</div>
-					</div>
-				</div>
-			)}
-
-			{/* Add Student Dialog */}
-			<AddStudentDialog
-				open={showAddStudentDialog}
-				onOpenChange={setShowAddStudentDialog}
-				newStudent={newStudent}
-				onStudentChange={setNewStudent}
-				onAdd={handleAddStudent}
-				t={t}
-			/>
-
-			{/* Transfer Student Dialog */}
-			<TransferStudentDialog
-				open={showTransferDialog}
-				onOpenChange={(open) => {
-					setShowTransferDialog(open)
-					if (!open) setTransferTargetStudent(null)
-				}}
-				student={transferTargetStudent}
-				currentClassId={selectedClassId}
-				classes={classes}
-				onConfirm={handleTransferStudent}
-				transferring={transferring}
-				t={t}
-			/>
+			<Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>{t('updateAssignmentsTitle')}</DialogTitle>
+						<DialogDescription>{updateAssignmentsMessage}</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button variant="outline" onClick={handleCancelUpdate}>
+							{t('cancel')}
+						</Button>
+						<Button onClick={handleConfirmUpdate}>
+							{t('update')}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
 			{/* Combine Classes Dialog */}
 			<CombineClassesDialog

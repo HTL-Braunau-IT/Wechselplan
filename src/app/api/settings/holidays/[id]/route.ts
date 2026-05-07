@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
+import { badRequest, notFound, ok, serverError } from '@/lib/api-response'
 
 import { captureError } from '~/lib/sentry'
 /**
@@ -17,21 +18,26 @@ export async function DELETE(
 ) {
   try {
     const resolvedParams = await params
+    const id = parseInt(resolvedParams.id, 10)
+    if (Number.isNaN(id)) {
+      return badRequest('Invalid ID')
+    }
+
     await prisma.schoolHoliday.delete({
       where: {
-        id: parseInt(resolvedParams.id)
+        id
       }
     })
     
-    return NextResponse.json({ success: true })
+    return ok(null, 'Holiday deleted successfully')
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return notFound('Holiday not found')
+    }
     captureError(error, {
       location: 'api/settings/holidays/[id]',
       type: 'delete-holiday'
     })
-    return NextResponse.json(
-      { error: 'Failed to delete holiday' },
-      { status: 500 }
-    )
+    return serverError('Failed to delete holiday')
   }
 } 

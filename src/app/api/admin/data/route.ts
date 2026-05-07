@@ -1,6 +1,37 @@
-import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { badRequest, conflict, created, notFound, ok, serverError, unprocessable } from '@/lib/api-response'
+import { Prisma } from '@prisma/client'
+import { resolveSchoolYearId, setClassYearStaff } from '@/lib/year-aware-class-staff'
+
+const VALID_MODELS = [
+  'student', 'teacher', 'class', 'classYearStaff', 'schedule',
+  'teacherAssignment', 'room', 'subject', 'learningContent',
+  'schoolHoliday', 'schoolYear', 'scheduleTime', 'breakTime',
+  'teacherRotation', 'role', 'userRole', 'supportMessage'
+] as const
+
+function isValidModel(model: string): model is (typeof VALID_MODELS)[number] {
+  return (VALID_MODELS as readonly string[]).includes(model)
+}
+
+function mapApiError(error: unknown) {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === 'P2002') return conflict('Resource already exists')
+    if (error.code === 'P2025') return notFound('Resource not found')
+    if (error.code === 'P2003') return unprocessable('Operation violates referential integrity')
+  }
+
+  if (error instanceof SyntaxError) {
+    return badRequest('Invalid JSON body')
+  }
+
+  if (error instanceof Error && /Unknown model/i.test(error.message)) {
+    return badRequest(error.message)
+  }
+
+  return serverError('Failed to process request')
+}
 
 // Generic CRUD operations for all models
 export async function GET(request: Request) {
@@ -9,28 +40,14 @@ export async function GET(request: Request) {
   const id = searchParams.get('id')
 
   if (!model) {
-    return NextResponse.json(
-      { error: 'Model parameter is required' },
-      { status: 400 }
-    )
+    return badRequest('Model parameter is required')
+  }
+
+  if (!isValidModel(model)) {
+    return badRequest('Invalid model name')
   }
 
   try {
-    // Validate model name
-    const validModels = [
-      'student', 'teacher', 'class', 'schedule', 'groupAssignment',
-      'teacherAssignment', 'room', 'subject', 'learningContent',
-      'schoolHoliday', 'schoolYear', 'scheduleTime', 'breakTime', 'schedulePDF',
-      'teacherRotation', 'role', 'userRole', 'supportMessage'
-    ]
-
-    if (!validModels.includes(model)) {
-      return NextResponse.json(
-        { error: 'Invalid model name' },
-        { status: 400 }
-      )
-    }
-
     const schoolYearIdParam = searchParams.get('schoolYearId')
     const schoolYearId = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
     const yearFilter = schoolYearId != null && !Number.isNaN(schoolYearId) ? schoolYearId : undefined
@@ -38,14 +55,18 @@ export async function GET(request: Request) {
     // Get model data with appropriate includes
     let data
     if (id) {
+      const parsedId = parseInt(id, 10)
+      if (Number.isNaN(parsedId)) {
+        return badRequest('ID parameter must be a number')
+      }
       // Get single record
-      data = await getSingleRecord(model, parseInt(id))
+      data = await getSingleRecord(model, parsedId)
     } else {
       // Get all records (optionally filtered by school year for schedule/teacherAssignment)
       data = await getAllRecords(model, yearFilter)
     }
 
-    return NextResponse.json(data)
+    return ok(data)
   } catch (error) {
     console.error(`Error fetching ${model} data:`, error)
     captureError(error, {
@@ -53,39 +74,35 @@ export async function GET(request: Request) {
       type: 'fetch-data',
       extra: { model, id }
     })
-    return NextResponse.json(
-      { error: 'Failed to fetch data' },
-      { status: 500 }
-    )
+    return mapApiError(error)
   }
 }
 
 export async function POST(request: Request) {
   const { searchParams } = new URL(request.url)
   const model = searchParams.get('model')
+  let requestBody: Record<string, unknown> = {}
 
   if (!model) {
-    return NextResponse.json(
-      { error: 'Model parameter is required' },
-      { status: 400 }
-    )
+    return badRequest('Model parameter is required')
+  }
+
+  if (!isValidModel(model)) {
+    return badRequest('Invalid model name')
   }
 
   try {
-    const body = await request.json()
-    const data = await createRecord(model, body as Record<string, unknown>)
-    return NextResponse.json(data)
+    requestBody = await request.json() as Record<string, unknown>
+    const data = await createRecord(model, requestBody)
+    return created(data)
   } catch (error) {
     console.error(`Error creating ${model}:`, error)
     captureError(error, {
       location: 'api/admin/data',
       type: 'create-data',
-      extra: { model, body: await request.json().catch(() => ({})) }
+      extra: { model, body: requestBody }
     })
-    return NextResponse.json(
-      { error: 'Failed to create record' },
-      { status: 500 }
-    )
+    return mapApiError(error)
   }
 }
 
@@ -93,29 +110,33 @@ export async function PUT(request: Request) {
   const { searchParams } = new URL(request.url)
   const model = searchParams.get('model')
   const id = searchParams.get('id')
+  let requestBody: Record<string, unknown> = {}
 
   if (!model || !id) {
-    return NextResponse.json(
-      { error: 'Model and ID parameters are required' },
-      { status: 400 }
-    )
+    return badRequest('Model and ID parameters are required')
+  }
+
+  if (!isValidModel(model)) {
+    return badRequest('Invalid model name')
+  }
+
+  const parsedId = parseInt(id, 10)
+  if (Number.isNaN(parsedId)) {
+    return badRequest('ID parameter must be a number')
   }
 
   try {
-    const body = await request.json()
-    const data = await updateRecord(model, parseInt(id), body as Record<string, unknown>)
-    return NextResponse.json(data)
+    requestBody = await request.json() as Record<string, unknown>
+    const data = await updateRecord(model, parsedId, requestBody)
+    return ok(data)
   } catch (error) {
     console.error(`Error updating ${model}:`, error)
     captureError(error, {
       location: 'api/admin/data',
       type: 'update-data',
-      extra: { model, id, body: await request.json().catch(() => ({})) }
+      extra: { model, id, body: requestBody }
     })
-    return NextResponse.json(
-      { error: 'Failed to update record' },
-      { status: 500 }
-    )
+    return mapApiError(error)
   }
 }
 
@@ -126,26 +147,28 @@ export async function DELETE(request: Request) {
   const isBulkDelete = searchParams.get('bulk') === 'true'
 
   if (!model || (!id && !isBulkDelete)) {
-    return NextResponse.json(
-      { error: 'Model and ID parameters are required unless bulk=true is set' },
-      { status: 400 }
-    )
+    return badRequest('Model and ID parameters are required unless bulk=true is set')
+  }
+
+  if (!isValidModel(model)) {
+    return badRequest('Invalid model name')
   }
 
   try {
     if (isBulkDelete) {
       const result = await deleteAllRecords(model)
-      return NextResponse.json({ success: true, deleted: result })
+      return ok(result, 'Bulk delete completed')
     }
 
     if (!id) {
-      return NextResponse.json(
-        { error: 'ID parameter is required' },
-        { status: 400 }
-      )
+      return badRequest('ID parameter is required')
     }
-    await deleteRecord(model, parseInt(id, 10))
-    return NextResponse.json({ success: true })
+    const parsedId = parseInt(id, 10)
+    if (Number.isNaN(parsedId)) {
+      return badRequest('ID parameter must be a number')
+    }
+    await deleteRecord(model, parsedId)
+    return ok(null, 'Record deleted successfully')
   } catch (error) {
     console.error(`Error deleting ${model}:`, error)
     captureError(error, {
@@ -153,41 +176,92 @@ export async function DELETE(request: Request) {
       type: 'delete-data',
       extra: { model, id, isBulkDelete }
     })
-    return NextResponse.json(
-      { error: 'Failed to delete record' },
-      { status: 500 }
-    )
+    return mapApiError(error)
   }
 }
 
 // Helper functions for different models
 async function getAllRecords(model: string, schoolYearId?: number) {
   switch (model) {
-    case 'student':
-      return await prisma.student.findMany({
-        include: { class: true },
+    case 'student': {
+      const targetYear = schoolYearId ?? (await resolveSchoolYearId())
+      const students = await prisma.student.findMany({
+        include: targetYear != null
+          ? {
+              classMemberships: {
+                where: { schoolYearId: targetYear },
+                include: { class: true }
+              }
+            }
+          : undefined,
         orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }]
       })
+      return students.map(s => {
+        const membership = (s as unknown as {
+          classMemberships?: { classId: number; class: { id: number; name: string } | null }[]
+        }).classMemberships?.[0]
+        return {
+          ...s,
+          classId: membership?.classId ?? null,
+          class: membership?.class ?? null
+        }
+      })
+    }
     case 'teacher':
       return await prisma.teacher.findMany({
-        include: { 
-          headClasses: true, 
-          leadClasses: true,
+        include: {
+          headYears: { include: { class: true, schoolYear: { select: { id: true, label: true } } } },
+          leadYears: { include: { class: true, schoolYear: { select: { id: true, label: true } } } },
           assignments: {
             include: { class: true, subject: true }
           }
         },
         orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }]
       })
-    case 'class':
-      return await prisma.class.findMany({
-        include: { 
-          classHead: true, 
-          classLead: true,
-          students: true,
-          schedules: true
+    case 'class': {
+      const rows = await prisma.class.findMany({
+        include: {
+          schedules: true,
+          classMemberships: { include: { student: true } },
+          yearStaff: {
+            include: {
+              classHead: { select: { id: true, firstName: true, lastName: true } },
+              classLead: { select: { id: true, firstName: true, lastName: true } },
+              schoolYear: { select: { id: true, label: true } }
+            }
+          }
         },
         orderBy: { name: 'asc' }
+      })
+      const targetYear = schoolYearId ?? null
+      return rows.map(row => {
+        const staffForYear = targetYear != null
+          ? row.yearStaff.find(s => s.schoolYearId === targetYear)
+          : row.yearStaff[0]
+        const memberships = targetYear != null
+          ? row.classMemberships.filter(m => m.schoolYearId === targetYear)
+          : row.classMemberships
+        const students = memberships.map(m => m.student)
+        return {
+          ...row,
+          students,
+          classHeadId: staffForYear?.classHeadId ?? null,
+          classLeadId: staffForYear?.classLeadId ?? null,
+          classHead: staffForYear?.classHead ?? null,
+          classLead: staffForYear?.classLead ?? null
+        }
+      })
+    }
+    case 'classYearStaff':
+      return await prisma.classYearStaff.findMany({
+        where: schoolYearId != null ? { schoolYearId } : undefined,
+        include: {
+          class: { select: { id: true, name: true } },
+          schoolYear: { select: { id: true, label: true } },
+          classHead: { select: { id: true, firstName: true, lastName: true } },
+          classLead: { select: { id: true, firstName: true, lastName: true } }
+        },
+        orderBy: [{ schoolYearId: 'desc' }, { classId: 'asc' }]
       })
     case 'schedule':
       return await prisma.schedule.findMany({
@@ -197,10 +271,6 @@ async function getAllRecords(model: string, schoolYearId?: number) {
           breakTimes: true,
           scheduleTimes: true
         },
-        orderBy: { createdAt: 'desc' }
-      })
-    case 'groupAssignment':
-      return await prisma.groupAssignment.findMany({
         orderBy: { createdAt: 'desc' }
       })
     case 'teacherAssignment':
@@ -215,21 +285,39 @@ async function getAllRecords(model: string, schoolYearId?: number) {
         },
         orderBy: { createdAt: 'desc' }
       })
-    case 'room':
-      return await prisma.room.findMany({
-        include: { assignments: true },
+    case 'room': {
+      const rows = await prisma.lookupValue.findMany({
+        where: { kind: 'ROOM' },
+        include: { roomAssignments: true },
         orderBy: { name: 'asc' }
       })
-    case 'subject':
-      return await prisma.subject.findMany({
-        include: { TeacherAssignment: true },
+      return rows.map(({ kind: _kind, roomAssignments, ...rest }) => ({
+        ...rest,
+        assignments: roomAssignments
+      }))
+    }
+    case 'subject': {
+      const rows = await prisma.lookupValue.findMany({
+        where: { kind: 'SUBJECT' },
+        include: { subjectAssignments: true },
         orderBy: { name: 'asc' }
       })
-    case 'learningContent':
-      return await prisma.learningContent.findMany({
-        include: { TeacherAssignment: true },
+      return rows.map(({ kind: _kind, capacity: _capacity, subjectAssignments, ...rest }) => ({
+        ...rest,
+        TeacherAssignment: subjectAssignments
+      }))
+    }
+    case 'learningContent': {
+      const rows = await prisma.lookupValue.findMany({
+        where: { kind: 'LEARNING_CONTENT' },
+        include: { learningContentAssignments: true },
         orderBy: { name: 'asc' }
       })
+      return rows.map(({ kind: _kind, capacity: _capacity, learningContentAssignments, ...rest }) => ({
+        ...rest,
+        TeacherAssignment: learningContentAssignments
+      }))
+    }
     case 'schoolHoliday':
       return await prisma.schoolHoliday.findMany({
         orderBy: { startDate: 'asc' }
@@ -247,10 +335,6 @@ async function getAllRecords(model: string, schoolYearId?: number) {
       return await prisma.breakTime.findMany({
         include: { schedules: true },
         orderBy: { startTime: 'asc' }
-      })
-    case 'schedulePDF':
-      return await prisma.schedulePDF.findMany({
-        orderBy: { createdAt: 'desc' }
       })
     case 'teacherRotation':
       return await prisma.teacherRotation.findMany({
@@ -277,30 +361,75 @@ async function getAllRecords(model: string, schoolYearId?: number) {
 
 async function getSingleRecord(model: string, id: number) {
   switch (model) {
-    case 'student':
-      return await prisma.student.findUnique({
+    case 'student': {
+      const targetYear = await resolveSchoolYearId()
+      const student = await prisma.student.findUnique({
         where: { id },
-        include: { class: true }
+        include: targetYear != null
+          ? {
+              classMemberships: {
+                where: { schoolYearId: targetYear },
+                include: { class: true }
+              }
+            }
+          : undefined
       })
+      if (!student) return null
+      const membership = (student as unknown as {
+        classMemberships?: { classId: number; class: { id: number; name: string } | null }[]
+      }).classMemberships?.[0]
+      return {
+        ...student,
+        classId: membership?.classId ?? null,
+        class: membership?.class ?? null
+      }
+    }
     case 'teacher':
       return await prisma.teacher.findUnique({
         where: { id },
-        include: { 
-          headClasses: true, 
-          leadClasses: true,
+        include: {
+          headYears: { include: { class: true, schoolYear: { select: { id: true, label: true } } } },
+          leadYears: { include: { class: true, schoolYear: { select: { id: true, label: true } } } },
           assignments: {
             include: { class: true, subject: true }
           }
         }
       })
-    case 'class':
-      return await prisma.class.findUnique({
+    case 'class': {
+      const row = await prisma.class.findUnique({
         where: { id },
-        include: { 
-          classHead: true, 
-          classLead: true,
-          students: true,
-          schedules: true
+        include: {
+          schedules: true,
+          classMemberships: { include: { student: true } },
+          yearStaff: {
+            include: {
+              classHead: { select: { id: true, firstName: true, lastName: true } },
+              classLead: { select: { id: true, firstName: true, lastName: true } },
+              schoolYear: { select: { id: true, label: true } }
+            }
+          }
+        }
+      })
+      if (!row) return null
+      const staffForYear = row.yearStaff[0]
+      const students = row.classMemberships.map(m => m.student)
+      return {
+        ...row,
+        students,
+        classHeadId: staffForYear?.classHeadId ?? null,
+        classLeadId: staffForYear?.classLeadId ?? null,
+        classHead: staffForYear?.classHead ?? null,
+        classLead: staffForYear?.classLead ?? null
+      }
+    }
+    case 'classYearStaff':
+      return await prisma.classYearStaff.findUnique({
+        where: { id },
+        include: {
+          class: { select: { id: true, name: true } },
+          schoolYear: { select: { id: true, label: true } },
+          classHead: { select: { id: true, firstName: true, lastName: true } },
+          classLead: { select: { id: true, firstName: true, lastName: true } }
         }
       })
     case 'schedule':
@@ -311,10 +440,6 @@ async function getSingleRecord(model: string, id: number) {
           breakTimes: true,
           scheduleTimes: true
         }
-      })
-    case 'groupAssignment':
-      return await prisma.groupAssignment.findUnique({
-        where: { id }
       })
     case 'teacherAssignment':
       return await prisma.teacherAssignment.findUnique({
@@ -327,21 +452,33 @@ async function getSingleRecord(model: string, id: number) {
           room: true
         }
       })
-    case 'room':
-      return await prisma.room.findUnique({
-        where: { id },
-        include: { assignments: true }
+    case 'room': {
+      const row = await prisma.lookupValue.findFirst({
+        where: { id, kind: 'ROOM' },
+        include: { roomAssignments: true }
       })
-    case 'subject':
-      return await prisma.subject.findUnique({
-        where: { id },
-        include: { TeacherAssignment: true }
+      if (!row) return null
+      const { kind: _kind, roomAssignments, ...rest } = row
+      return { ...rest, assignments: roomAssignments }
+    }
+    case 'subject': {
+      const row = await prisma.lookupValue.findFirst({
+        where: { id, kind: 'SUBJECT' },
+        include: { subjectAssignments: true }
       })
-    case 'learningContent':
-      return await prisma.learningContent.findUnique({
-        where: { id },
-        include: { TeacherAssignment: true }
+      if (!row) return null
+      const { kind: _kind, capacity: _capacity, subjectAssignments, ...rest } = row
+      return { ...rest, TeacherAssignment: subjectAssignments }
+    }
+    case 'learningContent': {
+      const row = await prisma.lookupValue.findFirst({
+        where: { id, kind: 'LEARNING_CONTENT' },
+        include: { learningContentAssignments: true }
       })
+      if (!row) return null
+      const { kind: _kind, capacity: _capacity, learningContentAssignments, ...rest } = row
+      return { ...rest, TeacherAssignment: learningContentAssignments }
+    }
     case 'schoolHoliday':
       return await prisma.schoolHoliday.findUnique({
         where: { id }
@@ -359,10 +496,6 @@ async function getSingleRecord(model: string, id: number) {
       return await prisma.breakTime.findUnique({
         where: { id },
         include: { schedules: true }
-      })
-    case 'schedulePDF':
-      return await prisma.schedulePDF.findUnique({
-        where: { id: id.toString() }
       })
     case 'teacherRotation':
       return await prisma.teacherRotation.findUnique({
@@ -393,24 +526,80 @@ async function createRecord(model: string, data: Record<string, unknown>) {
   const createData = { ...rest }
 
   switch (model) {
-    case 'student':
-      return await prisma.student.create({ data: createData as unknown as Parameters<typeof prisma.student.create>[0]['data'] })
+    case 'student': {
+      const studentData = { ...createData } as Record<string, unknown>
+      const requestedClassId = studentData.classId
+      const requestedYearId = studentData.schoolYearId
+      delete studentData.classId
+      delete studentData.schoolYearId
+      delete (studentData as Record<string, unknown>).class
+      const created = await prisma.student.create({
+        data: studentData as unknown as Parameters<typeof prisma.student.create>[0]['data']
+      })
+      if (typeof requestedClassId === 'number' && requestedClassId > 0) {
+        const yearId = typeof requestedYearId === 'number' && requestedYearId > 0
+          ? requestedYearId
+          : await resolveSchoolYearId()
+        if (yearId != null) {
+          await prisma.classMembership.upsert({
+            where: { studentId_schoolYearId: { studentId: created.id, schoolYearId: yearId } },
+            create: { studentId: created.id, classId: requestedClassId, schoolYearId: yearId },
+            update: { classId: requestedClassId }
+          })
+        }
+      }
+      return created
+    }
     case 'teacher':
       return await prisma.teacher.create({ data: createData as unknown as Parameters<typeof prisma.teacher.create>[0]['data'] })
-    case 'class':
-      return await prisma.class.create({ data: createData as unknown as Parameters<typeof prisma.class.create>[0]['data'] })
+    case 'class': {
+      const classData = createData as Record<string, unknown>
+      const classHeadId = classData.classHeadId
+      const classLeadId = classData.classLeadId
+      const schoolYearForStaff = classData.schoolYearId
+      delete classData.classHeadId
+      delete classData.classLeadId
+      delete classData.schoolYearId
+      const created = await prisma.class.create({
+        data: classData as unknown as Parameters<typeof prisma.class.create>[0]['data']
+      })
+      if (classHeadId !== undefined || classLeadId !== undefined) {
+        const yearId = typeof schoolYearForStaff === 'number' && schoolYearForStaff > 0
+          ? schoolYearForStaff
+          : await resolveSchoolYearId()
+        if (yearId != null) {
+          await setClassYearStaff(created.id, yearId, {
+            classHeadId: typeof classHeadId === 'number' ? classHeadId : null,
+            classLeadId: typeof classLeadId === 'number' ? classLeadId : null
+          })
+        }
+      }
+      return created
+    }
+    case 'classYearStaff':
+      return await prisma.classYearStaff.create({ data: createData as unknown as Parameters<typeof prisma.classYearStaff.create>[0]['data'] })
     case 'schedule':
       return await prisma.schedule.create({ data: createData as unknown as Parameters<typeof prisma.schedule.create>[0]['data'] })
-    case 'groupAssignment':
-      return await prisma.groupAssignment.create({ data: createData as unknown as Parameters<typeof prisma.groupAssignment.create>[0]['data'] })
     case 'teacherAssignment':
       return await prisma.teacherAssignment.create({ data: createData as unknown as Parameters<typeof prisma.teacherAssignment.create>[0]['data'] })
-    case 'room':
-      return await prisma.room.create({ data: createData as unknown as Parameters<typeof prisma.room.create>[0]['data'] })
-    case 'subject':
-      return await prisma.subject.create({ data: createData as unknown as Parameters<typeof prisma.subject.create>[0]['data'] })
-    case 'learningContent':
-      return await prisma.learningContent.create({ data: createData as unknown as Parameters<typeof prisma.learningContent.create>[0]['data'] })
+    case 'room': {
+      const data = { ...(createData as Record<string, unknown>), kind: 'ROOM' as const }
+      return await prisma.lookupValue.create({
+        data: data as unknown as Parameters<typeof prisma.lookupValue.create>[0]['data']
+      })
+    }
+    case 'subject': {
+      const { capacity: _capacity, ...rest } = createData as Record<string, unknown>
+      return await prisma.lookupValue.create({
+        data: { ...rest, kind: 'SUBJECT' } as unknown as Parameters<typeof prisma.lookupValue.create>[0]['data']
+      })
+    }
+    case 'learningContent': {
+      const { capacity: _capacity, ...rest } = createData as Record<string, unknown>
+      return await prisma.lookupValue.create({
+        data: { ...rest, kind: 'LEARNING_CONTENT' } as unknown as Parameters<typeof prisma.lookupValue.create>[0]['data']
+      })
+    }
     case 'schoolHoliday':
       return await prisma.schoolHoliday.create({ data: createData as unknown as Parameters<typeof prisma.schoolHoliday.create>[0]['data'] })
     case 'schoolYear': {
@@ -425,10 +614,49 @@ async function createRecord(model: string, data: Record<string, unknown>) {
       return await prisma.scheduleTime.create({ data: createData as unknown as Parameters<typeof prisma.scheduleTime.create>[0]['data'] })
     case 'breakTime':
       return await prisma.breakTime.create({ data: createData as unknown as Parameters<typeof prisma.breakTime.create>[0]['data'] })
-    case 'schedulePDF':
-      return await prisma.schedulePDF.create({ data: createData as unknown as Parameters<typeof prisma.schedulePDF.create>[0]['data'] })
-    case 'teacherRotation':
-      return await prisma.teacherRotation.create({ data: createData as unknown as Parameters<typeof prisma.teacherRotation.create>[0]['data'] })
+    case 'teacherRotation': {
+      const rotationData = createData as Record<string, unknown>
+      const classIdValue = Number(rotationData.classId)
+      const groupIdValue = Number(rotationData.groupId)
+      const teacherIdValue = Number(rotationData.teacherId)
+      const turnIdValue = Number(rotationData.turnId)
+      const periodValue: 'AM' | 'PM' | null =
+        rotationData.period === 'AM' || rotationData.period === 'PM' ? rotationData.period : null
+      if (
+        Number.isNaN(classIdValue) ||
+        Number.isNaN(groupIdValue) ||
+        Number.isNaN(teacherIdValue) ||
+        Number.isNaN(turnIdValue) ||
+        !periodValue
+      ) {
+        throw new Error('Invalid teacherRotation payload')
+      }
+      const weekdayValue = Number(rotationData.selectedWeekday ?? 1)
+      const providedSchoolYearId = Number(rotationData.schoolYearId)
+      let schoolYearIdValue = Number.isNaN(providedSchoolYearId) ? undefined : providedSchoolYearId
+      if (schoolYearIdValue == null || schoolYearIdValue <= 0) {
+        const now = new Date()
+        const current = await prisma.schoolYear.findFirst({
+          where: { startDate: { lte: now }, endDate: { gte: now } },
+          select: { id: true }
+        })
+        schoolYearIdValue = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
+      }
+      if (schoolYearIdValue == null) {
+        throw new Error('schoolYearId is required for teacherRotation')
+      }
+      return await prisma.teacherRotation.create({
+        data: {
+          classId: classIdValue,
+          groupId: groupIdValue,
+          teacherId: teacherIdValue,
+          turnId: turnIdValue,
+          period: periodValue,
+          selectedWeekday: weekdayValue >= 1 && weekdayValue <= 5 ? weekdayValue : 1,
+          schoolYearId: schoolYearIdValue
+        }
+      })
+    }
     case 'role':
       return await prisma.role.create({ data: createData as unknown as Parameters<typeof prisma.role.create>[0]['data'] })
     case 'userRole':
@@ -446,28 +674,77 @@ async function updateRecord(model: string, id: number, data: Record<string, unkn
   const updateData = { ...rest }
 
   switch (model) {
-    case 'student':
-      return await prisma.student.update({
+    case 'student': {
+      const studentData = { ...updateData } as Record<string, unknown>
+      const classIdProvided = 'classId' in studentData
+      const requestedClassId = studentData.classId
+      const requestedYearId = studentData.schoolYearId
+      delete studentData.classId
+      delete studentData.schoolYearId
+      delete (studentData as Record<string, unknown>).class
+      const updated = await prisma.student.update({
         where: { id },
-        data: updateData
+        data: studentData
       })
+      if (classIdProvided) {
+        const yearId = typeof requestedYearId === 'number' && requestedYearId > 0
+          ? requestedYearId
+          : await resolveSchoolYearId()
+        if (yearId != null) {
+          if (typeof requestedClassId === 'number' && requestedClassId > 0) {
+            await prisma.classMembership.upsert({
+              where: { studentId_schoolYearId: { studentId: id, schoolYearId: yearId } },
+              create: { studentId: id, classId: requestedClassId, schoolYearId: yearId },
+              update: { classId: requestedClassId }
+            })
+          } else {
+            await prisma.classMembership.deleteMany({
+              where: { studentId: id, schoolYearId: yearId }
+            })
+          }
+        }
+      }
+      return updated
+    }
     case 'teacher':
       return await prisma.teacher.update({
         where: { id },
         data: updateData
       })
-    case 'class':
-      return await prisma.class.update({
+    case 'class': {
+      const classData = updateData as Record<string, unknown>
+      const headProvided = 'classHeadId' in classData
+      const leadProvided = 'classLeadId' in classData
+      const classHeadId = classData.classHeadId
+      const classLeadId = classData.classLeadId
+      const schoolYearForStaff = classData.schoolYearId
+      delete classData.classHeadId
+      delete classData.classLeadId
+      delete classData.schoolYearId
+      const updated = await prisma.class.update({
+        where: { id },
+        data: classData
+      })
+      if (headProvided || leadProvided) {
+        const yearId = typeof schoolYearForStaff === 'number' && schoolYearForStaff > 0
+          ? schoolYearForStaff
+          : await resolveSchoolYearId()
+        if (yearId != null) {
+          const patch: { classHeadId?: number | null; classLeadId?: number | null } = {}
+          if (headProvided) patch.classHeadId = typeof classHeadId === 'number' ? classHeadId : null
+          if (leadProvided) patch.classLeadId = typeof classLeadId === 'number' ? classLeadId : null
+          await setClassYearStaff(id, yearId, patch)
+        }
+      }
+      return updated
+    }
+    case 'classYearStaff':
+      return await prisma.classYearStaff.update({
         where: { id },
         data: updateData
       })
     case 'schedule':
       return await prisma.schedule.update({
-        where: { id },
-        data: updateData
-      })
-    case 'groupAssignment':
-      return await prisma.groupAssignment.update({
         where: { id },
         data: updateData
       })
@@ -477,20 +754,24 @@ async function updateRecord(model: string, id: number, data: Record<string, unkn
         data: updateData
       })
     case 'room':
-      return await prisma.room.update({
+      return await prisma.lookupValue.update({
         where: { id },
         data: updateData
       })
-    case 'subject':
-      return await prisma.subject.update({
+    case 'subject': {
+      const { capacity: _capacity, ...rest } = updateData as Record<string, unknown>
+      return await prisma.lookupValue.update({
         where: { id },
-        data: updateData
+        data: rest as unknown as Parameters<typeof prisma.lookupValue.update>[0]['data']
       })
-    case 'learningContent':
-      return await prisma.learningContent.update({
+    }
+    case 'learningContent': {
+      const { capacity: _capacity, ...rest } = updateData as Record<string, unknown>
+      return await prisma.lookupValue.update({
         where: { id },
-        data: updateData
+        data: rest as unknown as Parameters<typeof prisma.lookupValue.update>[0]['data']
       })
+    }
     case 'schoolHoliday':
       return await prisma.schoolHoliday.update({
         where: { id },
@@ -514,11 +795,6 @@ async function updateRecord(model: string, id: number, data: Record<string, unkn
     case 'breakTime':
       return await prisma.breakTime.update({
         where: { id },
-        data: updateData
-      })
-    case 'schedulePDF':
-      return await prisma.schedulePDF.update({
-        where: { id: id.toString() },
         data: updateData
       })
     case 'teacherRotation':
@@ -554,18 +830,16 @@ async function deleteRecord(model: string, id: number) {
       return await prisma.teacher.delete({ where: { id } })
     case 'class':
       return await prisma.class.delete({ where: { id } })
+    case 'classYearStaff':
+      return await prisma.classYearStaff.delete({ where: { id } })
     case 'schedule':
       return await prisma.schedule.delete({ where: { id } })
-    case 'groupAssignment':
-      return await prisma.groupAssignment.delete({ where: { id } })
     case 'teacherAssignment':
       return await prisma.teacherAssignment.delete({ where: { id } })
     case 'room':
-      return await prisma.room.delete({ where: { id } })
     case 'subject':
-      return await prisma.subject.delete({ where: { id } })
     case 'learningContent':
-      return await prisma.learningContent.delete({ where: { id } })
+      return await prisma.lookupValue.delete({ where: { id } })
     case 'schoolHoliday':
       return await prisma.schoolHoliday.delete({ where: { id } })
     case 'schoolYear':
@@ -574,8 +848,6 @@ async function deleteRecord(model: string, id: number) {
       return await prisma.scheduleTime.delete({ where: { id } })
     case 'breakTime':
       return await prisma.breakTime.delete({ where: { id } })
-    case 'schedulePDF':
-      return await prisma.schedulePDF.delete({ where: { id: id.toString() } })
     case 'teacherRotation':
       return await prisma.teacherRotation.delete({ where: { id } })
     case 'role':

@@ -7,6 +7,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { truncateSubject } from '@/lib/subject-utils'
+import { badRequest, forbidden, notFound, ok, serverError, unauthorized } from '@/lib/api-response'
 
 type Semester = 'first' | 'second'
 
@@ -77,13 +78,16 @@ export async function POST(request: Request) {
     const session = await getServerSession(authOptions)
     const username = session?.user?.name
     if (!username) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return unauthorized('Unauthorized')
     }
     if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return forbidden('Forbidden')
     }
     if (!(await isFeatureEnabled('notensammler'))) {
-      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+      return forbidden('Feature not available')
+    }
+    if (!(await isFeatureEnabled('notenmgmt_htl'))) {
+      return forbidden('Feature not available')
     }
 
     const body = (await request.json()) as {
@@ -102,25 +106,40 @@ export async function POST(request: Request) {
     const providedToken = typeof body.token === 'string' ? body.token : null
 
     if (!classId || Number.isNaN(classId) || !semester || !nmUsername) {
-      return NextResponse.json({ error: 'Missing or invalid parameters' }, { status: 400 })
+      return badRequest('Missing or invalid parameters')
     }
 
     if (!providedToken && !password) {
-      return NextResponse.json({ error: 'Either token or password is required' }, { status: 400 })
+      return badRequest('Either token or password is required')
     }
 
     const classRecord = await prisma.class.findUnique({
-      where: { id: classId },
-      include: {
-        students: {
-          orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
-          select: { id: true, firstName: true, lastName: true, groupId: true },
-        },
-      },
+      where: { id: classId }
     })
     if (!classRecord) {
-      return NextResponse.json({ error: 'Class not found' }, { status: 404 })
+      return notFound('Class not found')
     }
+
+    const currentYear = await prisma.schoolYear.findFirst({
+      where: { isCurrent: true },
+      select: { id: true }
+    }) ?? await prisma.schoolYear.findFirst({
+      orderBy: { startDate: 'desc' },
+      select: { id: true }
+    })
+    const memberships = currentYear
+      ? await prisma.classMembership.findMany({
+          where: { classId, schoolYearId: currentYear.id },
+          select: { studentId: true }
+        })
+      : []
+    const classStudents = memberships.length > 0
+      ? await prisma.student.findMany({
+          where: { id: { in: memberships.map(m => m.studentId) } },
+          orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+          select: { id: true, firstName: true, lastName: true }
+        })
+      : []
 
     const assignments = await prisma.teacherAssignment.findMany({
       where: { classId },
@@ -132,7 +151,7 @@ export async function POST(request: Request) {
 
     const teacherIds = Array.from(new Set(assignments.map((a) => a.teacherId)))
     if (teacherIds.length === 0) {
-      return NextResponse.json({ error: 'No teachers assigned to class' }, { status: 400 })
+      return badRequest('No teachers assigned to class')
     }
 
     // Determine subject to display (most common subject from assignments), same as notensammler
@@ -151,7 +170,7 @@ export async function POST(request: Request) {
       }
     }
     if (!subjectName) {
-      return NextResponse.json({ error: 'Could not determine subject for this class' }, { status: 400 })
+      return badRequest('Could not determine subject for this class')
     }
     const subjectTruncated = truncateSubject(subjectName)
 
@@ -174,7 +193,7 @@ export async function POST(request: Request) {
       accessToken = providedToken
     } else {
       if (!password) {
-        return NextResponse.json({ error: 'Password required when token is not provided' }, { status: 400 })
+        return badRequest('Password required when token is not provided')
       }
       const tokenData = await getNotenmanagementAccessToken(nmUsername, password)
       accessToken = tokenData.token
@@ -208,10 +227,16 @@ export async function POST(request: Request) {
     }
 
     const classNorm = normalizeNamePart(classRecord.name)
+    const weekdayGroups = await prisma.studentWeekdayGroup.findMany({
+      where: { studentId: { in: classStudents.map((s) => s.id) } },
+      select: { studentId: true },
+      distinct: ['studentId']
+    })
+    const studentsWithAnyGroup = new Set<number>(weekdayGroups.map((row) => row.studentId))
 
     // Students with all teacher grades and no 6/7 (numeric note)
-    const completeStudents = classRecord.students
-      .filter((st) => st.groupId !== null && st.groupId !== undefined)
+    const completeStudents = classStudents
+      .filter((st) => studentsWithAnyGroup.has(st.id))
       .map((st): PreviewStudent | null => {
         const teacherGrades: number[] = []
         for (const tid of teacherIds) {
@@ -241,8 +266,8 @@ export async function POST(request: Request) {
       .filter((s): s is PreviewStudent => s !== null)
 
     // Students with all teacher grades but at least one 6 or 7 (Keine Note by default)
-    const studentsWithNbOrGestunden = classRecord.students
-      .filter((st) => st.groupId !== null && st.groupId !== undefined)
+    const studentsWithNbOrGestunden = classStudents
+      .filter((st) => studentsWithAnyGroup.has(st.id))
       .map((st): PreviewStudent | null => {
         const teacherGrades: number[] = []
         for (const tid of teacherIds) {
@@ -315,7 +340,7 @@ export async function POST(request: Request) {
       },
     }
 
-    return NextResponse.json({
+    return ok({
       classId,
       className: classRecord.name,
       subjectName,
@@ -325,7 +350,7 @@ export async function POST(request: Request) {
       students,
       transferStatus,
       counts: {
-        totalStudents: classRecord.students.length,
+        totalStudents: classStudents.length,
         completeStudents: completeStudents.length,
         matchedCompleteStudents: students.filter((s) => s.matched).length,
         unmatchedCompleteStudents: students.filter((s) => !s.matched).length,
@@ -340,7 +365,7 @@ export async function POST(request: Request) {
       type: 'preview',
       extra: { requestData },
     })
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to build preview' }, { status: 500 })
+    return serverError(error instanceof Error ? error.message : 'Failed to build preview')
   }
 }
 
