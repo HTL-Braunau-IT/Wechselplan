@@ -14,7 +14,7 @@ interface SpinnerProps {
  *
  * @example
  * // Large blue spinner
- * <Spinner size="lg" className="text-blue-500" />
+ * <Spinner size="lg" className="text-primary" />
  *
  * @param size - Spinner size; one of 'sm', 'md', or 'lg'. Defaults to 'md'.
  * @param className - Additional CSS classes to apply to the spinner.
@@ -30,7 +30,7 @@ export function Spinner({ className, size = 'md' }: SpinnerProps) {
     <div className="flex items-center justify-center">
       <div
         className={cn(
-          'animate-spin rounded-full border-4 border-gray-200 border-t-primary',
+          'animate-spin rounded-full border-4 border-input border-t-primary',
           sizeClasses[size],
           className
         )}

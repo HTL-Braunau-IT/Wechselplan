@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { useTranslation } from 'react-i18next'
 import { useSession } from 'next-auth/react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { captureFrontendError } from '@/lib/frontend-error'
@@ -507,7 +506,6 @@ function FinalGradeInput({
  * Grades are auto-saved with debounce, and averages are calculated automatically.
  */
 export default function NotensammlerPage() {
-	const { t } = useTranslation()
 	const { data: session } = useSession()
 	const searchParams = useSearchParams()
 	const router = useRouter()
@@ -644,10 +642,10 @@ export default function NotensammlerPage() {
 				setSelectedClassId(matchingClass.id.toString())
 			} else {
 				// Class not found - show error message
-				setError(t('notensammler.classNotFound', `Klasse "${classNameParam}" nicht gefunden.`))
+				setError(`Klasse "${classNameParam}" nicht gefunden.`)
 			}
 		}
-	}, [classes, searchParams, selectedClassId, t])
+	}, [classes, searchParams, selectedClassId])
 
 	const selectedClassName = useMemo(
 		() => classes.find((cls) => cls.id.toString() === selectedClassId)?.name ?? null,
@@ -1800,12 +1798,12 @@ export default function NotensammlerPage() {
 	return (
 		<div className="container mx-auto p-4">
 			<div className="mb-8">
-				<h1 className="text-2xl font-bold mb-4">{t('notensammler.title', 'Notensammler')}</h1>
+				<h1 className="text-2xl font-bold mb-4">{'Notensammler'}</h1>
 				{error && (
 					<div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-destructive flex items-start justify-between gap-4">
 						<div className="whitespace-pre-line">{error}</div>
 						<Button variant="outline" onClick={() => setError(null)}>
-							{t('common.close', 'Schließen')}
+							{'Schließen'}
 						</Button>
 					</div>
 				)}
@@ -1813,11 +1811,11 @@ export default function NotensammlerPage() {
 					<div className="flex flex-wrap items-center gap-3">
 						<div>
 							<label className="block text-sm font-medium mb-2">
-								{t('notensammler.selectClass', 'Klasse auswählen')}
+								{'Klasse auswählen'}
 							</label>
 							<Select value={selectedClassId} onValueChange={handleClassChange}>
 								<SelectTrigger className="w-[300px]">
-									<SelectValue placeholder={t('notensammler.selectClassPlaceholder', 'Bitte Klasse auswählen...')} />
+									<SelectValue placeholder={'Bitte Klasse auswählen...'} />
 								</SelectTrigger>
 								<SelectContent>
 									{classes.map((cls) => (
@@ -1833,24 +1831,27 @@ export default function NotensammlerPage() {
 							onClick={handleDownloadAllClassesPDF}
 							disabled={downloadingAllPdf || teacherClasses.length === 0}
 							className="self-end"
-							title={t('notensammler.tooltipAllClassesPdf', 'Lädt eine Datei mit allen eigenen Noten herunter.')}
+							title={'Lädt eine Datei mit allen eigenen Noten herunter.'}
 						>
 							{downloadingAllPdf ? (
 								<>
 									<Spinner size="sm" className="mr-2" />
-									{t('notensammler.downloadingAllClassesPdf', 'PDF wird erstellt...')}
+									{'PDF wird erstellt...'}
 								</>
 							) : (
-								t('notensammler.downloadAllClassesPdf', 'Notenliste alle eigenen Klassen als PDF')
+								'Notenliste alle eigenen Klassen als PDF'
 							)}
 						</Button>
 					</div>
 					<div className="mt-3 rounded-md border bg-muted/50 px-3 py-2.5">
 						<p className="text-sm font-medium text-muted-foreground mb-1.5">
-							{t('notensammler.infoTitle', 'Hinweise')}
+							{'Hinweise'}
 						</p>
 						<div className="text-sm text-muted-foreground space-y-1">
-							{(t('notensammler.infoText', 'Betragensnote: Hier kann jeder Lehrer seinen Wunsch eintragen.\nNotenliste alle Klassen als PDF: Lädt eine Datei mit allen eigenen Noten herunter.\nPDF Herunterladen: Lädt die gesamte Notenliste der ausgewählten Klasse herunter.\nAn Notenmanagement übertragen: Überträgt die Noten an das Notenmanagement.') as string)
+							{`Betragensnote: Hier kann jeder Lehrer seinen Wunsch eintragen.
+Notenliste alle Klassen als PDF: Lädt eine Datei mit allen eigenen Noten herunter.
+PDF Herunterladen: Lädt die gesamte Notenliste der ausgewählten Klasse herunter.
+An Notenmanagement übertragen: Überträgt die Noten an das Notenmanagement`
 								.split('\n')
 								.filter(Boolean)
 								.map((line, i) => {
@@ -1883,17 +1884,17 @@ export default function NotensammlerPage() {
 									<span className="font-semibold">{cls.name}</span>
 									<span className="flex items-center gap-2 text-xs font-normal opacity-90">
 										<span className="flex items-center gap-1 rounded-md bg-background/60 px-2 py-0.5">
-											{t('notensammler.firstSemesterShort', '1. Sem')}
+											{'1. Sem'}
 											{cls.allGradesEnteredFirst ? (
-												<CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0 dark:text-green-400" aria-hidden />
+												<CheckCircle2 className="h-3.5 w-3.5 text-status-success shrink-0" aria-hidden />
 											) : (
 												<X className="h-3.5 w-3.5 text-destructive shrink-0" aria-hidden />
 											)}
 										</span>
 										<span className="flex items-center gap-1 rounded-md bg-background/60 px-2 py-0.5">
-											{t('notensammler.secondSemesterShort', '2. Sem')}
+											{'2. Sem'}
 											{cls.allGradesEnteredSecond ? (
-												<CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0 dark:text-green-400" aria-hidden />
+												<CheckCircle2 className="h-3.5 w-3.5 text-status-success shrink-0" aria-hidden />
 											) : (
 												<X className="h-3.5 w-3.5 text-destructive shrink-0" aria-hidden />
 											)}
@@ -1909,7 +1910,7 @@ export default function NotensammlerPage() {
 						{selectedClassId && availableWeekdays.length > 1 && (
 							<div>
 								<label className="block text-sm font-medium mb-2">
-									{t('notensammler.selectWeekday', 'Wochentag')}
+									{'Wochentag'}
 								</label>
 								<Select
 									value={selectedWeekday != null ? String(selectedWeekday) : undefined}
@@ -1920,7 +1921,7 @@ export default function NotensammlerPage() {
 									}}
 								>
 									<SelectTrigger className="w-[180px]">
-										<SelectValue placeholder={t('notensammler.selectWeekdayPlaceholder', 'Wochentag wählen...')} />
+										<SelectValue placeholder={'Wochentag wählen...'} />
 									</SelectTrigger>
 									<SelectContent>
 										{availableWeekdays.map((wd) => (
@@ -1934,7 +1935,7 @@ export default function NotensammlerPage() {
 						)}
 						{currentSemester != null && (
 							<span className="text-sm text-muted-foreground">
-								{t('notensammler.currentSemester', 'Aktuell')}: {currentSemester === 'first' ? t('notensammler.firstSemester', '1. Semester') : t('notensammler.secondSemester', '2. Semester')}
+								{'Aktuell'}: {currentSemester === 'first' ? '1. Semester' : '2. Semester'}
 							</span>
 						)}
 						<div className="flex items-center space-x-2">
@@ -1944,7 +1945,7 @@ export default function NotensammlerPage() {
 								onCheckedChange={(checked) => setShowFirstSemester(checked === true)}
 							/>
 							<Label htmlFor="show-first-semester" className="cursor-pointer flex items-center gap-2">
-								{t('notensammler.showFirstSemester', '1. Semester anzeigen')}
+								{'1. Semester anzeigen'}
 								{classData.transferStatus?.first.transferred && (
 									<Badge 
 										variant="outline" 
@@ -1957,7 +1958,7 @@ export default function NotensammlerPage() {
 										}}
 									>
 										<CheckCircle2 className="h-3 w-3 mr-1" />
-										{t('notensammler.transferred', 'Übertragen')}
+										{'Übertragen'}
 										{classData.transferStatus.first.lfId && (
 											<span className="ml-1 text-muted-foreground">
 												(LF: {classData.transferStatus.first.lfId})
@@ -1974,7 +1975,7 @@ export default function NotensammlerPage() {
 								onCheckedChange={(checked) => setShowSecondSemester(checked === true)}
 							/>
 							<Label htmlFor="show-second-semester" className="cursor-pointer flex items-center gap-2">
-								{t('notensammler.showSecondSemester', '2. Semester anzeigen')}
+								{'2. Semester anzeigen'}
 								{classData.transferStatus?.second.transferred && (
 									<Badge 
 										variant="outline" 
@@ -1987,7 +1988,7 @@ export default function NotensammlerPage() {
 										}}
 									>
 										<CheckCircle2 className="h-3 w-3 mr-1" />
-										{t('notensammler.transferred', 'Übertragen')}
+										{'Übertragen'}
 										{classData.transferStatus.second.lfId && (
 											<span className="ml-1 text-muted-foreground">
 												(LF: {classData.transferStatus.second.lfId})
@@ -2004,24 +2005,24 @@ export default function NotensammlerPage() {
 							{savingAll ? (
 								<>
 									<Spinner size="sm" className="mr-2" />
-									{t('notensammler.savingAll', 'Speichere...')}
+									{'Speichere...'}
 								</>
 							) : (
-								t('notensammler.saveAll', 'Alle speichern')
+								'Alle speichern'
 							)}
 						</Button>
 						<Button
 							onClick={handleDownloadPDF}
 							disabled={downloadingPdf || !selectedClassId}
-							title={t('notensammler.tooltipDownloadPdf', 'Lädt die gesamte Notenliste der ausgewählten Klasse herunter.')}
+							title={'Lädt die gesamte Notenliste der ausgewählten Klasse herunter.'}
 						>
 							{downloadingPdf ? (
 								<>
 									<Spinner size="sm" className="mr-2" />
-									{t('notensammler.downloadingPdf', 'PDF wird erstellt...')}
+									{'PDF wird erstellt...'}
 								</>
 							) : (
-								t('notensammler.downloadPdf', 'PDF herunterladen')
+								'PDF herunterladen'
 							)}
 						</Button>
 						{isFeatureEnabled('notenmgmt_htl') && (
@@ -2029,9 +2030,9 @@ export default function NotensammlerPage() {
 								variant="secondary"
 								onClick={openTransferFlow}
 								disabled={!selectedClassId}
-								title={t('notensammler.tooltipTransfer', 'Überträgt die Noten an das Notenmanagement.')}
+								title={'Überträgt die Noten an das Notenmanagement.'}
 							>
-								{t('notensammler.transferToNotenmanagement', 'An Notenmanagement übertragen')}
+								{'An Notenmanagement übertragen'}
 							</Button>
 						)}
 					</div>
@@ -2056,13 +2057,13 @@ export default function NotensammlerPage() {
 							{classData.classLead && (
 								<>
 									{' · '}
-									{t('notensammler.classLead', 'Klassenleitung')}: {classData.classLead}
+									{'Klassenleitung'}: {classData.classLead}
 								</>
 							)}
 						</CardTitle>
 						<div className="flex items-center gap-2 mt-2">
 							<label className="text-sm font-medium">
-								{t('notensammler.sortBy', 'Sortieren nach')}:
+								{'Sortieren nach'}:
 							</label>
 							<Select value={sortField} onValueChange={(value) => setSortField(value as 'lastName' | 'groupId')}>
 								<SelectTrigger className="w-[180px]">
@@ -2070,10 +2071,10 @@ export default function NotensammlerPage() {
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value="lastName">
-										{t('notensammler.sortByLastName', 'Nachname')}
+										{'Nachname'}
 									</SelectItem>
 									<SelectItem value="groupId">
-										{t('notensammler.sortByGroup', 'Gruppennummer')}
+										{'Gruppennummer'}
 									</SelectItem>
 								</SelectContent>
 							</Select>
@@ -2083,10 +2084,10 @@ export default function NotensammlerPage() {
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value="asc">
-										{t('notensammler.sortAscending', 'Aufsteigend')}
+										{'Aufsteigend'}
 									</SelectItem>
 									<SelectItem value="desc">
-										{t('notensammler.sortDescending', 'Absteigend')}
+										{'Absteigend'}
 									</SelectItem>
 								</SelectContent>
 							</Select>
@@ -2100,21 +2101,21 @@ export default function NotensammlerPage() {
 										value="AM"
 										className="group flex items-center gap-3 rounded-lg border-2 border-transparent px-4 py-2.5 text-sm font-medium transition-all hover:bg-muted/60 data-[state=active]:border-primary data-[state=active]:bg-muted/60 data-[state=active]:shadow-none"
 									>
-										<span className="font-semibold">{t('notensammler.vormittag', 'Vormittag')} – {classData.subjectNameAm ? truncateSubject(classData.subjectNameAm) : ''}</span>
+										<span className="font-semibold">{'Vormittag'} – {classData.subjectNameAm ? truncateSubject(classData.subjectNameAm) : ''}</span>
 										{currentTeacherTeachesClass && (
 											<span className="flex items-center gap-2 text-xs font-normal opacity-90">
 												<span className="flex items-center gap-1 rounded-md bg-muted/80 px-2 py-0.5">
-													{t('notensammler.firstSemesterShort', '1. Sem')}
+													{'1. Sem'}
 													{periodCompletion.amFirst ? (
-														<CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0 dark:text-green-400" aria-hidden />
+														<CheckCircle2 className="h-3.5 w-3.5 text-status-success shrink-0" aria-hidden />
 													) : (
 														<X className="h-3.5 w-3.5 text-destructive shrink-0" aria-hidden />
 													)}
 												</span>
 												<span className="flex items-center gap-1 rounded-md bg-muted/80 px-2 py-0.5">
-													{t('notensammler.secondSemesterShort', '2. Sem')}
+													{'2. Sem'}
 													{periodCompletion.amSecond ? (
-														<CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0 dark:text-green-400" aria-hidden />
+														<CheckCircle2 className="h-3.5 w-3.5 text-status-success shrink-0" aria-hidden />
 													) : (
 														<X className="h-3.5 w-3.5 text-destructive shrink-0" aria-hidden />
 													)}
@@ -2126,21 +2127,21 @@ export default function NotensammlerPage() {
 										value="PM"
 										className="group flex items-center gap-3 rounded-lg border-2 border-transparent px-4 py-2.5 text-sm font-medium transition-all hover:bg-muted/60 data-[state=active]:border-primary data-[state=active]:bg-muted/60 data-[state=active]:shadow-none"
 									>
-										<span className="font-semibold">{t('notensammler.nachmittag', 'Nachmittag')} – {classData.subjectNamePm ? truncateSubject(classData.subjectNamePm) : ''}</span>
+										<span className="font-semibold">{'Nachmittag'} – {classData.subjectNamePm ? truncateSubject(classData.subjectNamePm) : ''}</span>
 										{currentTeacherTeachesClass && (
 											<span className="flex items-center gap-2 text-xs font-normal opacity-90">
 												<span className="flex items-center gap-1 rounded-md bg-muted/80 px-2 py-0.5">
-													{t('notensammler.firstSemesterShort', '1. Sem')}
+													{'1. Sem'}
 													{periodCompletion.pmFirst ? (
-														<CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0 dark:text-green-400" aria-hidden />
+														<CheckCircle2 className="h-3.5 w-3.5 text-status-success shrink-0" aria-hidden />
 													) : (
 														<X className="h-3.5 w-3.5 text-destructive shrink-0" aria-hidden />
 													)}
 												</span>
 												<span className="flex items-center gap-1 rounded-md bg-muted/80 px-2 py-0.5">
-													{t('notensammler.secondSemesterShort', '2. Sem')}
+													{'2. Sem'}
 													{periodCompletion.pmSecond ? (
-														<CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0 dark:text-green-400" aria-hidden />
+														<CheckCircle2 className="h-3.5 w-3.5 text-status-success shrink-0" aria-hidden />
 													) : (
 														<X className="h-3.5 w-3.5 text-destructive shrink-0" aria-hidden />
 													)}
@@ -2158,19 +2159,19 @@ export default function NotensammlerPage() {
 									<TableRow>
 										<TableHead rowSpan={2} className="sticky left-0 bg-background z-10 w-10 min-w-10 p-1 text-center">
 											<span className="[writing-mode:vertical-rl] [text-orientation:mixed] whitespace-nowrap text-sm">
-												{t('notensammler.id', 'ID')}
+												{'ID'}
 											</span>
 										</TableHead>
 										<TableHead rowSpan={2} className="sticky left-10 bg-background z-10 w-10 min-w-10 p-1 text-center">
 											<span className="[writing-mode:vertical-rl] [text-orientation:mixed] whitespace-nowrap text-sm">
-												{t('notensammler.group', 'Gruppe')}
+												{'Gruppe'}
 											</span>
 										</TableHead>
-										<TableHead rowSpan={2} className="sticky left-[5rem] bg-background z-10 w-[200px]">{t('notensammler.student', 'Schüler')}</TableHead>
+										<TableHead rowSpan={2} className="sticky left-[5rem] bg-background z-10 w-[200px]">{'Schüler'}</TableHead>
 										{/* First Semester - Period labels (AM only when tablePeriod is AM or unset; PM only when PM or unset) */}
 										{showFirstSemester && (!tablePeriod || tablePeriod === 'AM') && classData.amTeachers.length > 0 && (
 											<TableHead colSpan={classData.amTeachers.length} className="text-center border-b">
-												{t('notensammler.vormittag', 'Vormittag')}
+												{'Vormittag'}
 											</TableHead>
 										)}
 										{/* Separator between AM and PM (only in combined view) */}
@@ -2179,28 +2180,28 @@ export default function NotensammlerPage() {
 										)}
 										{showFirstSemester && (!tablePeriod || tablePeriod === 'PM') && classData.pmTeachers.length > 0 && (
 											<TableHead colSpan={classData.pmTeachers.length} className="text-center border-b">
-												{t('notensammler.nachmittag', 'Nachmittag')}
+												{'Nachmittag'}
 											</TableHead>
 										)}
 										<TableHead rowSpan={2} className="w-14 min-w-14 p-1 text-center bg-muted">
 											<span className="[writing-mode:vertical-rl] [text-orientation:mixed] whitespace-nowrap text-sm">
-												{t('notensammler.average', 'Durchschnitt')} ({t('notensammler.firstSemester', '1. Semester')})
+												{'Durchschnitt'} ({'1. Semester'})
 											</span>
 										</TableHead>
 										<TableHead rowSpan={2} className="w-14 min-w-14 p-1 text-center bg-primary/10">
 											<span className="[writing-mode:vertical-rl] [text-orientation:mixed] whitespace-nowrap text-sm">
-												{t('notensammler.endnoteFirstSemester', 'Endnote (1. Semester)')}
+												{'Endnote (1. Semester)'}
 											</span>
 										</TableHead>
 										<TableHead rowSpan={2} className="min-w-[90px] w-[105px] max-w-[105px] p-1 text-center bg-primary/5 border-r-4 border-muted-foreground/60">
 											<span className="[writing-mode:vertical-rl] [text-orientation:mixed] whitespace-nowrap text-sm">
-												{t('notensammler.conductNoteWish', 'Betragensnote (Wunsch)')}
+												{'Betragensnote (Wunsch)'}
 											</span>
 										</TableHead>
 										{/* Second Semester - Period labels */}
 										{showSecondSemester && (!tablePeriod || tablePeriod === 'AM') && classData.amTeachers.length > 0 && (
 											<TableHead colSpan={classData.amTeachers.length} className="text-center border-b">
-												{t('notensammler.vormittag', 'Vormittag')}
+												{'Vormittag'}
 											</TableHead>
 										)}
 										{showSecondSemester && !tablePeriod && classData.amTeachers.length > 0 && classData.pmTeachers.length > 0 && (
@@ -2208,22 +2209,22 @@ export default function NotensammlerPage() {
 										)}
 										{showSecondSemester && (!tablePeriod || tablePeriod === 'PM') && classData.pmTeachers.length > 0 && (
 											<TableHead colSpan={classData.pmTeachers.length} className="text-center border-b">
-												{t('notensammler.nachmittag', 'Nachmittag')}
+												{'Nachmittag'}
 											</TableHead>
 										)}
 										<TableHead rowSpan={2} className="w-14 min-w-14 p-1 text-center bg-muted">
 											<span className="[writing-mode:vertical-rl] [text-orientation:mixed] whitespace-nowrap text-sm">
-												{t('notensammler.average', 'Durchschnitt')} ({t('notensammler.secondSemester', '2. Semester')})
+												{'Durchschnitt'} ({'2. Semester'})
 											</span>
 										</TableHead>
 										<TableHead rowSpan={2} className="w-14 min-w-14 p-1 text-center bg-primary/10">
 											<span className="[writing-mode:vertical-rl] [text-orientation:mixed] whitespace-nowrap text-sm">
-												{t('notensammler.endnoteSecondSemester', 'Endnote (2. Semester)')}
+												{'Endnote (2. Semester)'}
 											</span>
 										</TableHead>
 										<TableHead rowSpan={2} className="min-w-[90px] w-[105px] max-w-[105px] p-1 text-center bg-primary/5">
 											<span className="[writing-mode:vertical-rl] [text-orientation:mixed] whitespace-nowrap text-sm">
-												{t('notensammler.conductNoteWish', 'Betragensnote (Wunsch)')}
+												{'Betragensnote (Wunsch)'}
 											</span>
 										</TableHead>
 									</TableRow>
@@ -2248,7 +2249,7 @@ export default function NotensammlerPage() {
 															setTeacherToDelete(teacher)
 															setShowDeleteDialog(true)
 														}}
-														title={t('notensammler.deleteTeacherGrades', 'Alle Noten für diesen Lehrer löschen')}
+														title={'Alle Noten für diesen Lehrer löschen'}
 													>
 														<X className="h-3 w-3" />
 													</Button>
@@ -2274,7 +2275,7 @@ export default function NotensammlerPage() {
 															setTeacherToDelete(teacher)
 															setShowDeleteDialog(true)
 														}}
-														title={t('notensammler.deleteTeacherGrades', 'Alle Noten für diesen Lehrer löschen')}
+														title={'Alle Noten für diesen Lehrer löschen'}
 													>
 														<X className="h-3 w-3" />
 													</Button>
@@ -2300,7 +2301,7 @@ export default function NotensammlerPage() {
 															setTeacherToDelete(teacher)
 															setShowDeleteDialog(true)
 														}}
-														title={t('notensammler.deleteTeacherGrades', 'Alle Noten für diesen Lehrer löschen')}
+														title={'Alle Noten für diesen Lehrer löschen'}
 													>
 														<X className="h-3 w-3" />
 													</Button>
@@ -2326,7 +2327,7 @@ export default function NotensammlerPage() {
 															setTeacherToDelete(teacher)
 															setShowDeleteDialog(true)
 														}}
-														title={t('notensammler.deleteTeacherGrades', 'Alle Noten für diesen Lehrer löschen')}
+														title={'Alle Noten für diesen Lehrer löschen'}
 													>
 														<X className="h-3 w-3" />
 													</Button>
@@ -2342,7 +2343,7 @@ export default function NotensammlerPage() {
 										// Only highlight missing grades when the logged-in user is a teacher in this class
 										const missingFirstBlock = currentTeacherTeachesClass && currentSemester === 'first' && hasMissingInCurrentSemester(student.id)
 										const missingSecondBlock = currentTeacherTeachesClass && currentSemester === 'second' && hasMissingInCurrentSemester(student.id)
-										const missingCellClass = 'bg-red-50 dark:bg-red-950/20'
+										const missingCellClass = 'state-danger-soft'
 										return (
 											<TableRow key={student.id}>
 												<TableCell className="sticky left-0 z-10 font-medium w-10 min-w-10 p-1 text-center bg-background">
@@ -2502,7 +2503,7 @@ export default function NotensammlerPage() {
 						</div>
 						{saving && (
 							<div className="mt-4 text-sm text-muted-foreground">
-								{t('notensammler.saving', 'Speichere...')}
+								{'Speichere...'}
 							</div>
 						)}
 					</CardContent>
@@ -2513,9 +2514,9 @@ export default function NotensammlerPage() {
 			<Dialog open={showPasswordDialog} onOpenChange={(open) => setShowPasswordDialog(open)}>
 				<DialogContent>
 					<DialogHeader>
-						<DialogTitle>{t('notensammler.nmPasswordTitle', 'Notenmanagement Anmeldung')}</DialogTitle>
+						<DialogTitle>{'Notenmanagement Anmeldung'}</DialogTitle>
 						<DialogDescription>
-							{t('notensammler.nmPasswordDesc', 'Bitte gib deine Anmeldedaten für Notenmanagement ein.')}
+							{'Bitte gib deine Anmeldedaten für Notenmanagement ein.'}
 						</DialogDescription>
 					</DialogHeader>
 					<div className="space-y-4">
@@ -2523,20 +2524,20 @@ export default function NotensammlerPage() {
 							type="text"
 							value={transferUsername}
 							onChange={(e) => setTransferUsername(e.target.value)}
-							placeholder={t('notensammler.username', 'Benutzername')}
+							placeholder={'Benutzername'}
 							autoComplete="username"
 						/>
 						<Input
 							type="password"
 							value={transferPassword}
 							onChange={(e) => setTransferPassword(e.target.value)}
-							placeholder={t('notensammler.password', 'Passwort')}
+							placeholder={'Passwort'}
 							autoComplete="current-password"
 						/>
 					</div>
 					<DialogFooter>
 						<Button variant="outline" onClick={() => setShowPasswordDialog(false)}>
-							{t('common.cancel', 'Abbrechen')}
+							{'Abbrechen'}
 						</Button>
 						<Button
 							onClick={() => {
@@ -2545,7 +2546,7 @@ export default function NotensammlerPage() {
 							}}
 							disabled={!transferUsername || !transferPassword}
 						>
-							{t('common.continue', 'Weiter')}
+							{'Weiter'}
 						</Button>
 					</DialogFooter>
 				</DialogContent>
@@ -2555,14 +2556,14 @@ export default function NotensammlerPage() {
 			<Dialog open={showSemesterDialog} onOpenChange={(open) => setShowSemesterDialog(open)}>
 				<DialogContent>
 					<DialogHeader>
-						<DialogTitle>{t('notensammler.nmSemesterTitle', 'Semester auswählen')}</DialogTitle>
+						<DialogTitle>{'Semester auswählen'}</DialogTitle>
 						<DialogDescription>
-							{t('notensammler.nmSemesterDesc', 'Welches Semester möchtest du übertragen?')}
+							{'Welches Semester möchtest du übertragen?'}
 						</DialogDescription>
 					</DialogHeader>
 					<DialogFooter>
 						<Button variant="outline" onClick={() => setShowSemesterDialog(false)}>
-							{t('common.cancel', 'Abbrechen')}
+							{'Abbrechen'}
 						</Button>
 						<Button
 							onClick={() => {
@@ -2575,10 +2576,10 @@ export default function NotensammlerPage() {
 							{previewLoading ? (
 								<>
 									<Spinner size="sm" className="mr-2" />
-									{t('notensammler.loading', 'Lade...')}
+									{'Lade...'}
 								</>
 							) : (
-								t('notensammler.firstSemester', '1. Semester')
+								'1. Semester'
 							)}
 						</Button>
 						<Button
@@ -2592,10 +2593,10 @@ export default function NotensammlerPage() {
 							{previewLoading ? (
 								<>
 									<Spinner size="sm" className="mr-2" />
-									{t('notensammler.loading', 'Lade...')}
+									{'Lade...'}
 								</>
 							) : (
-								t('notensammler.secondSemester', '2. Semester')
+								'2. Semester'
 							)}
 						</Button>
 					</DialogFooter>
@@ -2607,12 +2608,12 @@ export default function NotensammlerPage() {
 				<DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
 					<DialogHeader>
 						<DialogTitle>
-							{t('notensammler.nmPreviewTitle', 'Vorschau: Übertragung an Notenmanagement')}
+							{'Vorschau: Übertragung an Notenmanagement'}
 						</DialogTitle>
 						{previewData && (
 							<DialogDescription className="whitespace-pre-line">
-								{t('notensammler.nmPreviewMeta', 'Klasse')}: {previewData.className} · {t('notensammler.subject', 'Fach')}: {previewData.subjectTruncated} · {t('notensammler.teachers', 'Lehrer')}: {previewData.teacherCount}
-								{previewData.counts.unmatchedCompleteStudents > 0 ? `\n${t('notensammler.nmUnmatchedWarning', 'Unmatched Schüler werden nicht übertragen.')}` : ''}
+								{'Klasse'}: {previewData.className} · {'Fach'}: {previewData.subjectTruncated} · {'Lehrer'}: {previewData.teacherCount}
+								{previewData.counts.unmatchedCompleteStudents > 0 ? `\n${'Unmatched Schüler werden nicht übertragen.'}` : ''}
 							</DialogDescription>
 						)}
 					</DialogHeader>
@@ -2628,10 +2629,10 @@ export default function NotensammlerPage() {
 							<Table>
 								<TableHeader>
 									<TableRow>
-										<TableHead>{t('notensammler.student', 'Schüler')}</TableHead>
-										<TableHead className="w-32">{t('notensammler.grade', 'Note')}</TableHead>
-										<TableHead className="w-40">{t('notensammler.matrikelnummer', 'Matrikelnummer')}</TableHead>
-										<TableHead className="w-28">{t('notensammler.match', 'Match')}</TableHead>
+										<TableHead>{'Schüler'}</TableHead>
+										<TableHead className="w-32">{'Note'}</TableHead>
+										<TableHead className="w-40">{'Matrikelnummer'}</TableHead>
+										<TableHead className="w-28">{'Match'}</TableHead>
 									</TableRow>
 								</TableHeader>
 								<TableBody>
@@ -2671,9 +2672,9 @@ export default function NotensammlerPage() {
 												</TableCell>
 												<TableCell>
 													{s.matched ? (
-														<span className="text-green-600 font-medium">✓</span>
+														<span className="text-status-success font-medium">✓</span>
 													) : (
-														<span className="text-red-600 font-medium">✗</span>
+														<span className="text-status-danger font-medium">✗</span>
 													)}
 												</TableCell>
 											</TableRow>
@@ -2687,17 +2688,17 @@ export default function NotensammlerPage() {
 					{previewData?.nmStudentsWithoutGradeOrMatch && previewData.nmStudentsWithoutGradeOrMatch.length > 0 && (
 						<div className="mt-6">
 							<h3 className="text-sm font-semibold mb-2">
-								{t('notensammler.nmStudentsWithoutGradeOrMatch', 'Schüler in Notenmanagement ohne Zuordnung oder Note')}
+								{'Schüler in Notenmanagement ohne Zuordnung oder Note'}
 							</h3>
 							<div className="max-h-48 overflow-y-auto rounded-md border">
 								<Table>
 									<TableHeader>
 										<TableRow>
-											<TableHead className="w-24">{t('notensammler.matrikelnummer', 'Matr.')}</TableHead>
-											<TableHead>{t('notensammler.lastName', 'Nachname')}</TableHead>
-											<TableHead>{t('notensammler.firstName', 'Vorname')}</TableHead>
-											<TableHead className="w-24">{t('notensammler.class', 'Klasse')}</TableHead>
-											<TableHead className="w-32">{t('notensammler.grade', 'Note')}</TableHead>
+											<TableHead className="w-24">{'Matr.'}</TableHead>
+											<TableHead>{'Nachname'}</TableHead>
+											<TableHead>{'Vorname'}</TableHead>
+											<TableHead className="w-24">{'Klasse'}</TableHead>
+											<TableHead className="w-32">{'Note'}</TableHead>
 										</TableRow>
 									</TableHeader>
 									<TableBody>
@@ -2718,10 +2719,10 @@ export default function NotensammlerPage() {
 															}}
 														>
 															<SelectTrigger className="w-32">
-																<SelectValue placeholder={t('notensammler.keineNote', 'Keine Note')} />
+																<SelectValue placeholder={'Keine Note'} />
 															</SelectTrigger>
 															<SelectContent>
-																<SelectItem value="keine">{t('notensammler.keineNote', 'Keine Note')}</SelectItem>
+																<SelectItem value="keine">{'Keine Note'}</SelectItem>
 																<SelectItem value="1">1</SelectItem>
 																<SelectItem value="2">2</SelectItem>
 																<SelectItem value="3">3</SelectItem>
@@ -2741,20 +2742,20 @@ export default function NotensammlerPage() {
 
 					<DialogFooter>
 						<Button variant="outline" onClick={() => setShowPreviewDialog(false)}>
-							{t('common.cancel', 'Abbrechen')}
+							{'Abbrechen'}
 						</Button>
 						<Button onClick={() => void submitTransfer()} disabled={transferLoading || !previewData}>
 							{transferLoading ? (
 								<>
 									<Spinner size="sm" className="mr-2" />
-									{t('notensammler.transferring', 'Übertrage...')}
+									{'Übertrage...'}
 								</>
 							) : (
 								previewData?.transferStatus && 
 								((previewData.semester === 'first' && previewData.transferStatus.first.transferred) ||
 								 (previewData.semester === 'second' && previewData.transferStatus.second.transferred))
-									? t('notensammler.updateTransfer', 'Aktualisieren')
-									: t('notensammler.transferNow', 'Jetzt übertragen')
+									? 'Aktualisieren'
+									: 'Jetzt übertragen'
 							)}
 						</Button>
 					</DialogFooter>
@@ -2778,30 +2779,30 @@ export default function NotensammlerPage() {
 					<DialogHeader>
 						<DialogTitle>
 							{transferResult?.success
-								? t('notensammler.nmSuccessTitle', 'Übertragung erfolgreich')
-								: t('notensammler.nmErrorTitle', 'Übertragung fehlgeschlagen')}
+								? 'Übertragung erfolgreich'
+								: 'Übertragung fehlgeschlagen'}
 						</DialogTitle>
 						<DialogDescription className="whitespace-pre-line">
 							{transferResult?.success && transferResult
-								? `${t('notensammler.nmLfId', 'LF_ID')}: ${transferResult.lfId}\n${t('notensammler.nmSent', 'Übertragen')}: ${transferResult.sentCount}`
-								: (error ?? t('notensammler.nmUnknownError', 'Unbekannter Fehler'))}
+								? `${'LF_ID'}: ${transferResult.lfId}\n${'Übertragen'}: ${transferResult.sentCount}`
+								: (error ?? 'Unbekannter Fehler')}
 						</DialogDescription>
 					</DialogHeader>
 
 					{transferResult?.success && !!transferResult.confirmation && (
 						<div className="rounded-md border bg-muted p-4">
 							<h3 className="font-semibold mb-3 text-sm">
-								{t('notensammler.nmConfirmation', 'Übertragene Noten')}
+								{'Übertragene Noten'}
 							</h3>
 							{Array.isArray(transferResult.confirmation) && transferResult.confirmation.length > 0 ? (
 								<div className="overflow-x-auto">
 									<Table>
 										<TableHeader>
 											<TableRow>
-												<TableHead className="w-20">{t('notensammler.matrikelnummer', 'Matr.')}</TableHead>
-												<TableHead>{t('notensammler.lastName', 'Nachname')}</TableHead>
-												<TableHead>{t('notensammler.firstName', 'Vorname')}</TableHead>
-												<TableHead className="w-16 text-center">{t('notensammler.note', 'Note')}</TableHead>
+												<TableHead className="w-20">{'Matr.'}</TableHead>
+												<TableHead>{'Nachname'}</TableHead>
+												<TableHead>{'Vorname'}</TableHead>
+												<TableHead className="w-16 text-center">{'Note'}</TableHead>
 											</TableRow>
 										</TableHeader>
 										<TableBody>
@@ -2817,7 +2818,7 @@ export default function NotensammlerPage() {
 													? String(student.Note)
 													: (student.Kommentar === 'Nicht beurteilt' || student.Kommentar === 'Gestundet'
 														? student.Kommentar
-														: t('notensammler.keineNote', 'Keine Note'))
+														: 'Keine Note')
 												return (
 													<TableRow key={student.Matrikelnummer ?? idx}>
 														<TableCell className="font-mono text-xs">{student.Matrikelnummer}</TableCell>
@@ -2842,7 +2843,7 @@ export default function NotensammlerPage() {
 
 					<DialogFooter>
 						<Button onClick={() => setShowResultDialog(false)}>
-							{t('common.close', 'Schließen')}
+							{'Schließen'}
 						</Button>
 					</DialogFooter>
 				</DialogContent>
@@ -2852,9 +2853,9 @@ export default function NotensammlerPage() {
 			<Dialog open={showLfViewPasswordDialog} onOpenChange={(open) => setShowLfViewPasswordDialog(open)}>
 				<DialogContent>
 					<DialogHeader>
-						<DialogTitle>{t('notensammler.nmPasswordTitle', 'Notenmanagement Anmeldung')}</DialogTitle>
+						<DialogTitle>{'Notenmanagement Anmeldung'}</DialogTitle>
 						<DialogDescription>
-							{t('notensammler.nmPasswordDesc', 'Bitte gib deine Anmeldedaten für Notenmanagement ein.')}
+							{'Bitte gib deine Anmeldedaten für Notenmanagement ein.'}
 						</DialogDescription>
 					</DialogHeader>
 					<div className="space-y-4">
@@ -2862,14 +2863,14 @@ export default function NotensammlerPage() {
 							type="text"
 							value={lfViewUsername}
 							onChange={(e) => setLfViewUsername(e.target.value)}
-							placeholder={t('notensammler.username', 'Benutzername')}
+							placeholder={'Benutzername'}
 							autoComplete="username"
 						/>
 						<Input
 							type="password"
 							value={lfViewPassword}
 							onChange={(e) => setLfViewPassword(e.target.value)}
-							placeholder={t('notensammler.password', 'Passwort')}
+							placeholder={'Passwort'}
 							autoComplete="current-password"
 							onKeyDown={(e) => {
 								if (e.key === 'Enter' && lfViewUsername && lfViewPassword && !lfViewLoading) {
@@ -2880,7 +2881,7 @@ export default function NotensammlerPage() {
 					</div>
 					<DialogFooter>
 						<Button variant="outline" onClick={() => setShowLfViewPasswordDialog(false)}>
-							{t('common.cancel', 'Abbrechen')}
+							{'Abbrechen'}
 						</Button>
 						<Button
 							onClick={() => void fetchLfData()}
@@ -2889,10 +2890,10 @@ export default function NotensammlerPage() {
 							{lfViewLoading ? (
 								<>
 									<Spinner size="sm" className="mr-2" />
-									{t('notensammler.loading', 'Lade...')}
+									{'Lade...'}
 								</>
 							) : (
-								t('common.continue', 'Weiter')
+								'Weiter'
 							)}
 						</Button>
 					</DialogFooter>
@@ -2904,10 +2905,10 @@ export default function NotensammlerPage() {
 				<DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
 					<DialogHeader>
 						<DialogTitle>
-							{t('notensammler.lfViewTitle', 'LF Daten')} {selectedLfId && `(LF: ${selectedLfId})`}
+							{'LF Daten'} {selectedLfId && `(LF: ${selectedLfId})`}
 						</DialogTitle>
 						<DialogDescription>
-							{t('notensammler.lfViewDesc', 'Übertragene Noten aus Notenmanagement')}
+							{'Übertragene Noten aus Notenmanagement'}
 						</DialogDescription>
 					</DialogHeader>
 
@@ -2917,10 +2918,10 @@ export default function NotensammlerPage() {
 								<Table>
 									<TableHeader>
 										<TableRow>
-											<TableHead className="w-20">{t('notensammler.matrikelnummer', 'Matr.')}</TableHead>
-											<TableHead>{t('notensammler.lastName', 'Nachname')}</TableHead>
-											<TableHead>{t('notensammler.firstName', 'Vorname')}</TableHead>
-											<TableHead className="w-16 text-center">{t('notensammler.note', 'Note')}</TableHead>
+											<TableHead className="w-20">{'Matr.'}</TableHead>
+											<TableHead>{'Nachname'}</TableHead>
+											<TableHead>{'Vorname'}</TableHead>
+											<TableHead className="w-16 text-center">{'Note'}</TableHead>
 										</TableRow>
 									</TableHeader>
 									<TableBody>
@@ -2938,13 +2939,13 @@ export default function NotensammlerPage() {
 						</div>
 					) : (
 						<div className="text-sm text-muted-foreground">
-							{t('notensammler.noData', 'Keine Daten verfügbar')}
+							{'Keine Daten verfügbar'}
 						</div>
 					)}
 
 					<DialogFooter>
 						<Button onClick={() => setShowLfViewDialog(false)}>
-							{t('common.close', 'Schließen')}
+							{'Schließen'}
 						</Button>
 					</DialogFooter>
 				</DialogContent>
@@ -2955,22 +2956,22 @@ export default function NotensammlerPage() {
 				<AlertDialogContent>
 					<AlertDialogHeader>
 						<AlertDialogTitle>
-							{t('notensammler.deleteTeacherGradesTitle', 'Noten löschen')}
+							{'Noten löschen'}
 						</AlertDialogTitle>
 						<AlertDialogDescription>
 							{teacherToDelete && (
 								<>
-									{t('notensammler.deleteTeacherGradesConfirm', 'Möchtest du wirklich alle Noten für')} <strong>{teacherToDelete.firstName} {teacherToDelete.lastName}</strong> {t('notensammler.deleteTeacherGradesConfirm2', 'löschen?')}
+									{'Möchtest du wirklich alle Noten für'} <strong>{teacherToDelete.firstName} {teacherToDelete.lastName}</strong> {'löschen?'}
 									<br />
 									<br />
-									{t('notensammler.deleteTeacherGradesWarning', 'Diese Aktion kann nicht rückgängig gemacht werden. Alle Noten für diesen Lehrer in dieser Klasse werden dauerhaft gelöscht.')}
+									{'Diese Aktion kann nicht rückgängig gemacht werden. Alle Noten für diesen Lehrer in dieser Klasse werden dauerhaft gelöscht.'}
 								</>
 							)}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
 						<AlertDialogCancel disabled={deleting}>
-							{t('common.cancel', 'Abbrechen')}
+							{'Abbrechen'}
 						</AlertDialogCancel>
 						<AlertDialogAction
 							onClick={() => void deleteTeacherGrades()}
@@ -2980,10 +2981,10 @@ export default function NotensammlerPage() {
 							{deleting ? (
 								<>
 									<Spinner size="sm" className="mr-2" />
-									{t('notensammler.deleting', 'Lösche...')}
+									{'Lösche...'}
 								</>
 							) : (
-								t('notensammler.delete', 'Löschen')
+								'Löschen'
 							)}
 						</AlertDialogAction>
 					</AlertDialogFooter>

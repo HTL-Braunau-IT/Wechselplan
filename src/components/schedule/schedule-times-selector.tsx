@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
-import { useTranslation } from 'react-i18next'
 import { Spinner } from '@/components/ui/spinner'
 import { AlertCircle } from 'lucide-react'
 import { useClassDataByName } from '@/hooks/use-class-data'
@@ -46,8 +45,6 @@ export function ScheduleTimesSelector({ className, weekday, onSave, onCancel }: 
   const [error, setError] = useState<string | null>(null)
   const [isErrorDialogOpen, setIsErrorDialogOpen] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
-  const { t } = useTranslation(['admin', 'common', 'schedule'])
-
   const [classId, setClassId] = useState<number | null>(null)
 
   // Resolve className to classId when className changes
@@ -58,7 +55,7 @@ export function ScheduleTimesSelector({ className, weekday, onSave, onCancel }: 
       setClassId(classData.id)
     } else if (!className) {
       setClassId(null)
-      setError(t('errors.classIdRequired'))
+      setError('Klassen-ID ist erforderlich.')
       setIsLoading(false)
     }
   }, [classData, className])
@@ -155,7 +152,7 @@ export function ScheduleTimesSelector({ className, weekday, onSave, onCancel }: 
 
     } catch (error) {
       console.error('Error fetching data:', error)
-      setError(t('errors.loadTimes'))
+      setError('Zeiten konnten nicht geladen werden.')
     } finally {
       setIsLoading(false)
     }
@@ -167,10 +164,10 @@ export function ScheduleTimesSelector({ className, weekday, onSave, onCancel }: 
       const errors: string[] = []
 
       if (periods.has('AM') && !selectedAMScheduleTime) {
-        errors.push(t('settings.times.errors.selectAMScheduleTime'))
+        errors.push('Bitte wählen Sie eine Vormittags-Unterrichtszeit aus')
       }
       if (periods.has('PM') && !selectedPMScheduleTime) {
-        errors.push(t('settings.times.errors.selectPMScheduleTime'))
+        errors.push('Bitte wählen Sie eine Nachmittags-Unterrichtszeit aus')
       }
       // Break times are now optional - no validation required
 
@@ -214,7 +211,7 @@ export function ScheduleTimesSelector({ className, weekday, onSave, onCancel }: 
       }
     } catch (error) {
       console.error('Error saving times:', error)
-      setError(t('settings.times.errors.saveFailed'))
+      setError('Fehler beim Speichern der Zeiten')
       setIsErrorDialogOpen(true)
     }
   }
@@ -229,46 +226,46 @@ export function ScheduleTimesSelector({ className, weekday, onSave, onCancel }: 
     <>
       <Card>
         <CardHeader>
-          <CardTitle>{t('settings.times.title')}</CardTitle>
+          <CardTitle>Zeitplan</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="mb-4 rounded-lg border bg-muted/50 p-4 text-sm text-muted-foreground">
-            {t('schedule:help.times')}
+            Wählen Sie die Unterrichts- und Pausenzeiten für den gewählten Tag. Nur vorhandene Zeitmodelle werden zur Auswahl angezeigt.
           </div>
           {success && (
-            <div className="mb-4 p-4 text-green-500 bg-green-50 rounded-md">
+            <div className="mb-4 p-4 state-success-soft rounded-md">
               {success}
             </div>
           )}
 
           {isLoadingSavedTimes && (
-            <div className="mb-4 p-4 text-blue-500 bg-blue-50 rounded-md flex items-center gap-2">
+            <div className="mb-4 p-4 state-info-soft rounded-md flex items-center gap-2">
               <Spinner size="sm" />
-              {t('settings.times.loadingSavedTimes')}
+              Gespeicherte Zeiten werden geladen...
             </div>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* Schedule Times */}
             <div>
-              <h2 className="text-xl font-semibold mb-4">{t('settings.times.scheduleTimes')}</h2>
+              <h2 className="text-xl font-semibold mb-4">Unterrichtszeiten</h2>
 
               {/* Existing schedule times */}
               <div className="space-y-6">
                 {periods.has('AM') && (
                   <div>
-                    <h3 className="text-lg font-medium mb-3">{t('settings.times.labels.amScheduleTime')}</h3>
+                    <h3 className="text-lg font-medium mb-3">Vormittags-Unterrichtszeit</h3>
                     <select
                       value={selectedAMScheduleTime ?? ''}
                       onChange={(e) => setSelectedAMScheduleTime(e.target.value ? parseInt(e.target.value) : null)}
                       className="w-full p-2 border rounded"
                     >
-                      <option value="">{t('settings.times.select.amScheduleTime')}</option>
+                      <option value="">Vormittags-Unterrichtszeit auswählen</option>
                       {scheduleTimes
                         .filter(time => time.period === 'AM')
                         .map(time => (
                           <option key={time.id} value={time.id}>
-                            {time.startTime} - {time.endTime} | {time.hours} {t('settings.times.hours')}
+                            {time.startTime} - {time.endTime} | {time.hours} Stunden
                           </option>
                         ))}
                     </select>
@@ -277,18 +274,18 @@ export function ScheduleTimesSelector({ className, weekday, onSave, onCancel }: 
 
                 {periods.has('PM') && (
                   <div>
-                    <h3 className="text-lg font-medium mb-3">{t('settings.times.labels.pmScheduleTime')}</h3>
+                    <h3 className="text-lg font-medium mb-3">Nachmittags-Unterrichtszeit</h3>
                     <select
                       value={selectedPMScheduleTime ?? ''}
                       onChange={(e) => setSelectedPMScheduleTime(e.target.value ? parseInt(e.target.value) : null)}
                       className="w-full p-2 border rounded"
                     >
-                      <option value="">{t('settings.times.select.pmScheduleTime')}</option>
+                      <option value="">Nachmittags-Unterrichtszeit auswählen</option>
                       {scheduleTimes
                         .filter(time => time.period === 'PM')
                         .map(time => (
                           <option key={time.id} value={time.id}>
-                            {time.startTime} - {time.endTime} | {time.hours} {t('settings.times.hours')}
+                            {time.startTime} - {time.endTime} | {time.hours} Stunden
                           </option>
                         ))}
                     </select>
@@ -299,21 +296,21 @@ export function ScheduleTimesSelector({ className, weekday, onSave, onCancel }: 
 
             {/* Break Times */}
             <div>
-              <h2 className="text-xl font-semibold mb-4">{t('settings.times.breakTimes')}</h2>
+              <h2 className="text-xl font-semibold mb-4">Pausenzeiten</h2>
 
               {/* Existing break times */}
               <div className="space-y-6">
                 {periods.has('AM') && (
                   <div>
                     <h3 className="text-lg font-medium mb-3">
-                      {t('settings.times.labels.amBreak')} <span className="text-sm text-gray-500 font-normal"></span>
+                      Vormittagspause <span className="text-sm text-muted-foreground font-normal"></span>
                     </h3>
                     <select
                       value={selectedAMBreakTime ?? ''}
                       onChange={(e) => setSelectedAMBreakTime(e.target.value ? parseInt(e.target.value) : null)}
                       className="w-full p-2 border rounded"
                     >
-                      <option value="">{t('settings.times.select.amBreak')}</option>
+                      <option value="">Vormittagspause auswählen</option>
                       {breakTimes
                         .filter(time => time.period === 'AM')
                         .map(time => (
@@ -328,14 +325,14 @@ export function ScheduleTimesSelector({ className, weekday, onSave, onCancel }: 
                 {periods.size > 0 && (
                   <div>
                     <h3 className="text-lg font-medium mb-3">
-                      {t('settings.times.labels.lunchBreak')} <span className="text-sm text-gray-500 font-normal"></span>
+                      Mittagspause <span className="text-sm text-muted-foreground font-normal"></span>
                     </h3>
                     <select
                       value={selectedLunchBreakTime ?? ''}
                       onChange={(e) => setSelectedLunchBreakTime(e.target.value ? parseInt(e.target.value) : null)}
                       className="w-full p-2 border rounded"
                     >
-                      <option value="">{t('settings.times.select.lunchBreak')}</option>
+                      <option value="">Mittagspause auswählen</option>
                       {breakTimes
                         .filter(time => time.period === 'LUNCH')
                         .map(time => (
@@ -350,14 +347,14 @@ export function ScheduleTimesSelector({ className, weekday, onSave, onCancel }: 
                 {periods.has('PM') && (
                   <div>
                     <h3 className="text-lg font-medium mb-3">
-                      {t('settings.times.labels.pmBreak')} <span className="text-sm text-gray-500 font-normal">({t('settings.times.optional')})</span>
+                      Nachmittagspause <span className="text-sm text-muted-foreground font-normal">(Optional)</span>
                     </h3>
                     <select
                       value={selectedPMBreakTime ?? ''}
                       onChange={(e) => setSelectedPMBreakTime(e.target.value ? parseInt(e.target.value) : null)}
                       className="w-full p-2 border rounded"
                     >
-                      <option value="">{t('settings.times.select.pmBreak')}</option>
+                      <option value="">Nachmittagspause auswählen</option>
                       {breakTimes
                         .filter(time => time.period === 'PM')
                         .map(time => (
@@ -375,11 +372,11 @@ export function ScheduleTimesSelector({ className, weekday, onSave, onCancel }: 
           <div className="mt-8 flex justify-end gap-4">
             {onCancel && (
               <Button variant="outline" onClick={onCancel}>
-                {t('schedule:back')}
+                Zurück
               </Button>
             )}
             <Button onClick={handleSave} disabled={saveTimesMutation.isPending}>
-              {saveTimesMutation.isPending ? t('common:common.loading') : t('schedule:next')}
+              {saveTimesMutation.isPending ? 'Wird gespeichert...' : 'Weiter'}
             </Button>
           </div>
         </CardContent>
@@ -390,7 +387,7 @@ export function ScheduleTimesSelector({ className, weekday, onSave, onCancel }: 
           <DialogHeader>
             <DialogTitle className="text-destructive flex items-center gap-2">
               <AlertCircle className="h-5 w-5" />
-              {t('common:common.error')}
+              Fehler
             </DialogTitle>
             <DialogDescription className="text-muted-foreground whitespace-pre-line">
               {error}
@@ -398,7 +395,7 @@ export function ScheduleTimesSelector({ className, weekday, onSave, onCancel }: 
           </DialogHeader>
           <div className="flex justify-end">
             <Button onClick={() => setIsErrorDialogOpen(false)}>
-              {t('schedule:ok')}
+              OK
             </Button>
           </div>
         </DialogContent>

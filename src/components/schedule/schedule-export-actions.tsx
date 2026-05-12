@@ -36,7 +36,7 @@ export function ScheduleExportActions({
       </Button>
       {showExcelAm && (
         <Button
-          className="bg-blue-600 text-white hover:bg-blue-700"
+          className="bg-primary text-primary-foreground hover:bg-primary/90"
           onClick={onExcelAmExport}
           disabled={savingExcelAm}
         >
@@ -50,7 +50,7 @@ export function ScheduleExportActions({
       )}
       {showExcelPm && (
         <Button
-          className="bg-blue-600 text-white hover:bg-blue-700"
+          className="bg-primary text-primary-foreground hover:bg-primary/90"
           onClick={onExcelPmExport}
           disabled={savingExcelPm}
         >

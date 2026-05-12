@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -23,7 +22,6 @@ interface CSVImportProps {
 }
 
 export function CSVImport({ onImport }: CSVImportProps) {
-  const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [csvData, setCSVData] = useState<Record<string, CSVClass> | null>(null)
@@ -43,7 +41,7 @@ export function CSVImport({ onImport }: CSVImportProps) {
       document.body.removeChild(a)
     } catch (err) {
       console.error('Error downloading sample:', err)
-      setError(t('admin.students.import.errors.downloadSample'))
+      setError('Beispieldatei konnte nicht heruntergeladen werden')
     }
   }
 
@@ -93,7 +91,7 @@ export function CSVImport({ onImport }: CSVImportProps) {
       setSelectedClasses(initialSelection)
     } catch (err) {
       console.error('Error parsing CSV:', err)
-      setError(t('admin.students.import.errors.invalidCSV'))
+      setError('Ungültiges CSV-Format. Bitte überprüfen Sie die Dateistruktur.')
     } finally {
       setIsLoading(false)
     }
@@ -112,7 +110,7 @@ export function CSVImport({ onImport }: CSVImportProps) {
       .map(([className]) => className)
 
     if (selectedClassNames.length === 0) {
-      setError(t('admin.students.import.errors.noClassesSelected'))
+      setError('Bitte wählen Sie mindestens eine Klasse zum Importieren aus')
       return
     }
 
@@ -125,7 +123,7 @@ export function CSVImport({ onImport }: CSVImportProps) {
       setSelectedClasses({})
     } catch (err) {
       console.error('Error importing CSV:', err)
-      setError(t('admin.students.import.errors.importFailed'))
+      setError('Import der Schüler fehlgeschlagen')
     } finally {
       setIsLoading(false)
     }
@@ -140,7 +138,7 @@ export function CSVImport({ onImport }: CSVImportProps) {
           className="flex items-center space-x-2"
         >
           <Download className="h-4 w-4" />
-          <span>{t('admin.students.import.downloadSample')}</span>
+          <span>Beispiel-CSV herunterladen</span>
         </Button>
         <div className="flex-1">
           <input
@@ -155,7 +153,7 @@ export function CSVImport({ onImport }: CSVImportProps) {
             className="cursor-pointer inline-flex items-center justify-center px-4 py-2 border border-input rounded-md shadow-sm text-sm font-medium bg-background hover:bg-accent hover:text-accent-foreground"
           >
             <Upload className="h-4 w-4 mr-2" />
-            {t('admin.students.import.uploadCSV')}
+            CSV-Datei hochladen
           </Label>
         </div>
       </div>
@@ -170,11 +168,11 @@ export function CSVImport({ onImport }: CSVImportProps) {
         <div className="space-y-4">
           <div className="flex justify-end space-x-4">
             <Button onClick={handleImport} disabled={isLoading}>
-              {t('admin.students.import.importSelected')}
+              Ausgewählte Klassen importieren
             </Button>
           </div>
 
-          <h2 className="text-xl font-semibold">{t('admin.students.import.previewTitle')}</h2>
+          <h2 className="text-xl font-semibold">Datenvorschau</h2>
           <div className="space-y-4">
             {Object.entries(csvData).map(([className, data]) => (
               <div key={className} className="border rounded-lg p-4 bg-muted">
@@ -185,7 +183,7 @@ export function CSVImport({ onImport }: CSVImportProps) {
                     onCheckedChange={(checked) => handleClassSelection(className, checked as boolean)}
                   />
                   <Label htmlFor={`class-${className}`} className="font-medium">
-                    {t('admin.students.import.classLabel', { name: className, count: data.students.length })}
+                    {`Klasse ${className} (${data.students.length} Schüler)`}
                   </Label>
                 </div>
                 <div className="ml-6">
@@ -204,4 +202,4 @@ export function CSVImport({ onImport }: CSVImportProps) {
       )}
     </div>
   )
-} 
+}

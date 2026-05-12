@@ -10,7 +10,6 @@ import { AlertCircle } from 'lucide-react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { captureFrontendError } from '@/lib/frontend-error'
-import { useTranslation } from 'react-i18next'
 
 /**
  * Renders a localized login page with LDAP authentication.
@@ -23,7 +22,6 @@ export default function LoginPage() {
 	const [error, setError] = useState<string | null>(null)
 	const [isLoading, setIsLoading] = useState(false)
 	const router = useRouter()
-	const { t } = useTranslation()
 
 	const handleLDAPLogin = async (e: React.FormEvent) => {
 		e.preventDefault()
@@ -38,7 +36,7 @@ export default function LoginPage() {
 			})
 
 			if (result?.error) {
-				setError(t('auth.error.invalidCredentials'))
+				setError('Ungültiger Benutzername oder Passwort')
 				return
 			}
 
@@ -49,7 +47,7 @@ export default function LoginPage() {
 				location: 'login',
 				type: 'ldap-login',
 			})
-			setError(t('auth.error.generic'))
+			setError('Bei der Anmeldung ist ein Fehler aufgetreten')
 		} finally {
 			setIsLoading(false)
 		}
@@ -66,7 +64,7 @@ export default function LoginPage() {
 				location: 'login',
 				type: 'microsoft-login',
 			})
-			setError(t('auth.error.generic'))
+			setError('Bei der Anmeldung ist ein Fehler aufgetreten')
 			setIsLoading(false)
 		}
 	}
@@ -77,9 +75,9 @@ export default function LoginPage() {
 		<div className="container flex h-screen w-screen flex-col items-center justify-center">
 			<Card className="w-full max-w-md">
 				<CardHeader>
-					<CardTitle>{t('auth.title')}</CardTitle>
+					<CardTitle>Anmelden</CardTitle>
 					<CardDescription>
-						{t('auth.description')}
+						Melden Sie sich mit Ihren Zugangsdaten an
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
@@ -96,31 +94,31 @@ export default function LoginPage() {
 						disabled={isLoading}
 						onClick={handleMicrosoftLogin}
 					>
-						{isLoading ? t('auth.button.signingIn') : t('auth.button.signInMicrosoft')}
+						{isLoading ? 'Anmeldung läuft...' : 'Mit Microsoft anmelden'}
 					</Button>
 
 					<div className="mb-4 border-t" />
 
 					<form onSubmit={handleLDAPLogin} className="space-y-4">
 						<div className="space-y-2">
-							<Label htmlFor="username">{t('auth.username.label')}</Label>
+							<Label htmlFor="username">Benutzername</Label>
 							<Input
 								id="username"
 								value={username}
 								onChange={(e) => setUsername(e.target.value)}
-								placeholder={t('auth.username.placeholder')}
+								placeholder="Geben Sie Ihren Benutzernamen ein"
 								required
 							/>
 						</div>
 
 						<div className="space-y-2">
-							<Label htmlFor="password">{t('auth.password.label')}</Label>
+							<Label htmlFor="password">Passwort</Label>
 							<Input
 								id="password"
 								type="password"
 								value={password}
 								onChange={(e) => setPassword(e.target.value)}
-								placeholder={t('auth.password.placeholder')}
+								placeholder="Geben Sie Ihr Passwort ein"
 								required
 							/>
 						</div>
@@ -130,7 +128,7 @@ export default function LoginPage() {
 							className="w-full"
 							disabled={isLoading}
 						>
-							{isLoading ? t('auth.button.signingIn') : t('auth.button.signInLDAP')}
+							{isLoading ? 'Anmeldung läuft...' : 'Anmelden'}
 						</Button>
 					</form>
 				</CardContent>

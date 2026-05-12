@@ -17,7 +17,6 @@ interface AddStudentDialogProps {
 	newStudent: NewStudent
 	onStudentChange: (student: NewStudent) => void
 	onAdd: (e: React.FormEvent) => void
-	t: (key: string) => string
 }
 
 export function AddStudentDialog({
@@ -26,18 +25,17 @@ export function AddStudentDialog({
 	newStudent,
 	onStudentChange,
 	onAdd,
-	t
 }: AddStudentDialogProps) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent>
 				<DialogHeader>
-					<DialogTitle>{t('addStudentTitle')}</DialogTitle>
+					<DialogTitle>Neuen Schüler hinzufügen</DialogTitle>
 				</DialogHeader>
 				<div className="grid gap-4 py-4">
 					<div className="grid grid-cols-4 items-center gap-4">
 						<Label htmlFor="firstName" className="text-right">
-							{t('firstName')}
+							Vorname
 						</Label>
 						<Input
 							id="firstName"
@@ -48,7 +46,7 @@ export function AddStudentDialog({
 					</div>
 					<div className="grid grid-cols-4 items-center gap-4">
 						<Label htmlFor="lastName" className="text-right">
-							{t('lastName')}
+							Nachname
 						</Label>
 						<Input
 							id="lastName"
@@ -59,7 +57,7 @@ export function AddStudentDialog({
 					</div>
 					<div className="grid grid-cols-4 items-center gap-4">
 						<Label htmlFor="username" className="text-right">
-							{t('username')}
+							Benutzername
 						</Label>
 						<Input
 							id="username"
@@ -71,10 +69,10 @@ export function AddStudentDialog({
 				</div>
 				<DialogFooter>
 					<Button variant="outline" onClick={() => onOpenChange(false)}>
-						{t('cancel')}
+						Abbrechen
 					</Button>
 					<Button onClick={onAdd}>
-						{t('add')}
+						Hinzufügen
 					</Button>
 				</DialogFooter>
 			</DialogContent>

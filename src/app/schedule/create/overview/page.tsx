@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useTranslation } from 'next-i18next';
 import { useCachedData } from '@/hooks/use-cached-data';
 import { useScheduleOverview } from '@/hooks/use-schedule-overview';
 import { useSchoolYear } from '@/contexts/school-year-context';
@@ -27,11 +26,10 @@ import { fetchAndUnwrap, getApiErrorMessage, parseJsonSafe, unwrapData } from '@
  * Renders a centered loading spinner with a localized loading message.
  */
 function LoadingScreen() {
-    const { t } = useTranslation('schedule')
     return (
         <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
             <Spinner size="lg" />
-            <p className="text-lg text-muted-foreground">{t('loadingOverviewData')}</p>
+            <p className="text-lg text-muted-foreground">Lade Daten...</p>
         </div>
     )
 }
@@ -45,7 +43,6 @@ function LoadingScreen() {
  */
 export default function OverviewPage() {
   const searchParams = useSearchParams();
-  const { t } = useTranslation('schedule')
   const classId = searchParams.get('class');
   const { isLoading: isLoadingCachedData } = useCachedData();
   const router = useRouter();
@@ -205,7 +202,7 @@ export default function OverviewPage() {
           turns: Object.keys(turns)
         }
       });
-      setError(t('errors.saveOverview'));
+      setError('Speichern fehlgeschlagen.');
     } finally {
       setSaving(false);
     }
@@ -220,7 +217,7 @@ export default function OverviewPage() {
       await generateSchedulePDF(classId, weekday ?? 0);
     } catch (err) {
       console.error('Error generating PDF:', err);
-      setError(t('errors.generatePdf'));
+      setError('PDF konnte nicht erstellt werden.');
     } finally {
       setGeneratingSchedulePDF(false);
     }
@@ -245,7 +242,7 @@ export default function OverviewPage() {
       router.push('/');
     } catch (err) {
       console.error('Error generating PDF:', err);
-      setError(t('errors.generatePdf'));
+      setError('PDF konnte nicht erstellt werden.');
     } finally {
       setGeneratingPdf(false);
     }
@@ -265,7 +262,7 @@ export default function OverviewPage() {
   }
 
   if (isLoadingCachedData || overviewLoading) return <LoadingScreen />;
-  if (error ?? overviewError) return <div className="p-8 text-center text-red-500">{error ?? overviewError}</div>;
+  if (error ?? overviewError) return <div className="p-8 text-center text-destructive">{error ?? overviewError}</div>;
 
 
   const uniqueAmTeachers = amAssignments
@@ -280,8 +277,7 @@ export default function OverviewPage() {
   return (
     <>
       <div className="mb-4 rounded-lg border bg-muted/50 p-4 text-sm text-muted-foreground">
-        {t('help.overview')}
-      </div>
+        Prüfen Sie alle Angaben des Wechselplans in der Übersicht und schließen Sie die Erstellung erst nach einer finalen Kontrolle ab.      </div>
       <ScheduleOverview
         groups={groups}
         amAssignments={amAssignments}
@@ -300,9 +296,9 @@ export default function OverviewPage() {
       <Dialog open={showPdfDialog} onOpenChange={setShowPdfDialog}>
         <DialogContent className="z-50">
           <DialogHeader>
-            <DialogTitle>{t('pdfDialog.title')}</DialogTitle>
+            <DialogTitle>PDF erstellen?</DialogTitle>
             <DialogDescription>
-              {t('pdfDialog.description')}
+              Möchten Sie eine PDF-Version des Stundenplans erstellen und herunterladen?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2 justify-end">
@@ -311,13 +307,13 @@ export default function OverviewPage() {
               onClick={handleSkipPdf}
               disabled={generatingPdf}
             >
-              {t('pdfDialog.skip')}
+              Überspringen
             </Button>
             <Button
               onClick={handleGeneratePdf}
               disabled={generatingPdf}
             >
-              {generatingPdf ? t('pdfDialog.generating') : t('pdfDialog.generate')}
+              {generatingPdf ? 'PDF wird erstellt...' : 'PDF erstellen'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -325,10 +321,10 @@ export default function OverviewPage() {
 
       <div className="mt-8 flex justify-end gap-4">
         <Button variant="outline" onClick={handleBack}>
-          {t('back')}
+          Zurück
         </Button>
         <Button onClick={handleSaveAndFinish} disabled={saving}>
-          {saving ? t('saving') : t('finish')}
+          {saving ? 'Wird gespeichert...' : 'Speichern & abschließen'}
         </Button>
       </div>
     </>

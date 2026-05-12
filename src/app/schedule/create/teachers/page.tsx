@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useTranslation } from 'next-i18next'
 import { useCachedData } from '@/hooks/use-cached-data'
 import { useClassDataByName } from '@/hooks/use-class-data'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -12,6 +11,15 @@ import { useSchoolYear } from '@/contexts/school-year-context'
 import { fetchAndUnwrap, getApiErrorMessage, parseJsonSafe, unwrapData } from '@/lib/api-client'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AssignmentPeriodSection } from '@/components/schedule/assignment-period-section'
+
+const WEEKDAY_LABELS_DE = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag'] as const
+
+const SCHEDULE_FIELD_LABEL_DE: Record<string, string> = {
+	teacher: 'Lehrer',
+	subject: 'Fach',
+	learningContent: 'Lerninhalt',
+	room: 'Raum',
+}
 
 interface Student {
 	id: number
@@ -65,11 +73,10 @@ interface TeacherAssignmentsResponse {
 export default function TeacherAssignmentPage() {
 	const router = useRouter()
 	const searchParams = useSearchParams()
-	const { t } = useTranslation('schedule')
-	const { t: tCommon } = useTranslation('common')
 	const { selectedYear } = useSchoolYear()
 	const schoolYearId = selectedYear?.id
-	const existingAssignmentsWarning = t('existingAssignmentsWarning').replace('Lehrerzuweisungen', 'Schülerzuweisungen')
+	const existingAssignmentsWarning =
+		'Es existieren bereits Schülerzuweisungen für diese Klasse. Änderungen werden die bestehenden Zuweisungen aktualisieren.'
 	const selectedClass = searchParams.get('class')
 	const [selectedClassId, setSelectedClassId] = useState<number | null>(null)
 	const weekdayFromUrl = searchParams.get('weekday')
@@ -253,7 +260,7 @@ export default function TeacherAssignmentPage() {
 						selectedClass
 					}
 				})
-				setError(t('errors.loadTeacherAssignments'))
+				setError('Daten konnten nicht geladen werden. Bitte versuchen Sie es erneut.')
 			} finally {
 				setLoading(false)
 			}
@@ -520,7 +527,7 @@ export default function TeacherAssignmentPage() {
 					}
 				}
 			})
-			setError(t('errors.saveTeacherAssignments'))
+			setError('Zuweisungen konnten nicht gespeichert werden. Bitte versuchen Sie es erneut.')
 		}
 	}
 
@@ -579,7 +586,7 @@ export default function TeacherAssignmentPage() {
 					}
 				}
 			})
-			setError(t('errors.updateTeacherAssignments'))
+			setError('Zuweisungen konnten nicht aktualisiert werden. Bitte versuchen Sie es erneut.')
 		}
 	}
 
@@ -592,22 +599,22 @@ export default function TeacherAssignmentPage() {
 		setPmAssignments(amAssignments.map(assignment => ({ ...assignment })))
 	}
 
-	if (isLoadingCachedData ?? loading) return <div className="p-4">{t('loading')}</div>
-	if (error) return <div className="p-4 text-red-500">{error}</div>
-	if (!selectedClass) return <div className="p-4">{t('noClassSelected')}</div>
+	if (isLoadingCachedData ?? loading) return <div className="p-4">Laden...</div>
+	if (error) return <div className="p-4 text-destructive">{error}</div>
+	if (!selectedClass) return <div className="p-4">Keine Klasse ausgewählt</div>
 
 	return (
 		<div className="container mx-auto p-4">
 			<Card>
 				<CardHeader>
-					<CardTitle>{t('teacherAssignment')} - {selectedClass}</CardTitle>
+					<CardTitle>Lehrerzuweisung - {selectedClass}</CardTitle>
 				</CardHeader>
 				<CardContent>
 					<div className="mb-4 rounded-lg border bg-muted/50 p-4 text-sm text-muted-foreground">
-						{t('help.teachers')}
+						Weisen Sie jeder Gruppe Lehrperson, Fach, Lerninhalt und Raum zu. Sie können Einträge auch manuell ergänzen oder aus dem Vormittag übernehmen.
 					</div>
 					{error && (
-						<div className="mb-4 p-4 text-red-500 bg-red-50 rounded-md">
+						<div className="mb-4 p-4 state-danger-soft rounded-md">
 							{error}
 						</div>
 					)}
@@ -619,14 +626,11 @@ export default function TeacherAssignmentPage() {
 					)}
 
 					<p className="text-sm text-muted-foreground mb-4">
-						{t('rotationDay')}:{' '}
-						{tCommon(
-							`overview.weekdays.${(['monday', 'tuesday', 'wednesday', 'thursday', 'friday'][selectedWeekday - 1] ?? 'monday')}`
-						)}
+						Turnustag: {WEEKDAY_LABELS_DE[selectedWeekday - 1] ?? 'Montag'}
 					</p>
 
 					<AssignmentPeriodSection
-						title={t('morningAssignments')}
+						title="Vormittagszuweisungen"
 						groups={groups}
 						assignments={amAssignments}
 						teachers={teachers}
@@ -637,10 +641,9 @@ export default function TeacherAssignmentPage() {
 						onStringFieldChange={(groupId, field, value) => handleStringFieldChange('am', groupId, field, value)}
 						onClearRow={(groupId) => handleClearRow('am', groupId)}
 						getDisplayValue={getDisplayValue}
-						t={t}
 					/>
 					<AssignmentPeriodSection
-						title={t('afternoonAssignments')}
+						title="Nachmittagszuweisungen"
 						groups={groups}
 						assignments={pmAssignments}
 						teachers={teachers}
@@ -651,20 +654,19 @@ export default function TeacherAssignmentPage() {
 						onStringFieldChange={(groupId, field, value) => handleStringFieldChange('pm', groupId, field, value)}
 						onClearRow={(groupId) => handleClearRow('pm', groupId)}
 						getDisplayValue={getDisplayValue}
-						t={t}
 						rightAction={
 							<Button variant="outline" size="sm" onClick={handleCopyAmToPm} className="ml-4">
-								{t('copyFromAm')}
+								Von Vormittag kopieren
 							</Button>
 						}
 					/>
 
 					<div className="mt-8 flex justify-end gap-4">
 						<Button variant="outline" onClick={() => router.back()}>
-							{t('back')}
+							Zurück
 						</Button>
 						<Button onClick={handleNext} disabled={loading}>
-							{loading ? t('saving') : t('next')}
+							{loading ? 'Wird gespeichert...' : 'Weiter'}
 						</Button>
 					</div>
 				</CardContent>
@@ -674,15 +676,15 @@ export default function TeacherAssignmentPage() {
 			<Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
 				<DialogContent>
 					<DialogHeader>
-						<DialogTitle>{t('updateAssignmentsTitle')}</DialogTitle>
+						<DialogTitle>Zuweisungen aktualisieren</DialogTitle>
 					</DialogHeader>
 					<p className="mb-2">{existingAssignmentsWarning}</p>
 					<div className="flex justify-end space-x-4">
 						<Button variant="outline" onClick={handleCancelUpdate}>
-							{t('cancel')}
+							Abbrechen
 						</Button>
 						<Button onClick={handleConfirmUpdate}>
-							{t('update')}
+							Aktualisieren
 						</Button>
 					</div>
 				</DialogContent>
@@ -692,16 +694,16 @@ export default function TeacherAssignmentPage() {
 			<Dialog open={showErrorDialog} onOpenChange={setShowErrorDialog}>
 				<DialogContent className="max-w-2xl">
 					<DialogHeader>
-						<DialogTitle>{t('validationErrorsTitle')}</DialogTitle>
+						<DialogTitle>Validierungsfehler</DialogTitle>
 					</DialogHeader>
 					<div className="mb-2 space-y-4">
 							{validationErrors.am.length > 0 && (
 								<div>
-									<h3 className="font-semibold mb-2 text-foreground">{t('morningAssignments')}</h3>
+									<h3 className="font-semibold mb-2 text-foreground">Vormittagszuweisungen</h3>
 									<ul className="list-disc pl-5 space-y-1 text-foreground">
 										{validationErrors.am.map(error => (
 											<li key={error.groupId}>
-												{t('group')} {error.groupId}: {error.missingFields.map(field => t(field)).join(', ')}
+												Gruppe {error.groupId}: {error.missingFields.map((field) => SCHEDULE_FIELD_LABEL_DE[field] ?? field).join(', ')}
 											</li>
 										))}
 									</ul>
@@ -709,11 +711,11 @@ export default function TeacherAssignmentPage() {
 							)}
 							{validationErrors.pm.length > 0 && (
 								<div>
-									<h3 className="font-semibold mb-2 text-foreground">{t('afternoonAssignments')}</h3>
+									<h3 className="font-semibold mb-2 text-foreground">Nachmittagszuweisungen</h3>
 									<ul className="list-disc pl-5 space-y-1 text-foreground">
 										{validationErrors.pm.map(error => (
 											<li key={error.groupId}>
-												{t('group')} {error.groupId}: {error.missingFields.map(field => t(field)).join(', ')}
+												Gruppe {error.groupId}: {error.missingFields.map((field) => SCHEDULE_FIELD_LABEL_DE[field] ?? field).join(', ')}
 											</li>
 										))}
 									</ul>
@@ -721,7 +723,7 @@ export default function TeacherAssignmentPage() {
 							)}
 					</div>
 					<div className="flex justify-end">
-						<Button onClick={() => setShowErrorDialog(false)}>{t('ok')}</Button>
+						<Button onClick={() => setShowErrorDialog(false)}>OK</Button>
 					</div>
 				</DialogContent>
 			</Dialog>

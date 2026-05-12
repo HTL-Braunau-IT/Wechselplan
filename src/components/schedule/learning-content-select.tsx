@@ -1,5 +1,4 @@
 import { ComboboxSelect } from '@/components/ui/combobox-select'
-import { useTranslation } from 'next-i18next'
 
 interface LearningContent {
 	id: number
@@ -13,15 +12,12 @@ interface LearningContentSelectProps {
 }
 
 export function LearningContentSelect({ value, onChange, learningContents }: LearningContentSelectProps) {
-	const { t } = useTranslation('schedule')
-
 	return (
 		<ComboboxSelect
 			value={value ?? ''}
 			onChange={onChange}
 			options={learningContents}
-			placeholder={t('selectLearningContent')}
+			placeholder="Lerninhalt auswählen"
 		/>
 	)
 }
-

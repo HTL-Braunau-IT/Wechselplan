@@ -5,21 +5,28 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import type { TeacherScheduleData, NormalizedTurn, BreakTime, ScheduleTime, Assignment } from "@/types/types"
 import { parse, isValid, isWithinInterval, addWeeks } from "date-fns"
-import { useTranslation } from "react-i18next"
 import { AlertTriangle } from "lucide-react"
 import { StudentPhoto } from "@/components/student-photo"
 import { getApiErrorMessage, parseJsonSafe, unwrapData } from '@/lib/api-client'
+
+const NO_SCHEDULE_MSG = 'Kein Wechselplan für diesen Tag gefunden'
+
+function periodGroupLabel(period: string): string {
+    const p = period.toLowerCase()
+    if (p === 'am') return 'Vormittagsgruppe'
+    if (p === 'pm') return 'Nachmittagsgruppe'
+    return `${period}-Gruppe`
+}
 
 /**
  * Renders a weekly schedule overview for the logged-in teacher with weekday navigation tabs.
  *
  * Fetches and displays the teacher's assignments, class and term details, group information, remaining weeks, additional info, and lists of students for each group. The schedule updates dynamically based on the selected weekday and the current user's session, with error handling and dark mode support.
  *
- * @returns A React component showing the teacher's schedule overview with internationalized weekday navigation and error alerts.
+ * @returns A React component showing the teacher's schedule overview with weekday navigation and error alerts.
  */
 export function TeacherOverview() {
     const { data: session } = useSession()
-    const { t } = useTranslation()
     const [scheduleData, setScheduleData] = useState<TeacherScheduleData | null>(null)
     const [error, setError] = useState<string | null>(null)
     const today = new Date().getDay()
@@ -33,14 +40,14 @@ export function TeacherOverview() {
         const payload = await parseJsonSafe(response)
         
         if (!response.ok) {
-            setError(getApiErrorMessage(payload, t('overview.teacher.noSchedule')))
+            setError(getApiErrorMessage(payload, NO_SCHEDULE_MSG))
             return
         }
         const data = unwrapData<TeacherScheduleData>(payload)
 
         // Check if we have any schedules
         if (!data.schedules || data.schedules.length === 0 || data.schedules.every((s: TeacherScheduleData['schedules'][0]) => s.length === 0)) {
-            setError(t('overview.teacher.noSchedule'))
+            setError(NO_SCHEDULE_MSG)
             return
         }
         
@@ -187,7 +194,7 @@ export function TeacherOverview() {
             const firstName = assignment.teacherFirstName?.trim()
             const lastName = assignment.teacherLastName?.trim()
             const fullName = [firstName, lastName].filter(Boolean).join(' ')
-            return fullName || t('overview.teacher.unknownTeacher')
+            return fullName || 'Unbekannter Lehrer'
         }
 
         const getOtherGroupAssignments = (assignment: typeof assignments[0], currentGroupId: number | null) => {
@@ -242,7 +249,7 @@ export function TeacherOverview() {
                 {assignments.map(assignment => {
                     const turns = getTurnsForClass(assignment.classId)
                     const currentWeek = getCurrentWeek(turns)
-                    const currentTerm = currentWeek ? currentWeek.turn.name : t('overview.teacher.noSchedule')
+                    const currentTerm = currentWeek ? currentWeek.turn.name : NO_SCHEDULE_MSG
                     const remainingWeeks = getRemainingWeeks(turns)
                     const actualGroupId = getActualGroupForAssignment(assignment)
 
@@ -251,7 +258,7 @@ export function TeacherOverview() {
                     const otherGroups = getOtherGroupAssignments(assignment, actualGroupId)
 
                     return (
-                        <div key={assignment.id} className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
+                        <div key={assignment.id} className="p-4 bg-card rounded-lg shadow border border-border/70">
                             <div className="flex justify-start mb-4">
                                 <Link href={actualGroupId != null ? `/noten?classId=${assignment.classId}&groupId=${actualGroupId}` : `/noten?classId=${assignment.classId}`}>
                                     <Button size="sm">
@@ -261,43 +268,43 @@ export function TeacherOverview() {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">{t('overview.teacher.currentClass')}</p>
-                                    <p className="font-semibold text-lg dark:text-white">{assignment.className}</p>
+                                    <p className="text-sm text-muted-foreground">Aktuelle Klasse</p>
+                                    <p className="font-semibold text-lg">{assignment.className}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">{t('overview.teacher.currentTerm')}</p>
-                                    <p className="font-semibold text-lg dark:text-white">{currentTerm}</p>
+                                    <p className="text-sm text-muted-foreground">Aktuelles Semester</p>
+                                    <p className="font-semibold text-lg">{currentTerm}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">{t(`overview.teacher.${assignment.period.toLowerCase()}Group`)}</p>
-                                    <p className="font-semibold text-lg dark:text-white">{actualGroupId ?? '—'}</p>
+                                    <p className="text-sm text-muted-foreground">{periodGroupLabel(assignment.period)}</p>
+                                    <p className="font-semibold text-lg">{actualGroupId ?? '—'}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">{t('overview.teacher.weeksRemaining')}</p>
-                                    <p className="font-semibold text-lg dark:text-white">{remainingWeeks}</p>
+                                    <p className="text-sm text-muted-foreground">Verbleibende Wochen</p>
+                                    <p className="font-semibold text-lg">{remainingWeeks}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">{t('overview.teacher.classHead')}</p>
-                                    <p className="font-semibold text-lg dark:text-white">{assignment.classHead}</p>
+                                    <p className="text-sm text-muted-foreground">Klassenvorstand</p>
+                                    <p className="font-semibold text-lg">{assignment.classHead}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">{t('overview.teacher.classLead')}</p>
-                                    <p className="font-semibold text-lg dark:text-white">{assignment.classLead}</p>
+                                    <p className="text-sm text-muted-foreground">Klassenleiter</p>
+                                    <p className="font-semibold text-lg">{assignment.classLead}</p>
                                 </div>
                                 {scheduleTime && (
                                     <div className="space-y-2">
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">{t('overview.teacher.scheduleTime')}</p>
-                                        <p className="font-semibold text-lg dark:text-white">
+                                        <p className="text-sm text-muted-foreground">Unterrichtszeit</p>
+                                        <p className="font-semibold text-lg">
                                             {scheduleTime.startTime} - {scheduleTime.endTime}
                                         </p>
                                     </div>
                                 )}
                                 {breakTimes.length > 0 && (
                                     <div className="space-y-2">
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">{t('overview.teacher.breakTimes')}</p>
+                                        <p className="text-sm text-muted-foreground">Pausenzeiten</p>
                                         <div className="space-y-1">
                                             {breakTimes.map((breakTime) => (
-                                                <p key={breakTime.id} className="font-semibold text-sm dark:text-white">
+                                                <p key={breakTime.id} className="font-semibold text-sm">
                                                     {breakTime.name}: {breakTime.startTime} - {breakTime.endTime}
                                                 </p>
                                             ))}
@@ -305,24 +312,24 @@ export function TeacherOverview() {
                                     </div>
                                 )}
                             </div>
-                            <div className="border-t dark:border-gray-700 pt-4 mt-4">
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{t('overview.teacher.additionalInfo')}</p>
-                                <p className="font-semibold text-lg dark:text-white">
+                            <div className="border-t border-border/70 pt-4 mt-4">
+                                <p className="text-sm text-muted-foreground mb-2">Zusätzliche Informationen</p>
+                                <p className="font-semibold text-lg">
                                     {scheduleData.schedules
                                         .find(sList => sList.some(s => Number(s.classId) === assignment.classId))
                                         ?.at(0)?.additionalInfo ?? '—'}
                                 </p>
                             </div>
 
-                            <div className="border-t dark:border-gray-700 pt-4 mt-4">
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{t('overview.teacher.otherGroups')}</p>
+                            <div className="border-t border-border/70 pt-4 mt-4">
+                                <p className="text-sm text-muted-foreground mb-2">Andere Gruppen</p>
                                 {otherGroups.length === 0 ? (
-                                    <p className="font-semibold text-lg dark:text-white">—</p>
+                                    <p className="font-semibold text-lg">—</p>
                                 ) : (
                                     <div className="space-y-2">
                                         {otherGroups.map(other => (
-                                            <div key={other.id} className="p-2 bg-gray-50 dark:bg-gray-700 rounded grid grid-cols-3 gap-2 text-sm dark:text-white">
-                                                <span>{t('overview.teacher.groupWithNumber', { group: other.actualGroupId })}</span>
+                                            <div key={other.id} className="p-2 bg-muted rounded grid grid-cols-3 gap-2 text-sm">
+                                                <span>Gruppe {other.actualGroupId}</span>
                                                 <span>{getTeacherDisplayName(other)}</span>
                                                 <span>{other.roomName ?? '—'}</span>
                                             </div>
@@ -331,8 +338,8 @@ export function TeacherOverview() {
                                 )}
                             </div>
                             
-                            <div className="border-t dark:border-gray-700 pt-4 mt-4">
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{t('overview.teacher.studentsInGroup', { period: assignment.period })}</p>
+                            <div className="border-t border-border/70 pt-4 mt-4">
+                                <p className="text-sm text-muted-foreground mb-2">Schüler in {assignment.period}-Gruppe</p>
                                 <div className="grid grid-cols-2 gap-2">
                                     {(() => {
                                         const sortedStudents = getStudentsForGroup(actualGroupId ?? undefined, assignment.classId)
@@ -345,7 +352,7 @@ export function TeacherOverview() {
                                             <>
                                                 <div className="space-y-2">
                                                     {leftColumnStudents.map((student, index) => (
-                                                        <div key={student.id} className="p-2 bg-gray-50 dark:bg-gray-700 rounded flex items-center gap-2">
+                                                        <div key={student.id} className="p-2 bg-muted rounded flex items-center gap-2">
                                                             <span className="text-muted-foreground text-xs shrink-0">{index + 1}.</span>
                                                             <StudentPhoto
                                                                 studentId={student.id}
@@ -359,7 +366,7 @@ export function TeacherOverview() {
                                                 </div>
                                                 <div className="space-y-2">
                                                     {rightColumnStudents.map((student, index) => (
-                                                        <div key={student.id} className="p-2 bg-gray-50 dark:bg-gray-700 rounded flex items-center gap-2">
+                                                        <div key={student.id} className="p-2 bg-muted rounded flex items-center gap-2">
                                                             <span className="text-muted-foreground text-xs shrink-0">{index + 7}.</span>
                                                             <StudentPhoto
                                                                 studentId={student.id}
@@ -385,59 +392,59 @@ export function TeacherOverview() {
 
     return (
         <Tabs defaultValue={`${today === 0 || today === 6 ? 1 : today}`} className="w-full" onValueChange={handleTabChange}>
-            <TabsList className="grid w-full grid-cols-5 bg-gray-100 dark:bg-gray-800">
-                <TabsTrigger value="1" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 dark:text-gray-300">{t('overview.weekdays.monday')}</TabsTrigger>
-                <TabsTrigger value="2" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 dark:text-gray-300">{t('overview.weekdays.tuesday')}</TabsTrigger>
-                <TabsTrigger value="3" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 dark:text-gray-300">{t('overview.weekdays.wednesday')}</TabsTrigger>
-                <TabsTrigger value="4" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 dark:text-gray-300">{t('overview.weekdays.thursday')}</TabsTrigger>
-                <TabsTrigger value="5" className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 dark:text-gray-300">{t('overview.weekdays.friday')}</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-5 bg-muted">
+                <TabsTrigger value="1" className="data-[state=active]:bg-card">Montag</TabsTrigger>
+                <TabsTrigger value="2" className="data-[state=active]:bg-card">Dienstag</TabsTrigger>
+                <TabsTrigger value="3" className="data-[state=active]:bg-card">Mittwoch</TabsTrigger>
+                <TabsTrigger value="4" className="data-[state=active]:bg-card">Donnerstag</TabsTrigger>
+                <TabsTrigger value="5" className="data-[state=active]:bg-card">Freitag</TabsTrigger>
             </TabsList>
             <TabsContent value="1" className="mt-4">
                 {error ? (
-                    <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg shadow-sm">
+                    <div className="p-4 state-warning-soft rounded-lg shadow-sm">
                         <div className="flex items-center gap-2">
-                            <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-500" />
-                            <p className="text-yellow-800 dark:text-yellow-200">{error}</p>
+                            <AlertTriangle className="h-5 w-5" />
+                            <p>{error}</p>
                         </div>
                     </div>
                 ) : renderScheduleInfo()}
             </TabsContent>
             <TabsContent value="2" className="mt-4">
                 {error ? (
-                    <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg shadow-sm">
+                    <div className="p-4 state-warning-soft rounded-lg shadow-sm">
                         <div className="flex items-center gap-2">
-                            <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-500" />
-                            <p className="text-yellow-800 dark:text-yellow-200">{error}</p>
+                            <AlertTriangle className="h-5 w-5" />
+                            <p>{error}</p>
                         </div>
                     </div>
                 ) : renderScheduleInfo()}
             </TabsContent>
             <TabsContent value="3" className="mt-4">
                 {error ? (
-                    <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg shadow-sm">
+                    <div className="p-4 state-warning-soft rounded-lg shadow-sm">
                         <div className="flex items-center gap-2">
-                            <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-500" />
-                            <p className="text-yellow-800 dark:text-yellow-200">{error}</p>
+                            <AlertTriangle className="h-5 w-5" />
+                            <p>{error}</p>
                         </div>
                     </div>
                 ) : renderScheduleInfo()}
             </TabsContent>
             <TabsContent value="4" className="mt-4">
                 {error ? (
-                    <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg shadow-sm">
+                    <div className="p-4 state-warning-soft rounded-lg shadow-sm">
                         <div className="flex items-center gap-2">
-                            <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-500" />
-                            <p className="text-yellow-800 dark:text-yellow-200">{error}</p>
+                            <AlertTriangle className="h-5 w-5" />
+                            <p>{error}</p>
                         </div>
                     </div>
                 ) : renderScheduleInfo()}
             </TabsContent>
             <TabsContent value="5" className="mt-4">
                 {error ? (
-                    <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg shadow-sm">
+                    <div className="p-4 state-warning-soft rounded-lg shadow-sm">
                         <div className="flex items-center gap-2">
-                            <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-500" />
-                            <p className="text-yellow-800 dark:text-yellow-200">{error}</p>
+                            <AlertTriangle className="h-5 w-5" />
+                            <p>{error}</p>
                         </div>
                     </div>
                 ) : renderScheduleInfo()}

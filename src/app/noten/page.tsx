@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useEffect, useState, useCallback, useMemo, useRef, forwardRef, useImperativeHandle } from 'react'
-import { useTranslation } from 'react-i18next'
 import { parse, isValid, isWithinInterval, addWeeks } from 'date-fns'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -85,15 +84,15 @@ const BETRAGEN_OPTIONS = [
 ] as const
 
 const GRADE_BOX_CLASSES: Record<number, string> = {
-	1: 'bg-green-100 dark:bg-green-900/40 border-green-200/70 dark:border-green-800/50',
-	1.5: 'bg-emerald-100 dark:bg-emerald-900/35 border-emerald-200/70 dark:border-emerald-800/50',
-	2: 'bg-lime-100 dark:bg-lime-900/35 border-lime-200/70 dark:border-lime-800/50',
-	2.5: 'bg-yellow-100 dark:bg-yellow-900/35 border-yellow-200/70 dark:border-yellow-800/50',
-	3: 'bg-yellow-100 dark:bg-yellow-900/35 border-yellow-300/70 dark:border-yellow-700/50',
-	3.5: 'bg-amber-100 dark:bg-amber-900/35 border-amber-200/70 dark:border-amber-800/50',
-	4: 'bg-orange-100 dark:bg-orange-900/35 border-orange-200/70 dark:border-orange-800/50',
-	4.5: 'bg-orange-200 dark:bg-orange-800/40 border-orange-300/70 dark:border-orange-700/50',
-	5: 'bg-red-100 dark:bg-red-900/35 border-red-200/70 dark:border-red-800/50'
+	1: 'grade-tone-1',
+	1.5: 'grade-tone-1_5',
+	2: 'grade-tone-2',
+	2.5: 'grade-tone-2_5',
+	3: 'grade-tone-3',
+	3.5: 'grade-tone-3_5',
+	4: 'grade-tone-4',
+	4.5: 'grade-tone-4_5',
+	5: 'grade-tone-5'
 }
 
 function getGradeBoxClass(grade: number | null): string {
@@ -136,7 +135,6 @@ const TextModalContent = forwardRef<TextModalContentRef, { initialValue: string;
 )
 
 export default function NotenPage() {
-	const { t } = useTranslation('common')
 	const { selectedYear } = useSchoolYear()
 	const { isFeatureEnabled } = useEntitlements()
 	const { data: session } = useSession()
@@ -277,7 +275,7 @@ export default function NotenPage() {
 		setSitzplatzLeft(`${checkboxColumnWidthPx + nameWidth}px`)
 	}, [students, teachingDays])
 
-	const TODAY_BG = 'bg-blue-50 dark:bg-blue-950/30'
+	const TODAY_BG = 'bg-accent'
 	const firstTodayIndex = teachingDays.findIndex((d) => d.date === todayYmd)
 	const focusColumnKey = useMemo(() => {
 		const targetDate = focusDateYmd ?? todayYmd
@@ -981,9 +979,9 @@ export default function NotenPage() {
 		setSelectedGroupId(match.groupId)
 		setHighlightedStudentId(match.studentId)
 		setSearchMessage(
-			`${match.lastName} ${match.firstName} – ${match.className}, ${t('noten.gruppe')} ${match.groupId}`
+			`${match.lastName} ${match.firstName} – ${match.className}, Gruppe ${match.groupId}`
 		)
-	}, [t])
+	}, [])
 
 	const performNameSearch = useCallback(async () => {
 		const query = searchText.trim()
@@ -999,14 +997,14 @@ export default function NotenPage() {
 			setActiveNameMatchIndex(0)
 			if (matches.length === 0) {
 				setHighlightedStudentId(null)
-				setSearchMessage(t('noten.searchNoNameResult', { defaultValue: 'Kein passender Schüler gefunden.' }))
+				setSearchMessage('Kein passender Schüler gefunden.')
 				return
 			}
 			gotoNameMatch(matches[0]!)
 		} catch {
-			setSearchMessage(t('noten.searchError', { defaultValue: 'Suche fehlgeschlagen.' }))
+			setSearchMessage('Suche fehlgeschlagen.')
 		}
-	}, [searchText, schoolYearId, t, gotoNameMatch])
+	}, [searchText, schoolYearId, gotoNameMatch])
 
 	const gotoNextNameMatch = useCallback(() => {
 		if (nameMatches.length === 0) return
@@ -1027,16 +1025,11 @@ export default function NotenPage() {
 			setDateMatches(matches)
 			setFocusDateYmd(searchDate)
 			if (matches.length === 0) {
-				setSearchMessage(t('noten.searchNoDateResult', { defaultValue: 'An diesem Datum wurden keine Gruppen gefunden.' }))
+				setSearchMessage('An diesem Datum wurden keine Gruppen gefunden.')
 				setDateSearchStudentsByGroup({})
 				return
 			}
-			setSearchMessage(
-				t('noten.searchDateResultCount', {
-					defaultValue: '{{count}} Klassen/Gruppen an diesem Datum gefunden.',
-					count: matches.length
-				})
-			)
+			setSearchMessage(`${matches.length} Klassen/Gruppen an diesem Datum gefunden.`)
 
 			const studentsEntries = await Promise.all(
 				matches.map(async (match) => {
@@ -1055,9 +1048,9 @@ export default function NotenPage() {
 			)
 			setDateSearchStudentsByGroup(Object.fromEntries(studentsEntries))
 		} catch {
-			setSearchMessage(t('noten.searchError', { defaultValue: 'Suche fehlgeschlagen.' }))
+			setSearchMessage('Suche fehlgeschlagen.')
 		}
-	}, [searchDate, schoolYearId, selectedWeekdayFilter, t])
+	}, [searchDate, schoolYearId, selectedWeekdayFilter])
 
 	useEffect(() => {
 		if (!highlightedStudentId) return
@@ -1072,7 +1065,7 @@ export default function NotenPage() {
 	if (!schoolYearId) {
 		return (
 			<div className="container mx-auto p-4">
-				<p className="text-muted-foreground">{t('noten.noSchoolYear')}</p>
+				<p className="text-muted-foreground">{'Kein Schuljahr ausgewählt.'}</p>
 			</div>
 		)
 	}
@@ -1080,12 +1073,12 @@ export default function NotenPage() {
 	return (
 		<TooltipProvider delayDuration={200}>
 		<div className="container mx-auto p-4 space-y-4">
-			<h1 className="text-2xl font-bold">{t('navigation.noten')}</h1>
+			<h1 className="text-2xl font-bold">{'Noten - In Testphase'}</h1>
 
 			{loadingClasses ? (
 				<Spinner />
 			) : classes.length === 0 ? (
-				<p className="text-muted-foreground">{t('noten.noClasses')}</p>
+				<p className="text-muted-foreground">{'Keine Klassen zugewiesen.'}</p>
 			) : (
 				<Tabs
 					value={selectedClassId?.toString() ?? ''}
@@ -1130,7 +1123,7 @@ export default function NotenPage() {
 							})() && (
 								<div className="mb-4 flex flex-wrap items-center gap-2">
 									<p className="text-sm text-muted-foreground">
-										{t('noten.teachingSlotLabel', { defaultValue: 'Tag' })}:
+										{'Tag'}:
 									</p>
 									<Select
 										value={selectedWeekdayFilter != null ? selectedWeekdayFilter.toString() : ''}
@@ -1144,9 +1137,7 @@ export default function NotenPage() {
 									>
 										<SelectTrigger className="w-[280px]">
 											<SelectValue
-												placeholder={t('noten.selectTeachingSlot', {
-													defaultValue: 'Tag auswählen'
-												})}
+												placeholder={'Tag auswählen'}
 											/>
 										</SelectTrigger>
 										<SelectContent>
@@ -1176,7 +1167,7 @@ export default function NotenPage() {
 											value={gid.toString()}
 											className="rounded-lg px-4 py-2.5 text-sm font-medium shadow-sm transition-all hover:bg-muted/80 data-[state=active]:shadow-md data-[state=active]:ring-2 data-[state=active]:ring-primary data-[state=active]:ring-inset"
 										>
-											{t('noten.gruppe')} {gid}
+											{`Gruppe ${gid}`}
 										</TabsTrigger>
 									))}
 								</TabsList>
@@ -1185,12 +1176,12 @@ export default function NotenPage() {
 									<TabsContent key={gid} value={gid.toString()} className="mt-2">
 										<div className="mb-4 pb-2 border-b border-border flex flex-wrap items-center justify-between gap-2">
 											<h2 className="text-base font-semibold text-foreground">
-												{cls.name} - {t('noten.gruppe')} {gid}
+												{`${cls.name} - Gruppe ${gid}`}
 											</h2>
 											<p className="text-xs text-muted-foreground">
-												{t('noten.remainingFullYear', { defaultValue: 'Rest Schuljahr' })}: {remainingDays.fullYear} ·{' '}
-												{t('noten.remainingSemester', { defaultValue: 'Rest Semester' })}: {remainingDays.semester} ·{' '}
-												{t('noten.remainingPeriod', { defaultValue: `Rest ${currentPeriod}` })}: {remainingDays.period}
+												{'Rest Schuljahr'}: {remainingDays.fullYear} ·{' '}
+												{'Rest Semester'}: {remainingDays.semester} ·{' '}
+												{`Rest ${currentPeriod}`}: {remainingDays.period}
 											</p>
 										</div>
 
@@ -1201,7 +1192,7 @@ export default function NotenPage() {
 												<div className="mb-4 rounded-md border p-3 space-y-2">
 													<div className="flex items-center justify-between gap-2">
 														<p className="text-sm font-medium">
-															{t('noten.searchTitle', { defaultValue: 'Suche' })}
+															{'Suche'}
 														</p>
 														<Button
 															variant="outline"
@@ -1209,28 +1200,28 @@ export default function NotenPage() {
 															onClick={() => setSearchOpen((prev) => !prev)}
 														>
 															{searchOpen
-																? t('noten.searchCollapse', { defaultValue: 'Suche ausblenden' })
-																: t('noten.searchExpand', { defaultValue: 'Suche einblenden' })}
+																? 'Suche ausblenden'
+																: 'Suche einblenden'}
 														</Button>
 													</div>
 													{searchOpen && (
 														<>
 															<p className="text-xs text-muted-foreground">
-																{t('noten.searchHelp', { defaultValue: 'Suche nach Name (wechselt zur Klasse/Gruppe) oder nach Datum (zeigt alle Klassen/Gruppen dieses Tages).' })}
+																{'Suche nach Name (wechselt zur Klasse/Gruppe) oder nach Datum (zeigt alle Klassen/Gruppen dieses Tages).'}
 															</p>
 															<div className="flex flex-wrap gap-2">
 																<Input
 																	value={searchText}
 																	onChange={(e) => setSearchText(e.target.value)}
-																	placeholder={t('noten.searchNamePlaceholder', { defaultValue: 'Name suchen …' })}
+																	placeholder={'Name suchen ...'}
 																	className="w-full max-w-xs"
 																/>
 																<Button variant="outline" size="sm" onClick={() => void performNameSearch()}>
-																	{t('noten.searchNameAction', { defaultValue: 'Name suchen' })}
+																	{'Name suchen'}
 																</Button>
 																{nameMatches.length > 1 && (
 																	<Button variant="outline" size="sm" onClick={gotoNextNameMatch}>
-																		{t('noten.searchNextMatch', { defaultValue: 'Nächster Treffer' })} ({activeNameMatchIndex + 1}/{nameMatches.length})
+																		{'Nächster Treffer'} ({activeNameMatchIndex + 1}/{nameMatches.length})
 																	</Button>
 																)}
 															</div>
@@ -1242,7 +1233,7 @@ export default function NotenPage() {
 																	className="w-full max-w-xs"
 																/>
 																<Button variant="outline" size="sm" onClick={() => void performDateSearch()}>
-																	{t('noten.searchDateAction', { defaultValue: 'Datum suchen' })}
+																	{'Datum suchen'}
 																</Button>
 															</div>
 															{searchMessage && <p className="text-sm text-muted-foreground">{searchMessage}</p>}
@@ -1252,7 +1243,7 @@ export default function NotenPage() {
 												{dateMatches.length > 0 && (
 													<div className="mb-4 rounded-md border p-3 space-y-3">
 														<p className="text-sm font-medium">
-															{t('noten.searchDateSectionsTitle', { defaultValue: 'Klassen/Gruppen am gewählten Datum' })}
+															{'Klassen/Gruppen am gewählten Datum'}
 														</p>
 														{dateMatches.map((match) => {
 															const key = `${match.classId}-${match.groupId}`
@@ -1261,7 +1252,7 @@ export default function NotenPage() {
 																<div key={`${key}-${match.period}`} className="rounded border p-2">
 																	<div className="flex items-center justify-between gap-2">
 																		<p className="text-sm font-medium">
-																			{match.className} - {t('noten.gruppe')} {match.groupId} ({match.period})
+																			{`${match.className} - Gruppe ${match.groupId} (${match.period})`}
 																		</p>
 																		<Button
 																			variant="outline"
@@ -1271,12 +1262,12 @@ export default function NotenPage() {
 																				setSelectedGroupId(match.groupId)
 																			}}
 																		>
-																			{t('noten.searchOpenGroup', { defaultValue: 'In Tabelle öffnen' })}
+																			{'In Tabelle öffnen'}
 																		</Button>
 																	</div>
 																	{sectionStudents.length === 0 ? (
 																		<p className="text-xs text-muted-foreground mt-2">
-																			{t('noten.searchNoStudentsInGroup', { defaultValue: 'Keine Schülerdaten für diese Gruppe gefunden.' })}
+																			{'Keine Schülerdaten für diese Gruppe gefunden.'}
 																		</p>
 																	) : (
 																		<div className="mt-2 text-xs text-muted-foreground">
@@ -1291,9 +1282,9 @@ export default function NotenPage() {
 
 												{/* Weights */}
 												<div className="flex flex-wrap items-center gap-4 mb-4 p-2 rounded-lg border">
-													<span className="text-sm font-medium">{t('noten.weights')}</span>
+													<span className="text-sm font-medium">{'Gewichtung'}</span>
 													<label className="flex items-center gap-1">
-														<span className="text-xs">{t('noten.wiederholung')}</span>
+														<span className="text-xs">{'Wiederholung'}</span>
 														<Input
 															type="number"
 															min={0}
@@ -1312,7 +1303,7 @@ export default function NotenPage() {
 														%
 													</label>
 													<label className="flex items-center gap-1">
-														<span className="text-xs">{t('noten.bericht')}</span>
+														<span className="text-xs">{'Bericht'}</span>
 														<Input
 															type="number"
 															min={0}
@@ -1331,7 +1322,7 @@ export default function NotenPage() {
 														%
 													</label>
 													<label className="flex items-center gap-1">
-														<span className="text-xs">{t('noten.mitarbeit')}</span>
+														<span className="text-xs">{'Mitarbeit'}</span>
 														<Input
 															type="number"
 															min={0}
@@ -1350,7 +1341,7 @@ export default function NotenPage() {
 														%
 													</label>
 													<label className="flex items-center gap-1">
-														<span className="text-xs">{t('noten.praktischeArbeit')}</span>
+														<span className="text-xs">{'Praktische Arbeit'}</span>
 														<Input
 															type="number"
 															min={0}
@@ -1369,9 +1360,9 @@ export default function NotenPage() {
 														%
 													</label>
 													{!weightsValid && (
-														<span className="text-destructive text-sm">{t('noten.weightsMustSum100')}</span>
+														<span className="text-destructive text-sm">{'Summe muss 100% sein'}</span>
 													)}
-													{saving && <span className="text-muted-foreground text-sm">{t('common.saving')}</span>}
+													{saving && <span className="text-muted-foreground text-sm">{'Speichere...'}</span>}
 													{saveError && (
 														<span className="text-destructive text-sm">{saveError}</span>
 													)}
@@ -1388,7 +1379,7 @@ export default function NotenPage() {
 															!schoolYearId
 														}
 													>
-														{t('common.save')}
+														{'Speichern'}
 													</Button>
 													<Button
 														variant="outline"
@@ -1397,8 +1388,8 @@ export default function NotenPage() {
 														disabled={teachingDays.length === 0}
 													>
 														{allDaysCollapsed
-															? t('noten.expandAllDays', { defaultValue: 'Alle aufklappen' })
-															: t('noten.collapseAllDays', { defaultValue: 'Alle Tage zuklappen' })}
+															? 'Alle aufklappen'
+															: 'Alle Tage zuklappen'}
 													</Button>
 													<Button
 														variant={allRowsVisible ? 'destructive' : 'default'}
@@ -1419,7 +1410,7 @@ export default function NotenPage() {
 															}}
 															disabled={!selectedClassId || !schoolYearId}
 														>
-															{t('noten.notenmanagementEintragGruppe', { n: selectedGroupId, defaultValue: `Notenmanagement Eintrag Gruppe ${selectedGroupId}` })}
+															{`Notenmanagement Eintrag Gruppe ${selectedGroupId}`}
 														</Button>
 													)}
 												</div>
@@ -1430,7 +1421,7 @@ export default function NotenPage() {
 														onClick={collapseSemester1}
 														disabled={teachingDays.length === 0 || !semesterChangeDate || semester1DayKeys.length === 0}
 													>
-														{t('noten.collapseSemester1', { defaultValue: '1. Semester zuklappen' })}
+														{'1. Semester zuklappen'}
 													</Button>
 													<Button
 														variant="outline"
@@ -1438,12 +1429,12 @@ export default function NotenPage() {
 														onClick={collapseSemester2}
 														disabled={teachingDays.length === 0 || !semesterChangeDate || semester2DayKeys.length === 0}
 													>
-														{t('noten.collapseSemester2', { defaultValue: '2. Semester zuklappen' })}
+														{'2. Semester zuklappen'}
 													</Button>
 												</div>
 
 												<div className="overflow-x-auto border rounded-md">
-													<table className="w-full caption-bottom text-sm border-collapse">
+													<table className="w-full caption-bottom text-sm border-collapse bg-background">
 														<TableHeader>
 															<TableRow className="[&>th]:border-r [&>th]:border-border">
 																<TableHead className="sticky left-0 z-30 min-w-[2.5rem] w-[2.5rem] bg-background py-1.5 px-2 text-center">
@@ -1454,7 +1445,7 @@ export default function NotenPage() {
 																	style={{ left: `${checkboxColumnWidthPx}px` }}
 																	className="sticky z-20 min-w-[180px] bg-background py-1.5 px-2"
 																>
-																	{t('noten.name')}
+																	{'Name'}
 																</TableHead>
 																<TableHead ref={(el) => { if (el) sitzplatzCellsRef.current[0] = el }} style={{ left: sitzplatzLeft }} className="sticky z-18 min-w-[3rem] bg-background py-1.5 px-2 border-l border-r border-border h-auto" />
 																{teachingDays.map((day, dayIndex) => {
@@ -1472,23 +1463,23 @@ export default function NotenPage() {
 																			colSpan={isCollapsed ? 1 : 6}
 																			className={
 																				isCollapsed
-																					? `min-w-0 w-12 max-w-[3rem] bg-muted/30 align-top py-1.5 px-1 border-r-2 border-border${todayBg}`
-																					: `min-w-[28rem] bg-muted/30 align-top py-1.5 px-2 border-r border-border${todayBg}`
+																					? `min-w-0 w-12 max-w-[3rem] bg-background align-top py-1.5 px-1 border-r-2 border-border${todayBg}`
+																					: `min-w-[28rem] bg-background align-top py-1.5 px-2 border-r border-border${todayBg}`
 																			}
 																		>
 																			<div className="flex items-center gap-1.5 flex-wrap">
 																				<Checkbox
 																					checked={!isCollapsed}
 																					onCheckedChange={() => toggleDayCollapsed(day.date, day.period)}
-																					aria-label={isCollapsed ? t('noten.expandDay', { defaultValue: 'Tag aufklappen' }) : t('noten.collapseDay', { defaultValue: 'Tag zuklappen' })}
+																					aria-label={isCollapsed ? 'Tag aufklappen' : 'Tag zuklappen'}
 																				/>
 																				<span className="font-medium text-sm">
-																					{t('noten.tag')} {dayIndex + 1}
+																					{'Tag'} {dayIndex + 1}
 																				</span>
 																				<span className="text-xs text-muted-foreground">
 																					{isSemester2(day.date, semesterChangeDate)
-																						? t('noten.semester2', { defaultValue: '2. Sem.' })
-																						: t('noten.semester1', { defaultValue: '1. Sem.' })}
+																						? '2. Sem.'
+																						: '1. Sem.'}
 																				</span>
 																				{!isCollapsed && (
 																					<>
@@ -1497,7 +1488,7 @@ export default function NotenPage() {
 																						</span>
 																						<Button
 																							size="sm"
-																							className="bg-green-600 hover:bg-green-700 text-white h-7 text-xs px-2"
+																							className="bg-primary hover:bg-primary/90 text-primary-foreground h-7 text-xs px-2"
 																							onClick={() => void setAllAnwesend(day.date, day.period)}
 																							disabled={saving}
 																						>
@@ -1509,11 +1500,11 @@ export default function NotenPage() {
 																		</TableHead>
 																	)
 																})}
-																<TableHead colSpan={9} className="min-w-0 w-[9rem] max-w-[9rem] bg-muted/30 align-top py-1.5 px-0 border-r-2 border-border" />
+																<TableHead colSpan={9} className="min-w-0 w-[9rem] max-w-[9rem] bg-background align-top py-1.5 px-0 border-r-2 border-border" />
 															</TableRow>
 															<TableRow className="border-0 hover:bg-transparent [&>th]:border-r [&>th]:border-border">
 																<TableHead className="sticky left-0 z-30 bg-background p-0 min-w-[2.5rem] w-[2.5rem]" />
-																<TableHead style={{ left: `${checkboxColumnWidthPx}px` }} className="sticky z-20 bg-background p-0 min-w-[180px]" />
+																<TableHead style={{ left: `${checkboxColumnWidthPx}px` }} className="sticky z-20  p-0 min-w-[180px]" />
 																<TableHead ref={(el) => { if (el) sitzplatzCellsRef.current[1] = el }} style={{ left: sitzplatzLeft }} className="sticky z-18 bg-background p-0.5 text-[10px] font-medium min-w-[3rem] w-[3rem] h-24 align-bottom [writing-mode:vertical-rl] [text-orientation:mixed] border-l border-r border-border">
 																	Sitzplatz
 																</TableHead>
@@ -1535,44 +1526,44 @@ export default function NotenPage() {
 																	return (
 																		<React.Fragment key={key}>
 																			<TableHead className={verticalHeaderClass}>
-																				{t('noten.anwesenheit')}
+																				{'Anwesenheit'}
 																			</TableHead>
-																			<TableHead className={isToday ? verticalHeaderTodayClass + ' ' + TODAY_BG : verticalHeaderClass}>{t('noten.wiederholung')}</TableHead>
-																			<TableHead className={isToday ? verticalHeaderTodayClass + ' ' + TODAY_BG : verticalHeaderClass}>{t('noten.bericht')}</TableHead>
-																			<TableHead className={isToday ? verticalHeaderTodayClass + ' ' + TODAY_BG : verticalHeaderClass}>{t('noten.mitarbeit')}</TableHead>
+																			<TableHead className={isToday ? verticalHeaderTodayClass + ' ' + TODAY_BG : verticalHeaderClass}>{'Wiederholung'}</TableHead>
+																			<TableHead className={isToday ? verticalHeaderTodayClass + ' ' + TODAY_BG : verticalHeaderClass}>{'Bericht'}</TableHead>
+																			<TableHead className={isToday ? verticalHeaderTodayClass + ' ' + TODAY_BG : verticalHeaderClass}>{'Mitarbeit'}</TableHead>
 																			<TableHead className={isToday ? verticalHeaderTodayClass + ' ' + TODAY_BG : verticalHeaderClass}>
-																				{t('noten.praktischeArbeit')}
+																				{'Praktische Arbeit'}
 																			</TableHead>
-																			<TableHead className={isToday ? verticalHeaderLastTodayClass + ' ' + TODAY_BG : verticalHeaderLastClass}>{t('noten.notizen')}</TableHead>
+																			<TableHead className={isToday ? verticalHeaderLastTodayClass + ' ' + TODAY_BG : verticalHeaderLastClass}>{'Notizen'}</TableHead>
 																		</React.Fragment>
 																	)
 																})}
 																<TableHead className="p-0.5 text-[10px] font-medium min-w-[4.5rem] w-[4.5rem] h-24 align-bottom [writing-mode:vertical-rl] [text-orientation:mixed] border-r border-border bg-background">
-																	{t('noten.nichtAnwesendTage', { defaultValue: 'Nicht anwesend' })}
+																	{'Nicht anwesend'}
 																</TableHead>
 																<TableHead className="p-0.5 text-[10px] font-medium min-w-[4.5rem] w-[4.5rem] h-24 align-bottom [writing-mode:vertical-rl] [text-orientation:mixed] border-r border-border bg-background">
-																	{t('noten.anwesendTage', { defaultValue: 'Anwesend' })}
+																	{'Anwesend'}
 																</TableHead>
 																<TableHead className="p-0.5 text-[10px] font-medium min-w-[4.5rem] w-[4.5rem] h-24 align-bottom [writing-mode:vertical-rl] [text-orientation:mixed] border-r border-border bg-background">
-																	{t('noten.alleTage', { defaultValue: 'Alle Tage' })}
+																	{'Alle Tage'}
 																</TableHead>
 																<TableHead className="p-0.5 text-[10px] font-medium min-w-[4.5rem] w-[4.5rem] h-24 align-bottom [writing-mode:vertical-rl] [text-orientation:mixed] border-r border-border bg-background">
-																	{t('noten.anwesenheitProzent', { defaultValue: 'Anw. %' })}
+																	{'Anw. %'}
 																</TableHead>
 																<TableHead className="p-0.5 text-[10px] font-medium min-w-[4.5rem] w-[4.5rem] h-24 align-bottom [writing-mode:vertical-rl] [text-orientation:mixed] border-r border-border bg-background">
-																	{t('noten.gradeBerechnet', { defaultValue: 'Note' })}
+																	{'Note'}
 																</TableHead>
 																<TableHead className="p-0.5 text-[10px] font-medium min-w-[4.5rem] w-[4.5rem] h-24 align-bottom [writing-mode:vertical-rl] [text-orientation:mixed] border-r border-border bg-background">
-																	{t('noten.endnoteSem1', { defaultValue: 'Endn. 1' })}
+																	{'Endn. 1'}
 																</TableHead>
 																<TableHead className="p-0.5 text-[10px] font-medium min-w-[4.5rem] w-[4.5rem] h-24 align-bottom [writing-mode:vertical-rl] [text-orientation:mixed] border-r border-border bg-background">
-																	{t('noten.betragenSem1', { defaultValue: 'Betr. 1' })}
+																	{'Betr. 1'}
 																</TableHead>
 																<TableHead className="p-0.5 text-[10px] font-medium min-w-[4.5rem] w-[4.5rem] h-24 align-bottom [writing-mode:vertical-rl] [text-orientation:mixed] border-r border-border bg-background">
-																	{t('noten.endnoteSem2', { defaultValue: 'Endn. 2' })}
+																	{'Endn. 2'}
 																</TableHead>
 																<TableHead className="p-0.5 text-[10px] font-medium min-w-[4.5rem] w-[4.5rem] h-24 align-bottom [writing-mode:vertical-rl] [text-orientation:mixed] border-r-2 border-border bg-background">
-																	{t('noten.betragenSem2', { defaultValue: 'Betr. 2' })}
+																	{'Betr. 2'}
 																</TableHead>
 															</TableRow>
 														</TableHeader>
@@ -1581,7 +1572,7 @@ export default function NotenPage() {
 																<TableRow
 																	key={student.id}
 																	ref={(el) => { studentRowRefs.current[student.id] = el }}
-																	className={highlightedStudentId === student.id ? 'bg-yellow-100/60 dark:bg-yellow-900/20' : ''}
+																	className={highlightedStudentId === student.id ? 'bg-accent/60' : ''}
 																>
 																	{(() => {
 																		const isGradesVisible = rowGradeVisibility[student.id] ?? true
@@ -1628,7 +1619,7 @@ export default function NotenPage() {
 																				setStudents(students.map(s => s.id === student.id ? { ...s, sitzplatz: e.target.value || null } : s))
 																			}}
 																			placeholder="Platz"
-																			className="h-7 w-full text-xs"
+																			className="h-7 w-full text-xs !bg-background hover:!bg-background"
 																		/>
 																				</TableCell>
 																	{teachingDays.map((day) => {
@@ -1661,8 +1652,8 @@ export default function NotenPage() {
 																			if (!isGradesVisible) {
 																				return (
 																					<div className="flex flex-col gap-1">
-																						<div className="h-7 min-w-[4.5rem] w-20 rounded-md border border-input bg-muted/40 px-2 text-xs flex items-center justify-center select-none">•••</div>
-																						<div className="h-7 min-w-[4.5rem] w-20 rounded-md border border-input bg-muted/40 px-2 text-xs flex items-center justify-center select-none">•••</div>
+																						<div className="h-7 min-w-[4.5rem] w-20 rounded-md border border-input bg-background px-2 text-xs flex items-center justify-center select-none">•••</div>
+																						<div className="h-7 min-w-[4.5rem] w-20 rounded-md border border-input bg-background px-2 text-xs flex items-center justify-center select-none">•••</div>
 																					</div>
 																				)
 																			}
@@ -1676,7 +1667,7 @@ export default function NotenPage() {
 																						void saveEntries([{ ...e, [key1]: newVal }], { skipSaving: true })
 																					}}
 																				>
-																					<SelectTrigger className={`h-7 min-w-[4.5rem] w-20 ${getGradeBoxClass(val1)}`}>
+																					<SelectTrigger className={`h-7 min-w-[4.5rem] w-20 !bg-background hover:!bg-background ${getGradeBoxClass(val1)}`}>
 																						<SelectValue placeholder="-" />
 																					</SelectTrigger>
 																					<SelectContent>
@@ -1696,7 +1687,7 @@ export default function NotenPage() {
 																						void saveEntries([{ ...e, [key2]: newVal }], { skipSaving: true })
 																					}}
 																				>
-																					<SelectTrigger className={`h-7 min-w-[4.5rem] w-20 ${getGradeBoxClass(val2)}`}>
+																					<SelectTrigger className={`h-7 min-w-[4.5rem] w-20 !bg-background hover:!bg-background ${getGradeBoxClass(val2)}`}>
 																						<SelectValue placeholder="-" />
 																					</SelectTrigger>
 																					<SelectContent>
@@ -1715,8 +1706,8 @@ export default function NotenPage() {
 																			e.attendance == null || e.attendance === ''
 																				? ''
 																				: e.attendance === 'Anwesend'
-																					? 'bg-green-100/50 dark:bg-green-900/20'
-																					: 'bg-red-100/50 dark:bg-red-900/20'
+																					? 'bg-success/20'
+																					: 'bg-destructive/10'
 																		const todayCellBg = isToday ? ` ${TODAY_BG}` : ''
 																		return (
 																			<React.Fragment key={key}>
@@ -1728,7 +1719,7 @@ export default function NotenPage() {
 																							void saveEntries([{ ...e, attendance: v }])
 																						}}
 																					>
-																						<SelectTrigger className="h-10 w-12 min-w-12 shrink-0 justify-center px-1.5">
+																						<SelectTrigger className="h-10 w-12 min-w-12 shrink-0 justify-center px-1.5 !bg-background hover:!bg-background">
 																							<SelectValue placeholder="-">
 																								{e.attendance ? e.attendance.charAt(0) : null}
 																							</SelectValue>
@@ -1763,7 +1754,7 @@ export default function NotenPage() {
 																					{(() => {
 																						if (!isGradesVisible) {
 																							return (
-																								<div className="h-full min-h-[4.5rem] w-full rounded-md border border-input bg-muted/40 px-2 py-1.5 text-sm flex items-center justify-center select-none">
+																								<div className="h-full min-h-[4.5rem] w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm flex items-center justify-center select-none">
 																									•••
 																								</div>
 																							)
@@ -1773,7 +1764,7 @@ export default function NotenPage() {
 																							<button
 																								type="button"
 																								onClick={() => openNotizenModal(student.id, day.date, day.period)}
-																								className="block h-full min-h-[4.5rem] w-full max-w-full rounded-md border border-input bg-transparent px-2 py-1.5 text-left text-sm text-foreground shadow-xs hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-ring overflow-hidden"
+																								className="block h-full min-h-[4.5rem] w-full max-w-full rounded-md border border-input bg-background px-2 py-1.5 text-left text-sm text-foreground shadow-xs hover:bg-background focus:outline-none focus:ring-2 focus:ring-ring overflow-hidden"
 																							>
 																								<span className="block truncate min-w-0 w-full text-left">
 																									{notizenValue || '–'}
@@ -1803,7 +1794,7 @@ export default function NotenPage() {
 																			])
 																		}
 																		const endGradeLabel = (g: number) =>
-																			g === 6 ? t('noten.gradeGestundet', { defaultValue: 'Gestundet' }) : g === 7 ? t('noten.gradeNichtBeurteilt', { defaultValue: 'Nicht beurteilt' }) : String(g)
+																			g === 6 ? 'Gestundet' : g === 7 ? 'Nicht beurteilt' : String(g)
 																		return (
 																			<>
 																				<TableCell className="p-1 text-center border-r border-border w-8 min-w-[2rem]">{sum?.nichtAnwesend ?? 0}</TableCell>
@@ -1813,9 +1804,9 @@ export default function NotenPage() {
 																					className={`p-1 text-center border-r border-border w-8 min-w-[2rem] ${
 																						sum != null
 																							? sum.pct < 50
-																								? 'text-red-600 font-medium'
+																								? 'text-destructive font-medium'
 																								: sum.pct < 75
-																									? 'text-amber-600 font-medium'
+																									? 'text-accent-orange font-medium'
 																									: ''
 																							: ''
 																					}`}
@@ -1830,7 +1821,7 @@ export default function NotenPage() {
 																						onValueChange={(v) => setFinalGrade(student.id, 'first', 'grade', (v === GRADE_CLEAR_VALUE || v === '') ? null : parseFloat(v))}
 																						onOpenChange={(open) => { if (!open) saveOneStudent() }}
 																					>
-																						<SelectTrigger className="h-8 w-full min-w-0"><SelectValue placeholder="–" /></SelectTrigger>
+																						<SelectTrigger className="h-8 w-full min-w-0 !bg-background hover:!bg-background"><SelectValue placeholder="–" /></SelectTrigger>
 																						<SelectContent>
 																							<SelectItem value={GRADE_CLEAR_VALUE}>–</SelectItem>
 																							{FINAL_GRADE_OPTIONS.map((g) => (
@@ -1839,7 +1830,7 @@ export default function NotenPage() {
 																						</SelectContent>
 																						</Select>
 																					) : (
-																						<div className="h-8 w-full min-w-0 rounded-md border border-input bg-muted/40 px-2 text-xs flex items-center justify-center select-none">•••</div>
+																						<div className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs flex items-center justify-center select-none">•••</div>
 																					)}
 																				</TableCell>
 																				<TableCell className="p-1 border-r border-border w-10 min-w-[2.5rem]">
@@ -1849,7 +1840,7 @@ export default function NotenPage() {
 																						onValueChange={(v) => setFinalGrade(student.id, 'first', 'conductNoteWish', v || null)}
 																						onOpenChange={(open) => { if (!open) saveOneStudent() }}
 																					>
-																						<SelectTrigger className="h-8 w-full min-w-0"><SelectValue placeholder="–" /></SelectTrigger>
+																						<SelectTrigger className="h-8 w-full min-w-0 !bg-background hover:!bg-background"><SelectValue placeholder="–" /></SelectTrigger>
 																						<SelectContent>
 																							{BETRAGEN_OPTIONS.map((opt) => (
 																								<SelectItem key={opt} value={opt}>{opt}</SelectItem>
@@ -1857,7 +1848,7 @@ export default function NotenPage() {
 																						</SelectContent>
 																						</Select>
 																					) : (
-																						<div className="h-8 w-full min-w-0 rounded-md border border-input bg-muted/40 px-2 text-xs flex items-center justify-center select-none">•••</div>
+																						<div className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs flex items-center justify-center select-none">•••</div>
 																					)}
 																				</TableCell>
 																				<TableCell className="p-1 border-r border-border w-10 min-w-[2.5rem]">
@@ -1867,7 +1858,7 @@ export default function NotenPage() {
 																						onValueChange={(v) => setFinalGrade(student.id, 'second', 'grade', (v === GRADE_CLEAR_VALUE || v === '') ? null : parseFloat(v))}
 																						onOpenChange={(open) => { if (!open) saveOneStudent() }}
 																					>
-																						<SelectTrigger className="h-8 w-full min-w-0"><SelectValue placeholder="–" /></SelectTrigger>
+																						<SelectTrigger className="h-8 w-full min-w-0 !bg-background hover:!bg-background"><SelectValue placeholder="–" /></SelectTrigger>
 																						<SelectContent>
 																							<SelectItem value={GRADE_CLEAR_VALUE}>–</SelectItem>
 																							{FINAL_GRADE_OPTIONS.map((g) => (
@@ -1876,7 +1867,7 @@ export default function NotenPage() {
 																						</SelectContent>
 																						</Select>
 																					) : (
-																						<div className="h-8 w-full min-w-0 rounded-md border border-input bg-muted/40 px-2 text-xs flex items-center justify-center select-none">•••</div>
+																						<div className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs flex items-center justify-center select-none">•••</div>
 																					)}
 																				</TableCell>
 																				<TableCell className="p-1 border-r-2 border-border w-10 min-w-[2.5rem]">
@@ -1886,7 +1877,7 @@ export default function NotenPage() {
 																						onValueChange={(v) => setFinalGrade(student.id, 'second', 'conductNoteWish', v || null)}
 																						onOpenChange={(open) => { if (!open) saveOneStudent() }}
 																					>
-																						<SelectTrigger className="h-8 w-full min-w-0"><SelectValue placeholder="–" /></SelectTrigger>
+																						<SelectTrigger className="h-8 w-full min-w-0 !bg-background hover:!bg-background"><SelectValue placeholder="–" /></SelectTrigger>
 																						<SelectContent>
 																							{BETRAGEN_OPTIONS.map((opt) => (
 																								<SelectItem key={opt} value={opt}>{opt}</SelectItem>
@@ -1894,7 +1885,7 @@ export default function NotenPage() {
 																						</SelectContent>
 																						</Select>
 																					) : (
-																						<div className="h-8 w-full min-w-0 rounded-md border border-input bg-muted/40 px-2 text-xs flex items-center justify-center select-none">•••</div>
+																						<div className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs flex items-center justify-center select-none">•••</div>
 																					)}
 																				</TableCell>
 																			</>
@@ -1906,11 +1897,11 @@ export default function NotenPage() {
 																</TableRow>
 															))}
 															<TableRow>
-																<TableCell className="sticky left-0 z-10 bg-muted/20 bg-background border-r min-w-[2.5rem] w-[2.5rem]" />
-																<TableCell style={{ left: `${checkboxColumnWidthPx}px` }} className="sticky z-10 font-medium bg-muted/30 bg-background border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
-																	{t('noten.lehrstoff')}
+																<TableCell className="sticky left-0 z-10 bg-background border-r min-w-[2.5rem] w-[2.5rem]" />
+																<TableCell style={{ left: `${checkboxColumnWidthPx}px` }} className="sticky z-10 font-medium bg-background border-r shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+																	{'Lehrstoff'}
 																</TableCell>
-																<TableCell className="p-1 border-r border-border w-[3rem] min-w-[3rem] max-w-[3rem] bg-muted/20" />
+																<TableCell className="p-1 border-r border-border w-[3rem] min-w-[3rem] max-w-[3rem] bg-background" />
 																{teachingDays.map((day) => {
 																	const key = `${day.date}-${day.period}`
 																	const isToday = day.date === (focusDateYmd ?? todayYmd)
@@ -1929,7 +1920,7 @@ export default function NotenPage() {
 																					<button
 																						type="button"
 																						onClick={() => openLehrstoffModal(day.date, day.period)}
-																						className="block h-full min-h-[4.5rem] w-full max-w-full rounded-md border border-input bg-transparent px-2 py-1.5 text-left text-sm text-foreground shadow-xs hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-ring overflow-hidden"
+																					className="block h-full min-h-[4.5rem] w-full max-w-full rounded-md border border-input bg-background px-2 py-1.5 text-left text-sm text-foreground shadow-xs hover:bg-background focus:outline-none focus:ring-2 focus:ring-ring overflow-hidden"
 																					>
 																						<span className="block truncate min-w-0 w-full text-left">
 																							{lehrstoffValue || '–'}
@@ -1947,7 +1938,7 @@ export default function NotenPage() {
 																		</TableCell>
 																	)
 																})}
-																<TableCell colSpan={9} className="p-1 border-r-2 border-border bg-muted/20" />
+																<TableCell colSpan={9} className="p-1 border-r-2 border-border bg-background" />
 															</TableRow>
 														</TableBody>
 													</table>
@@ -1972,8 +1963,8 @@ export default function NotenPage() {
 					<DialogHeader>
 						<DialogTitle>
 							{textModal?.type === 'notizen'
-								? t('noten.notizen', { defaultValue: 'Notizen' })
-								: t('noten.lehrstoff', { defaultValue: 'Lehrstoff' })}
+								? 'Notizen'
+								: 'Lehrstoff'}
 						</DialogTitle>
 					</DialogHeader>
 					{textModal && (
@@ -1982,13 +1973,13 @@ export default function NotenPage() {
 								ref={textModalContentRef}
 								key={textModal.type === 'notizen' ? `notizen-${textModal.studentId}-${textModal.date}-${textModal.period}` : `lehrstoff-${textModal.date}-${textModal.period}`}
 								initialValue={textModal.type === 'notizen' ? (entries[entryKey(textModal.studentId, textModal.date, textModal.period)]?.notizen ?? '') : (lehrstoffByDay[`${textModal.date}-${textModal.period}`] ?? '')}
-								placeholder={textModal.type === 'notizen' ? t('noten.notizen', { defaultValue: 'Notizen' }) : t('noten.lehrstoff', { defaultValue: 'Lehrstoff' })}
+								placeholder={textModal.type === 'notizen' ? 'Notizen' : 'Lehrstoff'}
 							/>
 						</div>
 					)}
 					<div className="flex justify-end gap-2 pt-2 shrink-0">
 						<Button variant="outline" size="sm" onClick={() => closeTextModal()}>
-							{t('common.save', { defaultValue: 'Speichern' })}
+							{'Speichern'}
 						</Button>
 					</div>
 				</DialogContent>
@@ -1998,7 +1989,7 @@ export default function NotenPage() {
 			<Dialog open={nmGroupStep === 'semester'} onOpenChange={(open) => { if (!open) setNmGroupStep(null) }}>
 				<DialogContent className="max-w-sm">
 					<DialogHeader>
-						<DialogTitle>{t('noten.notenmanagementEintragSemesterTitle', { defaultValue: 'Semester wählen' })}</DialogTitle>
+						<DialogTitle>{'Semester wählen'}</DialogTitle>
 					</DialogHeader>
 					<div className="flex gap-2 pt-2">
 						<Button
@@ -2028,7 +2019,7 @@ export default function NotenPage() {
 								}
 							}}
 						>
-							{t('noten.uebertragSem1', { defaultValue: '1. Semester' })}
+							{'1. Semester'}
 						</Button>
 						<Button
 							variant="outline"
@@ -2057,7 +2048,7 @@ export default function NotenPage() {
 								}
 							}}
 						>
-							{t('noten.uebertragSem2', { defaultValue: '2. Semester' })}
+							{'2. Semester'}
 						</Button>
 					</div>
 				</DialogContent>
@@ -2076,14 +2067,14 @@ export default function NotenPage() {
 			>
 				<DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
 					<DialogHeader>
-						<DialogTitle>{t('noten.notenmanagementEintragListTitle', { defaultValue: 'Notenstand – Schülerliste' })}</DialogTitle>
+						<DialogTitle>{'Notenstand – Schülerliste'}</DialogTitle>
 					</DialogHeader>
 					<div className="overflow-auto flex-1 min-h-0 border rounded-md">
 						<Table>
 							<TableHeader>
 								<TableRow>
-									<TableHead className="w-[200px]">{t('noten.name')}</TableHead>
-									<TableHead>{t('noten.gradeBerechnet')}</TableHead>
+									<TableHead className="w-[200px]">{'Name'}</TableHead>
+									<TableHead>{'Note'}</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -2106,7 +2097,7 @@ export default function NotenPage() {
 													}
 												>
 													<SelectTrigger className={`w-24 ${isMissing ? 'border-destructive' : ''}`}>
-														<SelectValue placeholder={t('noten.uebertragMissing', { defaultValue: '–' })} />
+														<SelectValue placeholder={'–'} />
 													</SelectTrigger>
 													<SelectContent>
 														<SelectItem value={GRADE_CLEAR_VALUE}>–</SelectItem>
@@ -2132,7 +2123,7 @@ export default function NotenPage() {
 								setNmGroupSemester(null)
 							}}
 						>
-							{t('common.cancel')}
+							{'Abbrechen'}
 						</Button>
 						<Button
 							variant="default"
@@ -2151,11 +2142,11 @@ export default function NotenPage() {
 								const username = nmGroupUsername || defaultUsername
 								const password = nmGroupPassword
 								if (!username) {
-									setNmGroupError(t('noten.notenmanagementUsernameRequired', { defaultValue: 'Notenmanagement-Benutzername erforderlich.' }))
+									setNmGroupError('Notenmanagement-Benutzername erforderlich.')
 									return
 								}
 								if (!useStoredToken && !password) {
-									setNmGroupError(t('noten.notenmanagementPasswordRequired', { defaultValue: 'Passwort erforderlich.' }))
+									setNmGroupError('Passwort erforderlich.')
 									return
 								}
 								setNmGroupSaving(true)
@@ -2230,7 +2221,7 @@ export default function NotenPage() {
 								}
 							}}
 						>
-							{nmGroupSaving ? t('common.saving') : t('noten.notenmanagementEintragSubmit', { defaultValue: 'An Notenmanagement übertragen' })}
+							{nmGroupSaving ? 'Speichere...' : 'An Notenmanagement übertragen'}
 						</Button>
 					</div>
 				</DialogContent>
@@ -2248,34 +2239,34 @@ export default function NotenPage() {
 			>
 				<DialogContent className="max-w-sm">
 					<DialogHeader>
-						<DialogTitle>{t('notensammler.nmPasswordTitle', 'Notenmanagement Anmeldung')}</DialogTitle>
+						<DialogTitle>{'Notenmanagement Anmeldung'}</DialogTitle>
 						<DialogDescription>
-							{t('notensammler.nmPasswordDesc', 'Bitte gib deine Anmeldedaten für Notenmanagement ein.')}
+							{'Bitte gib deine Anmeldedaten für Notenmanagement ein.'}
 						</DialogDescription>
 					</DialogHeader>
 					<div className="flex flex-col gap-2 pt-2">
 						<Input
-							placeholder={t('noten.username', { defaultValue: 'Benutzername' })}
+							placeholder={'Benutzername'}
 							value={nmGroupUsername}
 							onChange={(e) => setNmGroupUsername(e.target.value)}
 						/>
 						<Input
 							type="password"
-							placeholder={t('noten.password', { defaultValue: 'Passwort' })}
+							placeholder={'Passwort'}
 							value={nmGroupPassword}
 							onChange={(e) => setNmGroupPassword(e.target.value)}
 						/>
 					</div>
 					<div className="flex justify-end gap-2 pt-4">
 						<Button variant="outline" size="sm" onClick={() => setNmGroupShowPasswordDialog(false)}>
-							{t('common.cancel')}
+							{'Abbrechen'}
 						</Button>
 						<Button
 							size="sm"
 							disabled={!nmGroupUsername || !nmGroupPassword}
 							onClick={() => setNmGroupShowPasswordDialog(false)}
 						>
-							{t('common.ok', { defaultValue: 'OK' })}
+							{'OK'}
 						</Button>
 					</div>
 				</DialogContent>

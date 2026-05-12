@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { addWeeks, format, setDay, isWithinInterval } from 'date-fns'
-import { useTranslation } from 'next-i18next'
 import { captureFrontendError } from '@/lib/frontend-error'
 import { fetchAndUnwrap } from '@/lib/api-client'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
@@ -74,7 +73,6 @@ interface RotationScheduleEditorProps {
  * Users can specify the number of terms, select a rotation weekday, assign custom week lengths per term, and provide additional schedule information. The component automatically distributes weeks among terms, excludes holidays, and displays a summary table of the resulting schedule.
  */
 export function RotationScheduleEditor({ className, initialWeekday, schoolYearId, onSave, onCancel }: RotationScheduleEditorProps) {
-  const { t } = useTranslation('schedule')
   const isManualChangeRef = useRef(false)
   const shouldUpdateScheduleRef = useRef(false)
 
@@ -458,36 +456,36 @@ export function RotationScheduleEditor({ className, initialWeekday, schoolYearId
           additionalInfo
         }
       })
-      setSaveError('Failed to save schedule.')
+      setSaveError('Einteilung konnte nicht gespeichert werden.')
     } finally {
       setIsSaving(false)
     }
   }
 
-  if (isLoading) return <div>{t('loading')}</div>
+  if (isLoading) return <div>Laden...</div>
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t('rotationPeriods')}</CardTitle>
+        <CardTitle>Turnusperioden</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="mb-4 rounded-lg border bg-muted/50 p-4 text-sm text-muted-foreground">
-          {t('help.rotation')}
+          Legen Sie hier die Turnusse und deren Länge fest. Optional können Sie zusätzliche Hinweise und die Semesterplanung anpassen.
         </div>
         {fetchError && (
-          <div className="mb-4 p-4 text-red-500 bg-red-50 rounded-md">
-            {t('failedToLoadHolidays')}
+          <div className="mb-4 p-4 state-danger-soft rounded-md">
+            Feiertage konnten nicht geladen werden.
           </div>
         )}
         {weekError && (
-          <div className="mb-4 p-4 text-red-500 bg-red-50 rounded-md">
+          <div className="mb-4 p-4 state-danger-soft rounded-md">
             {weekError}
           </div>
         )}
         <div className="flex gap-8 mb-4">
           <div>
-            <Label htmlFor="numberOfTerms">{t('numberOfTerms')}</Label>
+            <Label htmlFor="numberOfTerms">Anzahl der Turnusse</Label>
             <Input
               id="numberOfTerms"
               type="number"
@@ -501,12 +499,12 @@ export function RotationScheduleEditor({ className, initialWeekday, schoolYearId
         </div>
 
         <div className="mb-4">
-          <Label htmlFor="additionalInfo">{t('additionalInformation')}</Label>
+          <Label htmlFor="additionalInfo">Zusätzliche Informationen</Label>
           <Input
             id="additionalInfo"
             value={additionalInfo}
             onChange={(e) => setAdditionalInfo(e.target.value)}
-            placeholder={t('additionalInfoPlaceholder')}
+            placeholder="Geben Sie zusätzliche Informationen zu diesem Wechselplan ein"
             className="w-full"
           />
         </div>
@@ -552,7 +550,7 @@ export function RotationScheduleEditor({ className, initialWeekday, schoolYearId
         </div>
 
         <div className="mb-4">
-          <Label>{t('customLengths')}</Label>
+          <Label>Benutzerdefinierte Längen</Label>
           <div className="flex gap-4 mt-2">
             {Array.from({ length: numberOfTerms }).map((_, index) => {
               const turnusKey = `TURNUS ${index + 1}`
@@ -581,7 +579,7 @@ export function RotationScheduleEditor({ className, initialWeekday, schoolYearId
                     }}
                     className="w-20 h-8"
                     min={1}
-                    placeholder={`${currentWeeks} ${t('weeks')}`}
+                    placeholder={`${currentWeeks} Wochen`}
                   />
                 </div>
               )
@@ -598,7 +596,7 @@ export function RotationScheduleEditor({ className, initialWeekday, schoolYearId
                     <th key={turnus} className="border p-2">
                       <div>{turnus}</div>
                       <div className="text-sm font-normal text-muted-foreground">
-                        {entry.weeks.length} {t('weeks')}
+                        {entry.weeks.length} Wochen
                       </div>
                     </th>
                   ))}
@@ -630,7 +628,7 @@ export function RotationScheduleEditor({ className, initialWeekday, schoolYearId
                       <td key={turnusIndex} className="border p-2 bg-muted">
                         {entry?.holidays?.length > 0 ? (
                           <div className="text-sm">
-                            <div className="font-medium mb-1">{t('missedHolidays')}</div>
+                            <div className="font-medium mb-1">Verpasste Feiertage:</div>
                             {entry.holidays.map((holiday, index) => (
                               <div key={index} className="text-muted-foreground">
                                 {holiday.name} ({format(holiday.startDate, 'dd.MM.yy')})
@@ -638,7 +636,7 @@ export function RotationScheduleEditor({ className, initialWeekday, schoolYearId
                             ))}
                           </div>
                         ) : (
-                          <div className="text-sm text-muted-foreground">{t('noMissedHolidays')}</div>
+                          <div className="text-sm text-muted-foreground">Keine verpassten Feiertage</div>
                         )}
                       </td>
                     )
@@ -652,17 +650,17 @@ export function RotationScheduleEditor({ className, initialWeekday, schoolYearId
         <div className="mt-4 flex justify-end gap-4">
           {onCancel && (
             <Button variant="outline" onClick={onCancel}>
-              {t('back')}
+              Zurück
             </Button>
           )}
           <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? t('saving') : t('next')}
+            {isSaving ? 'Wird gespeichert...' : 'Weiter'}
           </Button>
         </div>
 
         {saveError && (
-          <div className="mt-4 text-red-500">
-            {t('failedToSaveSchedule')}
+          <div className="mt-4 text-destructive">
+            Einteilung konnte nicht gespeichert werden.
           </div>
         )}
       </CardContent>

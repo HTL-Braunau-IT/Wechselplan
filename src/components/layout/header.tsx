@@ -2,10 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Menu, LogIn, LogOut, User } from 'lucide-react'
-import { LanguageSwitcher } from '../language-switcher'
-import { useTranslation } from 'react-i18next'
-import { ThemeToggle } from '~/components/theme-toggle'
+import { Menu, LogIn, LogOut } from 'lucide-react'
 import { SchoolYearSelector } from '~/components/school-year-selector'
 import { useSession, signIn, signOut } from 'next-auth/react'
 import { Button } from '~/components/ui/button'
@@ -22,17 +19,22 @@ import {
 	DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu'
 
+const PROFILE_ROLE_LABELS: Record<string, string> = {
+	teacher: 'Lehrer',
+	student: 'Schüler',
+	admin: 'Administrator',
+}
+
 /**
  * Renders the application's top navigation header with dynamic content based on user authentication and role.
  *
- * Displays the app logo, support dialog, version and build date, theme and language toggles, and a user menu for login or logout. Authenticated users who are not students can access a sidebar navigation menu with links to key sections and, for teachers, an admin area.
+ * Displays the app logo, support dialog, version and build date, theme toggle, and a user menu for login or logout. Authenticated users who are not students can access a sidebar navigation menu with links to key sections and, for teachers, an admin area.
  *
  * @remark The sidebar navigation menu and its toggle button are only visible to authenticated users whose role is not 'student'.
  */
 export function Header() {
 	const [isMenuOpen, setIsMenuOpen] = useState(false)
 	const [isChangelogOpen, setIsChangelogOpen] = useState(false)
-	const { t } = useTranslation()
 	const { data: session } = useSession()
 	const [profileLoaded, setProfileLoaded] = useState(false)
 	const [profileError, setProfileError] = useState(false)
@@ -55,16 +57,22 @@ export function Header() {
 		return `${first}${last}`.toUpperCase() || session?.user?.name?.charAt(0)?.toUpperCase() || '?'
 	}, [session?.user?.firstName, session?.user?.lastName, session?.user?.name])
 
+	const roleLabel = session?.user?.role
+		? (PROFILE_ROLE_LABELS[session.user.role] ?? session.user.role)
+		: ''
+
 	return (
-		<header className="fixed top-0 left-0 right-0 z-50 bg-background border-b">
-			<div className="container mx-auto px-4">
+		<header className="fixed top-4 left-0 right-0 z-50 mx-auto w-[calc(100%-2rem)]  glass border-border/70">
+			<div className="px-4">
 				<div className="flex items-center justify-between h-16">
+
+					<div className="flex items-center gap-2">
 					{/* Only show menu button for authenticated non-student users */}
 					{showMenu && (
 						<button
 							onClick={toggleMenu}
 							className="p-2 rounded-md hover:bg-accent hover:text-accent-foreground focus:outline-none"
-							aria-label={t('navigation.menu')}
+							aria-label="Menü"
 						>
 							<Menu className="h-6 w-6" />
 						</button>
@@ -72,40 +80,19 @@ export function Header() {
 					
 					{/* Logo */}
 					<Link href="/" className="text-xl font-bold">
-						{t('common.appName')}
+						Wechselplan
 					</Link>
-
+					</div>
+					
+					<div className="flex items-center space-x-4">
+					
 					{/* School year dropdown */}
 					<SchoolYearSelector />
 
-					<div className="flex items-center space-x-4">
+					
 						{/* Support Dialog */}
 						<SupportDialog />
 
-						{/* Version Info - Clickable */}
-						<button
-							onClick={() => setIsChangelogOpen(true)}
-							className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-							title="Click to view changelog"
-							disabled={loading || !release}
-						>
-							<div>v{normalizedVersion}</div>
-						</button>
-
-					{/* Changelog Dialog */}
-					<ChangelogDialog
-						release={release}
-						allReleases={allReleases}
-						open={isChangelogOpen}
-						onOpenChange={setIsChangelogOpen}
-					/>
-
-						{/* Theme Toggle */}
-						<ThemeToggle />
-
-						{/* Language Switcher */}
-						<LanguageSwitcher />
-						
 
 						{/* User Menu */}
 						{session ? (
@@ -131,7 +118,7 @@ export function Header() {
 												</span>
 											)}
 										</span>
-										<span className="sr-only">{t('profile.menu')}</span>
+										<span className="sr-only">Benutzermenü</span>
 									</Button>
 								</DropdownMenuTrigger>
 								<DropdownMenuContent align="end">
@@ -143,14 +130,14 @@ export function Header() {
 													.join(' ') || session.user?.name || session.user?.email || ''}
 											</p>
 											<p className="text-xs text-muted-foreground">
-												{t(`profile.role.${session.user?.role}`)}
+												{roleLabel}
 											</p>
 										</div>
 									</DropdownMenuLabel>
 									<DropdownMenuSeparator />
 									<DropdownMenuItem onClick={() => signOut()}>
 										<LogOut className="mr-2 h-4 w-4" />
-										<span>{t('profile.logout')}</span>
+										<span>Abmelden</span>
 									</DropdownMenuItem>
 								</DropdownMenuContent>
 							</DropdownMenu>
@@ -159,7 +146,7 @@ export function Header() {
 								variant="ghost"
 								size="icon"
 								onClick={() => signIn()}
-								title={t('auth.login')}
+								title="Anmelden"
 							>
 								<LogIn className="h-5 w-5" />
 							</Button>
@@ -185,7 +172,7 @@ export function Header() {
 								<button
 									onClick={toggleMenu}
 									className="p-2 rounded-md hover:bg-accent hover:text-accent-foreground focus:outline-none"
-									aria-label={t('navigation.closeMenu')}
+									aria-label="Menü schließen"
 								>
 									<Menu className="h-6 w-6" />
 								</button>
@@ -198,7 +185,7 @@ export function Header() {
 											className="block py-2 hover:text-primary"
 											onClick={() => setIsMenuOpen(false)}
 										>
-											{t('navigation.home')}
+											Startseite
 										</Link>
 									</li>
 									<li>
@@ -207,7 +194,7 @@ export function Header() {
 											className="block py-2 hover:text-primary"
 											onClick={() => setIsMenuOpen(false)}
 										>
-											{t('navigation.schedules')}
+											Wechselpläne
 										</Link>
 									</li>
 									{isFeatureEnabled('noten') && (
@@ -217,7 +204,7 @@ export function Header() {
 												className="block py-2 hover:text-primary"
 												onClick={() => setIsMenuOpen(false)}
 											>
-												{t('navigation.notenliste')}
+												Notenliste
 											</Link>
 										</li>
 									)}
@@ -227,7 +214,7 @@ export function Header() {
 											className="block py-2 hover:text-primary"
 											onClick={() => setIsMenuOpen(false)}
 										>
-											{t('navigation.createSchedule')}
+											Wechselplan erstellen
 										</Link>
 									</li>
 									{isFeatureEnabled('notensammler') && (
@@ -237,7 +224,7 @@ export function Header() {
 												className="block py-2 hover:text-primary"
 												onClick={() => setIsMenuOpen(false)}
 											>
-												{t('navigation.notensammler')}
+												Notensammler
 											</Link>
 										</li>
 									)}
@@ -248,7 +235,7 @@ export function Header() {
 												className="block py-2 hover:text-primary"
 												onClick={() => setIsMenuOpen(false)}
 											>
-												{t('navigation.admin')}
+												Administration
 											</Link>
 										</li>
 									)}
@@ -260,4 +247,4 @@ export function Header() {
 			)}
 		</header>
 	)
-} 
+}

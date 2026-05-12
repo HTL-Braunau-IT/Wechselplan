@@ -21,17 +21,10 @@ interface ScheduleOverviewProps {
 }
 
 const GROUP_COLORS = [
-  'bg-yellow-200', // Gruppe 1
-  'bg-green-200',  // Gruppe 2
-  'bg-blue-200',   // Gruppe 3
-  'bg-red-200',    // Gruppe 4
-];
-
-const DARK_GROUP_COLORS = [
-  'dark:bg-yellow-900/60',
-  'dark:bg-green-900/60',
-  'dark:bg-blue-900/60',
-  'dark:bg-red-900/60',
+  'group-bg-1', // Gruppe 1
+  'group-bg-2', // Gruppe 2
+  'group-bg-3', // Gruppe 3
+  'group-bg-4', // Gruppe 4
 ];
 
 /**
@@ -50,6 +43,12 @@ function rotateArray<T>(arr: T[], n: number): T[] {
     }
   }
   return rotated;
+}
+
+function formatDate(dateValue?: string) {
+  if (!dateValue) return '';
+  const parsed = new Date(dateValue);
+  return Number.isNaN(parsed.getTime()) ? '' : parsed.toLocaleDateString('de-DE');
 }
 
 /**
@@ -85,8 +84,8 @@ function getGroupForTeacherAndTurn(
 function getTurnusInfo(turnKey: string, turns: TurnSchedule) {
   const entry = turns[turnKey] as { weeks?: { date: string }[] };
   if (!entry?.weeks?.length) return { start: '', end: '', days: 0 };
-  const start = entry.weeks[0]?.date ?? '';
-  const end = entry.weeks[entry.weeks.length - 1]?.date ?? '';
+  const start = formatDate(entry.weeks[0]?.date);
+  const end = formatDate(entry.weeks[entry.weeks.length - 1]?.date);
   const days = entry.weeks.length;
   return { start, end, days };
 }
@@ -279,7 +278,7 @@ export function ScheduleOverview({
                   {groups.map((group, idx) => (
                     <th
                       key={group.id}
-                      className={`border p-2 text-center font-bold text-black ${GROUP_COLORS[idx % GROUP_COLORS.length]} ${DARK_GROUP_COLORS[idx % DARK_GROUP_COLORS.length]}`}
+                      className={`border p-2 text-center font-bold text-foreground ${GROUP_COLORS[idx % GROUP_COLORS.length]}`}
                     >
                       Gruppe {group.id}
                     </th>
@@ -312,11 +311,11 @@ export function ScheduleOverview({
         <CardContent>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <p className="text-sm text-gray-500">Klassenvorstand</p>
+              <p className="text-sm text-muted-foreground">Klassenvorstand</p>
               <p className="font-semibold text-lg">{classHead}</p>
             </div>
             <div className="space-y-2">
-              <p className="text-sm text-gray-500">Klassenleitung</p>
+              <p className="text-sm text-muted-foreground">Klassenleitung</p>
               <p className="font-semibold text-lg">{classLead}</p>
             </div>
           </div>
@@ -332,12 +331,12 @@ export function ScheduleOverview({
             <div className="space-y-2">
               <div className="border-b pb-2">
                 <p className="text-sm font-medium">Vormittag</p>
-                <p className="text-sm text-gray-500">{scheduleTimes.find((time: ScheduleTime) => time.period === 'AM')?.startTime} - {scheduleTimes.find((time: ScheduleTime) => time.period === 'AM')?.endTime}</p>
+                <p className="text-sm text-muted-foreground">{scheduleTimes.find((time: ScheduleTime) => time.period === 'AM')?.startTime} - {scheduleTimes.find((time: ScheduleTime) => time.period === 'AM')?.endTime}</p>
               </div>
               {breakTimes.filter((time: BreakTime) => time.period === 'AM').length > 0 && (
                 <div>
-                  <p className="text-xs font-medium text-gray-500 mb-1">Pausen:</p>
-                  <ul className="text-xs text-gray-400 space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Pausen:</p>
+                  <ul className="text-xs text-muted-foreground space-y-1">
                     {breakTimes
                       .filter((time: BreakTime) => time.period === 'AM')
                       .map((time: BreakTime) => (
@@ -350,12 +349,12 @@ export function ScheduleOverview({
             <div className="space-y-2">
               <div className="border-b pb-2">
                 <p className="text-sm font-medium">Nachmittag</p>
-                <p className="text-sm text-gray-500">{scheduleTimes.find((time: ScheduleTime) => time.period === 'PM')?.startTime} - {scheduleTimes.find((time: ScheduleTime) => time.period === 'PM')?.endTime}</p>
+                <p className="text-sm text-muted-foreground">{scheduleTimes.find((time: ScheduleTime) => time.period === 'PM')?.startTime} - {scheduleTimes.find((time: ScheduleTime) => time.period === 'PM')?.endTime}</p>
               </div>
               {breakTimes.filter((time: BreakTime) => time.period === 'PM').length > 0 && (
                 <div>
-                  <p className="text-xs font-medium text-gray-500 mb-1">Pausen:</p>
-                  <ul className="text-xs text-gray-400 space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Pausen:</p>
+                  <ul className="text-xs text-muted-foreground space-y-1">
                     {breakTimes
                       .filter((time: BreakTime) => time.period === 'PM')
                       .map((time: BreakTime) => (
@@ -367,8 +366,8 @@ export function ScheduleOverview({
             </div>
             {breakTimes.filter((time: BreakTime) => time.period === 'LUNCH').length > 0 && (
               <div className="col-span-2 border-t pt-4">
-                <p className="text-xs font-medium text-gray-500 mb-1">Mittagspause:</p>
-                <ul className="text-xs text-gray-400 space-y-1">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Mittagspause:</p>
+                <ul className="text-xs text-muted-foreground space-y-1">
                   {breakTimes
                     .filter((time: BreakTime) => time.period === 'LUNCH')
                     .map((time: BreakTime) => (
@@ -401,7 +400,7 @@ export function ScheduleOverview({
                     {Object.keys(turns).map((turn, turnIdx) => (
                       <th key={turn} className="border p-2">
                         <div>Turnus {turnIdx + 1}</div>
-                        <div className="text-xs text-gray-600">{getTurnusInfo(turn, turns).start} - {getTurnusInfo(turn, turns).end}</div>
+                        <div className="text-xs text-muted-foreground">{getTurnusInfo(turn, turns).start} - {getTurnusInfo(turn, turns).end}</div>
                       </th>
                     ))}
                   </tr>
@@ -418,7 +417,7 @@ export function ScheduleOverview({
                         return (
                           <td
                             key={turn}
-                            className={`border p-2 text-center font-bold text-black ${group ? GROUP_COLORS[groups.findIndex(g => g.id === group.id) % GROUP_COLORS.length] : ''} ${group ? DARK_GROUP_COLORS[groups.findIndex(g => g.id === group.id) % DARK_GROUP_COLORS.length] : ''}`}
+                            className={`border p-2 text-center font-bold text-foreground ${group ? GROUP_COLORS[groups.findIndex(g => g.id === group.id) % GROUP_COLORS.length] : ''}`}
                           >
                             {group ? group.id : ''}
                           </td>
@@ -456,7 +455,7 @@ export function ScheduleOverview({
                           Turnus {index + 1}
                         </td>
                       )}
-                      <td className="border p-2">{week.date}</td>
+                      <td className="border p-2">{formatDate(week.date)}</td>
                       <td className="border p-2">{week.week}</td>
                     </tr>
                   ))

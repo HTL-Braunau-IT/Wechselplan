@@ -1,5 +1,4 @@
 import { ComboboxSelect } from '@/components/ui/combobox-select'
-import { useTranslation } from 'next-i18next'
 
 interface Room {
 	id: number
@@ -13,15 +12,12 @@ interface RoomSelectProps {
 }
 
 export function RoomSelect({ value, onChange, rooms }: RoomSelectProps) {
-	const { t } = useTranslation('schedule')
-
 	return (
 		<ComboboxSelect
 			value={value ?? ''}
 			onChange={onChange}
 			options={rooms}
-			placeholder={t('selectRoom')}
+			placeholder="Raum auswählen"
 		/>
 	)
 }
-

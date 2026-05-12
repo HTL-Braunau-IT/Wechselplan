@@ -19,7 +19,7 @@ export function PageState({ loading, error, empty, emptyMessage = 'No data avail
   }
 
   if (error) {
-    return <div className="p-8 text-center text-red-500">{error}</div>
+    return <div className="p-8 text-center text-destructive">{error}</div>
   }
 
   if (empty) {

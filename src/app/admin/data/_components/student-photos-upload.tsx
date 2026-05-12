@@ -270,7 +270,7 @@ export function StudentPhotosUpload() {
             {results.map((r, i) => (
               <li key={i} className="flex items-center gap-2 py-1">
                 {r.success ? (
-                  <CheckCircle className="h-4 w-4 shrink-0 text-green-600" />
+                  <CheckCircle className="h-4 w-4 shrink-0 text-status-success" />
                 ) : (
                   <XCircle className="h-4 w-4 shrink-0 text-destructive" />
                 )}

@@ -16,7 +16,6 @@ interface StudentItemProps {
 	index: number
 	onRemove: (studentId: number) => void
 	onTransfer?: (student: Student) => void
-	t: (key: string) => string
 }
 
 /**
@@ -27,7 +26,7 @@ interface StudentItemProps {
  * @param onRemove - Callback invoked with the student's ID when the remove button is clicked.
  * @param onTransfer - Optional callback invoked with the student when the transfer button is clicked.
  */
-export function StudentItem({ student, index, onRemove, onTransfer, t }: StudentItemProps) {
+export function StudentItem({ student, index, onRemove, onTransfer }: StudentItemProps) {
 	const { attributes, listeners, setNodeRef, transform } = useDraggable({
 		id: `student-${student.id}`
 	})
@@ -57,7 +56,7 @@ export function StudentItem({ student, index, onRemove, onTransfer, t }: Student
 				</div>
 				{student.originalClass && (
 					<div className="text-xs text-muted-foreground ml-4 bg-muted/50 px-2 py-1 rounded-md inline-block">
-						{t('originallyFrom')}: {student.originalClass}
+						Ursprünglich aus: {student.originalClass}
 					</div>
 				)}
 			</div>
@@ -70,7 +69,7 @@ export function StudentItem({ student, index, onRemove, onTransfer, t }: Student
 						}}
 						onPointerDown={(e) => e.stopPropagation()}
 						className="text-muted-foreground hover:text-foreground"
-						title={t('transferStudent')}
+						title="Schüler in andere Klasse verschieben"
 						type="button"
 					>
 						<svg
@@ -94,7 +93,7 @@ export function StudentItem({ student, index, onRemove, onTransfer, t }: Student
 					}}
 					onPointerDown={(e) => e.stopPropagation()}
 					className="text-destructive hover:text-destructive/80"
-					title={t('removeStudent')}
+					title="Schüler entfernen"
 					type="button"
 				>
 					<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">

@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { useTranslation } from "react-i18next"
 import { AlertTriangle } from "lucide-react"
 import { useScheduleOverview } from "@/hooks/use-schedule-overview"
 import { ScheduleOverview } from "@/components/schedule-overview"
@@ -20,7 +19,6 @@ import type { ScheduleResponse, TeacherAssignmentResponse, ScheduleTerm, TurnSch
  */
 export function StudentOverview() {
     const { data: session } = useSession()
-    const { t } = useTranslation()
     const [studentClass, setStudentClass] = useState<string | null>(null)
     const [groupId, setGroupId] = useState<number | null>(null)
     const [availableWeekdays, setAvailableWeekdays] = useState<number[]>([])
@@ -103,13 +101,13 @@ export function StudentOverview() {
 
     const getWeekdayName = (weekday: number): string => {
         const weekdayNames: Record<number, string> = {
-            1: t('overview.weekdays.monday'),
-            2: t('overview.weekdays.tuesday'),
-            3: t('overview.weekdays.wednesday'),
-            4: t('overview.weekdays.thursday'),
-            5: t('overview.weekdays.friday'),
+            1: 'Montag',
+            2: 'Dienstag',
+            3: 'Mittwoch',
+            4: 'Donnerstag',
+            5: 'Freitag',
         }
-        return weekdayNames[weekday] ?? `Weekday ${weekday}`
+        return weekdayNames[weekday] ?? `Wochentag ${weekday}`
     }
 
     if (loading) {
@@ -122,10 +120,10 @@ export function StudentOverview() {
 
     if (error) {
         return (
-            <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg shadow-sm">
+            <div className="p-4 state-warning-soft rounded-lg shadow-sm">
                 <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-500" />
-                    <p className="text-yellow-800 dark:text-yellow-200">{error}</p>
+                    <AlertTriangle className="h-5 w-5" />
+                    <p>{error}</p>
                 </div>
             </div>
         )
@@ -147,12 +145,12 @@ export function StudentOverview() {
             className="w-full" 
             onValueChange={handleTabChange}
         >
-            <TabsList className="grid w-full bg-gray-100 dark:bg-gray-800" style={{ gridTemplateColumns: `repeat(${availableWeekdays.length}, 1fr)` }}>
+            <TabsList className="grid w-full bg-muted" style={{ gridTemplateColumns: `repeat(${availableWeekdays.length}, 1fr)` }}>
                 {availableWeekdays.map(weekday => (
                     <TabsTrigger 
                         key={weekday} 
                         value={`${weekday}`} 
-                        className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 dark:text-gray-300"
+                        className="data-[state=active]:bg-card"
                     >
                         {getWeekdayName(weekday)}
                     </TabsTrigger>
@@ -194,9 +192,6 @@ function StudentCurrentAssignments({
     groups: Group[]
     groupId: number | null
 }) {
-    const { t } = useTranslation()
-
-    // Get current week/turn
     const currentDate = new Date()
     const scheduleData = turns as Record<string, ScheduleTerm> | undefined
     const currentWeek = scheduleData ? Object.entries(scheduleData).find(([_, data]) => {
@@ -264,77 +259,77 @@ function StudentCurrentAssignments({
     }
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 mb-8">
+        <div className="bg-card rounded-lg shadow-md border border-border mb-8">
             <div className="p-4">
-                <h3 className="text-lg font-semibold mb-4 dark:text-white">{t('overview.student.currentAssignments')}</h3>
+                <h3 className="text-lg font-semibold mb-4">Aktuelle Lehrerzuweisungen</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* AM Period */}
-                <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
-                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{t('overview.teacher.amGroup')}</p>
+                <div className="p-3 bg-muted rounded-lg border border-border">
+                    <p className="text-sm font-semibold text-foreground mb-2">Vormittagsgruppe</p>
                     {amAssignment ? (
                         <div className="space-y-2">
                             <div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t('overview.student.teacher')}</p>
-                                <p className="font-semibold text-gray-900 dark:text-white">
+                                <p className="text-xs text-muted-foreground mb-1">Lehrer</p>
+                                <p className="font-semibold text-foreground">
                                     {amAssignment.teacherFirstName} {amAssignment.teacherLastName}
                                 </p>
                             </div>
                             <div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t('overview.student.subject')}</p>
-                                <p className="text-sm text-gray-700 dark:text-gray-300">
+                                <p className="text-xs text-muted-foreground mb-1">Fach</p>
+                                <p className="text-sm text-foreground">
                                     {amAssignment.subject}
                                 </p>
                             </div>
                             <div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t('overview.student.learningContent')}</p>
-                                <p className="text-sm text-gray-700 dark:text-gray-300">
+                                <p className="text-xs text-muted-foreground mb-1">Lerninhalt</p>
+                                <p className="text-sm text-foreground">
                                     {amAssignment.learningContent}
                                 </p>
                             </div>
                             <div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t('overview.student.room')}</p>
-                                <p className="text-sm text-gray-700 dark:text-gray-300">
+                                <p className="text-xs text-muted-foreground mb-1">Raum</p>
+                                <p className="text-sm text-foreground">
                                     {amAssignment.room}
                                 </p>
                             </div>
                         </div>
                     ) : (
-                        <p className="text-sm text-gray-500 dark:text-gray-400 italic">{t('overview.student.noAssignment')}</p>
+                        <p className="text-sm text-muted-foreground italic">Keine Zuweisung</p>
                     )}
                 </div>
 
                 {/* PM Period */}
-                <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
-                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{t('overview.teacher.pmGroup')}</p>
+                <div className="p-3 bg-muted rounded-lg border border-border">
+                    <p className="text-sm font-semibold text-foreground mb-2">Nachmittagsgruppe</p>
                     {pmAssignment ? (
                         <div className="space-y-2">
                             <div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t('overview.student.teacher')}</p>
-                                <p className="font-semibold text-gray-900 dark:text-white">
+                                <p className="text-xs text-muted-foreground mb-1">Lehrer</p>
+                                <p className="font-semibold text-foreground">
                                     {pmAssignment.teacherFirstName} {pmAssignment.teacherLastName}
                                 </p>
                             </div>
                             <div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t('overview.student.subject')}</p>
-                                <p className="text-sm text-gray-700 dark:text-gray-300">
+                                <p className="text-xs text-muted-foreground mb-1">Fach</p>
+                                <p className="text-sm text-foreground">
                                     {pmAssignment.subject}
                                 </p>
                             </div>
                             <div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t('overview.student.learningContent')}</p>
-                                <p className="text-sm text-gray-700 dark:text-gray-300">
+                                <p className="text-xs text-muted-foreground mb-1">Lerninhalt</p>
+                                <p className="text-sm text-foreground">
                                     {pmAssignment.learningContent}
                                 </p>
                             </div>
                             <div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t('overview.student.room')}</p>
-                                <p className="text-sm text-gray-700 dark:text-gray-300">
+                                <p className="text-xs text-muted-foreground mb-1">Raum</p>
+                                <p className="text-sm text-foreground">
                                     {pmAssignment.room}
                                 </p>
                             </div>
                         </div>
                     ) : (
-                        <p className="text-sm text-gray-500 dark:text-gray-400 italic">{t('overview.student.noAssignment')}</p>
+                        <p className="text-sm text-muted-foreground italic">Keine Zuweisung</p>
                     )}
                 </div>
                 </div>
@@ -371,10 +366,10 @@ function ScheduleOverviewWrapper({ className, weekday, groupId }: { className: s
 
     if (hookError) {
         return (
-            <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg shadow-sm">
+            <div className="p-4 state-warning-soft rounded-lg shadow-sm">
                 <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-500" />
-                    <p className="text-yellow-800 dark:text-yellow-200">{hookError}</p>
+                    <AlertTriangle className="h-5 w-5" />
+                    <p>{hookError}</p>
                 </div>
             </div>
         )

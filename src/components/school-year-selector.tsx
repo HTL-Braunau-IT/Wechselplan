@@ -1,7 +1,6 @@
 'use client'
 
 import { useSchoolYear } from '../contexts/school-year-context'
-import { useTranslation } from 'react-i18next'
 import {
   Select,
   SelectContent,
@@ -12,7 +11,6 @@ import {
 
 export function SchoolYearSelector() {
   const { selectedYear, years, setSchoolYear, refetchYears, isLoading } = useSchoolYear()
-  const { t } = useTranslation()
 
   if (isLoading || years.length === 0) {
     return null
@@ -31,9 +29,12 @@ export function SchoolYearSelector() {
         if (year) setSchoolYear(year)
       }}
     >
-      <SelectTrigger className="w-[140px]">
-        <SelectValue placeholder={t('common.selectSchoolYear')} />
-      </SelectTrigger>
+      <div className="flex items-center gap-2">
+        <p className="text-sm text-muted-foreground">Schuljahr:</p>
+        <SelectTrigger className="w-[140px]">
+          <SelectValue placeholder="Schuljahr auswählen" />
+        </SelectTrigger>
+      </div>
       <SelectContent>
         {years.map((year) => (
           <SelectItem key={year.id} value={String(year.id)}>

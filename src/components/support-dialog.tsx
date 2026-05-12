@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { HelpCircle } from 'lucide-react'
 import { Button } from '~/components/ui/button'
@@ -22,7 +21,6 @@ import { toast } from 'sonner'
  * The dialog includes form validation, submission handling, and localized UI text. On successful submission, a confirmation toast is shown and the form is reset. If submission fails, an error toast is displayed.
  */
 export function SupportDialog() {
-  const { t } = useTranslation()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [open, setOpen] = useState(false)
@@ -50,13 +48,13 @@ export function SupportDialog() {
         throw new Error(errorData.message ?? 'Failed to submit support message')
       }
 
-      toast.success(t('support.messageSent'))
+      toast.success('Ihre Nachricht wurde erfolgreich gesendet')
       setOpen(false)
       setName('')
       setMessage('')
     } catch (error) {
       console.error('Support submission error:', error)
-      toast.error(error instanceof Error ? error.message : t('support.error'))
+      toast.error(error instanceof Error ? error.message : 'Nachricht konnte nicht gesendet werden. Bitte versuchen Sie es erneut.')
     } finally {
       setIsSubmitting(false)
     }
@@ -67,29 +65,29 @@ export function SupportDialog() {
       <DialogTrigger asChild>
         <Button variant="ghost" size="sm" className="flex items-center gap-2 hover:bg-muted/50">
           <HelpCircle className="h-4 w-4" />
-          {t('navigation.support', 'Help & Support')}
+          Hilfe & Support
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{t('support.title')}</DialogTitle>
+          <DialogTitle>Support</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <label htmlFor="name" className="text-sm font-medium">
-              {t('support.name')}
+              Name
             </label>
             <Input
               id="name"
               value={name}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
               required
-              placeholder={t('support.namePlaceholder')}
+              placeholder="Geben Sie Ihren Namen ein"
             />
           </div>
           <div className="space-y-2">
             <label htmlFor="message" className="text-sm font-medium">
-              {t('support.message')}
+              Nachricht
             </label>
 <Textarea
    id="message"
@@ -97,15 +95,15 @@ export function SupportDialog() {
    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setMessage(e.target.value)}
    required
   maxLength={1000}
-   placeholder={t('support.messagePlaceholder')}
+   placeholder="Wie können wir Ihnen helfen?"
    rows={4}
  />
           </div>
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? t('common.submitting') : t('support.submit')}
+            {isSubmitting ? 'Wird gesendet...' : 'Absenden'}
           </Button>
         </form>
       </DialogContent>
     </Dialog>
   )
-} 
+}

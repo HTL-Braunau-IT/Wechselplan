@@ -1,6 +1,5 @@
 'use client'
 
-import { useTranslation } from 'next-i18next'
 import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
@@ -17,13 +16,20 @@ const steps: Step[] = [
 	{ id: 'overview', path: '/schedule/create/overview' }
 ]
 
+const STEP_LABELS: Record<string, string> = {
+	class: 'Klasse & Gruppen',
+	teachers: 'Lehrer zuweisen',
+	rotation: 'Turnus',
+	times: 'Unterrichtszeiten',
+	overview: 'Übersicht',
+}
+
 /**
  * Renders a vertical progress indicator for the schedule creation process, visually displaying completed, current, and upcoming steps.
  *
  * The progress indicator highlights the user's current position in the multi-step schedule creation flow, disables navigation to future steps, and preserves the selected class in the URL when navigating between steps.
  */
 export function CreationProgress() {
-	const { t } = useTranslation('schedule')
 	const pathname = usePathname()
 	const searchParams = useSearchParams()
 	const selectedClass = searchParams.get('class')
@@ -60,7 +66,7 @@ export function CreationProgress() {
 						<div
 							className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-colors shrink-0 ${
 								isCompleted
-									? 'bg-green-600 border-green-600 text-white'
+									? 'bg-primary border-primary text-primary-foreground'
 									: isCurrent
 									? 'border-primary text-primary bg-primary/10'
 									: 'border-muted text-muted-foreground'
@@ -88,20 +94,20 @@ export function CreationProgress() {
 						<div
 							className={`ml-3 text-sm font-medium whitespace-nowrap transition-colors ${
 								isCompleted
-									? 'text-green-600'
+									? 'text-primary'
 									: isCurrent
 									? 'text-primary font-semibold'
 									: 'text-muted-foreground'
 							}`}
 						>
-							{t(`steps.${step.id}`)}
+							{STEP_LABELS[step.id] ?? step.id}
 						</div>
 
 						{/* Connecting line */}
 						{index < steps.length - 1 && (
 							<div
 								className={`absolute left-4 top-[32px] w-0.5 h-8 ${
-									isCompleted ? 'bg-green-600' : 'bg-muted'
+									isCompleted ? 'bg-primary' : 'bg-muted'
 								}`}
 							/>
 						)}
@@ -110,4 +116,4 @@ export function CreationProgress() {
 			})}
 		</div>
 	)
-} 
+}

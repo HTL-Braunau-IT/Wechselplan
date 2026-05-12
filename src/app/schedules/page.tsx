@@ -445,7 +445,7 @@ export default function SchedulesPage() {
       <Spinner size="lg" />
     </div>
   )
-  if (error) return <div className="p-8 text-center text-red-500">{error}</div>
+  if (error) return <div className="p-8 text-center text-destructive">{error}</div>
 
   const handlePDFExport = async () => {
     setSavingPdf(true)
@@ -498,22 +498,22 @@ export default function SchedulesPage() {
   return (
     <div className="container mx-auto p-4">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold mb-4">Schedules Overview</h1>
+        <h1 className="text-2xl mt-8 font-bold mb-4">Übersicht Wechselpläne</h1>
         <div className="mb-6">
           <Select value={selectedClass} onValueChange={handleClassChange}>
             <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Select a class" />
+              <SelectValue placeholder="Klasse auswählen" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Classes</SelectItem>
+              <SelectItem value="all">Alle Klassen</SelectItem>
               {classes.map((cls) => (
                 <SelectItem key={cls.id} value={cls.name} className="flex items-center">
                   <span className="inline-block w-32 truncate">{cls.name}</span>
                   <div className="w-8 flex justify-center">
                     {hasSchedule(cls.name) ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <CheckCircle2 className="h-4 w-4 text-status-success" />
                     ) : (
-                      <XCircle className="h-4 w-4 text-red-500" />
+                      <XCircle className="h-4 w-4 text-status-danger" />
                     )}
                   </div>
                 </SelectItem>
@@ -579,7 +579,7 @@ export default function SchedulesPage() {
               return (
                 <Collapsible 
                   key={cls.id} 
-                  className="border rounded-lg"
+                  className="border rounded-lg bg-secondary"
                   open={isExpanded}
                   onOpenChange={(open) => setExpandedClass(open ? cls.name : null)}
                 >
@@ -587,9 +587,9 @@ export default function SchedulesPage() {
                     <div className="flex items-center gap-2">
                       <h3 className="text-xl font-semibold">{cls.name}</h3>
                       {hasScheduleForClass ? (
-                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                        <CheckCircle2 className="h-5 w-5 text-status-success" />
                       ) : (
-                        <XCircle className="h-5 w-5 text-red-500" />
+                        <XCircle className="h-5 w-5 text-status-danger" />
                       )}
                     </div>
                     <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />

@@ -359,7 +359,7 @@ export function DataTable({
                   <div key={column.key} className="space-y-2">
                     <label className="text-sm font-medium">
                       {column.label}
-                      {column.required && <span className="text-red-500 ml-1">*</span>}
+                      {column.required && <span className="text-destructive ml-1">*</span>}
                     </label>
                     {renderFormField(column)}
                   </div>
@@ -439,7 +439,7 @@ export function DataTable({
                 <div key={column.key} className="space-y-2">
                   <label className="text-sm font-medium">
                     {column.label}
-                    {column.required && <span className="text-red-500 ml-1">*</span>}
+                    {column.required && <span className="text-destructive ml-1">*</span>}
                   </label>
                   {renderFormField(column)}
                 </div>

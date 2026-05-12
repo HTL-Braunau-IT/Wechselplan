@@ -169,7 +169,7 @@ export function ChangelogDialog({ release, allReleases = [], open, onOpenChange 
                 )}
               </div>
               
-              <div className="prose prose-sm dark:prose-invert max-w-none text-sm">
+              <div className="prose prose-sm max-w-none text-sm">
                 {formatChangelog(releaseItem.body)}
               </div>
             </div>

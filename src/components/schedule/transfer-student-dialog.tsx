@@ -32,7 +32,6 @@ interface TransferStudentDialogProps {
 	classes: ClassOption[]
 	onConfirm: (targetClassId: number, targetGroupId: number | null) => Promise<void> | void
 	transferring: boolean
-	t: (key: string, options?: Record<string, unknown>) => string
 }
 
 /**
@@ -49,7 +48,6 @@ export function TransferStudentDialog({
 	classes,
 	onConfirm,
 	transferring,
-	t
 }: TransferStudentDialogProps) {
 	const [targetClassId, setTargetClassId] = useState<string>('')
 	const [targetGroup, setTargetGroup] = useState<string>(UNASSIGNED_GROUP_VALUE)
@@ -96,7 +94,7 @@ export function TransferStudentDialog({
 			.catch(() => {
 				if (cancelled) return
 				setAvailableGroups([])
-				setError(t('transferLoadGroupsError'))
+				setError('Gruppen der Zielklasse konnten nicht geladen werden.')
 			})
 			.finally(() => {
 				if (!cancelled) setLoadingGroups(false)
@@ -105,7 +103,7 @@ export function TransferStudentDialog({
 		return () => {
 			cancelled = true
 		}
-	}, [targetClassId, t])
+	}, [targetClassId])
 
 	const availableClasses = classes.filter((c) => c.id !== currentClassId)
 
@@ -115,7 +113,7 @@ export function TransferStudentDialog({
 
 		const classIdNumber = parseInt(targetClassId, 10)
 		if (!classIdNumber || Number.isNaN(classIdNumber)) {
-			setError(t('transferSelectClassError'))
+			setError('Bitte wählen Sie eine Zielklasse aus.')
 			return
 		}
 
@@ -125,7 +123,7 @@ export function TransferStudentDialog({
 		try {
 			await onConfirm(classIdNumber, groupIdNumber)
 		} catch {
-			setError(t('transferError'))
+			setError('Schüler konnte nicht verschoben werden.')
 		}
 	}
 
@@ -134,25 +132,23 @@ export function TransferStudentDialog({
 			<DialogContent className="max-w-md mx-auto w-[95vw] sm:w-full">
 				<DialogHeader className="space-y-3">
 					<DialogTitle className="text-xl font-semibold">
-						{t('transferStudentTitle')}
+						Schüler in andere Klasse verschieben
 					</DialogTitle>
 					<DialogDescription className="text-sm text-muted-foreground leading-relaxed">
 						{student
-							? t('transferStudentDescription', {
-									name: `${student.lastName}, ${student.firstName}`
-								})
-							: t('transferStudentDescriptionGeneric')}
+							? `Verschieben Sie ${student.lastName}, ${student.firstName} in eine andere Klasse. Bestehende Noten bleiben bei der bisherigen Klasse erhalten.`
+							: 'Verschieben Sie den Schüler in eine andere Klasse. Bestehende Noten bleiben bei der bisherigen Klasse erhalten.'}
 					</DialogDescription>
 				</DialogHeader>
 				<form onSubmit={handleSubmit} className="space-y-6">
 					<div className="space-y-5">
 						<div className="space-y-2">
 							<Label htmlFor="target-class" className="text-sm font-medium text-foreground">
-								{t('targetClass')}
+								Zielklasse
 							</Label>
 							<Select value={targetClassId} onValueChange={setTargetClassId}>
 								<SelectTrigger id="target-class" className="w-full">
-									<SelectValue placeholder={t('pleaseSelect')} />
+									<SelectValue placeholder="Bitte wählen..." />
 								</SelectTrigger>
 								<SelectContent>
 									{availableClasses.map((cls) => (
@@ -165,7 +161,7 @@ export function TransferStudentDialog({
 						</div>
 						<div className="space-y-2">
 							<Label htmlFor="target-group" className="text-sm font-medium text-foreground">
-								{t('targetGroup')}
+								Zielgruppe
 							</Label>
 							<Select
 								value={targetGroup}
@@ -175,17 +171,17 @@ export function TransferStudentDialog({
 								<SelectTrigger id="target-group" className="w-full">
 									<SelectValue
 										placeholder={
-											loadingGroups ? t('loadingGroups') : t('pleaseSelect')
+											loadingGroups ? 'Gruppen werden geladen...' : 'Bitte wählen...'
 										}
 									/>
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value={UNASSIGNED_GROUP_VALUE}>
-										{t('unassignedGroup')}
+										Nicht zugewiesen
 									</SelectItem>
 									{availableGroups.map((gid) => (
 										<SelectItem key={gid} value={gid.toString()}>
-											{t('groupNumber', { number: gid })}
+											Gruppe {gid}
 										</SelectItem>
 									))}
 								</SelectContent>
@@ -205,14 +201,14 @@ export function TransferStudentDialog({
 							disabled={transferring}
 							className="w-full sm:w-auto"
 						>
-							{t('cancel')}
+							Abbrechen
 						</Button>
 						<Button
 							type="submit"
 							disabled={transferring || !targetClassId}
 							className="w-full sm:w-auto"
 						>
-							{transferring ? t('transferring') : t('transfer')}
+							{transferring ? 'Wird verschoben...' : 'Verschieben'}
 						</Button>
 					</DialogFooter>
 				</form>

@@ -127,7 +127,7 @@ export function ClassYearStaffTab() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-100">
+      <div className="rounded state-info-soft px-3 py-2 text-sm">
         Verwalte Klassenvorstand und Klassenleitung pro Schuljahr. Die Klassen-Tabelle zeigt nur den Eintrag des aktuellen Schuljahres.
       </div>
 

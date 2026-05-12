@@ -1,7 +1,6 @@
 'use client'
 
 import { useDroppable } from '@dnd-kit/core'
-import { useTranslation } from 'next-i18next'
 
 interface Group {
 	id: number
@@ -24,7 +23,6 @@ const UNASSIGNED_GROUP_ID = 0
  * @param children - The student items or other elements to render inside the group container.
  */
 export function GroupContainer({ group, children }: GroupContainerProps) {
-	const { t } = useTranslation('schedule')
 	const { setNodeRef, isOver } = useDroppable({
 		id: `group-${group.id}`
 	})
@@ -37,7 +35,7 @@ export function GroupContainer({ group, children }: GroupContainerProps) {
 			}`}
 		>
 			<h3 className="font-semibold mb-3 text-foreground text-center pb-2 border-b border-border/50">
-				{group.id === UNASSIGNED_GROUP_ID ? t('unassigned') : `${t('group')} ${group.id}`}
+				{group.id === UNASSIGNED_GROUP_ID ? 'Nicht zugewiesen' : `Gruppe ${group.id}`}
 			</h3>
 			<div className="space-y-2">
 				{children}
@@ -45,4 +43,3 @@ export function GroupContainer({ group, children }: GroupContainerProps) {
 		</div>
 	)
 }
-

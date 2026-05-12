@@ -1,5 +1,4 @@
 import { ComboboxSelect } from '@/components/ui/combobox-select'
-import { useTranslation } from 'next-i18next'
 
 interface Subject {
 	id: number
@@ -13,15 +12,12 @@ interface SubjectSelectProps {
 }
 
 export function SubjectSelect({ value, onChange, subjects }: SubjectSelectProps) {
-	const { t } = useTranslation('schedule')
-
 	return (
 		<ComboboxSelect
 			value={value ?? ''}
 			onChange={onChange}
 			options={subjects}
-			placeholder={t('selectSubject')}
+			placeholder="Fach auswählen"
 		/>
 	)
 }
-

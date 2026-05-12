@@ -544,7 +544,7 @@ export default function EntraSyncSettingsPage() {
               <AlertTitle>Aktuell ausgewählte Gruppen</AlertTitle>
               <AlertDescription className="space-y-1">
                 {unavailableSelectedIds.length > 0 ? (
-                  <div className="mb-2 flex items-center justify-between gap-2 rounded border border-amber-300/60 bg-amber-50/40 p-2 text-xs">
+                  <div className="mb-2 flex items-center justify-between gap-2 rounded state-warning-soft p-2 text-xs">
                     <span>
                       {unavailableSelectedIds.length} ausgewählte Gruppe(n) sind nicht in der
                       aktuellen Liste zulässiger Gruppen (Windows Server AD + mail-enabled security).

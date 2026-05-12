@@ -4,7 +4,6 @@ import { useEffect, useState, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
-import { useTranslation } from 'next-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -54,7 +53,7 @@ interface AssignmentsResponse {
 // Add constant for unassigned group ID
 const UNASSIGNED_GROUP_ID = 0
 
-const WEEKDAY_LABEL_KEYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] as const
+const WEEKDAY_LABELS_DE = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag'] as const
 
 // Add constant for maximum group size
 const MAX_GROUP_SIZE = 12
@@ -112,8 +111,6 @@ function distributeStudentsEvenly(students: Student[], numGroups: number): Group
  */
 export default function ScheduleClassSelectPage() {
 	const router = useRouter()
-	const { t } = useTranslation('schedule')
-	const { t: tCommon } = useTranslation('common')
 	const searchParams = useSearchParams()
 	const weekdayRaw = searchParams.get('weekday')
 	const parsedWeekFromUrl = weekdayRaw ? parseInt(weekdayRaw, 10) : NaN
@@ -206,7 +203,7 @@ export default function ScheduleClassSelectPage() {
 
 	const { selectedYear } = useSchoolYear()
 	const schoolYearId = selectedYear?.id
-	const updateAssignmentsMessage = t('updateAssignmentsMessage').replace('Lehrerzuweisungen', 'Schülerzuweisungen')
+	const updateAssignmentsMessage = 'Es existieren bereits Schülerzuweisungen für diese Klasse. Möchten Sie die bestehenden Zuweisungen mit den neuen Daten aktualisieren?'
 
 	// Fetch classes using React Query (filtered by selected school year)
 	const { data: classesData, isLoading: isLoadingClassesData } = useQuery<Class[]>({
@@ -306,7 +303,7 @@ export default function ScheduleClassSelectPage() {
 
 			// Check if class has too many students
 			if (studentsData.length > MAX_SUPPORTED_STUDENTS) {
-				setError(t('tooManyStudentsError', { max: MAX_SUPPORTED_STUDENTS, count: studentsData.length }))
+				setError(`Diese Klasse hat ${studentsData.length} Schüler, aber maximal ${MAX_SUPPORTED_STUDENTS} Schüler werden unterstützt. Bitte reduzieren Sie die Anzahl der Schüler oder kontaktieren Sie den Administrator.`)
 				setLoading(false)
 				return
 			}
@@ -352,7 +349,7 @@ export default function ScheduleClassSelectPage() {
 		} finally {
 			setLoading(false)
 		}
-	}, [needsWeekdayPick, selectedClass, selectedClassId, studentsData, assignmentsData, isLoadingStudents, isLoadingAssignments, t])
+	}, [needsWeekdayPick, selectedClass, selectedClassId, studentsData, assignmentsData, isLoadingStudents, isLoadingAssignments])
 
 	useEffect(() => {
 		if (students.length === 0) return
@@ -474,11 +471,11 @@ export default function ScheduleClassSelectPage() {
 	// Add effect to check group sizes when groups change
 	useEffect(() => {
 		if (!checkGroupSizes(groups)) {
-			setError(t('maxGroupSizeError'))
+			setError('Eine Gruppe darf nicht mehr als 12 Schüler haben')
 		} else {
 			setError(null)
 		}
-	}, [groups, t])
+	}, [groups])
 
 	/**
 	 * Updates the number of groups based on the selected value from the group size dropdown.
@@ -780,17 +777,17 @@ export default function ScheduleClassSelectPage() {
 		
 		// Validate form
 		if (!combineClasses.class1Id || !combineClasses.class2Id) {
-			setError(t('bothClassesRequired'))
+			setError('Beide Klassen sind erforderlich')
 			return
 		}
 
 		if (combineClasses.class1Id === combineClasses.class2Id) {
-			setError(t('selectDifferentClasses'))
+			setError('Bitte wählen Sie zwei verschiedene Klassen aus')
 			return
 		}
 
 		if (!combineClasses.combinedClassName.trim()) {
-			setError(t('combinedClassNameRequired'))
+			setError('Name der zusammengeführten Klasse ist erforderlich')
 			return
 		}
 
@@ -851,7 +848,7 @@ export default function ScheduleClassSelectPage() {
 			if (errorMessage.includes('Cannot combine classes') && errorMessage.includes('students')) {
 				setError(errorMessage)
 			} else {
-				setError(t('classesCombinedError'))
+				setError('Klassen konnten nicht zusammengeführt werden.')
 			}
 		} finally {
 			setCombiningClasses(false)
@@ -863,21 +860,21 @@ export default function ScheduleClassSelectPage() {
 			<Card>
 				<CardHeader>
 					<CardTitle>
-						{needsWeekdayPick ? t('selectClass') : t('studentsOfClass', { class: selectedClass })}
+						{needsWeekdayPick ? 'Klasse auswählen' : `Schüler der Klasse ${selectedClass}`}
 					</CardTitle>
 					{!needsWeekdayPick && scheduleWeekday != null && (
 						<p className="text-sm text-muted-foreground mt-1">
-							{tCommon(`overview.weekdays.${WEEKDAY_LABEL_KEYS[scheduleWeekday - 1]}`)}
+							{WEEKDAY_LABELS_DE[scheduleWeekday - 1]}
 						</p>
 					)}
 				</CardHeader>
 				<CardContent className="space-y-6">
 					{loadingClasses && classes.length === 0 ? (
-						<p>{t('loadingClasses')}</p>
+						<p>Lade Klassen...</p>
 					) : (
 						<>
 							<div className="rounded-lg border bg-muted/50 p-4 text-sm text-muted-foreground">
-								{needsWeekdayPick ? t('help.classSelection') : t('help.groupAssignment')}
+								{needsWeekdayPick ? 'Wählen Sie hier eine Klasse und einen Wochentag aus, um den Wechselplan für diesen Tag zu erstellen oder zu bearbeiten.' : 'Teilen Sie die Schülerinnen und Schüler per Drag-and-drop in Gruppen ein und prüfen Sie die Gruppengröße, bevor Sie fortfahren.'}
 							</div>
 							{error && (
 								<div className="p-4 bg-destructive/10 text-destructive rounded-lg border border-destructive/20 text-sm">
@@ -888,11 +885,11 @@ export default function ScheduleClassSelectPage() {
 								<div className="space-y-6">
 									<div>
 										<Label htmlFor="class-select-entry" className="block mb-2 font-medium">
-											{t('class')}
+											{'Klasse'}
 										</Label>
 										<Select value={selectedClass} onValueChange={handleClassSelectOnEntry}>
 											<SelectTrigger id="class-select-entry" className="w-full">
-												<SelectValue placeholder={t('pleaseSelect')} />
+												<SelectValue placeholder={'Bitte wählen...'} />
 											</SelectTrigger>
 											<SelectContent>
 												{classes.map((cls) => (
@@ -910,9 +907,9 @@ export default function ScheduleClassSelectPage() {
 									)}
 									{selectedClass && schoolYearId != null && (
 										<div className="space-y-4">
-											<Label className="block font-medium">{t('selectWeekday')}</Label>
+											<Label className="block font-medium">Wochentag auswählen</Label>
 											{isLoadingPresence ? (
-												<p className="text-sm text-muted-foreground">{t('loadingStudents')}</p>
+												<p className="text-sm text-muted-foreground">Lade Schüler...</p>
 											) : (
 												<ul className="space-y-2" role="list">
 													{[1, 2, 3, 4, 5].map((wd) => (
@@ -928,7 +925,7 @@ export default function ScheduleClassSelectPage() {
 															>
 																{weekdayPresence?.[wd] ? (
 																	<CheckCircle2
-																		className="h-5 w-5 text-green-600 shrink-0"
+																		className="h-5 w-5 text-status-success shrink-0"
 																		aria-hidden
 																	/>
 																) : (
@@ -938,7 +935,7 @@ export default function ScheduleClassSelectPage() {
 																	/>
 																)}
 																<span className="font-medium">
-																	{tCommon(`overview.weekdays.${WEEKDAY_LABEL_KEYS[wd - 1]}`)}
+																	{WEEKDAY_LABELS_DE[wd - 1]}
 																</span>
 															</button>
 														</li>
@@ -952,7 +949,7 @@ export default function ScheduleClassSelectPage() {
 													disabled={!selectedClass || entrySelectedWeekday == null}
 													className="bg-primary text-primary-foreground hover:bg-primary/90"
 												>
-													{t('next')}
+													{'Weiter'}
 												</Button>
 											</div>
 										</div>
@@ -967,7 +964,7 @@ export default function ScheduleClassSelectPage() {
 											variant="outline"
 											className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
 										>
-											{t('combineClasses')}
+											{'Klassen zusammenführen'}
 										</Button>
 									</div>
 									{selectedClass && (
@@ -979,11 +976,11 @@ export default function ScheduleClassSelectPage() {
 											className="space-y-6"
 										>
 											<div className="flex justify-between items-center mb-4 flex-wrap gap-4">
-												<h2 className="text-lg font-semibold sr-only">{t('studentsOfClass', { class: selectedClass })}</h2>
+												<h2 className="text-lg font-semibold sr-only">{`Schüler der Klasse ${selectedClass}`}</h2>
 												<div className="flex items-center gap-4">
 													<div className="flex items-center gap-2">
 														<label htmlFor="group-size" className="text-sm font-medium">
-															{t('numberOfGroups')}:
+															{'Anzahl Gruppen'}:
 														</label>
 														<select
 															id="group-size"
@@ -1002,12 +999,12 @@ export default function ScheduleClassSelectPage() {
 														variant="outline"
 														className="text-sm"
 													>
-														{t('resetGroups')}
+														{'Gruppen zurücksetzen'}
 													</Button>
 												</div>
 											</div>
 											{loading ? (
-												<p>{t('loadingStudents')}</p>
+												<p>Lade Schüler...</p>
 											) : (
 												<DndContext
 													sensors={sensors}
@@ -1035,7 +1032,6 @@ export default function ScheduleClassSelectPage() {
 																				student={student}
 																				index={index}
 																				onRemove={handleStudentRemoval}
-																				t={t}
 																			/>
 																		))}
 																	</div>
@@ -1059,7 +1055,6 @@ export default function ScheduleClassSelectPage() {
 																					student={student}
 																					index={index}
 																					onRemove={handleStudentRemoval}
-																					t={t}
 																				/>
 																			)
 																		)}
@@ -1083,7 +1078,7 @@ export default function ScheduleClassSelectPage() {
 													disabled={!selectedClass}
 													className="bg-primary text-primary-foreground hover:bg-primary/90"
 												>
-													{t('next')}
+													{'Weiter'}
 												</Button>
 											</div>
 										</form>
@@ -1099,14 +1094,14 @@ export default function ScheduleClassSelectPage() {
 			<Dialog open={showMaxSizeDialog} onOpenChange={setShowMaxSizeDialog}>
 				<DialogContent>
 					<DialogHeader>
-						<DialogTitle>{t('maxGroupSizeError')}</DialogTitle>
+						<DialogTitle>{'Eine Gruppe darf nicht mehr als 12 Schüler haben'}</DialogTitle>
 						<DialogDescription>
-							{t('maxGroupSizeDescription')}
+							{'Bitte wählen Sie eine andere Gruppe oder erstellen Sie eine neue Gruppe, um weitere Schüler aufzunehmen.'}
 						</DialogDescription>
 					</DialogHeader>
 					<DialogFooter>
 						<Button onClick={() => setShowMaxSizeDialog(false)}>
-							{t('ok')}
+							{'OK'}
 						</Button>
 					</DialogFooter>
 				</DialogContent>
@@ -1115,15 +1110,15 @@ export default function ScheduleClassSelectPage() {
 			<Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
 				<DialogContent>
 					<DialogHeader>
-						<DialogTitle>{t('updateAssignmentsTitle')}</DialogTitle>
+						<DialogTitle>{'Zuweisungen aktualisieren'}</DialogTitle>
 						<DialogDescription>{updateAssignmentsMessage}</DialogDescription>
 					</DialogHeader>
 					<DialogFooter>
 						<Button variant="outline" onClick={handleCancelUpdate}>
-							{t('cancel')}
+							{'Abbrechen'}
 						</Button>
 						<Button onClick={handleConfirmUpdate}>
-							{t('update')}
+							{'Aktualisieren'}
 						</Button>
 					</DialogFooter>
 				</DialogContent>
@@ -1138,7 +1133,6 @@ export default function ScheduleClassSelectPage() {
 				onCombineClassesChange={setCombineClasses}
 				onSubmit={handleCombineClasses}
 				combining={combiningClasses}
-				t={t}
 			/>
 		</div>
 	)

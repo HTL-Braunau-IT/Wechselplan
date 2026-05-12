@@ -1,5 +1,4 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useTranslation } from 'next-i18next'
 
 interface Teacher {
 	id: number
@@ -14,15 +13,13 @@ interface TeacherSelectProps {
 }
 
 export function TeacherSelect({ value, onChange, teachers }: TeacherSelectProps) {
-	const { t } = useTranslation('schedule')
-
 	return (
 		<Select
 			value={value?.toString() ?? ''}
 			onValueChange={(value) => onChange(Number(value))}
 		>
 			<SelectTrigger className="w-full">
-				<SelectValue placeholder={t('selectTeacher')} />
+				<SelectValue placeholder="Lehrer auswählen" />
 			</SelectTrigger>
 			<SelectContent>
 				{teachers.map((teacher) => (
@@ -34,4 +31,3 @@ export function TeacherSelect({ value, onChange, teachers }: TeacherSelectProps)
 		</Select>
 	)
 }
-

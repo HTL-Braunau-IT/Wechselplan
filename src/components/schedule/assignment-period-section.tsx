@@ -41,7 +41,6 @@ interface Props {
   onStringFieldChange: (groupId: number, field: 'subject' | 'learningContent' | 'room', value: string) => void
   onClearRow: (groupId: number) => void
   getDisplayValue: (assignment: Assignment, field: 'subject' | 'learningContent' | 'room') => string
-  t: (key: string) => string
   rightAction?: ReactNode
 }
 
@@ -65,7 +64,6 @@ export function AssignmentPeriodSection({
   onStringFieldChange,
   onClearRow,
   getDisplayValue,
-  t,
   rightAction
 }: Props) {
   return (
@@ -83,19 +81,19 @@ export function AssignmentPeriodSection({
             return (
               <div key={group.id} className="p-4 border rounded-lg">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-semibold">{t('group')} {group.id}</h3>
+                  <h3 className="font-semibold">Gruppe {group.id}</h3>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => onClearRow(group.id)}
                     className="text-destructive hover:text-destructive/90"
                   >
-                    {t('clearRow')}
+                    Zeile leeren
                   </Button>
                 </div>
                 <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]">
                   <div>
-                    <Label className="block text-sm font-medium mb-1">{t('teacher')}</Label>
+                    <Label className="block text-sm font-medium mb-1">Lehrer</Label>
                     <TeacherSelect
                       value={assignment.teacherId}
                       onChange={(value) => onAssignmentChange(group.id, 'teacherId', value)}
@@ -103,7 +101,7 @@ export function AssignmentPeriodSection({
                     />
                   </div>
                   <div>
-                    <Label className="block text-sm font-medium mb-1">{t('subject')}</Label>
+                    <Label className="block text-sm font-medium mb-1">Fach</Label>
                     <SubjectSelect
                       value={getDisplayValue(assignment, 'subject')}
                       onChange={(value) => onStringFieldChange(group.id, 'subject', value)}
@@ -111,7 +109,7 @@ export function AssignmentPeriodSection({
                     />
                   </div>
                   <div>
-                    <Label className="block text-sm font-medium mb-1">{t('learningContent')}</Label>
+                    <Label className="block text-sm font-medium mb-1">Lerninhalt</Label>
                     <LearningContentSelect
                       value={getDisplayValue(assignment, 'learningContent')}
                       onChange={(value) => onStringFieldChange(group.id, 'learningContent', value)}
@@ -119,7 +117,7 @@ export function AssignmentPeriodSection({
                     />
                   </div>
                   <div>
-                    <Label className="block text-sm font-medium mb-1">{t('room')}</Label>
+                    <Label className="block text-sm font-medium mb-1">Raum</Label>
                     <RoomSelect
                       value={getDisplayValue(assignment, 'room')}
                       onChange={(value) => onStringFieldChange(group.id, 'room', value)}

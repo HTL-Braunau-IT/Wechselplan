@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Label } from '@/components/ui/label'
@@ -19,7 +18,6 @@ interface TeacherCSVImportProps {
 }
 
 export function TeacherCSVImport({ onImport }: TeacherCSVImportProps) {
-  const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [csvData, setCSVData] = useState<Teacher[] | null>(null)
@@ -38,7 +36,7 @@ export function TeacherCSVImport({ onImport }: TeacherCSVImportProps) {
       document.body.removeChild(a)
     } catch (err) {
       console.error('Error downloading sample:', err)
-      setError(t('admin.teachers.import.errors.downloadSample'))
+      setError('Beispieldatei konnte nicht heruntergeladen werden')
     }
   }
 
@@ -89,7 +87,7 @@ export function TeacherCSVImport({ onImport }: TeacherCSVImportProps) {
           fileSize: file.size
         }
       })
-      setError(t('admin.teachers.import.errors.invalidCSV'))
+      setError('Ungültiges CSV-Format. Bitte überprüfen Sie die Dateistruktur.')
     } finally {
       setIsLoading(false)
     }
@@ -113,7 +111,7 @@ export function TeacherCSVImport({ onImport }: TeacherCSVImportProps) {
           teachersCount: csvData.length
         }
       })
-      setError(t('admin.teachers.import.errors.importFailed'))
+      setError('Import der Lehrer fehlgeschlagen')
     } finally {
       setIsLoading(false)
     }
@@ -128,7 +126,7 @@ export function TeacherCSVImport({ onImport }: TeacherCSVImportProps) {
           className="flex items-center space-x-2"
         >
           <Download className="h-4 w-4" />
-          <span>{t('admin.teachers.import.downloadSample')}</span>
+          <span>Beispiel-CSV herunterladen</span>
         </Button>
         <div className="flex-1">
           <input
@@ -140,10 +138,10 @@ export function TeacherCSVImport({ onImport }: TeacherCSVImportProps) {
           />
           <Label
             htmlFor="csv-upload"
-            className="cursor-pointer inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            className="cursor-pointer inline-flex items-center justify-center px-4 py-2 border border-input rounded-md shadow-sm text-sm font-medium text-foreground bg-card hover:bg-muted"
           >
             <Upload className="h-4 w-4 mr-2" />
-            {t('admin.teachers.import.uploadCSV')}
+            CSV-Datei hochladen
           </Label>
         </div>
       </div>
@@ -156,14 +154,14 @@ export function TeacherCSVImport({ onImport }: TeacherCSVImportProps) {
 
       {csvData && (
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold">{t('admin.teachers.import.previewTitle')}</h2>
+          <h2 className="text-lg font-semibold">Datenvorschau</h2>
           <div className="space-y-2">
             {csvData.map((teacher, index) => (
               <div key={index} className="flex items-center space-x-2">
                 <span className="flex-1">
                   {teacher.firstName} {teacher.lastName}
                   {teacher.schedules && teacher.schedules.length > 0 && (
-                    <span className="text-sm text-gray-500 ml-2">
+                    <span className="text-sm text-muted-foreground ml-2">
                       ({teacher.schedules.join(', ')})
                     </span>
                   )}
@@ -176,10 +174,10 @@ export function TeacherCSVImport({ onImport }: TeacherCSVImportProps) {
             disabled={isLoading}
             className="w-full md:w-auto"
           >
-            {isLoading ? t('admin.teachers.import.loading') : t('admin.teachers.import.importSelected')}
+            {isLoading ? 'Wird geladen...' : 'Ausgewählte Lehrer importieren'}
           </Button>
         </div>
       )}
     </div>
   )
-} 
+}
