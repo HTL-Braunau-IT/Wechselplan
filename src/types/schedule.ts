@@ -7,6 +7,10 @@ export type ScheduleWeek = {
 	date: string
 	week: string
 	isHoliday: boolean
+	/** Creator unchecked = excluded from active plan (default true). */
+	includedInPlan?: boolean
+	/** Derived NM spur when schedule has `pmBiweeklyAnchor` set. */
+	pmTrack?: 'A' | 'B' | null
 }
 
 export type ScheduleTerm = {
@@ -34,6 +38,7 @@ export interface ScheduleResponse {
 	selectedWeekday: number
 	additionalInfo?: string
 	semesterPlanning?: string | null
+	pmBiweeklyAnchor?: 'A_ON_ODD_WEEKS' | 'A_ON_EVEN_WEEKS' | null
 	classId?: number
 	createdAt: string
 	updatedAt?: string
@@ -44,6 +49,8 @@ export interface ScheduleResponse {
 			date: string
 			week: string
 			isHoliday: boolean
+			includedInPlan?: boolean
+			pmTrack?: 'A' | 'B' | null
 		}>
 		holidays?: Array<{
 			holiday: {
@@ -102,6 +109,8 @@ export type NormalizedTurn = {
 		date: string
 		week: string
 		isHoliday: boolean
+		includedInPlan?: boolean
+		pmTrack?: 'A' | 'B' | null
 	}>
 	holidays?: Array<{
 		holiday: {
@@ -131,6 +140,8 @@ export interface TeacherAssignmentResponse {
 	room: string
 	teacherLastName: string
 	teacherFirstName: string
+	/** PM only: ALL | A | B */
+	pmTrack?: 'ALL' | 'A' | 'B'
 }
 
 export interface TeacherAssignmentsResponse {

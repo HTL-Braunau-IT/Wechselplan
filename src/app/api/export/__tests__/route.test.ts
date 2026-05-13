@@ -21,6 +21,12 @@ vi.mock('@/lib/prisma', () => ({
     classMembership: {
       findMany: vi.fn(),
     },
+    studentWeekdayGroup: {
+      findMany: vi.fn(),
+    },
+    classYearStaff: {
+      findUnique: vi.fn(),
+    },
     student: {
       findMany: vi.fn(),
     },
@@ -128,8 +134,14 @@ describe('Export API', () => {
           roomId: 1,
           createdAt: new Date(),
           updatedAt: new Date(),
+          pmTrack: 'ALL',
         } as TeacherAssignment,
       ]);
+
+      vi.mocked(prisma.classYearStaff.findUnique).mockResolvedValue(null)
+      vi.mocked(prisma.studentWeekdayGroup.findMany).mockResolvedValue([
+        { studentId: 1, groupId: 1 }
+      ] as never)
 
       // Mock schedule data
       const findFirstScheduleMock = vi.mocked(prisma.schedule.findFirst);
@@ -144,6 +156,7 @@ describe('Export API', () => {
         selectedWeekday: 1,
         additionalInfo: null,
         semesterPlanning: null,
+        pmBiweeklyAnchor: null,
         scheduleTimes: [],
         breakTimes: [],
         turns: [

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import type { Student, Group, TeacherAssignmentResponse, TeacherAssignmentsResponse, ScheduleTime, BreakTime, TurnSchedule, ScheduleResponse } from '@/types/types'
 import { captureFrontendError } from '@/lib/frontend-error'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
+import { applyPmTracksToTurnScheduleRecord, isPmBiweeklyAnchor } from '@/lib/pm-biweekly-track'
 import { fetchAndUnwrap, parseJsonSafe, unwrapData } from '@/lib/api-client'
 
 interface UseScheduleOverviewResult {
@@ -156,7 +157,10 @@ export function useScheduleOverview(
         
         if (latestSchedule?.turns && Array.isArray(latestSchedule.turns) && latestSchedule.turns.length > 0) {
           const normalizedTurns = normalizeToJsonFormat(latestSchedule.turns)
-          setTurns(normalizedTurns)
+          const anchor = isPmBiweeklyAnchor(latestSchedule.pmBiweeklyAnchor)
+            ? latestSchedule.pmBiweeklyAnchor
+            : null
+          setTurns(applyPmTracksToTurnScheduleRecord(normalizedTurns, anchor))
         } else {
           setTurns({})
         }

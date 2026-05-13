@@ -61,31 +61,6 @@ export function StudentItem({ student, index, onRemove, onTransfer }: StudentIte
 				)}
 			</div>
 			<div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-				{onTransfer && (
-					<button
-						onClick={(e) => {
-							e.stopPropagation()
-							onTransfer(student)
-						}}
-						onPointerDown={(e) => e.stopPropagation()}
-						className="text-muted-foreground hover:text-foreground"
-						title="Schüler in andere Klasse verschieben"
-						type="button"
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							className="h-4 w-4"
-							viewBox="0 0 20 20"
-							fill="currentColor"
-						>
-							<path
-								fillRule="evenodd"
-								d="M10.293 3.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 9H3a1 1 0 110-2h9.586l-2.293-2.293a1 1 0 010-1.414zM9.707 16.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 1.414L7.414 11H17a1 1 0 110 2H7.414l2.293 2.293a1 1 0 010 1.414z"
-								clipRule="evenodd"
-							/>
-						</svg>
-					</button>
-				)}
 				<button
 					onClick={(e) => {
 						e.stopPropagation()

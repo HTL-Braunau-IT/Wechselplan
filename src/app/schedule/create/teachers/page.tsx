@@ -39,6 +39,7 @@ interface TeacherAssignment {
 	subjectId: number
 	learningContentId: number
 	roomId: number
+	pmTrack?: 'ALL' | 'A' | 'B'
 	// Custom values for when user enters their own text
 	customSubject?: string
 	customLearningContent?: string
@@ -55,12 +56,80 @@ interface TeacherAssignmentResponse {
 	subject: string
 	learningContent: string
 	room: string
+	pmTrack?: 'ALL' | 'A' | 'B'
 }
 
 interface TeacherAssignmentsResponse {
 	amAssignments: TeacherAssignmentResponse[]
 	pmAssignments: TeacherAssignmentResponse[]
 	selectedWeekday?: number
+}
+
+function mapTeacherRowsToAssignments(
+	assignments: TeacherAssignmentResponse[],
+	subjects: { id: number; name: string }[],
+	learningContents: { id: number; name: string }[],
+	rooms: { id: number; name: string }[],
+	includePmTrack: boolean
+): TeacherAssignment[] {
+	return assignments.map((assignment) => {
+		const subject = subjects.find(s => s.name === assignment.subject)
+		const learningContent = learningContents.find(lc => lc.name === assignment.learningContent)
+		const room = rooms.find(r => r.name === assignment.room)
+		const base: TeacherAssignment = {
+			groupId: assignment.groupId,
+			teacherId: assignment.teacherId,
+			subjectId: subject?.id ?? 0,
+			learningContentId: learningContent?.id ?? 0,
+			roomId: room?.id ?? 0
+		}
+		if (includePmTrack) {
+			const pt = assignment.pmTrack
+			base.pmTrack = pt === 'A' || pt === 'B' || pt === 'ALL' ? pt : 'ALL'
+		}
+		return base
+	})
+}
+
+function mapAssignmentsToSavePayload(
+	assignments: TeacherAssignment[],
+	subjects: { id: number; name: string }[],
+	learningContents: { id: number; name: string }[],
+	rooms: { id: number; name: string }[],
+	includePmTrack: boolean
+): Array<{
+	groupId: number
+	teacherId: number
+	subject: string
+	learningContent: string
+	room: string
+	pmTrack?: 'ALL' | 'A' | 'B'
+}> {
+	return assignments.map((assignment) => {
+		const subject = assignment.customSubject ?? subjects.find(s => s.id === assignment.subjectId)?.name ?? ''
+		const learningContent =
+			assignment.customLearningContent ?? learningContents.find(lc => lc.id === assignment.learningContentId)?.name ?? ''
+		const room = assignment.customRoom ?? rooms.find(r => r.id === assignment.roomId)?.name ?? ''
+		const row: {
+			groupId: number
+			teacherId: number
+			subject: string
+			learningContent: string
+			room: string
+			pmTrack?: 'ALL' | 'A' | 'B'
+		} = {
+			groupId: assignment.groupId,
+			teacherId: assignment.teacherId,
+			subject,
+			learningContent,
+			room
+		}
+		if (includePmTrack) {
+			const pt = assignment.pmTrack
+			row.pmTrack = pt === 'A' || pt === 'B' ? pt : 'ALL'
+		}
+		return row
+	})
 }
 
 /**
@@ -76,7 +145,7 @@ export default function TeacherAssignmentPage() {
 	const { selectedYear } = useSchoolYear()
 	const schoolYearId = selectedYear?.id
 	const existingAssignmentsWarning =
-		'Es existieren bereits Schülerzuweisungen für diese Klasse. Änderungen werden die bestehenden Zuweisungen aktualisieren.'
+		'Es existieren bereits eine Lehrerzuweisung für diese Klasse. Änderungen werden die bestehenden Zuweisungen aktualisieren.'
 	const selectedClass = searchParams.get('class')
 	const [selectedClassId, setSelectedClassId] = useState<number | null>(null)
 	const weekdayFromUrl = searchParams.get('weekday')
@@ -146,7 +215,8 @@ export default function TeacherAssignmentPage() {
 					teacherId: 0,
 					subjectId: 0,
 					learningContentId: 0,
-					roomId: 0
+					roomId: 0,
+					pmTrack: 'ALL' as const
 				}))
 			return [...currentAssignments, ...newAssignments]
 		}
@@ -196,42 +266,26 @@ export default function TeacherAssignmentPage() {
 						teacherId: 0,
 						subjectId: 0,
 						learningContentId: 0,
-						roomId: 0
+						roomId: 0,
+						pmTrack: 'ALL'
 					}))
 
 					// Map string values back to IDs
-					const mapAssignmentsToIds = (assignments: TeacherAssignmentResponse[]) => assignments.map(assignment => {
-						const subject = subjects.find(s => s.name === assignment.subject)
-						const learningContent = learningContents.find(lc => lc.name === assignment.learningContent)
-						const room = rooms.find(r => r.name === assignment.room)
-
-						if (!subject || !learningContent || !room) {
-							console.warn('Missing cached data for assignment mapping:', {
-								subject: assignment.subject,
-								learningContent: assignment.learningContent,
-								room: assignment.room
-							})
-						}
-
-						return {
-							groupId: assignment.groupId,
-							teacherId: assignment.teacherId,
-							subjectId: subject?.id ?? 0,
-							learningContentId: learningContent?.id ?? 0,
-							roomId: room?.id ?? 0
-						}
-					})
+					const mapAmFromResponse = (rows: TeacherAssignmentResponse[]) =>
+						mapTeacherRowsToAssignments(rows, subjects, learningContents, rooms, false)
+					const mapPmFromResponse = (rows: TeacherAssignmentResponse[]) =>
+						mapTeacherRowsToAssignments(rows, subjects, learningContents, rooms, true)
 
 					// Set AM assignments
 					if (hasExistingAmAssignments) {
-						setAmAssignments(mapAssignmentsToIds(teacherAssignmentsData.amAssignments))
+						setAmAssignments(mapAmFromResponse(teacherAssignmentsData.amAssignments))
 					} else {
 						setAmAssignments(initialAssignments)
 					}
 
 					// Set PM assignments
 					if (hasExistingPmAssignments) {
-						setPmAssignments(mapAssignmentsToIds(teacherAssignmentsData.pmAssignments))
+						setPmAssignments(mapPmFromResponse(teacherAssignmentsData.pmAssignments))
 					} else {
 						setPmAssignments(initialAssignments)
 					}
@@ -245,7 +299,8 @@ export default function TeacherAssignmentPage() {
 						teacherId: 0,
 						subjectId: 0,
 						learningContentId: 0,
-						roomId: 0
+						roomId: 0,
+						pmTrack: 'ALL'
 					}))
 					setAmAssignments(initialAssignments)
 					setPmAssignments(initialAssignments)
@@ -291,6 +346,7 @@ export default function TeacherAssignmentPage() {
 					subjectId: 0,
 					learningContentId: 0,
 					roomId: 0,
+					pmTrack: 'ALL',
 					[field]: value // Set the changed field
 				}
 				return [...current, newAssignment]
@@ -347,6 +403,7 @@ export default function TeacherAssignmentPage() {
 					subjectId: 0,
 					learningContentId: 0,
 					roomId: 0,
+					pmTrack: 'ALL',
 					[idField]: selectedOption?.id ?? 0,
 					[customField]: selectedOption ? undefined : value
 				}
@@ -366,6 +423,7 @@ export default function TeacherAssignmentPage() {
 						subjectId: 0,
 						learningContentId: 0,
 						roomId: 0,
+						pmTrack: 'ALL',
 						customSubject: undefined,
 						customLearningContent: undefined,
 						customRoom: undefined
@@ -460,19 +518,8 @@ export default function TeacherAssignmentPage() {
 			}
 
 			// Map the assignments to include string values for subject, learningContent, and room
-			const mapAssignments = (assignments: TeacherAssignment[]) => assignments.map(assignment => {
-				const subject = assignment.customSubject ?? subjects.find(s => s.id === assignment.subjectId)?.name ?? ''
-				const learningContent = assignment.customLearningContent ?? learningContents.find(lc => lc.id === assignment.learningContentId)?.name ?? ''
-				const room = assignment.customRoom ?? rooms.find(r => r.id === assignment.roomId)?.name ?? ''
-
-				return {
-					groupId: assignment.groupId,
-					teacherId: assignment.teacherId,
-					subject,
-					learningContent,
-					room
-				}
-			})
+			const amPayload = mapAssignmentsToSavePayload(validAmAssignments, subjects, learningContents, rooms, false)
+			const pmPayload = mapAssignmentsToSavePayload(validPmAssignments, subjects, learningContents, rooms, true)
 
 			// If no changes or no existing assignments, proceed with saving
 			if (!selectedClassId) throw new Error('Class ID not available')
@@ -484,8 +531,8 @@ export default function TeacherAssignmentPage() {
 				body: JSON.stringify({
 					classId: selectedClassId,
 					...(schoolYearId != null && { schoolYearId }),
-					amAssignments: mapAssignments(validAmAssignments),
-					pmAssignments: mapAssignments(validPmAssignments),
+					amAssignments: amPayload,
+					pmAssignments: pmPayload,
 					updateExisting: true,
 					selectedWeekday: selectedWeekday ?? 1
 				}),
@@ -535,20 +582,8 @@ export default function TeacherAssignmentPage() {
 		if (!pendingAssignments || !selectedClassId) return
 
 		try {
-			// Map the assignments to include string values for subject, learningContent, and room
-			const mapAssignments = (assignments: TeacherAssignment[]) => assignments.map(assignment => {
-				const subject = assignment.customSubject ?? subjects.find(s => s.id === assignment.subjectId)?.name ?? ''
-				const learningContent = assignment.customLearningContent ?? learningContents.find(lc => lc.id === assignment.learningContentId)?.name ?? ''
-				const room = assignment.customRoom ?? rooms.find(r => r.id === assignment.roomId)?.name ?? ''
-
-				return {
-					groupId: assignment.groupId,
-					teacherId: assignment.teacherId,
-					subject,
-					learningContent,
-					room
-				}
-			})
+			const amPayload = mapAssignmentsToSavePayload(pendingAssignments.amAssignments, subjects, learningContents, rooms, false)
+			const pmPayload = mapAssignmentsToSavePayload(pendingAssignments.pmAssignments, subjects, learningContents, rooms, true)
 
 			const response = await fetch('/api/schedules/teacher-assignments', {
 				method: 'POST',
@@ -558,8 +593,8 @@ export default function TeacherAssignmentPage() {
 				body: JSON.stringify({
 					classId: selectedClassId,
 					...(schoolYearId != null && { schoolYearId }),
-					amAssignments: mapAssignments(pendingAssignments.amAssignments),
-					pmAssignments: mapAssignments(pendingAssignments.pmAssignments),
+					amAssignments: amPayload,
+					pmAssignments: pmPayload,
 					updateExisting: true,
 					selectedWeekday: selectedWeekday ?? 1
 				}),
@@ -596,7 +631,7 @@ export default function TeacherAssignmentPage() {
 	}
 
 	function handleCopyAmToPm() {
-		setPmAssignments(amAssignments.map(assignment => ({ ...assignment })))
+		setPmAssignments(amAssignments.map(assignment => ({ ...assignment, pmTrack: 'ALL' as const })))
 	}
 
 	if (isLoadingCachedData ?? loading) return <div className="p-4">Laden...</div>
@@ -654,6 +689,7 @@ export default function TeacherAssignmentPage() {
 						onStringFieldChange={(groupId, field, value) => handleStringFieldChange('pm', groupId, field, value)}
 						onClearRow={(groupId) => handleClearRow('pm', groupId)}
 						getDisplayValue={getDisplayValue}
+						showPmTrack
 						rightAction={
 							<Button variant="outline" size="sm" onClick={handleCopyAmToPm} className="ml-4">
 								Von Vormittag kopieren

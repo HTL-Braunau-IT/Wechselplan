@@ -3,6 +3,8 @@ import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { generateSchedulePDF } from '@/lib/pdf-generator'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
+import { applyPmTracksToTurnScheduleRecord, isPmBiweeklyAnchor } from '@/lib/pm-biweekly-track'
+import type { TurnSchedule } from '@/types/schedule'
 import { badRequest, notFound, serverError } from '@/lib/api-response'
 
 /**
@@ -177,11 +179,16 @@ export async function POST(request: Request) {
             .map(mapAssignment);
         const pmAssignments = teacherAssignments
             .filter(a => a.period === 'PM')
-            .map(mapAssignment); 
+            .map((a) => ({
+                ...mapAssignment(a as Assignment),
+                pmTrack: a.pmTrack ?? 'ALL'
+            })); 
     
         let turns: Record<string, unknown> = {};
         if (schedule?.turns && schedule.turns.length > 0) {
-            turns = normalizeToJsonFormat(schedule.turns) as Record<string, unknown>;
+            const normalized = normalizeToJsonFormat(schedule.turns) as TurnSchedule
+            const anchor = isPmBiweeklyAnchor(schedule.pmBiweeklyAnchor) ? schedule.pmBiweeklyAnchor : null
+            turns = applyPmTracksToTurnScheduleRecord(normalized, anchor) as unknown as Record<string, unknown>;
         }
 
         // Get schedule times and break times

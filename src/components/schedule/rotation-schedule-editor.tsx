@@ -1,19 +1,26 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { addWeeks, format, setDay, isWithinInterval } from 'date-fns'
 import { captureFrontendError } from '@/lib/frontend-error'
 import { fetchAndUnwrap } from '@/lib/api-client'
-import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
+import { normalizeToJsonFormat, formatScheduleWeekDate, parseScheduleWeekDate } from '@/lib/schedule-data-helpers'
+import { applyPmTracksToTurnScheduleRecord, isPmBiweeklyAnchor, pmNachmittagJa, type PmBiweeklyAnchorValue } from '@/lib/pm-biweekly-track'
+import type { TurnSchedule } from '@/types/schedule'
 
 interface WeekInfo {
   week: string
   date: string
   isHoliday: boolean
+  /** Uncheck to exclude this Wechseltermin (trip, sports week). Default true. */
+  includedInPlan?: boolean
+  /** Derived NM spur when bi-weekly anchor is set. */
+  pmTrack?: 'A' | 'B' | null
 }
 
 interface Holiday {
@@ -48,8 +55,30 @@ interface ScheduleResponse {
   turns?: ScheduleTurnRecord[]
   additionalInfo?: string
   semesterPlanning?: string
+  pmBiweeklyAnchor?: PmBiweeklyAnchorValue | null
   className?: number
   createdAt: string
+}
+
+function mergeIncludedFromPrevious(newSchedule: Schedule, previous: Schedule): Schedule {
+  if (Object.keys(previous).length === 0) return newSchedule
+  const prevFlags = new Map<string, boolean>()
+  for (const term of Object.values(previous)) {
+    for (const w of term.weeks) {
+      prevFlags.set(w.date, w.includedInPlan !== false)
+    }
+  }
+  const merged: Schedule = {}
+  for (const [key, entry] of Object.entries(newSchedule)) {
+    merged[key] = {
+      ...entry,
+      weeks: entry.weeks.map(w => ({
+        ...w,
+        includedInPlan: prevFlags.has(w.date) ? prevFlags.get(w.date)! : true
+      }))
+    }
+  }
+  return merged
 }
 
 function scheduleResponseToUiSchedule(s: ScheduleResponse): Schedule {
@@ -63,7 +92,13 @@ interface RotationScheduleEditorProps {
   className: string | null
   initialWeekday?: number | null
   schoolYearId?: number
-  onSave: (schedule: Schedule, selectedWeekday: number, additionalInfo: string, semesterPlanning: 'first' | 'second' | null) => Promise<void>
+  onSave: (
+    schedule: Schedule,
+    selectedWeekday: number,
+    additionalInfo: string,
+    semesterPlanning: 'first' | 'second' | null,
+    pmBiweeklyAnchor: PmBiweeklyAnchorValue | null
+  ) => Promise<void>
   onCancel?: () => void
 }
 
@@ -91,10 +126,21 @@ export function RotationScheduleEditor({ className, initialWeekday, schoolYearId
   const [allSchedules, setAllSchedules] = useState<ScheduleResponse[]>([])
   const [onlyFirstSemester, setOnlyFirstSemester] = useState<boolean>(false)
   const [onlySecondSemester, setOnlySecondSemester] = useState<boolean>(false)
+  const [pmBiweeklyAnchor, setPmBiweeklyAnchor] = useState<PmBiweeklyAnchorValue | null>(null)
 
   const schoolYearStart = new Date(2025, 8, 8)
   const schoolYearEnd = new Date(2026, 6, 10)
   const schoolYearMiddle = new Date(2026, 1, 15)
+
+  const scheduleWithPmTracks = useMemo(
+    () =>
+      Object.keys(schedule).length === 0
+        ? ({} as Schedule)
+        : (applyPmTracksToTurnScheduleRecord(schedule as TurnSchedule, pmBiweeklyAnchor) as unknown as Schedule),
+    [schedule, pmBiweeklyAnchor]
+  )
+
+  const maxWeekRows = Math.max(0, ...Object.values(schedule).map((entry) => entry.weeks.length))
 
   // Handle input changes
   const handleNumberOfTermsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -213,12 +259,12 @@ export function RotationScheduleEditor({ className, initialWeekday, schoolYearId
         name: turnusKey,
         weeks: weeksWithHolidays
           .filter(week => !week.isHoliday)
-          .map(({ week, date }) => ({ week, date, isHoliday: false })),
+          .map(({ week, date }) => ({ week, date, isHoliday: false, includedInPlan: true })),
         holidays: turnHolidays
       }
     }
 
-    setSchedule(newSchedule)
+    setSchedule(prev => mergeIncludedFromPrevious(newSchedule, prev))
     isManualChangeRef.current = false
     shouldUpdateScheduleRef.current = false
   }, [numberOfTerms, selectedWeekday, isLoading, holidays, schoolYearStart, schoolYearEnd, customLengths, onlyFirstSemester, onlySecondSemester, schoolYearMiddle])
@@ -232,6 +278,8 @@ export function RotationScheduleEditor({ className, initialWeekday, schoolYearId
         setSchedule(ui)
         setNumberOfTerms(Object.keys(ui).length)
         setAdditionalInfo(scheduleForWeekday.additionalInfo ?? '')
+        const a = scheduleForWeekday.pmBiweeklyAnchor
+        setPmBiweeklyAnchor(isPmBiweeklyAnchor(a) ? a : null)
         setIsCustomLength(false)
       }
     }
@@ -285,6 +333,7 @@ export function RotationScheduleEditor({ className, initialWeekday, schoolYearId
         setSelectedWeekday(initialWeekday ?? 1)
         setNumberOfTerms(4)
         setAdditionalInfo('')
+        setPmBiweeklyAnchor(null)
         shouldUpdateScheduleRef.current = true
         return
       }
@@ -315,6 +364,8 @@ export function RotationScheduleEditor({ className, initialWeekday, schoolYearId
             setSchedule(ui)
             setNumberOfTerms(Object.keys(ui).length)
             setAdditionalInfo(currentSchedule.additionalInfo ?? '')
+            const anchor = currentSchedule.pmBiweeklyAnchor
+            setPmBiweeklyAnchor(isPmBiweeklyAnchor(anchor) ? anchor : null)
 
             // Set semester planning state based on loaded data
             if (currentSchedule.semesterPlanning === 'first') {
@@ -329,6 +380,7 @@ export function RotationScheduleEditor({ className, initialWeekday, schoolYearId
             }
           } else {
             // If no schedule exists for this weekday, trigger a new schedule creation
+            setPmBiweeklyAnchor(null)
             shouldUpdateScheduleRef.current = true
           }
         }
@@ -337,6 +389,7 @@ export function RotationScheduleEditor({ className, initialWeekday, schoolYearId
         setSelectedWeekday(initialWeekday ?? 1)
         setNumberOfTerms(4)
         setAdditionalInfo('')
+        setPmBiweeklyAnchor(null)
         shouldUpdateScheduleRef.current = true
       }
     } catch (err) {
@@ -356,6 +409,7 @@ export function RotationScheduleEditor({ className, initialWeekday, schoolYearId
       setSelectedWeekday(initialWeekday ?? 1)
       setNumberOfTerms(4)
       setAdditionalInfo('')
+      setPmBiweeklyAnchor(null)
       shouldUpdateScheduleRef.current = true
     } finally {
       setIsLoading(false)
@@ -442,7 +496,7 @@ export function RotationScheduleEditor({ className, initialWeekday, schoolYearId
       setSaveError(null)
 
       const semesterPlanning = onlyFirstSemester ? 'first' : onlySecondSemester ? 'second' : null
-      await onSave(schedule, selectedWeekday ?? 1, additionalInfo, semesterPlanning)
+      await onSave(schedule, selectedWeekday ?? 1, additionalInfo, semesterPlanning, pmBiweeklyAnchor)
     } catch (err) {
       console.error('Error saving schedule:', err)
       captureFrontendError(err, {
@@ -467,12 +521,9 @@ export function RotationScheduleEditor({ className, initialWeekday, schoolYearId
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Turnusperioden</CardTitle>
+        <CardTitle>Turnusse</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="mb-4 rounded-lg border bg-muted/50 p-4 text-sm text-muted-foreground">
-          Legen Sie hier die Turnusse und deren Länge fest. Optional können Sie zusätzliche Hinweise und die Semesterplanung anpassen.
-        </div>
         {fetchError && (
           <div className="mb-4 p-4 state-danger-soft rounded-md">
             Feiertage konnten nicht geladen werden.
@@ -483,21 +534,7 @@ export function RotationScheduleEditor({ className, initialWeekday, schoolYearId
             {weekError}
           </div>
         )}
-        <div className="flex gap-8 mb-4">
-          <div>
-            <Label htmlFor="numberOfTerms">Anzahl der Turnusse</Label>
-            <Input
-              id="numberOfTerms"
-              type="number"
-              value={numberOfTerms}
-              onChange={handleNumberOfTermsChange}
-              min={1}
-              max={8}
-              className="w-32"
-            />
-          </div>
-        </div>
-
+        
         <div className="mb-4">
           <Label htmlFor="additionalInfo">Zusätzliche Informationen</Label>
           <Input
@@ -540,12 +577,27 @@ export function RotationScheduleEditor({ className, initialWeekday, schoolYearId
             </div>
             <p className="text-sm text-muted-foreground">
               {onlyFirstSemester
-                ? `Rotation wird nur bis ${format(schoolYearMiddle, 'dd.MM.yyyy')} berechnet`
+                ? `Wechselplan wird nur bis ${format(schoolYearMiddle, 'dd.MM.yyyy')} berechnet`
                 : onlySecondSemester
-                ? `Rotation wird ab ${format(schoolYearMiddle, 'dd.MM.yyyy')} bis ${format(schoolYearEnd, 'dd.MM.yyyy')} berechnet`
-                : 'Rotation wird für das gesamte Schuljahr berechnet'
+                ? `Wechselplan wird ab ${format(schoolYearMiddle, 'dd.MM.yyyy')} bis ${format(schoolYearEnd, 'dd.MM.yyyy')} berechnet`
+                : 'Wechselplan wird für das gesamte Schuljahr berechnet'
               }
             </p>
+          </div>
+        </div>
+
+        <div className="flex gap-8 mb-4">
+          <div>
+            <Label htmlFor="numberOfTerms">Anzahl der Turnusse</Label>
+            <Input
+              id="numberOfTerms"
+              type="number"
+              value={numberOfTerms}
+              onChange={handleNumberOfTermsChange}
+              min={1}
+              max={8}
+              className="w-32"
+            />
           </div>
         </div>
 
@@ -587,37 +639,115 @@ export function RotationScheduleEditor({ className, initialWeekday, schoolYearId
           </div>
         </div>
 
+        <div className="mb-4 space-y-2">
+          <h3 className="text-sm font-medium">Nachmittag (Zwei-Wochen-Rhythmus)</h3>
+          <p className="text-xs text-muted-foreground">
+            Bitte wählen ob der Nachmittag an geraden oder ungeraden Wochen stattfindet.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={pmBiweeklyAnchor === null ? 'default' : 'outline'}
+              onClick={() => setPmBiweeklyAnchor(null)}
+            >
+              Aus
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={pmBiweeklyAnchor === 'A_ON_ODD_WEEKS' ? 'default' : 'outline'}
+              onClick={() => setPmBiweeklyAnchor('A_ON_ODD_WEEKS')}
+            >
+              Gerade Woche
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={pmBiweeklyAnchor === 'A_ON_EVEN_WEEKS' ? 'default' : 'outline'}
+              onClick={() => setPmBiweeklyAnchor('A_ON_EVEN_WEEKS')}
+            >
+              Ungerade Woche
+            </Button>
+          </div>
+        </div>
+
         <div className="mt-8">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
                 <tr>
-                  {Object.entries(schedule).map(([turnus, entry]) => (
-                    <th key={turnus} className="border p-2">
-                      <div>{turnus}</div>
-                      <div className="text-sm font-normal text-muted-foreground">
-                        {entry.weeks.length} Wochen
-                      </div>
-                    </th>
-                  ))}
+                  {Object.keys(schedule).map((turnus) => {
+                    const entry = schedule[turnus]
+                    return (
+                      <th key={turnus} className="border p-2">
+                        <div>{turnus}</div>
+                        <div className="text-sm font-normal text-muted-foreground">
+                          {entry?.weeks.length ?? 0} Wochen
+                        </div>
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
               <tbody>
-                {Array.from({ length: Math.max(...Object.values(schedule).map(entry => entry.weeks.length)) }).map((_, weekIndex) => (
+                {Array.from({ length: maxWeekRows }).map((_, weekIndex) => (
                   <tr key={weekIndex}>
-                    {Object.values(schedule).map((entry, turnusIndex) => (
-                      <td key={turnusIndex} className="border p-2">
-                        {entry?.weeks?.[weekIndex] && (
-                          <>
-                            {entry.weeks[weekIndex].week}
-                            <br />
-                            <span className={entry.weeks[weekIndex].isHoliday ? 'text-destructive' : undefined}>
-                              {entry.weeks[weekIndex].date}
-                            </span>
-                          </>
-                        )}
-                      </td>
-                    ))}
+                    {Object.keys(schedule).map((turnusKey) => {
+                      const entry = schedule[turnusKey]
+                      const w = entry?.weeks[weekIndex]
+                      const display = scheduleWithPmTracks[turnusKey]?.weeks[weekIndex]
+                      if (!w) {
+                        return <td key={turnusKey} className="border p-2" />
+                      }
+                      const excluded = w.includedInPlan === false
+                      const spur = display?.pmTrack
+                      return (
+                        <td
+                          key={turnusKey}
+                          className={`border p-2 align-top${excluded ? ' opacity-50 bg-muted/40' : ''}`}
+                        >
+                          <div className="flex items-start gap-2">
+                            <Checkbox
+                              checked={!excluded}
+                              onCheckedChange={(v) => {
+                                const on = v === true
+                                setSchedule((prev) => ({
+                                  ...prev,
+                                  [turnusKey]: {
+                                    ...prev[turnusKey]!,
+                                    weeks: prev[turnusKey]!.weeks.map((wk, i) =>
+                                      i === weekIndex ? { ...wk, includedInPlan: on } : wk
+                                    )
+                                  }
+                                }))
+                              }}
+                              aria-label="Im Wechselplan berücksichtigen"
+                            />
+                            <div className="min-w-0">
+                              <div>{w.week}</div>
+                              <span
+                                className={`whitespace-nowrap text-sm block${w.isHoliday ? ' text-destructive' : ''}`}
+                              >
+                                {formatScheduleWeekDate(parseScheduleWeekDate(w.date)) || w.date}
+                              </span>
+                              {pmBiweeklyAnchor != null && (
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {w.isHoliday
+                                    ? 'Nachmittag: Nein'
+                                    : pmNachmittagJa('A', {
+                                        includedInPlan: !excluded,
+                                        pmTrack: spur ?? null
+                                      })
+                                      ? 'Nachmittag: Ja'
+                                      : 'Nachmittag: Nein'}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      )
+                    })}
                   </tr>
                 ))}
               </tbody>
@@ -628,7 +758,7 @@ export function RotationScheduleEditor({ className, initialWeekday, schoolYearId
                       <td key={turnusIndex} className="border p-2 bg-muted">
                         {entry?.holidays?.length > 0 ? (
                           <div className="text-sm">
-                            <div className="font-medium mb-1">Verpasste Feiertage:</div>
+                            <div className="font-medium mb-1">Feiertage:</div>
                             {entry.holidays.map((holiday, index) => (
                               <div key={index} className="text-muted-foreground">
                                 {holiday.name} ({format(holiday.startDate, 'dd.MM.yy')})
@@ -636,7 +766,7 @@ export function RotationScheduleEditor({ className, initialWeekday, schoolYearId
                             ))}
                           </div>
                         ) : (
-                          <div className="text-sm text-muted-foreground">Keine verpassten Feiertage</div>
+                          <div className="text-sm text-muted-foreground">Keine Feiertage</div>
                         )}
                       </td>
                     )

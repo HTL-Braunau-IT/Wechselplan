@@ -3,6 +3,8 @@ import { captureError } from '@/lib/sentry'
 import { pdf } from '@react-pdf/renderer'
 import ScheduleTurnusPDF, { type ScheduleData } from '@/components/ScheduleTurnusPDF'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
+import { applyPmTracksToTurnScheduleRecord, isPmBiweeklyAnchor } from '@/lib/pm-biweekly-track'
+import type { TurnSchedule } from '@/types/schedule'
 import { badRequest, notFound, serverError } from '@/lib/api-response'
 
 import { prisma } from '@/lib/prisma'
@@ -88,7 +90,9 @@ export async function POST(request: Request) {
         
         let scheduleData: ScheduleData = {};
         if (schedule.turns && schedule.turns.length > 0) {
-            scheduleData = normalizeToJsonFormat(schedule.turns) as ScheduleData;
+            const normalized = normalizeToJsonFormat(schedule.turns) as TurnSchedule
+            const anchor = isPmBiweeklyAnchor(schedule.pmBiweeklyAnchor) ? schedule.pmBiweeklyAnchor : null
+            scheduleData = applyPmTracksToTurnScheduleRecord(normalized, anchor) as unknown as ScheduleData;
         }
         const doc = ScheduleTurnusPDF({ scheduleData: scheduleData as unknown as ScheduleData, className: className ?? '', weekdayString: weekdayString ?? '' })
         const pdfBuffer = await pdf(doc).toBuffer()

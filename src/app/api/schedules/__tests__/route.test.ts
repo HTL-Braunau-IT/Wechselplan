@@ -24,6 +24,10 @@ vi.mock('@/lib/prisma', () => ({
     },
     scheduleTurn: {
       deleteMany: vi.fn()
+    },
+    teacherRotation: {
+      findMany: vi.fn(),
+      createMany: vi.fn()
     }
   }
 }))
@@ -236,6 +240,7 @@ describe('Schedules API', () => {
           classId: 1,
           additionalInfo: null,
           semesterPlanning: null,
+          pmBiweeklyAnchor: null,
           turns: {
             create: []
           }
@@ -398,6 +403,7 @@ describe('Schedules API', () => {
           classId: 1,
           additionalInfo: null,
           semesterPlanning: 'first',
+          pmBiweeklyAnchor: null,
           turns: {
             create: []
           }
@@ -419,6 +425,93 @@ describe('Schedules API', () => {
             }
           }
         }
+      })
+    })
+
+    it('should relink teacher rotations after updating an existing schedule', async () => {
+      const existing = {
+        id: 10,
+        name: 'Old',
+        description: null,
+        startDate: new Date('2024-01-01'),
+        endDate: new Date('2024-06-30'),
+        selectedWeekday: 1,
+        classId: 1,
+        schoolYearId: 1,
+        additionalInfo: null,
+        semesterPlanning: null,
+        pmBiweeklyAnchor: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        scheduleTimes: [],
+        breakTimes: []
+      }
+      vi.mocked(prisma.schedule.findFirst).mockResolvedValue(existing as never)
+      vi.mocked(prisma.teacherRotation.findMany).mockResolvedValue([
+        {
+          groupId: 2,
+          teacherId: 7,
+          period: 'AM',
+          schoolYearId: 1,
+          selectedWeekday: 1,
+          turn: { name: 'TURNUS 1', order: 0 }
+        }
+      ] as never)
+      vi.mocked(prisma.scheduleTurn.deleteMany).mockResolvedValue({ count: 1 })
+      vi.mocked(prisma.schedule.update).mockResolvedValue({
+        ...existing,
+        turns: [
+          {
+            id: 501,
+            name: 'TURNUS 1',
+            order: 0,
+            customLength: null,
+            scheduleId: 10,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            weeks: [],
+            holidays: []
+          }
+        ]
+      } as never)
+      vi.mocked(prisma.teacherRotation.createMany).mockResolvedValue({ count: 1 })
+
+      const request = new Request('http://localhost/api/schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Updated',
+          description: 'd',
+          startDate: '2024-01-01',
+          endDate: '2024-06-30',
+          selectedWeekday: 1,
+          classId: '1',
+          schoolYearId: 1,
+          scheduleData: {
+            'TURNUS 1': {
+              weeks: [{ date: '02.09.24', week: 'KW36', isHoliday: false }]
+            }
+          },
+          additionalInfo: null,
+          semesterPlanning: null
+        })
+      })
+
+      const response = await POST(request)
+      expect(response.status).toBe(201)
+      expect(prisma.teacherRotation.findMany).toHaveBeenCalled()
+      expect(prisma.teacherRotation.createMany).toHaveBeenCalledWith({
+        data: [
+          {
+            classId: 1,
+            groupId: 2,
+            teacherId: 7,
+            period: 'AM',
+            schoolYearId: 1,
+            selectedWeekday: 1,
+            turnId: 501
+          }
+        ]
       })
     })
   })

@@ -380,10 +380,11 @@ export default function NotenPage() {
 				)
 				return classSchedule?.[0]?.turns
 			}
-			const getCurrentTurnName = (turns: Array<{ name: string; weeks: Array<{ date: string; isHoliday?: boolean }> }> | undefined): string | null => {
+			const getCurrentTurnName = (turns: Array<{ name: string; weeks: Array<{ date: string; isHoliday?: boolean; includedInPlan?: boolean }> }> | undefined): string | null => {
 				if (!turns?.length) return null
 				for (const turn of turns) {
 					const inThisTurn = turn.weeks.some((week) => {
+						if (week.includedInPlan === false) return false
 						const parsedDate = parse(week.date, 'dd.MM.yy', new Date())
 						if (!isValid(parsedDate)) return false
 						const weekEnd = addWeeks(parsedDate, 1)

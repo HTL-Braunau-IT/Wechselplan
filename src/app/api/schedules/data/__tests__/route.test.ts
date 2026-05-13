@@ -11,6 +11,7 @@ vi.mock('@/lib/prisma', () => ({
     teacherAssignment: { findMany: vi.fn() },
     teacherRotation: { findMany: vi.fn() },
     class: { findUnique: vi.fn() },
+    classYearStaff: { findUnique: vi.fn() },
     schedule: { findFirst: vi.fn() },
     schoolYear: { findFirst: vi.fn() },
     classMembership: { findMany: vi.fn() },
@@ -26,6 +27,7 @@ describe('Schedule Data API', () => {
     vi.mocked(prisma.schoolYear.findFirst).mockResolvedValue({ id: 1 });
     vi.mocked(prisma.classMembership.findMany).mockResolvedValue([]);
     vi.mocked(prisma.studentWeekdayGroup.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.classYearStaff.findUnique).mockResolvedValue(null);
   });
 
   test('should return 400 if teacher username is missing', async () => {
@@ -63,7 +65,7 @@ describe('Schedule Data API', () => {
     expect(data).toEqual({ error: { code: 'NOT_FOUND', message: 'No classes assigned to teacher' } });
   });
 
-  test('should return 404 if no teacher rotation found', async () => {
+  test('should return 200 with empty teacherRotation when none found', async () => {
     vi.mocked(prisma.teacher.findUnique).mockResolvedValue({
       id: 1,
       firstName: 'T',
@@ -86,14 +88,66 @@ describe('Schedule Data API', () => {
         learningContentId: 1,
         roomId: 1,
         selectedWeekday: 1,
+        schoolYearId: 1,
+        pmTrack: 'ALL',
       },
     ]);
     vi.mocked(prisma.teacherRotation.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.class.findUnique).mockResolvedValue({
+      id: 1,
+      name: '1A',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      description: null,
+    });
+    vi.mocked(prisma.schedule.findFirst).mockResolvedValue({
+      id: 1,
+      name: 'Schedule',
+      classId: 1,
+      schoolYearId: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      description: null,
+      startDate: new Date(),
+      endDate: new Date(),
+      selectedWeekday: 1,
+      additionalInfo: null,
+      semesterPlanning: null,
+      pmBiweeklyAnchor: null,
+      breakTimes: [],
+      scheduleTimes: [],
+      turns: [
+        {
+          id: 10,
+          name: 'TURNUS 1',
+          order: 0,
+          customLength: null,
+          scheduleId: 1,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          weeks: [
+            {
+              id: 100,
+              turnId: 10,
+              date: new Date('2024-09-02'),
+              week: 36,
+              isHoliday: false,
+              includedInPlan: true,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          ],
+          holidays: [],
+        },
+      ],
+    } as Awaited<ReturnType<typeof prisma.schedule.findFirst>>);
+    vi.mocked(prisma.student.findMany).mockResolvedValue([]);
     const req = new Request('http://localhost/api/schedules/data?teacher=foo&weekday=1');
     const res = await GET(req);
     const data = await res.json();
-    expect(res.status).toBe(404);
-    expect(data).toEqual({ error: { code: 'NOT_FOUND', message: 'No teacher rotation found' } });
+    expect(res.status).toBe(200);
+    expect(data.data.teacherRotation).toEqual([]);
+    expect(data.data.schedules.length).toBeGreaterThan(0);
   });
 
   test('should return 200 with empty students when none found', async () => {

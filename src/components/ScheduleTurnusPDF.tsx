@@ -5,6 +5,8 @@ interface Week {
   date: string;
   week: string;
   isHoliday?: boolean;
+  includedInPlan?: boolean;
+  pmTrack?: 'A' | 'B' | null;
 }
 interface Turnus {
   name: string;
@@ -93,6 +95,11 @@ export default function ScheduleTurnusPDF({ scheduleData, className, weekdayStri
                       {week.week || ''}
                     </Text>
                     <Text style={styles.small}>{week.date || ''}</Text>
+                    {week.includedInPlan === false ? (
+                      <Text style={[styles.small, styles.weekRed]}>nicht im Plan</Text>
+                    ) : week.pmTrack != null ? (
+                      <Text style={styles.small}>NM Spur {week.pmTrack}</Text>
+                    ) : null}
                   </View>
                 );
               })}

@@ -96,7 +96,8 @@ export async function GET(request: Request) {
 				teacherLastName: a.teacher.lastName,
 				subject: a.subject.name,
 				learningContent: a.learningContent.name,
-				room: a.room.name
+				room: a.room.name,
+				pmTrack: 'ALL' as const
 			}))
 
 		const pmAssignments = assignments
@@ -108,7 +109,8 @@ export async function GET(request: Request) {
 				teacherLastName: a.teacher.lastName,
 				subject: a.subject.name,
 				learningContent: a.learningContent.name,
-				room: a.room.name
+				room: a.room.name,
+				pmTrack: a.pmTrack
 			}))
 
 		return ok({
@@ -161,6 +163,7 @@ export async function POST(request: Request) {
 				subject: string
 				learningContent: string
 				room: string
+				pmTrack?: 'ALL' | 'A' | 'B'
 			}>
 			updateExisting?: boolean
 			selectedWeekday?: unknown
@@ -234,7 +237,14 @@ export async function POST(request: Request) {
 			})
 
 		const writeAssignment = async (
-			assignment: { groupId: number; teacherId: number; subject: string; learningContent: string; room: string },
+			assignment: {
+				groupId: number
+				teacherId: number
+				subject: string
+				learningContent: string
+				room: string
+				pmTrack?: 'ALL' | 'A' | 'B'
+			},
 			period: 'AM' | 'PM'
 		) => {
 			const [subject, learningContent, room] = await Promise.all([
@@ -242,6 +252,13 @@ export async function POST(request: Request) {
 				upsertLookup('LEARNING_CONTENT', assignment.learningContent),
 				upsertLookup('ROOM', assignment.room)
 			])
+
+			const pmTrack =
+				period === 'AM'
+					? 'ALL'
+					: assignment.pmTrack === 'A' || assignment.pmTrack === 'B'
+						? assignment.pmTrack
+						: 'ALL'
 
 			await prisma.teacherAssignment.create({
 				data: {
@@ -253,7 +270,8 @@ export async function POST(request: Request) {
 					subjectId: subject.id,
 					learningContentId: learningContent.id,
 					roomId: room.id,
-					selectedWeekday: weekdayForStore
+					selectedWeekday: weekdayForStore,
+					pmTrack
 				}
 			})
 		}

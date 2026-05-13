@@ -321,7 +321,8 @@ export default function SchedulesPage() {
         }
 
         const payload = await response.json() as { data?: TeacherAssignmentsResponse } | TeacherAssignmentsResponse
-        const data = 'data' in payload ? (payload.data as TeacherAssignmentsResponse) : payload
+        const data: TeacherAssignmentsResponse =
+          'data' in payload && payload.data != null ? payload.data : (payload as TeacherAssignmentsResponse)
         
         console.log('Teacher assignments data:', {
           teacherId: teacher.id,

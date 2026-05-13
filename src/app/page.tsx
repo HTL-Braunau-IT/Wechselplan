@@ -42,18 +42,9 @@ export default function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center p-24">
       <div className="z-10 max-w-5xl w-full space-y-8">
-        <div className="flex justify-between items-center">
-          <h1 className="text-4xl font-bold mb-8">
+          <h1 className="text-4xl font-bold">
             Willkommen, {session.user?.firstName} {session.user?.lastName}
           </h1>
-
-          <ChangelogDialog
-            release={release}
-            allReleases={allReleases}
-            open={isChangelogOpen}
-            onOpenChange={setIsChangelogOpen}
-          />
-        </div>
         <p className="text-lg text-muted-foreground">
             {new Date().toLocaleDateString('de-DE', {
               weekday: 'long',

@@ -63,6 +63,16 @@ export function AdminMenu() {
             Einstellungen
           </p>
           <Link
+            href="/admin/settings/settings"
+            className={cn(
+              'flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground',
+              pathname === '/admin/settings/settings' && 'bg-accent text-accent-foreground'
+            )}
+          >
+            <Settings className="h-4 w-4" />
+            <span>Generelle Einstellungen</span>
+          </Link>
+          <Link
             href="/admin/settings/entra-sync"
             className={cn(
               'flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground',

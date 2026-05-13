@@ -1,9 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { Group, TeacherAssignmentResponse, ScheduleTime, BreakTime, TurnSchedule } from '@/types/types'
-import { useState, useEffect } from 'react'
+import type { ScheduleWeek } from '@/types/schedule'
+import { useState, useEffect, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { generateExcel, generatePdf, generateSchedulePDF } from '@/lib/export-utils'
 import { ScheduleExportActions } from '@/components/schedule/schedule-export-actions'
+import { parseScheduleWeekDate } from '@/lib/schedule-data-helpers'
+import { pmNachmittagJa, turnScheduleHasPmRhythm } from '@/lib/pm-biweekly-track'
 
 interface ScheduleOverviewProps {
   groups: Group[]
@@ -101,6 +104,25 @@ function getWeekday(weekday: number) {
   return weekday === undefined ? '' : days[weekday];
 }
 
+function flattenTurnScheduleWeeks(turns: TurnSchedule): Array<{ turnusKey: string; turnIndex1: number; week: ScheduleWeek }> {
+  const sortedKeys = Object.keys(turns).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+  const out: Array<{ turnusKey: string; turnIndex1: number; week: ScheduleWeek }> = []
+  sortedKeys.forEach((k, idx) => {
+    const term = turns[k]
+    if (!term?.weeks) return
+    for (const week of term.weeks) {
+      out.push({ turnusKey: k, turnIndex1: idx + 1, week })
+    }
+  })
+  out.sort((a, b) => {
+    const da = parseScheduleWeekDate(a.week.date).getTime()
+    const db = parseScheduleWeekDate(b.week.date).getTime()
+    if (da !== db) return da - db
+    return sortedKeys.indexOf(a.turnusKey) - sortedKeys.indexOf(b.turnusKey)
+  })
+  return out
+}
+
 /**
  * Renders a detailed overview of a school schedule, including group membership, class leadership, period times with breaks, teacher assignments per turn, turnus data, and optional additional notes.
  *
@@ -194,6 +216,9 @@ export function ScheduleOverview({
 
     void checkTeacherAssignment()
   }, [className, session?.user?.name, amAssignments, pmAssignments, showExportButtons])
+
+  const pmWeekColumns = useMemo(() => flattenTurnScheduleWeeks(turns), [turns])
+  const pmRhythmOn = useMemo(() => turnScheduleHasPmRhythm(turns), [turns])
 
   // Export handlers
   const handlePDFExport = async () => {
@@ -380,13 +405,11 @@ export function ScheduleOverview({
         </CardContent>
       </Card>
 
-      {/* AM and PM Schedule Tables */}
-      {[{ period: 'AM', teachers: uniqueAmTeachers }, { period: 'PM', teachers: uniquePmTeachers }]
-        .filter(({ teachers }) => teachers.length > 0)
-        .map(({ period, teachers }) => (
-        <Card className="mb-8" key={period}>
+      {/* AM Schedule Table */}
+      {uniqueAmTeachers.length > 0 && (
+        <Card className="mb-8">
           <CardHeader>
-            <CardTitle>{getWeekday(weekday)} ({period === 'AM' ? 'Vormittag' : 'Nachmittag'})</CardTitle>
+            <CardTitle>{getWeekday(weekday)} (Vormittag)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -406,14 +429,14 @@ export function ScheduleOverview({
                   </tr>
                 </thead>
                 <tbody>
-                  {teachers.map((assignment, teacherIdx) => (
+                  {uniqueAmTeachers.map((assignment, teacherIdx) => (
                     <tr key={assignment.teacherId}>
                       <td className="border p-2 font-medium">{assignment.teacherLastName}, {assignment.teacherFirstName}</td>
                       <td className="border p-2">{assignment.subject ?? ''}</td>
                       <td className="border p-2">{assignment.learningContent ?? ''}</td>
                       <td className="border p-2">{assignment.room ?? ''}</td>
                       {Object.keys(turns).map((turn, turnIdx) => {
-                        const group = getGroupForTeacherAndTurn(groups, teacherIdx, turnIdx, period as 'AM' | 'PM', teachers);
+                        const group = getGroupForTeacherAndTurn(groups, teacherIdx, turnIdx, 'AM', uniqueAmTeachers);
                         return (
                           <td
                             key={turn}
@@ -430,7 +453,119 @@ export function ScheduleOverview({
             </div>
           </CardContent>
         </Card>
-      ))}
+      )}
+
+      {/* PM Schedule Table + week-by-week grid */}
+      {uniquePmTeachers.length > 0 && (
+        <>
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle>{getWeekday(weekday)} (Nachmittag)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {pmRhythmOn && uniquePmTeachers.some(a => a.pmTrack === 'A' || a.pmTrack === 'B') && (
+                <p className="text-xs text-muted-foreground mb-3">
+                  NM-Rhythmus: Bei „Nur Spur A/B“ gilt „Nachmittag: Ja“ nur in den passenden Wochen (siehe Tabelle unten).
+                </p>
+              )}
+              <div className="overflow-x-auto">
+                <table className="min-w-full border text-sm">
+                  <thead>
+                    <tr>
+                      <th className="border p-2">Lehrer/in</th>
+                      <th className="border p-2">Werkstätte</th>
+                      <th className="border p-2">Lehrinhalt</th>
+                      <th className="border p-2">Raum</th>
+                      {Object.keys(turns).map((turn, turnIdx) => (
+                        <th key={turn} className="border p-2">
+                          <div>Turnus {turnIdx + 1}</div>
+                          <div className="text-xs text-muted-foreground">{getTurnusInfo(turn, turns).start} - {getTurnusInfo(turn, turns).end}</div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {uniquePmTeachers.map((assignment, teacherIdx) => (
+                      <tr key={assignment.teacherId}>
+                        <td className="border p-2 font-medium">{assignment.teacherLastName}, {assignment.teacherFirstName}</td>
+                        <td className="border p-2">{assignment.subject ?? ''}</td>
+                        <td className="border p-2">{assignment.learningContent ?? ''}</td>
+                        <td className="border p-2">{assignment.room ?? ''}</td>
+                        {Object.keys(turns).map((turn, turnIdx) => {
+                          const group = getGroupForTeacherAndTurn(groups, teacherIdx, turnIdx, 'PM', uniquePmTeachers);
+                          return (
+                            <td
+                              key={turn}
+                              className={`border p-2 text-center font-bold text-foreground ${group ? GROUP_COLORS[groups.findIndex(g => g.id === group.id) % GROUP_COLORS.length] : ''}`}
+                            >
+                              {group ? group.id : ''}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
+          {pmWeekColumns.length > 0 && pmRhythmOn && (
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle>Nachmittag: Woche für Woche</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Ja = Nachmittagsunterricht in dieser Woche, Nein = kein NM (Gruppe bleibt unverändert).
+                </p>
+                <div className="overflow-x-auto max-w-[100vw]">
+                  <table className="min-w-max border text-sm">
+                    <thead>
+                      <tr>
+                        <th className="sticky left-0 z-10 bg-background border p-2 text-left min-w-[10rem]">Lehrer/in</th>
+                        {pmWeekColumns.map((col, ci) => (
+                          <th key={`${col.turnusKey}-${col.week.date}-${ci}`} className="border p-1 text-center align-bottom min-w-[4.5rem] max-w-[6rem]">
+                            <div className="text-[10px] text-muted-foreground">T{col.turnIndex1}</div>
+                            <div className="text-xs whitespace-nowrap">{formatDate(col.week.date)}</div>
+                            <div className="text-[10px] text-muted-foreground">{col.week.week}</div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {uniquePmTeachers.map((assignment) => (
+                        <tr key={`pm-grid-${assignment.teacherId}`}>
+                          <td className="sticky left-0 z-10 bg-background border p-2 font-medium whitespace-nowrap">
+                            {assignment.teacherLastName}, {assignment.teacherFirstName}
+                          </td>
+                          {pmWeekColumns.map((col, ci) => {
+                            const w = col.week as ScheduleWeek & { pmTrack?: 'A' | 'B' | null }
+                            const ja = pmNachmittagJa(assignment.pmTrack, {
+                              includedInPlan: w.includedInPlan !== false,
+                              pmTrack: w.pmTrack ?? null
+                            })
+                            return (
+                              <td
+                                key={ci}
+                                className={`border p-1 text-center text-xs font-medium ${
+                                  ja ? 'text-foreground bg-emerald-500/10' : 'text-muted-foreground bg-muted/40'
+                                }`}
+                              >
+                                {ja ? 'Nachmittag: Ja' : 'Nachmittag: Nein'}
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
 
       <Card className="mb-8">
         <CardHeader>
@@ -444,12 +579,17 @@ export function ScheduleOverview({
                   <th className="border p-2">Turnus</th>
                   <th className="border p-2">Datum</th>
                   <th className="border p-2">Woche</th>
+                  <th className="border p-2">Im Plan</th>
+                  {pmRhythmOn && <th className="border p-2">NM</th>}
                 </tr>
               </thead>
               <tbody>
                 {Object.entries(turns).map(([turnusKey, turnus], index) => (
-                  (turnus as { weeks: { date: string; week: string; isHoliday: boolean }[] }).weeks.map((week, weekIndex) => (
-                    <tr key={`${turnusKey}-${weekIndex}`}>
+                  (turnus as { weeks: ScheduleWeek[] }).weeks.map((week, weekIndex) => {
+                    const excluded = week.includedInPlan === false
+                    const spur = (week as ScheduleWeek & { pmTrack?: 'A' | 'B' | null }).pmTrack
+                    return (
+                    <tr key={`${turnusKey}-${weekIndex}`} className={excluded ? 'opacity-60' : undefined}>
                       {weekIndex === 0 && (
                         <td className="border p-2" rowSpan={(turnus as { weeks: { date: string }[] }).weeks.length}>
                           Turnus {index + 1}
@@ -457,8 +597,13 @@ export function ScheduleOverview({
                       )}
                       <td className="border p-2">{formatDate(week.date)}</td>
                       <td className="border p-2">{week.week}</td>
+                      <td className="border p-2 text-center">{excluded ? 'nein' : 'ja'}</td>
+                      {pmRhythmOn && (
+                        <td className="border p-2 text-center">{spur ?? '—'}</td>
+                      )}
                     </tr>
-                  ))
+                    )
+                  })
                 ))}
               </tbody>
             </table>

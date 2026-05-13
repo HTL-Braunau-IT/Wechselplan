@@ -1,8 +1,18 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Menu, LogIn, LogOut } from 'lucide-react'
+import {
+	Menu,
+	LogIn,
+	LogOut,
+	Home,
+	CalendarDays,
+	ClipboardList,
+	SquarePen,
+	Inbox,
+	Settings,
+} from 'lucide-react'
 import { SchoolYearSelector } from '~/components/school-year-selector'
 import { useSession, signIn, signOut } from 'next-auth/react'
 import { Button } from '~/components/ui/button'
@@ -38,6 +48,7 @@ export function Header() {
 	const { data: session } = useSession()
 	const [profileLoaded, setProfileLoaded] = useState(false)
 	const [profileError, setProfileError] = useState(false)
+	const [photoAvailable, setPhotoAvailable] = useState<boolean | null>(null)
 
 	const { isFeatureEnabled } = useEntitlements()
 	const { version, release, allReleases, loading } = useGitHubVersion()
@@ -60,6 +71,40 @@ export function Header() {
 	const roleLabel = session?.user?.role
 		? (PROFILE_ROLE_LABELS[session.user.role] ?? session.user.role)
 		: ''
+
+	useEffect(() => {
+		if (!session?.user?.name || !session.user.role) {
+			setPhotoAvailable(null)
+			return
+		}
+
+		let cancelled = false
+		setPhotoAvailable(null)
+
+		void (async () => {
+			try {
+				const res = await fetch('/api/me/photo/exists', { credentials: 'same-origin' })
+				if (cancelled) return
+				if (!res.ok) {
+					setPhotoAvailable(false)
+					return
+				}
+				const json = (await res.json()) as { data?: { exists?: boolean } }
+				setPhotoAvailable(Boolean(json?.data?.exists))
+			} catch {
+				if (!cancelled) setPhotoAvailable(false)
+			}
+		})()
+
+		return () => {
+			cancelled = true
+		}
+	}, [session?.user?.name, session?.user?.role, session?.user?.id])
+
+	useEffect(() => {
+		setProfileLoaded(false)
+		setProfileError(false)
+	}, [session?.user?.name, session?.user?.id, photoAvailable])
 
 	return (
 		<header className="fixed top-4 left-0 right-0 z-50 mx-auto w-[calc(100%-2rem)]  glass border-border/70">
@@ -100,19 +145,21 @@ export function Header() {
 								<DropdownMenuTrigger asChild>
 									<Button variant="ghost" size="icon" className="relative">
 										<span className="inline-flex h-8 w-8 overflow-hidden rounded-full bg-muted">
-											<img
-												src="/api/me/photo"
-												alt=""
-												width={32}
-												height={32}
-												className={`h-full w-full object-cover ${(profileError || !profileLoaded) ? 'hidden' : ''}`}
-												onLoad={() => {
-													setProfileLoaded(true)
-													setProfileError(false)
-												}}
-												onError={() => setProfileError(true)}
-											/>
-											{(!profileLoaded || profileError) && (
+											{photoAvailable === true && (
+												<img
+													src="/api/me/photo"
+													alt=""
+													width={32}
+													height={32}
+													className={`h-full w-full object-cover ${(profileError || !profileLoaded) ? 'hidden' : ''}`}
+													onLoad={() => {
+														setProfileLoaded(true)
+														setProfileError(false)
+													}}
+													onError={() => setProfileError(true)}
+												/>
+											)}
+											{(photoAvailable !== true || !profileLoaded || profileError) && (
 												<span className="inline-flex h-full w-full items-center justify-center text-xs font-medium text-muted-foreground">
 													{profileInitials}
 												</span>
@@ -163,12 +210,12 @@ export function Header() {
 						onClick={toggleMenu}
 					/>
 					<div
-						className={`fixed top-0 left-0 h-full w-64 bg-background border-r shadow-lg transform transition-transform duration-300 ease-in-out z-50 ${
+						className={`fixed top-0 left-0 h-full w-64  border-r shadow-lg transform transition-transform duration-300 ease-in-out z-50 ${
 							isMenuOpen ? 'translate-x-0' : '-translate-x-full'
 						}`}
 					>
-						<div className="p-4">
-							<div className="flex justify-end">
+						<div className="p-4 glass rounded-br-lg rounded-bl-lg min-h-[400px] text-xl">
+							<div className="flex justify-start">
 								<button
 									onClick={toggleMenu}
 									className="p-2 rounded-md hover:bg-accent hover:text-accent-foreground focus:outline-none"
@@ -182,18 +229,20 @@ export function Header() {
 									<li>
 										<Link
 											href="/"
-											className="block py-2 hover:text-primary"
+											className="flex items-center gap-3 py-2 hover:text-primary"
 											onClick={() => setIsMenuOpen(false)}
 										>
+											<Home className="h-5 w-5 shrink-0 opacity-80" aria-hidden />
 											Startseite
 										</Link>
 									</li>
 									<li>
 										<Link
 											href="/schedules"
-											className="block py-2 hover:text-primary"
+											className="flex items-center gap-3 py-2 hover:text-primary"
 											onClick={() => setIsMenuOpen(false)}
 										>
+											<CalendarDays className="h-5 w-5 shrink-0 opacity-80" aria-hidden />
 											Wechselpläne
 										</Link>
 									</li>
@@ -201,9 +250,10 @@ export function Header() {
 										<li>
 											<Link
 												href="/noten"
-												className="block py-2 hover:text-primary"
+												className="flex items-center gap-3 py-2 hover:text-primary"
 												onClick={() => setIsMenuOpen(false)}
 											>
+												<ClipboardList className="h-5 w-5 shrink-0 opacity-80" aria-hidden />
 												Notenliste
 											</Link>
 										</li>
@@ -211,9 +261,10 @@ export function Header() {
 									<li>
 										<Link
 											href="/schedule/create"
-											className="block py-2 hover:text-primary"
+											className="flex items-center gap-3 py-2 hover:text-primary"
 											onClick={() => setIsMenuOpen(false)}
 										>
+											<SquarePen className="h-5 w-5 shrink-0 opacity-80" aria-hidden />
 											Wechselplan erstellen
 										</Link>
 									</li>
@@ -221,9 +272,10 @@ export function Header() {
 										<li>
 											<Link
 												href="/notensammler"
-												className="block py-2 hover:text-primary"
+												className="flex items-center gap-3 py-2 hover:text-primary"
 												onClick={() => setIsMenuOpen(false)}
 											>
+												<Inbox className="h-5 w-5 shrink-0 opacity-80" aria-hidden />
 												Notensammler
 											</Link>
 										</li>
@@ -232,9 +284,10 @@ export function Header() {
 										<li>
 											<Link
 												href="/admin/data/students"
-												className="block py-2 hover:text-primary"
+												className="flex items-center gap-3 py-2 hover:text-primary"
 												onClick={() => setIsMenuOpen(false)}
 											>
+												<Settings className="h-5 w-5 shrink-0 opacity-80" aria-hidden />
 												Administration
 											</Link>
 										</li>

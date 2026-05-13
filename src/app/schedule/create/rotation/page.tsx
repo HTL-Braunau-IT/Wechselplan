@@ -5,6 +5,7 @@ import { RotationScheduleEditor } from '@/components/schedule/rotation-schedule-
 import type { Schedule } from '@/components/schedule/rotation-schedule-editor'
 import { useSchoolYear } from '@/contexts/school-year-context'
 import { fetchAndUnwrap, getApiErrorMessage, parseJsonSafe } from '@/lib/api-client'
+import type { PmBiweeklyAnchorValue } from '@/lib/pm-biweekly-track'
 
 /**
  * Page component for creating and editing rotation schedules.
@@ -23,7 +24,8 @@ export default function RotationPage() {
     schedule: Schedule,
     selectedWeekday: number,
     additionalInfo: string,
-    semesterPlanning: 'first' | 'second' | null
+    semesterPlanning: 'first' | 'second' | null,
+    pmBiweeklyAnchor: PmBiweeklyAnchorValue | null
   ) => {
       // First, get the numeric class ID from the class name
       const classData = await fetchAndUnwrap<{ id: number }>(
@@ -48,7 +50,8 @@ export default function RotationPage() {
           additionalInfo,
           classId: classData.id.toString(),
           ...(schoolYearId != null && { schoolYearId }),
-          semesterPlanning
+          semesterPlanning,
+          pmBiweeklyAnchor
         }),
       })
 

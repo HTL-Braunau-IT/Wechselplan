@@ -7,6 +7,9 @@ import {
   getSchoolYear, 
   formatDateGerman 
 } from './pdf-helpers';
+import { parseScheduleWeekDate } from './schedule-data-helpers';
+import { pmNachmittagJa, turnScheduleHasPmRhythm } from './pm-biweekly-track';
+import type { TurnSchedule } from '@/types/schedule';
 import { truncateSubject } from './subject-utils';
 
 // Group colors matching the screenshot
@@ -40,6 +43,7 @@ interface PDFData {
     learningContentName: string;
     roomName: string;
     groupId: number;
+    pmTrack?: 'ALL' | 'A' | 'B';
   }>;
   turns: Record<string, unknown>;
   className: string;
@@ -644,6 +648,132 @@ export async function generateSchedulePDF(data: PDFData): Promise<Buffer> {
   });
 
   yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 3;
+  }
+
+  // Nachmittag: Woche für Woche (Ja/Nein) — nur bei aktivem Zwei-Wochen-Rhythmus
+  if (data.pmAssignments.length > 0 && turnScheduleHasPmRhythm(data.turns as TurnSchedule)) {
+    type WeekCol = {
+      turnIdx: number
+      date: string
+      weekLbl: string
+      included: boolean
+      spur: 'A' | 'B' | null
+    }
+    const sortedTurnKeys = Object.keys(data.turns).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+    const weekCols: WeekCol[] = []
+    for (let ti = 0; ti < sortedTurnKeys.length; ti++) {
+      const name = sortedTurnKeys[ti]
+      if (!name) continue
+      const term = data.turns[name] as {
+        weeks?: Array<{ date: string; week?: string; includedInPlan?: boolean; pmTrack?: 'A' | 'B' | null }>
+      }
+      for (const w of term.weeks ?? []) {
+        weekCols.push({
+          turnIdx: ti,
+          date: w.date,
+          weekLbl: w.week ?? '',
+          included: w.includedInPlan !== false,
+          spur: w.pmTrack ?? null
+        })
+      }
+    }
+    weekCols.sort((a, b) => {
+      const da = parseScheduleWeekDate(a.date).getTime()
+      const db = parseScheduleWeekDate(b.date).getTime()
+      if (da !== db) return da - db
+      return a.turnIdx - b.turnIdx
+    })
+    if (weekCols.length > 0) {
+      if (yPos > pageHeight - 40) {
+        doc.addPage()
+        yPos = margin
+      }
+      doc.setFontSize(7)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Nachmittag: Woche für Woche', margin, yPos)
+      yPos += 3
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(5)
+      doc.text('Ja = Nachmittagsunterricht, Nein = kein NM (Gruppe unverändert).', margin, yPos)
+      yPos += 3
+
+      const headerRow: string[] = ['Lehrer/in']
+      for (const c of weekCols) {
+        const short = c.date.length >= 5 ? c.date.slice(0, 5) : c.date
+        headerRow.push(c.weekLbl ? `${short}\n${c.weekLbl}` : short)
+      }
+      const bodyRows: string[][] = []
+      data.pmAssignments.forEach((assignment) => {
+        const row: string[] = [`${assignment.teacherLastName} ${assignment.teacherFirstName}`]
+        const track = assignment.pmTrack ?? 'ALL'
+        for (const col of weekCols) {
+          const ja = pmNachmittagJa(track, {
+            includedInPlan: col.included,
+            pmTrack: col.spur
+          })
+          row.push(ja ? 'Nachmittag: Ja' : 'Nachmittag: Nein')
+        }
+        bodyRows.push(row)
+      })
+
+      const teacherColMm = 32
+      const weekColMm = Math.max(8, (pageWidth - 2 * margin - teacherColMm) / weekCols.length)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const colStyles: Record<number, any> = { 0: { cellWidth: teacherColMm } }
+      for (let ci = 1; ci <= weekCols.length; ci++) {
+        colStyles[ci] = { cellWidth: weekColMm }
+      }
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [headerRow],
+        body: bodyRows,
+        theme: 'grid',
+        headStyles: {
+          fillColor: [240, 240, 240],
+          textColor: textColor,
+          fontStyle: 'bold',
+          fontSize: 5
+        },
+        bodyStyles: {
+          fontSize: 4,
+          textColor: textColor
+        },
+        columnStyles: colStyles,
+        styles: {
+          cellPadding: 0.35,
+          lineWidth: 0.2,
+          lineColor: borderColor,
+          minCellHeight: 4,
+          fontSize: 4
+        },
+        margin: { left: margin, right: margin },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        didParseCell: (cellData: any) => {
+          if (cellData.section === 'body' && cellData.column.index >= 1) {
+            const t = String(cellData.cell.text?.[0] ?? '')
+            if (t.includes('Ja')) {
+              cellData.cell.styles.fillColor = [220, 252, 231]
+            } else if (t.includes('Nein')) {
+              cellData.cell.styles.fillColor = [245, 245, 245]
+            }
+          }
+        }
+      })
+
+      yPos = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 2
+      const footParts = data.pmAssignments
+        .filter((a) => a.pmTrack === 'A' || a.pmTrack === 'B')
+        .map((a) => `${a.teacherLastName}: nur Spur ${a.pmTrack}`)
+      if (footParts.length > 0) {
+        doc.setFontSize(5)
+        doc.setFont('helvetica', 'italic')
+        const foot = `NM nur in „Ja“-Wochen: ${footParts.join(' · ')}`
+        const lines = doc.splitTextToSize(foot, pageWidth - 2 * margin)
+        doc.text(lines as string | string[], margin, yPos)
+        yPos += lines.length * 2.2 + 1
+      }
+    }
   }
 
   // Break Times Section - in one row with single outline, INFO on the right

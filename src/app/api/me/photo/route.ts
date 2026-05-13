@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
-import { resolveStudentPhoto } from '@/lib/student-photo-source'
-import { resolveTeacherPhoto } from '@/lib/teacher-photo-source'
+import { resolveMeProfilePhoto } from '@/lib/me-photo-resolve'
 import { notFound, unauthorized } from '@/lib/api-response'
 
 export async function GET(request: Request) {
@@ -12,28 +10,11 @@ export async function GET(request: Request) {
     return unauthorized('Nicht angemeldet')
   }
 
-  let photo:
-    | Awaited<ReturnType<typeof resolveTeacherPhoto>>
-    | Awaited<ReturnType<typeof resolveStudentPhoto>>
-    | null = null
-
-  if (session.user.role === 'teacher' || session.user.role === 'admin') {
-    const teacher = await prisma.teacher.findFirst({
-      where: { username: session.user.name },
-      select: { id: true },
-    })
-    if (teacher) {
-      photo = await resolveTeacherPhoto(teacher.id)
-    }
-  } else if (session.user.role === 'student') {
-    const student = await prisma.student.findFirst({
-      where: { username: session.user.name },
-      select: { id: true },
-    })
-    if (student) {
-      photo = await resolveStudentPhoto(student.id)
-    }
-  }
+  const photo = await resolveMeProfilePhoto({
+    name: session.user.name,
+    id: session.user.id,
+    role: session.user.role,
+  })
 
   if (!photo) {
     return notFound('Foto nicht gefunden')
@@ -44,7 +25,7 @@ export async function GET(request: Request) {
     return new NextResponse(null, { status: 304, headers: { ETag: photo.etag } })
   }
 
-  return new NextResponse(photo.bytes, {
+  return new NextResponse(new Uint8Array(photo.bytes), {
     status: 200,
     headers: {
       'Content-Type': photo.contentType,

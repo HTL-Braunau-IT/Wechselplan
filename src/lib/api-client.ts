@@ -16,10 +16,11 @@ export function unwrapData<T>(payload: unknown): T {
 
 export function getApiErrorMessage(payload: unknown, fallback = 'Request failed'): string {
   if (!payload || typeof payload !== 'object') return fallback
-  const candidate = payload as ApiErrorEnvelope & { error?: string }
-  if (typeof candidate.error === 'string') return candidate.error
-  if (candidate.error && typeof candidate.error === 'object' && typeof candidate.error.message === 'string') {
-    return candidate.error.message
+  const candidate = payload as ApiErrorEnvelope
+  const err = candidate.error
+  if (typeof err === 'string') return err
+  if (err && typeof err === 'object' && typeof err.message === 'string') {
+    return err.message
   }
   if (typeof candidate.message === 'string') return candidate.message
   return fallback

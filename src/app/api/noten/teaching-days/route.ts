@@ -4,7 +4,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { normalizeUsername } from '@/lib/username'
-import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
+import { formatScheduleWeekDate, normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
+import { computePmTrackByWeekKey, isPmBiweeklyAnchor, weekPmTrackKey } from '@/lib/pm-biweekly-track'
 import { toLocalDateString } from '@/lib/date-utils'
 import { badRequest, forbidden, ok, serverError, unauthorized } from '@/lib/api-response'
 
@@ -97,8 +98,12 @@ export async function GET(request: Request) {
 				schoolYearId,
 				...(selectedWeekday != null && { selectedWeekday })
 			},
-			select: { selectedWeekday: true, period: true }
+			select: { selectedWeekday: true, period: true, pmTrack: true }
 		})
+		const pmTrackByWeekday = new Map<number, 'ALL' | 'A' | 'B'>()
+		for (const a of teacherAssignmentsForGroup) {
+			if (a.period === 'PM') pmTrackByWeekday.set(a.selectedWeekday, a.pmTrack)
+		}
 		if (teacherAssignmentsForGroup.length === 0) {
 			return ok({ teachingDays: [] })
 		}
@@ -145,11 +150,32 @@ export async function GET(request: Request) {
 			for (const rot of rotations) {
 				const scheduleForWeekday = scheduleByWeekday.get(rot.selectedWeekday) ?? latestSchedule
 				if (!scheduleForWeekday?.turns?.length) continue
-				const turnsData = normalizeToJsonFormat(scheduleForWeekday.turns) as Record<string, { weeks: Array<{ date: string; isHoliday: boolean }> }>
+				const anchor = isPmBiweeklyAnchor(scheduleForWeekday.pmBiweeklyAnchor)
+					? scheduleForWeekday.pmBiweeklyAnchor
+					: null
+				const turnsForTrack = scheduleForWeekday.turns.map((t) => ({
+					name: t.name,
+					order: t.order,
+					weeks: t.weeks.map((w) => ({
+						date: typeof w.date === 'string' ? w.date : formatScheduleWeekDate(w.date),
+						includedInPlan: w.includedInPlan !== false
+					}))
+				}))
+				const pmTrackMap = computePmTrackByWeekKey(anchor, turnsForTrack)
+				const turnsData = normalizeToJsonFormat(scheduleForWeekday.turns) as Record<
+					string,
+					{ weeks: Array<{ date: string; isHoliday: boolean; includedInPlan?: boolean }> }
+				>
 				const turnData = turnsData[rot.turn.name]
 				if (!turnData?.weeks) continue
+				const pmReq = pmTrackByWeekday.get(rot.selectedWeekday) ?? 'ALL'
 				for (const week of turnData.weeks) {
 					if (week.isHoliday) continue
+					if (week.includedInPlan === false) continue
+					if (rot.period === 'PM' && pmReq !== 'ALL') {
+						const spur = pmTrackMap.get(weekPmTrackKey(rot.turn.name, week.date))
+						if (spur == null || pmReq !== spur) continue
+					}
 					const dateObj = parseDateString(week.date)
 					if (!dateObj) continue
 					const key = `${toLocalDateString(dateObj)}-${rot.period}`
@@ -165,10 +191,31 @@ export async function GET(request: Request) {
 				const scheduleForWeekday =
 					scheduleByWeekday.get(assignment.selectedWeekday) ?? latestSchedule
 				if (!scheduleForWeekday?.turns?.length) continue
-				const turnsData = normalizeToJsonFormat(scheduleForWeekday.turns) as Record<string, { weeks: Array<{ date: string; isHoliday: boolean }> }>
-				for (const turnData of Object.values(turnsData)) {
+				const anchor = isPmBiweeklyAnchor(scheduleForWeekday.pmBiweeklyAnchor)
+					? scheduleForWeekday.pmBiweeklyAnchor
+					: null
+				const turnsForTrack = scheduleForWeekday.turns.map((t) => ({
+					name: t.name,
+					order: t.order,
+					weeks: t.weeks.map((w) => ({
+						date: typeof w.date === 'string' ? w.date : formatScheduleWeekDate(w.date),
+						includedInPlan: w.includedInPlan !== false
+					}))
+				}))
+				const pmTrackMap = computePmTrackByWeekKey(anchor, turnsForTrack)
+				const turnsData = normalizeToJsonFormat(scheduleForWeekday.turns) as Record<
+					string,
+					{ weeks: Array<{ date: string; isHoliday: boolean; includedInPlan?: boolean }> }
+				>
+				const pmReq = assignment.period === 'PM' ? pmTrackByWeekday.get(assignment.selectedWeekday) ?? 'ALL' : 'ALL'
+				for (const [turnName, turnData] of Object.entries(turnsData)) {
 					for (const week of turnData.weeks) {
 						if (week.isHoliday) continue
+						if (week.includedInPlan === false) continue
+						if (assignment.period === 'PM' && pmReq !== 'ALL') {
+							const spur = pmTrackMap.get(weekPmTrackKey(turnName, week.date))
+							if (spur == null || pmReq !== spur) continue
+						}
 						const dateObj = parseDateString(week.date)
 						if (!dateObj) continue
 						const key = `${toLocalDateString(dateObj)}-${assignment.period}`

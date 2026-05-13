@@ -3,6 +3,7 @@ import { captureError } from '@/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
 import { badRequest, notFound, ok, serverError } from '@/lib/api-response'
 import { formatScheduleWeekDate, formatScheduleWeekLabel } from '@/lib/schedule-data-helpers'
+import { applyPmTracksToSerializedTurns, isPmBiweeklyAnchor } from '@/lib/pm-biweekly-track'
 
 /**
  * Handles HTTP GET requests to retrieve schedule, student, rotation, assignment, and class information for a specified teacher and weekday.
@@ -11,7 +12,7 @@ import { formatScheduleWeekDate, formatScheduleWeekLabel } from '@/lib/schedule-
  *
  * @returns A {@link NextResponse} containing a JSON object with arrays for schedules, students, teacher rotation, filtered assignments, and class information, or an error message.
  *
- * @remark All error conditions except internal server errors return HTTP 200 with an error message in the JSON payload. Only unexpected exceptions result in a 500 status code.
+ * @remark Teacher not found, no assignments, and invalid weekday use non-200 HTTP codes. When no rotation rows exist for this weekday, `teacherRotation` is an empty array (200) so the overview can still load schedules. Internal errors return 500.
  */
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
@@ -84,12 +85,7 @@ export async function GET(req: Request) {
             }
         })
 
-        if (!teacherRotationRows || teacherRotationRows.length === 0) {
-            return notFound('No teacher rotation found')
-        }
-
-        // Expose both `turnId` (numeric FK) and `turnName` (legacy string identifier)
-        // so existing UI clients comparing on the turn label keep working.
+        // Empty rotation is allowed (e.g. before first rotation save, or transient gap). Clients use assignments as fallback.
         const teacherRotation = teacherRotationRows.map(r => ({
             id: r.id,
             classId: r.classId,
@@ -169,14 +165,29 @@ export async function GET(req: Request) {
             // Weeks are stored as DATE/INT in the DB; format them back to the
             // legacy "dd.MM.yy" / "KW##" strings so existing clients keep working.
             if (schedule) {
+                const anchor = isPmBiweeklyAnchor(schedule.pmBiweeklyAnchor) ? schedule.pmBiweeklyAnchor : null
+                const turnsSlim = schedule.turns.map((turn) => ({
+                    name: turn.name,
+                    order: turn.order,
+                    weeks: turn.weeks.map((w) => ({
+                        date: formatScheduleWeekDate(w.date),
+                        week: formatScheduleWeekLabel(w.week),
+                        isHoliday: w.isHoliday,
+                        includedInPlan: (w as { includedInPlan?: boolean }).includedInPlan !== false
+                    }))
+                }))
+                const turnsWithPm = applyPmTracksToSerializedTurns(turnsSlim, anchor)
                 const formattedSchedule = {
                     ...schedule,
-                    turns: schedule.turns.map((turn) => ({
+                    turns: schedule.turns.map((turn, turnIdx) => ({
                         ...turn,
-                        weeks: turn.weeks.map((w) => ({
-                            ...w,
-                            date: formatScheduleWeekDate(w.date),
-                            week: formatScheduleWeekLabel(w.week)
+                        weeks: turnsWithPm[turnIdx]!.weeks.map((w, widx) => ({
+                            ...turn.weeks[widx],
+                            date: w.date,
+                            week: w.week,
+                            isHoliday: w.isHoliday,
+                            includedInPlan: w.includedInPlan,
+                            pmTrack: (w as { pmTrack?: 'A' | 'B' | null }).pmTrack ?? null
                         }))
                     }))
                 }
@@ -271,7 +282,8 @@ export async function GET(req: Request) {
                 teacherId: assignment.teacherId,
                 classId: assignment.classId,
                 period: assignment.period,
-                groupId: assignment.groupId
+                groupId: assignment.groupId,
+                pmTrack: assignment.pmTrack
             }))
 
         const filteredAssignments = allClassAssignments
@@ -284,7 +296,8 @@ export async function GET(req: Request) {
                 groupId: assignment.groupId,
                 teacherFirstName: assignment.teacher?.firstName ?? null,
                 teacherLastName: assignment.teacher?.lastName ?? null,
-                roomName: assignment.room?.name ?? null
+                roomName: assignment.room?.name ?? null,
+                pmTrack: assignment.pmTrack
             }))
 
         // If no valid schedules found for this weekday, return empty data structure

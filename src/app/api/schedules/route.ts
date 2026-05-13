@@ -18,7 +18,8 @@ const scheduleSchema = z.object({
   classId: z.string().optional(),
   schoolYearId: z.number().int().positive().optional(),
   additionalInfo: z.any().optional(),
-  semesterPlanning: z.enum(['first', 'second']).nullable().optional()
+  semesterPlanning: z.enum(['first', 'second']).nullable().optional(),
+  pmBiweeklyAnchor: z.enum(['A_ON_ODD_WEEKS', 'A_ON_EVEN_WEEKS']).nullable().optional()
 })
 
 /**
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
       return unprocessable('Invalid request data', validationResult.error.format())
     }
 
-    const { name, description, startDate, endDate, selectedWeekday, scheduleData, classId, schoolYearId: bodySchoolYearId, additionalInfo, semesterPlanning } = validationResult.data
+    const { name, description, startDate, endDate, selectedWeekday, scheduleData, classId, schoolYearId: bodySchoolYearId, additionalInfo, semesterPlanning, pmBiweeklyAnchor } = validationResult.data
 
     // Resolve school year: from body or current
     let schoolYearId = bodySchoolYearId
@@ -69,7 +70,42 @@ export async function POST(req: Request) {
 
     let newSchedule
     if (existingSchedule) {
-      // Delete existing turns (cascade will delete weeks and holidays)
+      // Snapshot TeacherRotation before deleting turns: cascade would remove them and
+      // /api/schedules/data would 404 until rotation is re-saved. Relink by turn name / order after new turns exist.
+      type RotationSnap = {
+        groupId: number
+        teacherId: number
+        period: 'AM' | 'PM'
+        schoolYearId: number
+        selectedWeekday: number
+        turnName: string
+        turnOrder: number
+      }
+      let rotationSnapshots: RotationSnap[] = []
+      if (existingSchedule.classId != null) {
+        const existingRotations = await prisma.teacherRotation.findMany({
+          where: {
+            classId: existingSchedule.classId,
+            schoolYearId,
+            selectedWeekday,
+            turn: { scheduleId: existingSchedule.id }
+          },
+          include: {
+            turn: { select: { name: true, order: true } }
+          }
+        })
+        rotationSnapshots = existingRotations.map((r) => ({
+          groupId: r.groupId,
+          teacherId: r.teacherId,
+          period: r.period as 'AM' | 'PM',
+          schoolYearId: r.schoolYearId,
+          selectedWeekday: r.selectedWeekday,
+          turnName: r.turn.name,
+          turnOrder: r.turn.order
+        }))
+      }
+
+      // Delete existing turns (cascade will delete weeks, holidays, and TeacherRotation on old turn ids)
       await prisma.scheduleTurn.deleteMany({
         where: { scheduleId: existingSchedule.id }
       })
@@ -85,6 +121,7 @@ export async function POST(req: Request) {
           schoolYearId,
           additionalInfo,
           semesterPlanning,
+          pmBiweeklyAnchor: pmBiweeklyAnchor ?? null,
           ...(scheduleData ? {
             turns: {
               create: parseJsonToNormalized(scheduleData).map((turnData, order) =>
@@ -111,6 +148,34 @@ export async function POST(req: Request) {
           }
         }
       })
+
+      // Recreate rotations pointing at new ScheduleTurn ids (same class/year/weekday; match by turn name, else order).
+      // If the new schedule has fewer turns or renamed turns, unmapped snapshots are skipped.
+      if (rotationSnapshots.length > 0 && newSchedule.turns?.length) {
+        const nameToTurnId = new Map(newSchedule.turns.map((t) => [t.name, t.id]))
+        const orderToTurnId = new Map(newSchedule.turns.map((t) => [t.order, t.id]))
+        const classId = existingSchedule.classId
+        if (classId != null) {
+          const rotationCreates = rotationSnapshots
+            .map((snap) => {
+              const newTurnId = nameToTurnId.get(snap.turnName) ?? orderToTurnId.get(snap.turnOrder)
+              if (newTurnId == null) return null
+              return {
+                classId,
+                groupId: snap.groupId,
+                teacherId: snap.teacherId,
+                period: snap.period,
+                schoolYearId: snap.schoolYearId,
+                selectedWeekday: snap.selectedWeekday,
+                turnId: newTurnId
+              }
+            })
+            .filter((row): row is NonNullable<typeof row> => row != null)
+          if (rotationCreates.length > 0) {
+            await prisma.teacherRotation.createMany({ data: rotationCreates })
+          }
+        }
+      }
     } else {
       // Create new schedule
       newSchedule = await prisma.schedule.create({
@@ -124,6 +189,7 @@ export async function POST(req: Request) {
           classId: classId ? parseInt(classId) : null,
           additionalInfo,
           semesterPlanning,
+          pmBiweeklyAnchor: pmBiweeklyAnchor ?? null,
           ...(scheduleData ? {
             turns: {
               create: parseJsonToNormalized(scheduleData).map((turnData, order) =>

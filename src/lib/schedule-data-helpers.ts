@@ -18,6 +18,8 @@ export interface ScheduleTurnData {
 		date: string
 		week: string
 		isHoliday: boolean
+		/** When false, Wechseltermin excluded (trip, sports week). Default true if omitted. */
+		includedInPlan?: boolean
 	}>
 	holidayIds?: number[]
 }
@@ -77,6 +79,7 @@ export function normalizeToJsonFormat(
 			date: Date | string
 			week: number | string
 			isHoliday: boolean
+			includedInPlan?: boolean
 		}>
 		holidays?: Array<{
 			holiday: {
@@ -96,7 +99,8 @@ export function normalizeToJsonFormat(
 			weeks: turn.weeks.map(w => ({
 				date: typeof w.date === 'string' ? w.date : formatScheduleWeekDate(w.date),
 				week: typeof w.week === 'string' ? w.week : formatScheduleWeekLabel(w.week),
-				isHoliday: w.isHoliday
+				isHoliday: w.isHoliday,
+				includedInPlan: (w as { includedInPlan?: boolean }).includedInPlan !== false
 			})),
 			holidays: turn.holidays?.map(h => {
 				const startDate = h.holiday.startDate instanceof Date
@@ -145,11 +149,15 @@ export function parseJsonToNormalized(
 			name: turnName,
 			customLength: turnData.customLength ?? null,
 			weeks: Array.isArray(turnData.weeks)
-				? turnData.weeks.map(w => ({
-					date: String(w.date ?? ''),
-					week: String(w.week ?? ''),
-					isHoliday: Boolean(w.isHoliday)
-				}))
+				? turnData.weeks.map(w => {
+					const raw = w as { date?: unknown; week?: unknown; isHoliday?: unknown; includedInPlan?: unknown }
+					return {
+						date: String(raw.date ?? ''),
+						week: String(raw.week ?? ''),
+						isHoliday: Boolean(raw.isHoliday),
+						...(typeof raw.includedInPlan === 'boolean' ? { includedInPlan: raw.includedInPlan } : {})
+					}
+				})
 				: [],
 			holidayIds: Array.isArray(turnData.holidays)
 				? turnData.holidays.map(h => typeof h === 'object' && h !== null && 'id' in h ? Number(h.id) : 0).filter(id => id > 0)
@@ -177,7 +185,8 @@ export function createScheduleTurnData(
 			create: turnData.weeks.map(week => ({
 				date: parseScheduleWeekDate(week.date),
 				week: parseScheduleWeekLabel(week.week),
-				isHoliday: week.isHoliday
+				isHoliday: week.isHoliday,
+				includedInPlan: week.includedInPlan !== false
 			}))
 		},
 		holidays: turnData.holidayIds && turnData.holidayIds.length > 0 ? {

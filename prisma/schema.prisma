@@ -54,6 +54,19 @@ enum SemesterPlan {
   second
 }
 
+/// Nachmittag two-week rhythm: odd/even index among included rotation weeks.
+enum PmBiweeklyAnchor {
+  A_ON_ODD_WEEKS
+  A_ON_EVEN_WEEKS
+}
+
+/// PM lesson applies every week or only on Spur A / Spur B weeks (ignored for AM).
+enum PmTrack {
+  ALL
+  A
+  B
+}
+
 /// Source of truth preference when both manual and Office 365 photos exist.
 enum PhotoSourcePriority {
   manual_first
@@ -234,6 +247,8 @@ model Schedule {
   selectedWeekday   Int
   additionalInfo    String?
   semesterPlanning  SemesterPlan?  // null = full-year plan
+  /// When set, NM weeks use alternating Spur A/B among included rotation weeks.
+  pmBiweeklyAnchor  PmBiweeklyAnchor?
   classId           Int?
   schoolYearId      Int
   createdAt         DateTime       @default(now())
@@ -271,6 +286,8 @@ model ScheduleWeek {
   date              DateTime       @db.Date
   week              Int            // ISO week number
   isHoliday         Boolean        @default(false)
+  /// When false, this Wechseltermin is excluded (trip, sports week, etc.).
+  includedInPlan    Boolean        @default(true)
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   turn              ScheduleTurn   @relation(fields: [turnId], references: [id], onDelete: Cascade)
@@ -304,6 +321,8 @@ model TeacherAssignment {
   roomId            Int
   selectedWeekday   Int             @default(1)
   schoolYearId      Int
+  /// PM only: weekly or restricted to Spur A / B (ignored when period is AM).
+  pmTrack           PmTrack         @default(ALL)
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   class             Class           @relation(fields: [classId], references: [id])
@@ -447,6 +466,17 @@ model DirectorySyncSettings {
   lastSyncSummary     Json?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+}
+
+// Admin-editable limits for schedule creation (student groups per class).
+// Singleton: only the row with id = 1 is used.
+model GeneralSettings {
+  id                     Int @id @default(1)
+  maxStudentsPerGroup    Int @default(12)
+  maxScheduleGroups      Int @default(4)
+  maxSupportedStudents   Int @default(48)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 }
 
 model Grade {

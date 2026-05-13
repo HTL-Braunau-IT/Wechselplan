@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
@@ -19,6 +19,11 @@ import { useClassDataByName } from '@/hooks/use-class-data'
 import { useGroupAssignments } from '@/hooks/use-group-assignments'
 import { useSchoolYear } from '@/contexts/school-year-context'
 import { fetchAndUnwrap, getApiErrorMessage, parseJsonSafe, unwrapData } from '@/lib/api-client'
+import {
+	SCHEDULE_LIMIT_DEFAULTS,
+	computeDefaultGroupCount,
+	type ScheduleLimitValues,
+} from '@/lib/schedule-limits-shared'
 
 
 interface Student {
@@ -55,11 +60,15 @@ const UNASSIGNED_GROUP_ID = 0
 
 const WEEKDAY_LABELS_DE = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag'] as const
 
-// Add constant for maximum group size
-const MAX_GROUP_SIZE = 12
-// Add constant for maximum supported students (4 groups × 12 students)
-const MAX_SUPPORTED_STUDENTS = 48
-
+function groupGridClassName(numberOfGroups: number): string {
+	if (numberOfGroups === 2) {
+		return 'grid-cols-1 md:grid-cols-2 justify-items-center'
+	}
+	if (numberOfGroups === 3) {
+		return 'grid-cols-1 md:grid-cols-2 justify-items-center [&>*:nth-child(3)]:md:col-span-2 [&>*:nth-child(3)]:max-w-md [&>*:nth-child(3)]:mx-auto'
+	}
+	return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 justify-items-center'
+}
 
 /**
  * Distributes students evenly across groups, ensuring the difference between the largest and smallest group is at most 1.
@@ -142,6 +151,8 @@ export default function ScheduleClassSelectPage() {
 		removedStudentIds: number[]
 	} | null>(null)
 	const hasExistingAssignmentsRef = useRef(false)
+	/** Avoids re-running full group init on identical server data (e.g. React Query refetch), which reset the "Anzahl Gruppen" control. */
+	const scheduleDataInitKeyRef = useRef<string | null>(null)
 	const [showCombineClassesDialog, setShowCombineClassesDialog] = useState(false)
 	const [combineClasses, setCombineClasses] = useState({
 		class1Id: '',
@@ -151,41 +162,6 @@ export default function ScheduleClassSelectPage() {
 	const [combiningClasses, setCombiningClasses] = useState(false)
 	const [isManualGroupChange, setIsManualGroupChange] = useState(false)
 	const [entrySelectedWeekday, setEntrySelectedWeekday] = useState<number | null>(null)
-
-	/**
-	 * Determines whether all groups, except the unassigned group, do not exceed the maximum allowed size.
-	 *
-	 * @param groups - Array of groups to validate.
-	 * @returns True if every group (excluding the unassigned group) has a size less than or equal to {@link MAX_GROUP_SIZE}; otherwise, false.
-	 */
-	function checkGroupSizes(groups: Group[]): boolean {
-		return groups.every(group => 
-			group.id === UNASSIGNED_GROUP_ID || group.students.length <= MAX_GROUP_SIZE
-		)
-	}
-
-	/**
-	 * Resets the group assignments to two groups, evenly distributing students by last name.
-	 *
-	 * If redistributing students would cause any group to exceed the maximum allowed size, displays a warning dialog instead of resetting.
-	 */
-	function handleReset() {
-		// Calculate appropriate number of groups based on student count
-		const resetGroups = students.length > 36 ? 4 : 
-			students.length > 18 ? 3 : 2
-		
-		setNumberOfGroups(resetGroups)
-		
-		// Check if any group would exceed the maximum size
-		const maxStudentsPerGroup = Math.ceil(students.length / resetGroups)
-		if (maxStudentsPerGroup > MAX_GROUP_SIZE) {
-			setShowMaxSizeDialog(true)
-			return
-		}
-
-		const newGroups = distributeStudentsEvenly(students, resetGroups)
-		setGroups(newGroups)
-	}
 
 	const sensors = useSensors(
 		useSensor(MouseSensor, {
@@ -204,6 +180,48 @@ export default function ScheduleClassSelectPage() {
 	const { selectedYear } = useSchoolYear()
 	const schoolYearId = selectedYear?.id
 	const updateAssignmentsMessage = 'Es existieren bereits Schülerzuweisungen für diese Klasse. Möchten Sie die bestehenden Zuweisungen mit den neuen Daten aktualisieren?'
+
+	const { data: scheduleLimitsData } = useQuery<ScheduleLimitValues>({
+		queryKey: ['schedule-limits'],
+		queryFn: () => fetchAndUnwrap<ScheduleLimitValues>('/api/settings/schedule-limits'),
+		staleTime: 1000 * 60 * 5,
+	})
+
+	const limits = useMemo(
+		() => scheduleLimitsData ?? SCHEDULE_LIMIT_DEFAULTS,
+		[scheduleLimitsData],
+	)
+
+	const checkGroupSizes = useCallback(
+		(gs: Group[]) =>
+			gs.every(
+				(group) =>
+					group.id === UNASSIGNED_GROUP_ID ||
+					group.students.length <= limits.maxStudentsPerGroup,
+			),
+		[limits.maxStudentsPerGroup],
+	)
+
+	const handleReset = useCallback(() => {
+		const resetGroups = computeDefaultGroupCount(
+			students.length,
+			limits.maxStudentsPerGroup,
+			limits.maxScheduleGroups,
+		)
+		setNumberOfGroups(resetGroups)
+		const maxStudentsPerGroupCeil = Math.ceil(students.length / resetGroups)
+		if (maxStudentsPerGroupCeil > limits.maxStudentsPerGroup) {
+			setShowMaxSizeDialog(true)
+			return
+		}
+		const newGroups = distributeStudentsEvenly(students, resetGroups)
+		setGroups(newGroups)
+	}, [students, limits.maxStudentsPerGroup, limits.maxScheduleGroups])
+
+	const selectMaxGroups = useMemo(() => {
+		const regular = groups.filter((g) => g.id !== UNASSIGNED_GROUP_ID).length
+		return Math.max(limits.maxScheduleGroups, regular, numberOfGroups)
+	}, [groups, limits.maxScheduleGroups, numberOfGroups])
 
 	// Fetch classes using React Query (filtered by selected school year)
 	const { data: classesData, isLoading: isLoadingClassesData } = useQuery<Class[]>({
@@ -286,27 +304,62 @@ export default function ScheduleClassSelectPage() {
 	// Initialize groups when students and assignments are loaded
 	useEffect(() => {
 		if (needsWeekdayPick || !selectedClass || !selectedClassId || isLoadingStudents || isLoadingAssignments) {
+			if (needsWeekdayPick || !selectedClass || !selectedClassId) {
+				scheduleDataInitKeyRef.current = null
+			}
 			setLoading(needsWeekdayPick ? false : isLoadingStudents || isLoadingAssignments)
 			return
 		}
 
 		if (!studentsData) return
 
+		const stableAssignments = JSON.stringify(
+			(assignmentsData?.assignments ?? [])
+				.map((a) => ({
+					groupId: a.groupId,
+					studentIds: [...a.studentIds].sort((x, y) => x - y),
+				}))
+				.sort((a, b) => a.groupId - b.groupId),
+		)
+		const studentIdsKey = studentsData
+			.map((s) => s.id)
+			.slice()
+			.sort((a, b) => a - b)
+			.join(',')
+		const dataInitKey = [
+			selectedClassId,
+			scheduleWeekday,
+			schoolYearId ?? '',
+			studentIdsKey,
+			stableAssignments,
+			limits.maxStudentsPerGroup,
+			limits.maxScheduleGroups,
+			limits.maxSupportedStudents,
+		].join('|')
+
+		if (scheduleDataInitKeyRef.current === dataInitKey) {
+			setLoading(false)
+			return
+		}
+
 		setLoading(true)
-		setIsManualGroupChange(false) // Reset manual change flag when loading new class
+		setIsManualGroupChange(false)
 
 		try {
-			// Calculate initial number of groups based on student count
-			const initialGroups = studentsData.length > 36 ? 4 : 
-				studentsData.length > 18 ? 3 : 2
-			setNumberOfGroups(initialGroups)
-
 			// Check if class has too many students
-			if (studentsData.length > MAX_SUPPORTED_STUDENTS) {
-				setError(`Diese Klasse hat ${studentsData.length} Schüler, aber maximal ${MAX_SUPPORTED_STUDENTS} Schüler werden unterstützt. Bitte reduzieren Sie die Anzahl der Schüler oder kontaktieren Sie den Administrator.`)
+			if (studentsData.length > limits.maxSupportedStudents) {
+				setError(
+					`Diese Klasse hat ${studentsData.length} Schüler, aber maximal ${limits.maxSupportedStudents} Schüler werden unterstützt. Bitte reduzieren Sie die Anzahl der Schüler oder kontaktieren Sie den Administrator.`,
+				)
 				setLoading(false)
 				return
 			}
+
+			const initialGroups = computeDefaultGroupCount(
+				studentsData.length,
+				limits.maxStudentsPerGroup,
+				limits.maxScheduleGroups,
+			)
 
 			if (assignmentsData?.assignments && assignmentsData.assignments.length > 0) {
 				// Only count real groups: exclude unassigned (groupId 0) and empty rows
@@ -332,10 +385,13 @@ export default function ScheduleClassSelectPage() {
 				hasExistingAssignmentsRef.current = true
 			} else {
 				// Otherwise, create default groups with even distribution
+				setNumberOfGroups(initialGroups)
 				const newGroups = distributeStudentsEvenly(studentsData, initialGroups)
 				setGroups(newGroups)
 				hasExistingAssignmentsRef.current = false
 			}
+
+			scheduleDataInitKeyRef.current = dataInitKey
 		} catch (err) {
 			console.error('Error processing students and assignments:', err)
 			captureFrontendError(err, {
@@ -349,7 +405,7 @@ export default function ScheduleClassSelectPage() {
 		} finally {
 			setLoading(false)
 		}
-	}, [needsWeekdayPick, selectedClass, selectedClassId, studentsData, assignmentsData, isLoadingStudents, isLoadingAssignments])
+	}, [needsWeekdayPick, selectedClass, selectedClassId, studentsData, assignmentsData, isLoadingStudents, isLoadingAssignments, limits.maxStudentsPerGroup, limits.maxScheduleGroups, limits.maxSupportedStudents])
 
 	useEffect(() => {
 		if (students.length === 0) return
@@ -387,7 +443,9 @@ export default function ScheduleClassSelectPage() {
 					
 					for (const student of studentsToRedistribute) {
 						// Find a group with space
-						const targetGroup = newGroups.find(group => group.students.length < MAX_GROUP_SIZE)
+						const targetGroup = newGroups.find(
+							(group) => group.students.length < limits.maxStudentsPerGroup,
+						)
 						if (targetGroup) {
 							targetGroup.students.push(student)
 							// Keep groups sorted by last name
@@ -416,7 +474,7 @@ export default function ScheduleClassSelectPage() {
 			// Reset the manual change flag after handling
 			setIsManualGroupChange(false)
 		}
-	}, [numberOfGroups, students, isManualGroupChange])
+	}, [numberOfGroups, students, isManualGroupChange, limits.maxStudentsPerGroup])
 
 	// Add a new effect to handle group ID updates - only for new assignments or manual changes
 	useEffect(() => {
@@ -471,11 +529,18 @@ export default function ScheduleClassSelectPage() {
 	// Add effect to check group sizes when groups change
 	useEffect(() => {
 		if (!checkGroupSizes(groups)) {
-			setError('Eine Gruppe darf nicht mehr als 12 Schüler haben')
+			setError(
+				`Eine Gruppe darf nicht mehr als ${limits.maxStudentsPerGroup} Schüler haben`,
+			)
 		} else {
-			setError(null)
+			setError((prev) =>
+				typeof prev === 'string' &&
+					prev.startsWith('Eine Gruppe darf nicht mehr als')
+					? null
+					: prev,
+			)
 		}
-	}, [groups])
+	}, [groups, checkGroupSizes, limits.maxStudentsPerGroup])
 
 	/**
 	 * Updates the number of groups based on the selected value from the group size dropdown.
@@ -732,7 +797,7 @@ export default function ScheduleClassSelectPage() {
 			if (targetGroupIndex === -1) return currentGroups
 
 			// Check if adding the student would exceed the maximum group size
-			if (newGroups[targetGroupIndex]!.students.length >= MAX_GROUP_SIZE) {
+			if (newGroups[targetGroupIndex]!.students.length >= limits.maxStudentsPerGroup) {
 				setShowMaxSizeDialog(true)
 				return currentGroups
 			}
@@ -863,7 +928,7 @@ export default function ScheduleClassSelectPage() {
 						{needsWeekdayPick ? 'Klasse auswählen' : `Schüler der Klasse ${selectedClass}`}
 					</CardTitle>
 					{!needsWeekdayPick && scheduleWeekday != null && (
-						<p className="text-sm text-muted-foreground mt-1">
+						<p className="text-xl text-muted-foreground mt-1">
 							{WEEKDAY_LABELS_DE[scheduleWeekday - 1]}
 						</p>
 					)}
@@ -957,16 +1022,7 @@ export default function ScheduleClassSelectPage() {
 								</div>
 							) : (
 								<div className="space-y-6">
-									<div className="flex flex-wrap gap-2">
-										<Button
-											type="button"
-											onClick={() => setShowCombineClassesDialog(true)}
-											variant="outline"
-											className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-										>
-											{'Klassen zusammenführen'}
-										</Button>
-									</div>
+
 									{selectedClass && (
 										<form
 											onSubmit={async (e) => {
@@ -988,9 +1044,14 @@ export default function ScheduleClassSelectPage() {
 															onChange={handleGroupSizeChange}
 															className="border rounded px-2 py-1"
 														>
-															<option value="2">2</option>
-															<option value="3">3</option>
-															<option value="4">4</option>
+															{Array.from({ length: selectMaxGroups - 1 }, (_, i) => {
+																const value = i + 2
+																return (
+																	<option key={value} value={String(value)}>
+																		{value}
+																	</option>
+																)
+															})}
 														</select>
 													</div>
 													<Button
@@ -1012,13 +1073,7 @@ export default function ScheduleClassSelectPage() {
 													onDragEnd={handleDragEnd}
 												>
 													<div
-														className={`grid gap-6 ${
-															numberOfGroups === 2
-																? 'grid-cols-1 md:grid-cols-2 justify-items-center'
-																: numberOfGroups === 3
-																	? 'grid-cols-1 md:grid-cols-2 justify-items-center [&>*:nth-child(3)]:md:col-span-2 [&>*:nth-child(3)]:max-w-md [&>*:nth-child(3)]:mx-auto'
-																	: 'grid-cols-1 md:grid-cols-2 justify-items-center'
-														}`}
+														className={`grid gap-6 ${groupGridClassName(numberOfGroups)}`}
 													>
 														{groups
 															.filter((g) => g.id !== UNASSIGNED_GROUP_ID)
@@ -1094,7 +1149,7 @@ export default function ScheduleClassSelectPage() {
 			<Dialog open={showMaxSizeDialog} onOpenChange={setShowMaxSizeDialog}>
 				<DialogContent>
 					<DialogHeader>
-						<DialogTitle>{'Eine Gruppe darf nicht mehr als 12 Schüler haben'}</DialogTitle>
+						<DialogTitle>{`Eine Gruppe darf nicht mehr als ${limits.maxStudentsPerGroup} Schüler haben`}</DialogTitle>
 						<DialogDescription>
 							{'Bitte wählen Sie eine andere Gruppe oder erstellen Sie eine neue Gruppe, um weitere Schüler aufzunehmen.'}
 						</DialogDescription>

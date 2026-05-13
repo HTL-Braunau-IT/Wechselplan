@@ -6,6 +6,13 @@ import { SubjectSelect } from '@/components/schedule/subject-select'
 import { LearningContentSelect } from '@/components/schedule/learning-content-select'
 import { RoomSelect } from '@/components/schedule/room-select'
 import type { ReactNode } from 'react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 
 interface Assignment {
   groupId: number
@@ -16,6 +23,8 @@ interface Assignment {
   customSubject?: string
   customLearningContent?: string
   customRoom?: string
+  /** Nachmittag: weekly or Spur A/B */
+  pmTrack?: 'ALL' | 'A' | 'B'
 }
 
 interface NamedOption {
@@ -42,6 +51,8 @@ interface Props {
   onClearRow: (groupId: number) => void
   getDisplayValue: (assignment: Assignment, field: 'subject' | 'learningContent' | 'room') => string
   rightAction?: ReactNode
+  /** Show NM two-week rhythm (PM only). */
+  showPmTrack?: boolean
 }
 
 const defaultAssignmentFor = (groupId: number): Assignment => ({
@@ -49,7 +60,8 @@ const defaultAssignmentFor = (groupId: number): Assignment => ({
   teacherId: 0,
   subjectId: 0,
   learningContentId: 0,
-  roomId: 0
+  roomId: 0,
+  pmTrack: 'ALL'
 })
 
 export function AssignmentPeriodSection({
@@ -64,7 +76,8 @@ export function AssignmentPeriodSection({
   onStringFieldChange,
   onClearRow,
   getDisplayValue,
-  rightAction
+  rightAction,
+  showPmTrack = false
 }: Props) {
   return (
     <Card className="mb-8">
@@ -124,6 +137,26 @@ export function AssignmentPeriodSection({
                       rooms={rooms}
                     />
                   </div>
+                  {showPmTrack && (
+                    <div>
+                      <Label className="block text-sm font-medium mb-1">NM-Rhythmus</Label>
+                      <Select
+                        value={assignment.pmTrack ?? 'ALL'}
+                        onValueChange={(v) =>
+                          onAssignmentChange(group.id, 'pmTrack', v as 'ALL' | 'A' | 'B')
+                        }
+                      >
+                        <SelectTrigger className="w-full max-w-xs">
+                          <SelectValue placeholder="Wöchentlich" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ALL">Jede Woche</SelectItem>
+                          <SelectItem value="A">Nur Spur A</SelectItem>
+                          <SelectItem value="B">Nur Spur B</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
               </div>
             )

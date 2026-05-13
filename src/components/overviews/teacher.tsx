@@ -1,13 +1,17 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import type { TeacherScheduleData, NormalizedTurn, BreakTime, ScheduleTime, Assignment } from "@/types/types"
-import { parse, isValid, isWithinInterval, addWeeks } from "date-fns"
+import { parse, isValid, addWeeks } from "date-fns"
 import { AlertTriangle } from "lucide-react"
 import { StudentPhoto } from "@/components/student-photo"
 import { getApiErrorMessage, parseJsonSafe, unwrapData } from '@/lib/api-client'
+import { useInViewOnce } from '@/hooks/use-in-view-once'
+import { cn } from '@/lib/utils'
+import { getCurrentCalendarWeekRow, normalizedTurnsToTurnSchedule, teacherOverviewShowFullAssignmentCard } from '@/lib/teacher-overview-week'
+import { pmNachmittagJa, turnScheduleHasPmRhythm } from '@/lib/pm-biweekly-track'
 
 const NO_SCHEDULE_MSG = 'Kein Wechselplan für diesen Tag gefunden'
 
@@ -16,6 +20,31 @@ function periodGroupLabel(period: string): string {
     if (p === 'am') return 'Vormittagsgruppe'
     if (p === 'pm') return 'Nachmittagsgruppe'
     return `${period}-Gruppe`
+}
+
+function TeacherAssignmentReveal({
+    index,
+    className,
+    children,
+}: {
+    index: number
+    className?: string
+    children: ReactNode
+}) {
+    const [ref, isVisible] = useInViewOnce()
+    return (
+        <div
+            ref={ref}
+            className={cn(
+                className,
+                'transition-[opacity,transform] duration-500 ease-out motion-reduce:transition-none',
+                isVisible ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'
+            )}
+            style={{ transitionDelay: `${Math.min(index, 6) * 50}ms` }}
+        >
+            {children}
+        </div>
+    )
 }
 
 /**
@@ -107,25 +136,15 @@ export function TeacherOverview() {
         type CurrentWeekResult = { turnIndex: number; turn: NormalizedTurn } | null
 
         const getCurrentWeek = (turns: NormalizedTurn[] | undefined): CurrentWeekResult => {
-            if (!turns || turns.length === 0) return null
-            for (let i = 0; i < turns.length; i++) {
-                const turn = turns[i]
-                if (!turn) continue
-                const inThisTurn = turn.weeks.some(week => {
-                    const parsedDate = parse(week.date, 'dd.MM.yy', new Date())
-                    if (!isValid(parsedDate)) return false
-                    const weekEnd = addWeeks(parsedDate, 1)
-                    return isWithinInterval(currentDate, { start: parsedDate, end: weekEnd })
-                })
-                if (inThisTurn) return { turnIndex: i, turn }
-            }
-            return null
+            const row = getCurrentCalendarWeekRow(turns, currentDate)
+            return row ? { turnIndex: row.turnIndex, turn: row.turn } : null
         }
 
         const getRemainingWeeks = (turns: NormalizedTurn[] | undefined): number => {
             const currentWeek = getCurrentWeek(turns)
             if (!currentWeek) return 0
             return currentWeek.turn.weeks.filter(week => {
+                if (week.includedInPlan === false) return false
                 const parsedDate = parse(week.date, 'dd.MM.yy', new Date())
                 return isValid(parsedDate) && parsedDate > currentDate
             }).length
@@ -246,19 +265,72 @@ export function TeacherOverview() {
 
         return (
             <div className="space-y-6">
-                {assignments.map(assignment => {
+                {assignments.map((assignment, index) => {
                     const turns = getTurnsForClass(assignment.classId)
-                    const currentWeek = getCurrentWeek(turns)
+                    const calendarWeekRow = getCurrentCalendarWeekRow(turns, currentDate)
+                    const currentWeek = calendarWeekRow
+                        ? { turnIndex: calendarWeekRow.turnIndex, turn: calendarWeekRow.turn }
+                        : null
                     const currentTerm = currentWeek ? currentWeek.turn.name : NO_SCHEDULE_MSG
                     const remainingWeeks = getRemainingWeeks(turns)
                     const actualGroupId = getActualGroupForAssignment(assignment)
+
+                    const hasPmRhythm = Boolean(
+                        turns?.length && turnScheduleHasPmRhythm(normalizedTurnsToTurnSchedule(turns))
+                    )
+                    const turnsLen = turns?.length ?? 0
+                    const showFullTimetable = teacherOverviewShowFullAssignmentCard(
+                        assignment,
+                        calendarWeekRow,
+                        turnsLen,
+                        hasPmRhythm
+                    )
+
+                    const compactInactiveMessage = (() => {
+                        if (!turnsLen || !calendarWeekRow) return NO_SCHEDULE_MSG
+                        if (calendarWeekRow.week.isHoliday) {
+                            return 'Für diese Kalenderwoche ist kein Unterricht vorgesehen (Feiertag).'
+                        }
+                        if (
+                            assignment.period === 'PM' &&
+                            hasPmRhythm &&
+                            !pmNachmittagJa(assignment.pmTrack, calendarWeekRow.week)
+                        ) {
+                            return 'Nachmittag diese Woche nicht im geplanten Rhythmus.'
+                        }
+                        return NO_SCHEDULE_MSG
+                    })()
+
+                    if (!showFullTimetable) {
+                        return (
+                            <TeacherAssignmentReveal
+                                key={assignment.id}
+                                index={index}
+                                className="border border-border/70 rounded-lg bg-muted/40 p-4 shadow"
+                            >
+                                <div className="space-y-2">
+                                    <p className="text-sm text-muted-foreground">Aktuelle Klasse</p>
+                                    <p className="font-semibold text-lg">{assignment.className}</p>
+                                    <p className="text-sm text-muted-foreground">Zeitraum</p>
+                                    <p className="font-semibold">{periodGroupLabel(assignment.period)}</p>
+                                    <p className="text-sm text-muted-foreground pt-2 border-t border-border/60 mt-2">
+                                        {compactInactiveMessage}
+                                    </p>
+                                </div>
+                            </TeacherAssignmentReveal>
+                        )
+                    }
 
                     const scheduleTime = getScheduleTimes(assignment.classId, assignment.period)
                     const breakTimes = getBreakTimes(assignment.classId, assignment.period)
                     const otherGroups = getOtherGroupAssignments(assignment, actualGroupId)
 
                     return (
-                        <div key={assignment.id} className="p-4 bg-card rounded-lg shadow border border-border/70">
+                        <TeacherAssignmentReveal
+                            key={assignment.id}
+                            index={index}
+                            className="border border-border/70 rounded-lg bg-card p-4 shadow"
+                        >
                             <div className="flex justify-start mb-4">
                                 <Link href={actualGroupId != null ? `/noten?classId=${assignment.classId}&groupId=${actualGroupId}` : `/noten?classId=${assignment.classId}`}>
                                     <Button size="sm">
@@ -272,11 +344,16 @@ export function TeacherOverview() {
                                     <p className="font-semibold text-lg">{assignment.className}</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <p className="text-sm text-muted-foreground">Aktuelles Semester</p>
-                                    <p className="font-semibold text-lg">{currentTerm}</p>
+                                    <p className="text-sm text-muted-foreground">Aktueller Turnus</p>
+                                    <p className="font-semibold text-lg">
+                                        {typeof currentTerm === 'string'
+                                            ? currentTerm.replace(/^TURNUS\s*/i, '').trim() || currentTerm
+                                            : currentTerm}
+                                    </p>
+                               
                                 </div>
                                 <div className="space-y-2">
-                                    <p className="text-sm text-muted-foreground">{periodGroupLabel(assignment.period)}</p>
+                                    <p className="text-sm text-muted-foreground">{"Gruppe"}</p>
                                     <p className="font-semibold text-lg">{actualGroupId ?? '—'}</p>
                                 </div>
                                 <div className="space-y-2">
@@ -305,10 +382,18 @@ export function TeacherOverview() {
                                         <div className="space-y-1">
                                             {breakTimes.map((breakTime) => (
                                                 <p key={breakTime.id} className="font-semibold text-sm">
-                                                    {breakTime.name}: {breakTime.startTime} - {breakTime.endTime}
+                                                    {breakTime.name.replace(/\s*\d+$/, '')}: {breakTime.startTime} - {breakTime.endTime}
+                                               
                                                 </p>
                                             ))}
                                         </div>
+                                    </div>
+                                )}
+                                {assignment.period === 'PM' &&
+                                    (assignment.pmTrack === 'A' || assignment.pmTrack === 'B') && (
+                                    <div className="space-y-2 col-span-2">
+                                        <p className="text-sm text-muted-foreground">NM-Rhythmus</p>
+                                        <p className="font-semibold text-lg">Spur {assignment.pmTrack}</p>
                                     </div>
                                 )}
                             </div>
@@ -383,7 +468,7 @@ export function TeacherOverview() {
                                     })()}
                                 </div>
                             </div>
-                        </div>
+                        </TeacherAssignmentReveal>
                     )
                 })}
             </div>

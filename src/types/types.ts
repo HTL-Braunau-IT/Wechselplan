@@ -75,6 +75,8 @@ export type Assignment = {
     teacherFirstName?: string | null
     teacherLastName?: string | null
     roomName?: string | null
+    /** PM assignments only; ALL = every NM week */
+    pmTrack?: 'ALL' | 'A' | 'B'
 }
 
 export type ScheduleData = {
