@@ -69,6 +69,19 @@ type SearchByDateMatch = {
 const ATTENDANCE_OPTIONS = ['Anwesend', 'Krank', 'Entschuldigt', 'Unentschuldigt'] as const
 const GRADE_OPTIONS = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
 const GRADE_CLEAR_VALUE = '__clear__'
+
+/** Build a readable error from a transfer API response, including the Notenmanagement detail. */
+function formatTransferError(data: { error?: string; details?: unknown }): string {
+	const detail =
+		data.details == null
+			? ''
+			: typeof data.details === 'string'
+				? data.details
+				: (data.details as { error_description?: string; error?: string })?.error_description ??
+					(data.details as { error?: string })?.error ??
+					JSON.stringify(data.details)
+	return [data.error, detail].filter(Boolean).join(' — ') || 'Transfer failed'
+}
 const FINAL_GRADE_OPTIONS = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7]
 const BETRAGEN_OPTIONS = [
 	'Sehr zufriedenstellend',
@@ -1874,7 +1887,8 @@ export default function NotenPage() {
 									const prefill = data.prefill ?? {}
 									const grades: Record<number, number | null> = {}
 									for (const s of data.students) {
-										grades[s.id] = prefill[s.id]?.first ?? null
+										const v = prefill[s.id]?.first
+										grades[s.id] = v == null ? null : Math.round(v)
 									}
 									setNmGroupGrades(grades)
 									setNmGroupExcluded(new Set())
@@ -1906,7 +1920,8 @@ export default function NotenPage() {
 									const prefill = data.prefill ?? {}
 									const grades: Record<number, number | null> = {}
 									for (const s of data.students) {
-										grades[s.id] = prefill[s.id]?.second ?? null
+										const v = prefill[s.id]?.second
+										grades[s.id] = v == null ? null : Math.round(v)
 									}
 									setNmGroupGrades(grades)
 									setNmGroupExcluded(new Set())
@@ -1986,7 +2001,7 @@ export default function NotenPage() {
 													</SelectTrigger>
 													<SelectContent>
 														<SelectItem value={GRADE_CLEAR_VALUE}>–</SelectItem>
-														{FINAL_GRADE_OPTIONS.filter((g) => g >= 1 && g <= 5).map((g) => (
+														{[1, 2, 3, 4, 5].map((g) => (
 															<SelectItem key={g} value={String(g)}>{g}</SelectItem>
 														))}
 													</SelectContent>
@@ -2080,8 +2095,8 @@ export default function NotenPage() {
 													notesByMatrikelnummer: []
 												})
 											})
-											const retryData = (await retryRes.json()) as { error?: string; token?: string; tokenExpiresIn?: number }
-											if (!retryRes.ok) throw new Error(retryData.error ?? 'Transfer failed')
+											const retryData = (await retryRes.json()) as { error?: string; details?: unknown; token?: string; tokenExpiresIn?: number }
+											if (!retryRes.ok) throw new Error(formatTransferError(retryData))
 											if (retryData.token && retryData.tokenExpiresIn) {
 												storeToken(retryData.token, retryData.tokenExpiresIn, username)
 											}
@@ -2093,7 +2108,7 @@ export default function NotenPage() {
 											setNmGroupPassword('')
 											return
 										}
-										throw new Error(data.error ?? 'Transfer failed')
+										throw new Error(formatTransferError(data))
 									}
 									if (data.token && data.tokenExpiresIn) {
 										storeToken(data.token, data.tokenExpiresIn, username)
@@ -2162,7 +2177,8 @@ export default function NotenPage() {
 											if (r.students.length === 0) continue
 											groups.push({ groupId: r.gid, students: r.students })
 											for (const s of r.students) {
-												grades[s.id] = r.prefill[s.id]?.[sem] ?? null
+												const v = r.prefill[s.id]?.[sem]
+												grades[s.id] = v == null ? null : Math.round(v)
 											}
 										}
 										if (groups.length === 0) {
@@ -2266,7 +2282,7 @@ export default function NotenPage() {
 															</SelectTrigger>
 															<SelectContent>
 																<SelectItem value={GRADE_CLEAR_VALUE}>–</SelectItem>
-																{FINAL_GRADE_OPTIONS.filter((g) => g >= 1 && g <= 5).map((g) => (
+																{[1, 2, 3, 4, 5].map((g) => (
 																	<SelectItem key={g} value={String(g)}>{g}</SelectItem>
 																))}
 															</SelectContent>
@@ -2340,7 +2356,7 @@ export default function NotenPage() {
 											notesByMatrikelnummer: []
 										})
 									})
-									const data = (await res.json()) as { error?: string; token?: string; tokenExpiresIn?: number }
+									const data = (await res.json()) as { error?: string; details?: unknown; token?: string; tokenExpiresIn?: number }
 									if (!res.ok) {
 										// Stored token may be stale: fall back to password once if available.
 										if (token && password) {
@@ -2360,15 +2376,15 @@ export default function NotenPage() {
 													notesByMatrikelnummer: []
 												})
 											})
-											const retryData = (await retryRes.json()) as { error?: string; token?: string; tokenExpiresIn?: number }
-											if (!retryRes.ok) throw new Error(retryData.error ?? 'Transfer failed')
+											const retryData = (await retryRes.json()) as { error?: string; details?: unknown; token?: string; tokenExpiresIn?: number }
+											if (!retryRes.ok) throw new Error(formatTransferError(retryData))
 											if (retryData.token && retryData.tokenExpiresIn) {
 												storeToken(retryData.token, retryData.tokenExpiresIn, username)
 												token = retryData.token
 											}
 											return
 										}
-										throw new Error(data.error ?? 'Transfer failed')
+										throw new Error(formatTransferError(data))
 									}
 									if (data.token && data.tokenExpiresIn) {
 										storeToken(data.token, data.tokenExpiresIn, username)

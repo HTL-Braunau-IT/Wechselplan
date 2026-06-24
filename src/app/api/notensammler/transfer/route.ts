@@ -27,6 +27,16 @@ function normalizeNamePart(v: string): string {
   return v.trim().toLocaleLowerCase('de-DE')
 }
 
+/**
+ * Wechselplan class names embed the weekday of the schedule variant (e.g. "1AFELCMontag"),
+ * but Notenmanagement only knows the base class name ("1AFELC"). Strip a trailing German
+ * weekday so the LF Klasse and student class-match key use the name Notenmanagement expects.
+ * Classes without a weekday suffix are returned unchanged.
+ */
+function classNameForNotenmanagement(name: string): string {
+  return name.replace(/\s*(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)$/u, '').trim()
+}
+
 async function getNotenmanagementAccessToken(
   username: string,
   password: string
@@ -160,7 +170,10 @@ export async function POST(request: Request) {
         if (reason) nullNoteReasonByStudentId.set(studentId, reason)
         continue
       }
-      const noteNum = typeof n.note === 'number' ? n.note : (typeof n.note === 'string' ? parseInt(n.note, 10) : Number.NaN)
+      // Notenmanagement only accepts integer grades 1-5. Prefill/half grades (e.g. 1.5) are
+      // rounded to the nearest whole grade instead of being dropped to "Keine Note".
+      const rawNote = typeof n.note === 'number' ? n.note : (typeof n.note === 'string' ? parseFloat(n.note) : Number.NaN)
+      const noteNum = Number.isNaN(rawNote) ? Number.NaN : Math.round(rawNote)
       if (Number.isNaN(noteNum) || ![1, 2, 3, 4, 5].includes(noteNum)) {
         notesByStudentId.set(studentId, null)
         if (reason) nullNoteReasonByStudentId.set(studentId, reason)
@@ -181,6 +194,8 @@ export async function POST(request: Request) {
     if (!classRecord) {
       return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }
+    // Name Notenmanagement knows (weekday suffix stripped); used for the LF Klasse and matching.
+    const nmClassName = classNameForNotenmanagement(classRecord.name)
 
     // For group transfer (Notenstand): filter students to this group only
     const classStudents =
@@ -314,7 +329,7 @@ export async function POST(request: Request) {
       .map((st: (typeof classRecord.students)[number]): NotenEntry | null => {
         if (!notesByStudentId.has(st.id)) return null
         const nameKey = `${normalizeNamePart(st.lastName)}|${normalizeNamePart(st.firstName)}`
-        let matrikelnummer = nmIndex.get(`${normalizeNamePart(classRecord.name)}|${nameKey}`) ?? null
+        let matrikelnummer = nmIndex.get(`${normalizeNamePart(nmClassName)}|${nameKey}`) ?? null
         if (matrikelnummer === null) {
           // Fallback: match by name only when it is unambiguous across Notenmanagement.
           const candidates = nmByName.get(nameKey)
@@ -361,10 +376,10 @@ export async function POST(request: Request) {
         {
           error:
             unmatched.length > 0
-              ? `Keine Schüler konnten Notenmanagement zugeordnet werden (Klasse "${classRecord.name}"). Nicht gefunden: ${sample.join(', ')}${more}`
+              ? `Keine Schüler konnten Notenmanagement zugeordnet werden (Klasse "${nmClassName}"). Nicht gefunden: ${sample.join(', ')}${more}`
               : 'No matched students with notes to transfer',
           diagnostics: {
-            class: classRecord.name,
+            class: nmClassName,
             payloadStudents: completeStudents.filter((st) => notesByStudentId.has(st.id)).length,
             unmatched,
           },
@@ -396,7 +411,7 @@ export async function POST(request: Request) {
     const payload = {
       LF: {
         Datum: toLfDate(new Date()),
-        Klasse: classRecord.name,
+        Klasse: nmClassName,
         Fach: subjectTruncated,
         Typ: typ,
         MaxPunkte: 0.0,
