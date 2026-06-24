@@ -179,6 +179,14 @@ export default function NotenPage() {
 	const [nmGroupShowPasswordDialog, setNmGroupShowPasswordDialog] = useState(false)
 	const [nmGroupUsername, setNmGroupUsername] = useState('')
 	const [nmGroupPassword, setNmGroupPassword] = useState('')
+	// Bulk "all groups" transfer flow (review-then-confirm). Reuses the password dialog +
+	// nmGroupUsername/nmGroupPassword/nmGroupShowPasswordDialog state for credentials.
+	const [nmAllStep, setNmAllStep] = useState<'semester' | 'list' | null>(null)
+	const [nmAllSemester, setNmAllSemester] = useState<'first' | 'second' | null>(null)
+	const [nmAllGroups, setNmAllGroups] = useState<Array<{ groupId: number; students: Student[] }>>([])
+	const [nmAllGrades, setNmAllGrades] = useState<Record<number, number | null>>({})
+	const [nmAllSaving, setNmAllSaving] = useState(false)
+	const [nmAllError, setNmAllError] = useState<string | null>(null)
 
 	const schoolYearId = selectedYear?.id ?? null
 	const semesterChangeDate = selectedYear?.semesterChangeDate
@@ -1250,6 +1258,20 @@ export default function NotenPage() {
 															{t('noten.notenmanagementEintragGruppe', { n: selectedGroupId, defaultValue: `Notenmanagement Eintrag Gruppe ${selectedGroupId}` })}
 														</Button>
 													)}
+													{isFeatureEnabled('notenmgmt_htl') && cls.groupIds.length > 0 && (
+														<Button
+															variant="outline"
+															size="sm"
+															onClick={() => {
+																setNmAllStep('semester')
+																setNmAllSemester(null)
+																setNmAllError(null)
+															}}
+															disabled={!selectedClassId || !schoolYearId}
+														>
+															{t('noten.notenmanagementEintragAlle', { defaultValue: 'Notenmanagement Eintrag – Alle Gruppen' })}
+														</Button>
+													)}
 												</div>
 												<div className="flex gap-2 mb-4">
 													<Button
@@ -2061,6 +2083,274 @@ export default function NotenPage() {
 							}}
 						>
 							{nmGroupSaving ? t('common.saving') : t('noten.notenmanagementEintragSubmit', { defaultValue: 'An Notenmanagement übertragen' })}
+						</Button>
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			{/* Notenmanagement Eintrag Alle Gruppen: Semester choice */}
+			<Dialog open={nmAllStep === 'semester'} onOpenChange={(open) => { if (!open) setNmAllStep(null) }}>
+				<DialogContent className="max-w-sm">
+					<DialogHeader>
+						<DialogTitle>{t('noten.notenmanagementEintragSemesterTitle', { defaultValue: 'Semester wählen' })}</DialogTitle>
+					</DialogHeader>
+					<div className="flex gap-2 pt-2">
+						{(['first', 'second'] as const).map((sem) => (
+							<Button
+								key={sem}
+								variant="outline"
+								className="flex-1"
+								onClick={async () => {
+									if (!selectedClassId || !schoolYearId) return
+									const groupIds = classes.find((c) => c.id === selectedClassId)?.groupIds ?? []
+									if (groupIds.length === 0) return
+									setNmAllSemester(sem)
+									setNmAllError(null)
+									try {
+										const results = await Promise.all(
+											groupIds.map(async (gid) => {
+												const res = await fetch(
+													`/api/noten/transfer-prefill?classId=${selectedClassId}&schoolYearId=${schoolYearId}&groupId=${gid}`
+												)
+												if (!res.ok) return { gid, ok: false as const }
+												const data = (await res.json()) as {
+													students: Student[]
+													prefill: Record<number, { first: number | null; second: number | null }>
+												}
+												return { gid, ok: true as const, students: data.students, prefill: data.prefill ?? {} }
+											})
+										)
+										const groups: Array<{ groupId: number; students: Student[] }> = []
+										const grades: Record<number, number | null> = {}
+										const failed: number[] = []
+										for (const r of results) {
+											if (!r.ok) {
+												failed.push(r.gid)
+												continue
+											}
+											groups.push({ groupId: r.gid, students: r.students })
+											for (const s of r.students) {
+												grades[s.id] = r.prefill[s.id]?.[sem] ?? null
+											}
+										}
+										if (groups.length === 0) {
+											setNmAllError(t('noten.notenmanagementEintragAlleNoneLoaded', { defaultValue: 'Keine Gruppe konnte geladen werden.' }))
+											return
+										}
+										setNmAllGroups(groups)
+										setNmAllGrades(grades)
+										if (failed.length > 0) {
+											setNmAllError(
+												t('noten.notenmanagementEintragAlleSomeFailed', {
+													groups: failed.join(', '),
+													defaultValue: `Gruppen ${failed.join(', ')} konnten nicht geladen werden.`
+												})
+											)
+										}
+										setNmAllStep('list')
+									} catch (e) {
+										setNmAllError(e instanceof Error ? e.message : 'Failed')
+									}
+								}}
+							>
+								{sem === 'first'
+									? t('noten.uebertragSem1', { defaultValue: '1. Semester' })
+									: t('noten.uebertragSem2', { defaultValue: '2. Semester' })}
+							</Button>
+						))}
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			{/* Notenmanagement Eintrag Alle Gruppen: Combined student list */}
+			<Dialog
+				open={nmAllStep === 'list'}
+				onOpenChange={(open) => {
+					if (!open) {
+						setNmAllStep(null)
+						setNmAllSemester(null)
+						setNmAllError(null)
+					}
+				}}
+			>
+				<DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+					<DialogHeader>
+						<DialogTitle>{t('noten.notenmanagementEintragListTitle', { defaultValue: 'Notenstand – Schülerliste' })}</DialogTitle>
+					</DialogHeader>
+					<div className="overflow-auto flex-1 min-h-0 border rounded-md">
+						<Table>
+							<TableHeader>
+								<TableRow>
+									<TableHead className="w-[200px]">{t('noten.name')}</TableHead>
+									<TableHead>{t('noten.gradeBerechnet')}</TableHead>
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{nmAllGroups.map((grp) => (
+									<React.Fragment key={grp.groupId}>
+										<TableRow className="bg-muted/50">
+											<TableCell colSpan={2} className="font-semibold">
+												{t('noten.gruppe')} {grp.groupId}
+											</TableCell>
+										</TableRow>
+										{grp.students.map((s) => {
+											const grade = nmAllGrades[s.id] ?? null
+											const isMissing = grade == null
+											return (
+												<TableRow key={s.id} className={isMissing ? 'bg-destructive/10' : ''}>
+													<TableCell className="font-medium">
+														{s.lastName} {s.firstName}
+													</TableCell>
+													<TableCell>
+														<Select
+															value={grade != null ? String(grade) : ''}
+															onValueChange={(v) =>
+																setNmAllGrades((prev) => ({
+																	...prev,
+																	[s.id]: (v === GRADE_CLEAR_VALUE || v === '') ? null : parseFloat(v)
+																}))
+															}
+														>
+															<SelectTrigger className={`w-24 ${isMissing ? 'border-destructive' : ''}`}>
+																<SelectValue placeholder={t('noten.uebertragMissing', { defaultValue: '–' })} />
+															</SelectTrigger>
+															<SelectContent>
+																<SelectItem value={GRADE_CLEAR_VALUE}>–</SelectItem>
+																{FINAL_GRADE_OPTIONS.filter((g) => g >= 1 && g <= 5).map((g) => (
+																	<SelectItem key={g} value={String(g)}>{g}</SelectItem>
+																))}
+															</SelectContent>
+														</Select>
+													</TableCell>
+												</TableRow>
+											)
+										})}
+									</React.Fragment>
+								))}
+							</TableBody>
+						</Table>
+					</div>
+					{nmAllError && <p className="text-destructive text-sm">{nmAllError}</p>}
+					<div className="flex justify-end gap-2 pt-2">
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => {
+								setNmAllStep(null)
+								setNmAllSemester(null)
+							}}
+						>
+							{t('common.cancel')}
+						</Button>
+						<Button
+							variant="default"
+							size="sm"
+							disabled={nmAllSaving || !nmAllSemester || !selectedClassId || !schoolYearId || nmAllGroups.length === 0}
+							onClick={async () => {
+								if (!selectedClassId || !schoolYearId || !nmAllSemester) return
+								const storedToken = getStoredToken()
+								const defaultUsername = typeof session?.user?.name === 'string' ? session.user.name : ''
+								const useStoredToken = storedToken && normalizeUsername(storedToken.username) === normalizeUsername(defaultUsername)
+								if (!useStoredToken && !nmGroupPassword) {
+									setNmGroupUsername(defaultUsername)
+									setNmGroupShowPasswordDialog(true)
+									return
+								}
+								const username = nmGroupUsername || defaultUsername
+								const password = nmGroupPassword
+								if (!username) {
+									setNmAllError(t('noten.notenmanagementUsernameRequired', { defaultValue: 'Notenmanagement-Benutzername erforderlich.' }))
+									return
+								}
+								if (!useStoredToken && !password) {
+									setNmAllError(t('noten.notenmanagementPasswordRequired', { defaultValue: 'Passwort erforderlich.' }))
+									return
+								}
+								setNmAllSaving(true)
+								setNmAllError(null)
+								// Resolve a token once and reuse it for every group to avoid re-auth.
+								let token: string | null = useStoredToken && storedToken ? storedToken.token : null
+								const transferGroup = async (groupId: number, students: Student[]) => {
+									const notesPayload = students.map((s) => ({ studentId: s.id, note: nmAllGrades[s.id] ?? null }))
+									const res = await fetch('/api/notensammler/transfer', {
+										method: 'POST',
+										headers: { 'Content-Type': 'application/json' },
+										body: JSON.stringify({
+											classId: selectedClassId,
+											groupId,
+											semester: nmAllSemester,
+											schoolYearId,
+											username: normalizeUsername(username) || username,
+											...(token ? { token } : { password }),
+											notes: notesPayload,
+											notesByMatrikelnummer: []
+										})
+									})
+									const data = (await res.json()) as { error?: string; token?: string; tokenExpiresIn?: number }
+									if (!res.ok) {
+										// Stored token may be stale: fall back to password once if available.
+										if (token && password) {
+											clearToken()
+											token = null
+											const retryRes = await fetch('/api/notensammler/transfer', {
+												method: 'POST',
+												headers: { 'Content-Type': 'application/json' },
+												body: JSON.stringify({
+													classId: selectedClassId,
+													groupId,
+													semester: nmAllSemester,
+													schoolYearId,
+													username: normalizeUsername(username) || username,
+													password,
+													notes: notesPayload,
+													notesByMatrikelnummer: []
+												})
+											})
+											const retryData = (await retryRes.json()) as { error?: string; token?: string; tokenExpiresIn?: number }
+											if (!retryRes.ok) throw new Error(retryData.error ?? 'Transfer failed')
+											if (retryData.token && retryData.tokenExpiresIn) {
+												storeToken(retryData.token, retryData.tokenExpiresIn, username)
+												token = retryData.token
+											}
+											return
+										}
+										throw new Error(data.error ?? 'Transfer failed')
+									}
+									if (data.token && data.tokenExpiresIn) {
+										storeToken(data.token, data.tokenExpiresIn, username)
+										token = data.token
+									}
+								}
+								try {
+									const failed: number[] = []
+									for (const grp of nmAllGroups) {
+										try {
+											await transferGroup(grp.groupId, grp.students)
+										} catch {
+											failed.push(grp.groupId)
+										}
+									}
+									if (failed.length > 0) {
+										setNmAllError(
+											t('noten.notenmanagementEintragAlleTransferFailed', {
+												groups: failed.join(', '),
+												defaultValue: `Übertragung fehlgeschlagen für Gruppen: ${failed.join(', ')}`
+											})
+										)
+										return
+									}
+									setNmAllStep(null)
+									setNmAllSemester(null)
+									setNmAllGroups([])
+									setNmAllGrades({})
+									setNmGroupShowPasswordDialog(false)
+									setNmGroupPassword('')
+								} finally {
+									setNmAllSaving(false)
+								}
+							}}
+						>
+							{nmAllSaving ? t('common.saving') : t('noten.notenmanagementEintragSubmit', { defaultValue: 'An Notenmanagement übertragen' })}
 						</Button>
 					</div>
 				</DialogContent>

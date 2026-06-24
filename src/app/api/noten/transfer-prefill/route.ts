@@ -138,8 +138,11 @@ export async function GET(request: Request) {
 		})
 		let assignedGroupIds = [...new Set(assignments.map((a) => a.groupId))]
 		if (groupId !== null) {
-			if (!assignedGroupIds.includes(groupId)) {
-				return NextResponse.json({ error: 'Not assigned to this group' }, { status: 403 })
+			// Class-level check: a teacher assigned to this class (any group) may transfer any
+			// group in it. Prefill calculation stays teacher-scoped below, so for groups the
+			// teacher does not personally teach only stored Endnoten surface (calculation empty).
+			if (assignments.length === 0) {
+				return NextResponse.json({ error: 'Not assigned to this class' }, { status: 403 })
 			}
 			assignedGroupIds = [groupId]
 		}
