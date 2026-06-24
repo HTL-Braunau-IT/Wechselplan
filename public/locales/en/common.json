@@ -64,6 +64,8 @@
     "notenmanagementEintragAlleNoneLoaded": "No group could be loaded.",
     "notenmanagementEintragAlleSomeFailed": "Groups {{groups}} could not be loaded.",
     "notenmanagementEintragAlleTransferFailed": "Transfer failed for groups: {{groups}}",
+    "notenmanagementEintragNoStudents": "No students selected for transfer.",
+    "uebertragen": "Transfer",
     "notenmanagementEintragSemesterTitle": "Choose semester",
     "notenmanagementEintragListTitle": "Notenstand – Student list",
     "notenmanagementEintragSubmit": "Transfer to Notenmanagement",

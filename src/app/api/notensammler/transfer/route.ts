@@ -259,13 +259,22 @@ export async function POST(request: Request) {
 
     const nmStudents = await fetchNotenmanagementStudents(accessToken)
     const nmIndex = new Map<string, number>()
+    // Secondary index by name only (no class), to recover matches when the Notenmanagement
+    // "klasse" differs from the Wechselplan class name (e.g. cross-homeroom groups). Only used
+    // when the class-qualified match misses AND the name is unique across Notenmanagement.
+    const nmByName = new Map<string, number[]>()
     for (const s of nmStudents) {
       const matr = s.Matrikelnummer
       const vor = s.Vorname
       const nach = s.Nachname
       const klasse = s.klasse ?? s.Klasse
-      if (!matr || !vor || !nach || !klasse) continue
-      nmIndex.set(`${normalizeNamePart(klasse)}|${normalizeNamePart(nach)}|${normalizeNamePart(vor)}`, matr)
+      if (!matr || !vor || !nach) continue
+      const nameKey = `${normalizeNamePart(nach)}|${normalizeNamePart(vor)}`
+      const list = nmByName.get(nameKey) ?? []
+      list.push(matr)
+      nmByName.set(nameKey, list)
+      if (!klasse) continue
+      nmIndex.set(`${normalizeNamePart(klasse)}|${nameKey}`, matr)
     }
 
     // Group transfer: use only group students (notes from payload). Class transfer: all students with all teacher grades.
@@ -300,12 +309,23 @@ export async function POST(request: Request) {
     }
 
     // Build Noten entries: only matched students, with note (1-5) or "Keine Note" (null)
+    const unmatched: string[] = []
     const noten = completeStudents
       .map((st: (typeof classRecord.students)[number]): NotenEntry | null => {
         if (!notesByStudentId.has(st.id)) return null
-        const key = `${normalizeNamePart(classRecord.name)}|${normalizeNamePart(st.lastName)}|${normalizeNamePart(st.firstName)}`
-        const matrikelnummer = nmIndex.get(key) ?? null
-        if (!matrikelnummer) return null
+        const nameKey = `${normalizeNamePart(st.lastName)}|${normalizeNamePart(st.firstName)}`
+        let matrikelnummer = nmIndex.get(`${normalizeNamePart(classRecord.name)}|${nameKey}`) ?? null
+        if (matrikelnummer === null) {
+          // Fallback: match by name only when it is unambiguous across Notenmanagement.
+          const candidates = nmByName.get(nameKey)
+          if (candidates && candidates.length === 1) {
+            matrikelnummer = candidates[0]!
+          }
+        }
+        if (!matrikelnummer) {
+          unmatched.push(`${st.lastName} ${st.firstName}`)
+          return null
+        }
         const note = notesByStudentId.get(st.id) ?? null
         const kommentar = note === null ? commentForNullNote(st) : ''
         return {
@@ -335,8 +355,20 @@ export async function POST(request: Request) {
     }
 
     if (noten.length === 0) {
+      const sample = unmatched.slice(0, 8)
+      const more = unmatched.length > sample.length ? ` (+${unmatched.length - sample.length})` : ''
       return NextResponse.json(
-        { error: 'No matched students with notes to transfer' },
+        {
+          error:
+            unmatched.length > 0
+              ? `Keine Schüler konnten Notenmanagement zugeordnet werden (Klasse "${classRecord.name}"). Nicht gefunden: ${sample.join(', ')}${more}`
+              : 'No matched students with notes to transfer',
+          diagnostics: {
+            class: classRecord.name,
+            payloadStudents: completeStudents.filter((st) => notesByStudentId.has(st.id)).length,
+            unmatched,
+          },
+        },
         { status: 400 }
       )
     }
@@ -381,6 +413,40 @@ export async function POST(request: Request) {
       JSON.stringify(payload, null, 2)
     )
 
+    function extractLfId(body: unknown): string | null {
+      const id =
+        typeof body === 'object' && body !== null
+          ? (body as Record<string, unknown>).LF_ID ??
+            (body as Record<string, unknown>).Lf_ID ??
+            (body as Record<string, unknown>).id ??
+            (body as Record<string, unknown>).Id
+          : null
+      return typeof id === 'number' || typeof id === 'string' ? String(id) : null
+    }
+
+    // Create a brand new LF via POST. Returns the new LF id, or a NextResponse on failure.
+    async function createLf(): Promise<{ lfId: string } | { error: NextResponse }> {
+      const postUrl = new URL('api/LFs', env.NOTENMANAGEMENT_BASE_URL).toString()
+      const postRes = await fetch(postUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+      const ct = postRes.headers.get('content-type') ?? ''
+      const postBody = ct.includes('application/json') ? await postRes.json() : await postRes.text()
+      if (!postRes.ok) {
+        return { error: NextResponse.json({ error: 'Notenmanagement /api/LFs POST failed', details: postBody }, { status: 502 }) }
+      }
+      const lfId = extractLfId(postBody)
+      if (lfId === null) {
+        return { error: NextResponse.json({ error: 'LF created but no LF_ID returned', response: postBody }, { status: 502 }) }
+      }
+      return { lfId }
+    }
+
     let lfIdStr: string
     if (existingTransfer) {
       // Update existing LF
@@ -397,64 +463,24 @@ export async function POST(request: Request) {
       const ct = putRes.headers.get('content-type') ?? ''
       const putBody = ct.includes('application/json') ? await putRes.json() : await putRes.text()
       if (!putRes.ok) {
-        return NextResponse.json(
-          { error: 'Notenmanagement /api/LFs PUT failed', details: putBody },
-          { status: 502 }
+        // The stored LF no longer exists in Notenmanagement (deleted there, or owned by
+        // another account). Self-heal by creating a fresh LF instead of failing; the upsert
+        // below repoints the stored record to the new id.
+        console.warn(
+          `[Notenmanagement] PUT /api/LFs/${existingTransfer.lfId} failed (status ${putRes.status}); creating a new LF instead.`,
+          typeof putBody === 'string' ? putBody : JSON.stringify(putBody)
         )
-      }
-
-      // Extract new LF_ID from PUT response (may be different from existing)
-      const newLfId =
-        typeof putBody === 'object' && putBody !== null
-          ? (putBody as Record<string, unknown>).LF_ID ??
-            (putBody as Record<string, unknown>).Lf_ID ??
-            (putBody as Record<string, unknown>).id ??
-            (putBody as Record<string, unknown>).Id
-          : null
-
-      if (typeof newLfId !== 'number' && typeof newLfId !== 'string') {
-        // If no new LF_ID returned, use existing one
-        lfIdStr = existingTransfer.lfId
+        const created = await createLf()
+        if ('error' in created) return created.error
+        lfIdStr = created.lfId
       } else {
-        lfIdStr = String(newLfId)
+        // Extract new LF_ID from PUT response (may be different from existing)
+        lfIdStr = extractLfId(putBody) ?? existingTransfer.lfId
       }
     } else {
-      // Create new LF
-      const postUrl = new URL('api/LFs', env.NOTENMANAGEMENT_BASE_URL).toString()
-      const postRes = await fetch(postUrl, {
-        method: 'POST',
-        headers: {
-          Authorization: `bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      })
-
-      const ct = postRes.headers.get('content-type') ?? ''
-      const postBody = ct.includes('application/json') ? await postRes.json() : await postRes.text()
-      if (!postRes.ok) {
-        return NextResponse.json(
-          { error: 'Notenmanagement /api/LFs POST failed', details: postBody },
-          { status: 502 }
-        )
-      }
-
-      const lfId =
-        typeof postBody === 'object' && postBody !== null
-          ? (postBody as Record<string, unknown>).LF_ID ??
-            (postBody as Record<string, unknown>).Lf_ID ??
-            (postBody as Record<string, unknown>).id ??
-            (postBody as Record<string, unknown>).Id
-          : null
-
-      if (typeof lfId !== 'number' && typeof lfId !== 'string') {
-        return NextResponse.json(
-          { error: 'LF created but no LF_ID returned', response: postBody },
-          { status: 502 }
-        )
-      }
-
-      lfIdStr = String(lfId)
+      const created = await createLf()
+      if ('error' in created) return created.error
+      lfIdStr = created.lfId
     }
 
     // Upsert transfer record

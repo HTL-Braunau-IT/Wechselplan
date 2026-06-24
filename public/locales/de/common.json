@@ -63,6 +63,8 @@
     "notenmanagementEintragAlleNoneLoaded": "Keine Gruppe konnte geladen werden.",
     "notenmanagementEintragAlleSomeFailed": "Gruppen {{groups}} konnten nicht geladen werden.",
     "notenmanagementEintragAlleTransferFailed": "Übertragung fehlgeschlagen für Gruppen: {{groups}}",
+    "notenmanagementEintragNoStudents": "Keine Schüler zum Übertragen ausgewählt.",
+    "uebertragen": "Übertragen",
     "notenmanagementEintragSemesterTitle": "Semester wählen",
     "notenmanagementEintragListTitle": "Notenstand – Schülerliste",
     "notenmanagementEintragSubmit": "An Notenmanagement übertragen",

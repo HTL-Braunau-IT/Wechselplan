@@ -179,6 +179,8 @@ export default function NotenPage() {
 	const [nmGroupShowPasswordDialog, setNmGroupShowPasswordDialog] = useState(false)
 	const [nmGroupUsername, setNmGroupUsername] = useState('')
 	const [nmGroupPassword, setNmGroupPassword] = useState('')
+	// Student IDs excluded from the transfer (unchecked rows). Empty = transfer everyone.
+	const [nmGroupExcluded, setNmGroupExcluded] = useState<Set<number>>(new Set())
 	// Bulk "all groups" transfer flow (review-then-confirm). Reuses the password dialog +
 	// nmGroupUsername/nmGroupPassword/nmGroupShowPasswordDialog state for credentials.
 	const [nmAllStep, setNmAllStep] = useState<'semester' | 'list' | null>(null)
@@ -187,6 +189,7 @@ export default function NotenPage() {
 	const [nmAllGrades, setNmAllGrades] = useState<Record<number, number | null>>({})
 	const [nmAllSaving, setNmAllSaving] = useState(false)
 	const [nmAllError, setNmAllError] = useState<string | null>(null)
+	const [nmAllExcluded, setNmAllExcluded] = useState<Set<number>>(new Set())
 
 	const schoolYearId = selectedYear?.id ?? null
 	const semesterChangeDate = selectedYear?.semesterChangeDate
@@ -1874,6 +1877,7 @@ export default function NotenPage() {
 										grades[s.id] = prefill[s.id]?.first ?? null
 									}
 									setNmGroupGrades(grades)
+									setNmGroupExcluded(new Set())
 									setNmGroupStep('list')
 								} catch (e) {
 									setNmGroupError(e instanceof Error ? e.message : 'Failed')
@@ -1905,6 +1909,7 @@ export default function NotenPage() {
 										grades[s.id] = prefill[s.id]?.second ?? null
 									}
 									setNmGroupGrades(grades)
+									setNmGroupExcluded(new Set())
 									setNmGroupStep('list')
 								} catch (e) {
 									setNmGroupError(e instanceof Error ? e.message : 'Failed')
@@ -1936,6 +1941,7 @@ export default function NotenPage() {
 						<Table>
 							<TableHeader>
 								<TableRow>
+									<TableHead className="w-[3rem] text-center">{t('noten.uebertragen', { defaultValue: 'Übertragen' })}</TableHead>
 									<TableHead className="w-[200px]">{t('noten.name')}</TableHead>
 									<TableHead>{t('noten.gradeBerechnet')}</TableHead>
 								</TableRow>
@@ -1943,14 +1949,30 @@ export default function NotenPage() {
 							<TableBody>
 								{nmGroupStudents.map((s) => {
 									const grade = nmGroupGrades[s.id] ?? null
-									const isMissing = grade == null
+									const isExcluded = nmGroupExcluded.has(s.id)
+									const isMissing = grade == null && !isExcluded
 									return (
-										<TableRow key={s.id} className={isMissing ? 'bg-destructive/10' : ''}>
+										<TableRow key={s.id} className={isExcluded ? 'opacity-50' : isMissing ? 'bg-destructive/10' : ''}>
+											<TableCell className="text-center">
+												<Checkbox
+													checked={!isExcluded}
+													onCheckedChange={(checked) =>
+														setNmGroupExcluded((prev) => {
+															const next = new Set(prev)
+															if (checked) next.delete(s.id)
+															else next.add(s.id)
+															return next
+														})
+													}
+													aria-label={t('noten.uebertragen', { defaultValue: 'Übertragen' })}
+												/>
+											</TableCell>
 											<TableCell className="font-medium">
 												{s.lastName} {s.firstName}
 											</TableCell>
 											<TableCell>
 												<Select
+													disabled={isExcluded}
 													value={grade != null ? String(grade) : ''}
 													onValueChange={(v) =>
 														setNmGroupGrades((prev) => ({
@@ -2015,10 +2037,17 @@ export default function NotenPage() {
 								setNmGroupSaving(true)
 								setNmGroupError(null)
 								try {
-									const notesPayload = nmGroupStudents.map((s) => ({
-										studentId: s.id,
-										note: nmGroupGrades[s.id] ?? null
-									}))
+									const notesPayload = nmGroupStudents
+										.filter((s) => !nmGroupExcluded.has(s.id))
+										.map((s) => ({
+											studentId: s.id,
+											note: nmGroupGrades[s.id] ?? null
+										}))
+									if (notesPayload.length === 0) {
+										setNmGroupError(t('noten.notenmanagementEintragNoStudents', { defaultValue: 'Keine Schüler zum Übertragen ausgewählt.' }))
+										setNmGroupSaving(false)
+										return
+									}
 									const res = await fetch('/api/notensammler/transfer', {
 										method: 'POST',
 										headers: { 'Content-Type': 'application/json' },
@@ -2142,6 +2171,7 @@ export default function NotenPage() {
 										}
 										setNmAllGroups(groups)
 										setNmAllGrades(grades)
+										setNmAllExcluded(new Set())
 										if (failed.length > 0) {
 											setNmAllError(
 												t('noten.notenmanagementEintragAlleSomeFailed', {
@@ -2184,6 +2214,7 @@ export default function NotenPage() {
 						<Table>
 							<TableHeader>
 								<TableRow>
+									<TableHead className="w-[3rem] text-center">{t('noten.uebertragen', { defaultValue: 'Übertragen' })}</TableHead>
 									<TableHead className="w-[200px]">{t('noten.name')}</TableHead>
 									<TableHead>{t('noten.gradeBerechnet')}</TableHead>
 								</TableRow>
@@ -2192,20 +2223,36 @@ export default function NotenPage() {
 								{nmAllGroups.map((grp) => (
 									<React.Fragment key={grp.groupId}>
 										<TableRow className="bg-muted/50">
-											<TableCell colSpan={2} className="font-semibold">
+											<TableCell colSpan={3} className="font-semibold">
 												{t('noten.gruppe')} {grp.groupId}
 											</TableCell>
 										</TableRow>
 										{grp.students.map((s) => {
 											const grade = nmAllGrades[s.id] ?? null
-											const isMissing = grade == null
+											const isExcluded = nmAllExcluded.has(s.id)
+											const isMissing = grade == null && !isExcluded
 											return (
-												<TableRow key={s.id} className={isMissing ? 'bg-destructive/10' : ''}>
+												<TableRow key={s.id} className={isExcluded ? 'opacity-50' : isMissing ? 'bg-destructive/10' : ''}>
+													<TableCell className="text-center">
+														<Checkbox
+															checked={!isExcluded}
+															onCheckedChange={(checked) =>
+																setNmAllExcluded((prev) => {
+																	const next = new Set(prev)
+																	if (checked) next.delete(s.id)
+																	else next.add(s.id)
+																	return next
+																})
+															}
+															aria-label={t('noten.uebertragen', { defaultValue: 'Übertragen' })}
+														/>
+													</TableCell>
 													<TableCell className="font-medium">
 														{s.lastName} {s.firstName}
 													</TableCell>
 													<TableCell>
 														<Select
+															disabled={isExcluded}
 															value={grade != null ? String(grade) : ''}
 															onValueChange={(v) =>
 																setNmAllGrades((prev) => ({
@@ -2274,7 +2321,11 @@ export default function NotenPage() {
 								// Resolve a token once and reuse it for every group to avoid re-auth.
 								let token: string | null = useStoredToken && storedToken ? storedToken.token : null
 								const transferGroup = async (groupId: number, students: Student[]) => {
-									const notesPayload = students.map((s) => ({ studentId: s.id, note: nmAllGrades[s.id] ?? null }))
+									const notesPayload = students
+										.filter((s) => !nmAllExcluded.has(s.id))
+										.map((s) => ({ studentId: s.id, note: nmAllGrades[s.id] ?? null }))
+									// Nothing to send if every student in this group was unchecked.
+									if (notesPayload.length === 0) return
 									const res = await fetch('/api/notensammler/transfer', {
 										method: 'POST',
 										headers: { 'Content-Type': 'application/json' },
