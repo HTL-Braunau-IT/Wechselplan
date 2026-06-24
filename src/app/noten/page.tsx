@@ -2128,6 +2128,9 @@ export default function NotenPage() {
 												failed.push(r.gid)
 												continue
 											}
+											// Skip groups with no enrolled students: transferring them would POST an
+											// empty notes payload and the API rejects it (400 "No matched students").
+											if (r.students.length === 0) continue
 											groups.push({ groupId: r.gid, students: r.students })
 											for (const s of r.students) {
 												grades[s.id] = r.prefill[s.id]?.[sem] ?? null
