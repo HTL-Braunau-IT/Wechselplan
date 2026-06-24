@@ -273,23 +273,27 @@ export async function POST(request: Request) {
     }
 
     const nmStudents = await fetchNotenmanagementStudents(accessToken)
-    const nmIndex = new Map<string, number>()
+    // Each match carries the student's real Notenmanagement class, so combined Wechselplan
+    // classes can be split into one LF per real class.
+    type NmMatch = { matr: number; klasse: string }
+    const nmIndex = new Map<string, NmMatch>()
     // Secondary index by name only (no class), to recover matches when the Notenmanagement
-    // "klasse" differs from the Wechselplan class name (e.g. cross-homeroom groups). Only used
-    // when the class-qualified match misses AND the name is unique across Notenmanagement.
-    const nmByName = new Map<string, number[]>()
+    // "klasse" differs from the Wechselplan class name (combined or cross-homeroom groups).
+    // Only used when the class-qualified match misses AND the name is unique across NM.
+    const nmByName = new Map<string, NmMatch[]>()
     for (const s of nmStudents) {
       const matr = s.Matrikelnummer
       const vor = s.Vorname
       const nach = s.Nachname
-      const klasse = s.klasse ?? s.Klasse
+      const klasse = (s.klasse ?? s.Klasse ?? '').trim()
       if (!matr || !vor || !nach) continue
       const nameKey = `${normalizeNamePart(nach)}|${normalizeNamePart(vor)}`
+      const match: NmMatch = { matr, klasse }
       const list = nmByName.get(nameKey) ?? []
-      list.push(matr)
+      list.push(match)
       nmByName.set(nameKey, list)
       if (!klasse) continue
-      nmIndex.set(`${normalizeNamePart(klasse)}|${nameKey}`, matr)
+      nmIndex.set(`${normalizeNamePart(klasse)}|${nameKey}`, match)
     }
 
     // Group transfer: use only group students (notes from payload). Class transfer: all students with all teacher grades.
@@ -323,34 +327,40 @@ export async function POST(request: Request) {
       return ''
     }
 
-    // Build Noten entries: only matched students, with note (1-5) or "Keine Note" (null)
+    // Map Matrikelnummer -> real Notenmanagement class, for grouping NM-only payload entries.
+    const klasseByMatr = new Map<number, string>()
+    for (const s of nmStudents) {
+      if (s.Matrikelnummer) klasseByMatr.set(s.Matrikelnummer, (s.klasse ?? s.Klasse ?? '').trim())
+    }
+
+    // Build Noten entries grouped by the student's real Notenmanagement class. A combined
+    // Wechselplan class yields one bucket per real class, each becoming its own LF.
     const unmatched: string[] = []
-    const noten = completeStudents
-      .map((st: (typeof classRecord.students)[number]): NotenEntry | null => {
-        if (!notesByStudentId.has(st.id)) return null
-        const nameKey = `${normalizeNamePart(st.lastName)}|${normalizeNamePart(st.firstName)}`
-        let matrikelnummer = nmIndex.get(`${normalizeNamePart(nmClassName)}|${nameKey}`) ?? null
-        if (matrikelnummer === null) {
-          // Fallback: match by name only when it is unambiguous across Notenmanagement.
-          const candidates = nmByName.get(nameKey)
-          if (candidates && candidates.length === 1) {
-            matrikelnummer = candidates[0]!
-          }
-        }
-        if (!matrikelnummer) {
-          unmatched.push(`${st.lastName} ${st.firstName}`)
-          return null
-        }
-        const note = notesByStudentId.get(st.id) ?? null
-        const kommentar = note === null ? commentForNullNote(st) : ''
-        return {
-          Matrikelnummer: matrikelnummer,
-          Note: note,
-          Punkte: 0.0,
-          Kommentar: kommentar,
-        }
-      })
-      .filter((n): n is NotenEntry => n !== null)
+    const notenByKlasse = new Map<string, NotenEntry[]>()
+    const pushNote = (klasse: string, entry: NotenEntry) => {
+      const list = notenByKlasse.get(klasse) ?? []
+      list.push(entry)
+      notenByKlasse.set(klasse, list)
+    }
+    let notenCount = 0
+    for (const st of completeStudents) {
+      if (!notesByStudentId.has(st.id)) continue
+      const nameKey = `${normalizeNamePart(st.lastName)}|${normalizeNamePart(st.firstName)}`
+      let match = nmIndex.get(`${normalizeNamePart(nmClassName)}|${nameKey}`) ?? null
+      if (match === null) {
+        // Fallback: match by name only when it is unambiguous across Notenmanagement.
+        const candidates = nmByName.get(nameKey)
+        if (candidates && candidates.length === 1) match = candidates[0]!
+      }
+      if (!match || !match.klasse) {
+        unmatched.push(`${st.lastName} ${st.firstName}`)
+        continue
+      }
+      const note = notesByStudentId.get(st.id) ?? null
+      const kommentar = note === null ? commentForNullNote(st) : ''
+      pushNote(match.klasse, { Matrikelnummer: match.matr, Note: note, Punkte: 0.0, Kommentar: kommentar })
+      notenCount++
+    }
 
     // Add entries for NM-only students (in Notenmanagement but not locally matched)
     for (const item of notesByMatrikelnummerRaw as Array<{ matrikelnummer?: unknown; note?: unknown }>) {
@@ -361,15 +371,12 @@ export async function POST(request: Request) {
         const n = typeof item.note === 'number' ? item.note : (typeof item.note === 'string' ? parseInt(item.note, 10) : Number.NaN)
         if (!Number.isNaN(n) && [1, 2, 3, 4, 5].includes(n)) note = n as 1 | 2 | 3 | 4 | 5
       }
-      noten.push({
-        Matrikelnummer: matr,
-        Note: note,
-        Punkte: 0.0,
-        Kommentar: '',
-      })
+      const klasse = klasseByMatr.get(matr) || nmClassName
+      pushNote(klasse, { Matrikelnummer: matr, Note: note, Punkte: 0.0, Kommentar: '' })
+      notenCount++
     }
 
-    if (noten.length === 0) {
+    if (notenCount === 0) {
       const sample = unmatched.slice(0, 8)
       const more = unmatched.length > sample.length ? ` (+${unmatched.length - sample.length})` : ''
       return NextResponse.json(
@@ -388,19 +395,6 @@ export async function POST(request: Request) {
       )
     }
 
-    // Check for existing transfer (unique: classId, groupId, semester, schoolYearId)
-    // Schema has groupId as Int?; Prisma's compound unique input type can require number
-    const existingTransfer = await prisma.notenmanagementTransfer.findUnique({
-      where: {
-        classId_groupId_semester_schoolYearId: {
-          classId,
-          groupId: groupId!,
-          semester,
-          schoolYearId,
-        },
-      },
-    })
-
     const semesterLabel = semester === 'first' ? '1. Semester' : '2. Semester'
     const semesterN = semester === 'first' ? '1' : '2'
     const typ = groupId !== null ? 'Notenstand' : semester === 'first' ? 'Semesternote' : 'Jahresnote'
@@ -408,25 +402,6 @@ export async function POST(request: Request) {
       groupId !== null
         ? `Notenstand Semester ${semesterN} Gruppe ${groupId} ${teacherFirstName} ${teacherLastName}`
         : `Übertrag aus Wechselplan APP, ${semesterLabel}`
-    const payload = {
-      LF: {
-        Datum: toLfDate(new Date()),
-        Klasse: nmClassName,
-        Fach: subjectTruncated,
-        Typ: typ,
-        MaxPunkte: 0.0,
-        Kommentar: kommentar,
-      },
-      Noten: noten,
-    }
-
-    // Log the exact JSON payload that will be sent to Notenmanagement
-    // NOTE: This runs on the server only.
-    const isUpdate = !!existingTransfer
-    console.log(
-      `[Notenmanagement] ${isUpdate ? 'PUT' : 'POST'} /api/LFs${isUpdate ? `/${existingTransfer.lfId}` : ''} payload:`,
-      JSON.stringify(payload, null, 2)
-    )
 
     function extractLfId(body: unknown): string | null {
       const id =
@@ -439,15 +414,26 @@ export async function POST(request: Request) {
       return typeof id === 'number' || typeof id === 'string' ? String(id) : null
     }
 
-    // Create a brand new LF via POST. Returns the new LF id, or a NextResponse on failure.
-    async function createLf(): Promise<{ lfId: string } | { error: NextResponse }> {
+    function buildPayload(klasse: string, entries: NotenEntry[]) {
+      return {
+        LF: {
+          Datum: toLfDate(new Date()),
+          Klasse: klasse,
+          Fach: subjectTruncated,
+          Typ: typ,
+          MaxPunkte: 0.0,
+          Kommentar: kommentar,
+        },
+        Noten: entries,
+      }
+    }
+
+    // POST a new LF. Returns the new LF id, or a NextResponse error.
+    async function postLf(payload: unknown): Promise<{ lfId: string } | { error: NextResponse }> {
       const postUrl = new URL('api/LFs', env.NOTENMANAGEMENT_BASE_URL).toString()
       const postRes = await fetch(postUrl, {
         method: 'POST',
-        headers: {
-          Authorization: `bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { Authorization: `bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
       const ct = postRes.headers.get('content-type') ?? ''
@@ -462,78 +448,76 @@ export async function POST(request: Request) {
       return { lfId }
     }
 
-    let lfIdStr: string
-    if (existingTransfer) {
-      // Update existing LF
-      const putUrl = new URL(`api/LFs/${encodeURIComponent(existingTransfer.lfId)}`, env.NOTENMANAGEMENT_BASE_URL).toString()
+    // PUT an existing LF; returns the (possibly new) LF id, or null when the LF could not be updated.
+    async function putLf(lfId: string, payload: unknown): Promise<string | null> {
+      const putUrl = new URL(`api/LFs/${encodeURIComponent(lfId)}`, env.NOTENMANAGEMENT_BASE_URL).toString()
       const putRes = await fetch(putUrl, {
         method: 'PUT',
-        headers: {
-          Authorization: `bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { Authorization: `bearer ${accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-
       const ct = putRes.headers.get('content-type') ?? ''
       const putBody = ct.includes('application/json') ? await putRes.json() : await putRes.text()
       if (!putRes.ok) {
-        // The stored LF no longer exists in Notenmanagement (deleted there, or owned by
-        // another account). Self-heal by creating a fresh LF instead of failing; the upsert
-        // below repoints the stored record to the new id.
         console.warn(
-          `[Notenmanagement] PUT /api/LFs/${existingTransfer.lfId} failed (status ${putRes.status}); creating a new LF instead.`,
+          `[Notenmanagement] PUT /api/LFs/${lfId} failed (status ${putRes.status}); will create a new LF instead.`,
           typeof putBody === 'string' ? putBody : JSON.stringify(putBody)
         )
-        const created = await createLf()
-        if ('error' in created) return created.error
-        lfIdStr = created.lfId
-      } else {
-        // Extract new LF_ID from PUT response (may be different from existing)
-        lfIdStr = extractLfId(putBody) ?? existingTransfer.lfId
+        return null
       }
-    } else {
-      const created = await createLf()
-      if ('error' in created) return created.error
-      lfIdStr = created.lfId
+      return extractLfId(putBody) ?? lfId
     }
 
-    // Upsert transfer record
-    await prisma.notenmanagementTransfer.upsert({
-      where: {
-        classId_groupId_semester_schoolYearId: {
-          classId,
-          groupId: groupId!,
-          semester,
-          schoolYearId,
-        },
-      },
-      update: {
-        lfId: lfIdStr,
-      },
-      create: {
-        classId,
-        groupId,
-        semester,
-        schoolYearId,
-        lfId: lfIdStr,
-      },
-    })
-    const getUrl = new URL(`api/LFs/${encodeURIComponent(lfIdStr)}/Noten?sort=Nachname|Vorname`, env.NOTENMANAGEMENT_BASE_URL).toString()
-    const getRes = await fetch(getUrl, {
-      headers: { Authorization: `bearer ${accessToken}` },
-    })
-    const confirmation = getRes.ok ? await getRes.json() : null
+    // One LF per real Notenmanagement class (combined classes split here).
+    const klassen = [...notenByKlasse.keys()]
+    const results: Array<{ klasse: string; lfId: string; count: number }> = []
+    for (const klasse of klassen) {
+      const entries = notenByKlasse.get(klasse)!
+      const payload = buildPayload(klasse, entries)
+      console.log(`[Notenmanagement] transfer class "${klasse}" (${entries.length} Noten):`, JSON.stringify(payload, null, 2))
+
+      // Find the record for this real class. For a single-class transfer also accept the
+      // legacy record written before nmKlasse existed (nmKlasse = null) and adopt it.
+      let existing = await prisma.notenmanagementTransfer.findFirst({
+        where: { classId, groupId, semester, schoolYearId, nmKlasse: klasse },
+      })
+      if (!existing && klassen.length === 1) {
+        existing = await prisma.notenmanagementTransfer.findFirst({
+          where: { classId, groupId, semester, schoolYearId, nmKlasse: null },
+        })
+      }
+
+      let lfIdStr: string
+      if (existing) {
+        const updated = await putLf(existing.lfId, payload)
+        if (updated) {
+          lfIdStr = updated
+        } else {
+          // Stored LF gone in Notenmanagement: self-heal by creating a fresh one.
+          const created = await postLf(payload)
+          if ('error' in created) return created.error
+          lfIdStr = created.lfId
+        }
+        await prisma.notenmanagementTransfer.update({
+          where: { id: existing.id },
+          data: { lfId: lfIdStr, nmKlasse: klasse },
+        })
+      } else {
+        const created = await postLf(payload)
+        if ('error' in created) return created.error
+        lfIdStr = created.lfId
+        await prisma.notenmanagementTransfer.create({
+          data: { classId, groupId, semester, schoolYearId, lfId: lfIdStr, nmKlasse: klasse },
+        })
+      }
+      results.push({ klasse, lfId: lfIdStr, count: entries.length })
+    }
 
     return NextResponse.json({
       success: true,
-      lfId: lfIdStr,
-      confirmation,
-      sentCount: noten.length,
-      skipped: {
-        completeStudents: completeStudents.length,
-        unmatchedOrMissingNote: completeStudents.length - noten.length,
-      },
+      transfers: results,
+      lfId: results[0]?.lfId, // backward-compatible single id
+      sentCount: notenCount,
       // Include token data if a new token was generated
       ...(tokenExpiresIn && { token: accessToken, tokenExpiresIn }),
     })
