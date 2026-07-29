@@ -15,7 +15,8 @@ import {
 } from '@/components/ui/dialog'
 import { useTranslation } from 'react-i18next'
 import { Spinner } from '@/components/ui/spinner'
-import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Plus } from 'lucide-react'
+import { AlertCircle, ArrowLeft, CheckCircle2, ChevronDown, ChevronRight, Plus } from 'lucide-react'
+import { WizardFooter } from '@/components/schedule/wizard-footer'
 import { useClassDataByName } from '@/hooks/use-class-data'
 import { useScheduleTimes } from '@/hooks/use-schedule-times'
 import { useTeacherAssignments } from '@/hooks/use-teacher-assignments'
@@ -173,7 +174,6 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
           }
         } else if (savedTimesResponse.status === 404) {
           // No saved times exist for this class - this is normal for new schedules
-          console.log('No saved times found for class:', className)
         } else {
           // Handle other errors
           console.warn('Failed to fetch saved times:', savedTimesResponse.status)
@@ -701,16 +701,20 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
             </Card>
           </div>
 
-          <div className="mt-8 flex justify-end gap-4">
-            {onCancel && (
-              <Button variant="outline" onClick={onCancel}>
-                {t('common:common.cancel')}
-              </Button>
-            )}
+          <WizardFooter
+            back={
+              onCancel && (
+                <Button variant="outline" onClick={onCancel}>
+                  <ArrowLeft className="h-4 w-4" />
+                  {t('schedule:back')}
+                </Button>
+              )
+            }
+          >
             <Button onClick={handleSave} disabled={saveTimesMutation.isPending}>
               {saveTimesMutation.isPending ? t('common:common.loading') : t('schedule:next')}
             </Button>
-          </div>
+          </WizardFooter>
         </CardContent>
       </Card>
 

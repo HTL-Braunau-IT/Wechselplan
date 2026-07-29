@@ -1,7 +1,7 @@
 'use client'
 
 import { useTranslation } from 'next-i18next'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Check } from 'lucide-react'
 
@@ -26,7 +26,7 @@ const steps: Step[] = [
 export function CreationProgress() {
   const { t } = useTranslation('schedule')
   const pathname = usePathname()
-  const searchParams = new URLSearchParams(window.location.search)
+  const searchParams = useSearchParams()
   const selectedClass = searchParams.get('class')
 
   const currentStepIndex = steps.findIndex(step => pathname === step.path)
@@ -37,20 +37,10 @@ export function CreationProgress() {
         const isCompleted = index < currentStepIndex
         const isCurrent = index === currentStepIndex
         const isClickable = isCompleted || isCurrent
-        const href = isClickable
-          ? selectedClass
-            ? `${step.path}?class=${selectedClass}`
-            : step.path
-          : '#'
+        const href = selectedClass ? `${step.path}?class=${selectedClass}` : step.path
 
-        return (
-          <Link
-            key={step.id}
-            href={href}
-            className={`group relative mb-8 flex w-full items-center ${
-              isClickable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
-            }`}
-          >
+        const stepInner = (
+          <>
             {/* Circle */}
             <div
               className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
@@ -85,7 +75,21 @@ export function CreationProgress() {
                 }`}
               />
             )}
+          </>
+        )
+
+        const stepClasses = `group relative mb-8 flex w-full items-center ${
+          isClickable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
+        }`
+
+        return isClickable ? (
+          <Link key={step.id} href={href} className={stepClasses}>
+            {stepInner}
           </Link>
+        ) : (
+          <div key={step.id} className={stepClasses} aria-disabled="true">
+            {stepInner}
+          </div>
         )
       })}
     </div>

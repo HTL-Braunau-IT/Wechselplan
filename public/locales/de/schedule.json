@@ -101,5 +101,29 @@
   "transferLoadGroupsError": "Gruppen der Zielklasse konnten nicht geladen werden.",
   "transferSelectClassError": "Bitte wählen Sie eine Zielklasse aus.",
   "removeStudent": "Schüler entfernen",
-  "settings.times.optional": "Optional"
+  "settings.times.optional": "Optional",
+  "weekdays": {
+    "1": "Montag",
+    "2": "Dienstag",
+    "3": "Mittwoch",
+    "4": "Donnerstag",
+    "5": "Freitag"
+  },
+  "semesterPlanningTitle": "Semesterweise planen",
+  "planFirstSemester": "Erstes Semester planen",
+  "planSecondSemester": "Zweites Semester planen",
+  "rotationWholeYear": "Rotation wird für das gesamte Schuljahr berechnet",
+  "rotationUntil": "Rotation wird nur bis {{date}} berechnet",
+  "rotationFromUntil": "Rotation wird ab {{start}} bis {{end}} berechnet",
+  "saveAndFinish": "Speichern & Abschließen",
+  "finishing": "Wird abgeschlossen...",
+  "loadingData": "Daten werden geladen...",
+  "createPdfTitle": "Wechselplan als PDF herunterladen?",
+  "createPdfDescription": "Es werden zwei PDFs erstellt: der Wechselplan und die Datumsübersicht. Beide stehen danach jederzeit über die Export-Schaltflächen zur Verfügung.",
+  "skip": "Überspringen",
+  "generatePdf": "PDFs herunterladen",
+  "generatingPdf": "Wird erstellt...",
+  "saveFailed": "Speichern fehlgeschlagen.",
+  "pdfFailed": "PDF konnte nicht erstellt werden.",
+  "loadDataFailed": "Daten konnten nicht geladen werden. Bitte erneut versuchen."
 }

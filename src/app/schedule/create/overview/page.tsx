@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import { useTranslation } from 'next-i18next'
+import { useUnsavedWarning } from '@/hooks/use-unsaved-warning'
 import { useCachedData } from '@/hooks/use-cached-data'
 import { useScheduleOverview } from '@/hooks/use-schedule-overview'
 import { captureFrontendError } from '@/lib/frontend-error'
@@ -19,17 +21,20 @@ import { ScheduleOverview } from '@/components/schedule-overview'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { PageContainer } from '@/components/ui/page-container'
-import { AlertCircle, Check, FileDown } from 'lucide-react'
+import { WizardFooter } from '@/components/schedule/wizard-footer'
+import { AlertCircle, ArrowLeft, Check, FileDown } from 'lucide-react'
 import { generatePdf, generateSchedulePDF } from '@/lib/export-utils'
+import { buildRotationForSave } from '@/lib/rotation'
 
 /**
  * Renders a centered loading spinner with a localized loading message.
  */
 function LoadingScreen() {
+  const { t } = useTranslation('schedule')
   return (
     <div className="flex min-h-[400px] flex-col items-center justify-center gap-4">
       <Spinner size="lg" />
-      <p className="text-muted-foreground text-lg">Lade Daten...</p>
+      <p className="text-muted-foreground text-lg">{t('loadingData')}</p>
     </div>
   )
 }
@@ -42,6 +47,7 @@ function LoadingScreen() {
  * @returns The React component for managing, viewing, and exporting the class schedule overview.
  */
 export default function OverviewPage() {
+  const { t } = useTranslation('schedule')
   const searchParams = useSearchParams()
   const classId = searchParams.get('class')
   const { isLoading: isLoadingCachedData } = useCachedData()
@@ -64,9 +70,13 @@ export default function OverviewPage() {
 
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  // Until the rotation is saved via "Save & Finish", leaving loses that final step.
+  const [finished, setFinished] = useState(false)
   const [showPdfDialog, setShowPdfDialog] = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
   const [, setGeneratingSchedulePDF] = useState(false)
+
+  useUnsavedWarning(!finished)
 
   /**
    * Saves the round-robin teacher rotation schedule for AM and PM periods to the backend and, on success, displays the PDF generation dialog.
@@ -79,29 +89,20 @@ export default function OverviewPage() {
   async function handleSaveAndFinish() {
     setSaving(true)
     try {
-      // Build round-robin teacher rotation for AM and PM
+      // Build round-robin teacher rotation for AM and PM using the shared helper,
+      // so the persisted rotation always matches the on-screen preview.
       const turnKeys = Object.keys(turns)
+      const amRotation = buildRotationForSave(
+        groups,
+        uniqueAmTeachers.map(t => t.teacherId),
+        turnKeys.length,
+      )
+      const pmRotation = buildRotationForSave(
+        groups,
+        uniquePmTeachers.map(t => t.teacherId),
+        turnKeys.length,
+      )
 
-      // Helper function to create rotation for a period
-      const createRotation = (teachers: typeof uniqueAmTeachers) => {
-        return groups.map((group, groupIdx) => ({
-          groupId: group.id,
-          turns: turnKeys.map((_, turnIdx) => {
-            // Calculate which teacher should be assigned to this group for this turn
-            // For turns 1-4, 5-8, etc., we want the same pattern
-            const normalizedTurn = turnIdx % teachers.length
-            // The teacher index is based on the group and turn offset
-            const teacherIndex = (groupIdx - normalizedTurn + teachers.length) % teachers.length
-            const teacher = teachers[teacherIndex]
-            return teacher ? teacher.teacherId : null
-          }),
-        }))
-      }
-
-      const amRotation = createRotation(uniqueAmTeachers)
-      const pmRotation = createRotation(uniquePmTeachers)
-
-      console.log('classId', classId)
       // Resolve className to classId if needed
       let resolvedClassId: number
       if (typeof classId === 'string') {
@@ -156,8 +157,6 @@ export default function OverviewPage() {
             scheduleLink,
           }),
         })
-
-        console.log('Teacher notifications sent successfully')
       } catch (emailError) {
         console.error('Failed to send teacher notifications:', emailError)
         // Don't throw here, we still want to show the PDF dialog
@@ -171,6 +170,9 @@ export default function OverviewPage() {
         })
       }
 
+      // Rotation is persisted — the wizard is complete; drop the unsaved guard.
+      setFinished(true)
+
       // Show PDF generation dialog
       setShowPdfDialog(true)
     } catch (err) {
@@ -183,7 +185,7 @@ export default function OverviewPage() {
           turns: Object.keys(turns),
         },
       })
-      setError('Failed to save.')
+      setError(t('saveFailed'))
     } finally {
       setSaving(false)
     }
@@ -196,7 +198,7 @@ export default function OverviewPage() {
       await generateSchedulePDF(classId, weekday ?? 0)
     } catch (err) {
       console.error('Error generating PDF:', err)
-      setError('Failed to generate PDF.')
+      setError(t('pdfFailed'))
     } finally {
       setGeneratingSchedulePDF(false)
     }
@@ -221,7 +223,7 @@ export default function OverviewPage() {
       router.push('/')
     } catch (err) {
       console.error('Error generating PDF:', err)
-      setError('Failed to generate PDF.')
+      setError(t('pdfFailed'))
     } finally {
       setGeneratingPdf(false)
     }
@@ -271,36 +273,37 @@ export default function OverviewPage() {
         showExportButtons={true}
       />
 
-      {/* Custom blurred overlay for modal */}
-      {showPdfDialog && (
-        <div className="bg-background/80 fixed inset-0 z-40 backdrop-blur-sm transition-all" />
-      )}
       <Dialog open={showPdfDialog} onOpenChange={setShowPdfDialog}>
-        <DialogContent className="z-50">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>PDF erstellen?</DialogTitle>
-            <DialogDescription>
-              Möchten Sie eine PDF-Version des Stundenplans erstellen und herunterladen?
-            </DialogDescription>
+            <DialogTitle>{t('createPdfTitle')}</DialogTitle>
+            <DialogDescription>{t('createPdfDescription')}</DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex justify-end gap-2">
             <Button variant="outline" onClick={handleSkipPdf} disabled={generatingPdf}>
-              Überspringen
+              {t('skip')}
             </Button>
             <Button onClick={handleGeneratePdf} disabled={generatingPdf}>
               <FileDown className="h-4 w-4" />
-              {generatingPdf ? 'Generating...' : 'Generate PDF'}
+              {generatingPdf ? t('generatingPdf') : t('generatePdf')}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <div className="flex justify-end">
+      <WizardFooter
+        back={
+          <Button variant="outline" onClick={() => router.back()} disabled={saving}>
+            <ArrowLeft className="h-4 w-4" />
+            {t('back')}
+          </Button>
+        }
+      >
         <Button onClick={handleSaveAndFinish} disabled={saving}>
           <Check className="h-4 w-4" />
-          {saving ? 'Saving...' : 'Save & Finish'}
+          {saving ? t('finishing') : t('saveAndFinish')}
         </Button>
-      </div>
+      </WizardFooter>
     </PageContainer>
   )
 }

@@ -1,23 +1,17 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { addWeeks, format, setDay, isWithinInterval } from 'date-fns'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { useTranslation } from 'next-i18next'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { AlertCircle, ArrowLeft, Save } from 'lucide-react'
 import { captureFrontendError } from '@/lib/frontend-error'
+import { WizardFooter } from '@/components/schedule/wizard-footer'
 
 interface WeekInfo {
   week: string
@@ -55,17 +49,21 @@ interface ScheduleResponse {
   createdAt: string
 }
 
-const WEEKDAYS = [
-  { value: 1, label: 'Monday' },
-  { value: 2, label: 'Tuesday' },
-  { value: 3, label: 'Wednesday' },
-  { value: 4, label: 'Thursday' },
-  { value: 5, label: 'Friday' },
-]
+// Fallback school-year bounds, used only when the selected school year is not
+// supplied (e.g. no year configured). The real dates come from props.
+const DEFAULT_SCHOOL_YEAR_START = new Date(2025, 8, 8)
+const DEFAULT_SCHOOL_YEAR_END = new Date(2026, 6, 10)
+const DEFAULT_SCHOOL_YEAR_MIDDLE = new Date(2026, 1, 15)
 
 interface RotationScheduleEditorProps {
   className: string | null
   initialWeekday?: number | null
+  /** Start of the selected school year (rotation dates are computed within these bounds). */
+  schoolYearStart?: Date | null
+  /** End of the selected school year. */
+  schoolYearEnd?: Date | null
+  /** Semester change date of the selected school year (splits first/second semester planning). */
+  schoolYearMiddle?: Date | null
   onSave: (
     schedule: Schedule,
     selectedWeekday: number,
@@ -83,6 +81,9 @@ interface RotationScheduleEditorProps {
 export function RotationScheduleEditor({
   className,
   initialWeekday,
+  schoolYearStart: schoolYearStartProp,
+  schoolYearEnd: schoolYearEndProp,
+  schoolYearMiddle: schoolYearMiddleProp,
   onSave,
   onCancel,
 }: RotationScheduleEditorProps) {
@@ -106,9 +107,15 @@ export function RotationScheduleEditor({
   const [onlyFirstSemester, setOnlyFirstSemester] = useState<boolean>(false)
   const [onlySecondSemester, setOnlySecondSemester] = useState<boolean>(false)
 
-  const schoolYearStart = new Date(2025, 8, 8)
-  const schoolYearEnd = new Date(2026, 6, 10)
-  const schoolYearMiddle = new Date(2026, 1, 15)
+  // Derive stable Date identities from the selected school year (falling back to
+  // sensible defaults). Memoized on the numeric timestamp so a parent re-render
+  // that passes freshly-constructed Date objects does not retrigger effects.
+  const startTime = schoolYearStartProp?.getTime() ?? DEFAULT_SCHOOL_YEAR_START.getTime()
+  const endTime = schoolYearEndProp?.getTime() ?? DEFAULT_SCHOOL_YEAR_END.getTime()
+  const middleTime = schoolYearMiddleProp?.getTime() ?? DEFAULT_SCHOOL_YEAR_MIDDLE.getTime()
+  const schoolYearStart = useMemo(() => new Date(startTime), [startTime])
+  const schoolYearEnd = useMemo(() => new Date(endTime), [endTime])
+  const schoolYearMiddle = useMemo(() => new Date(middleTime), [middleTime])
 
   // Handle input changes
   const handleNumberOfTermsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -547,25 +554,12 @@ export function RotationScheduleEditor({
             />
           </div>
           <div>
-            <Label htmlFor="weekday">{t('rotationDay')}</Label>
-            <Select
-              value={selectedWeekday?.toString() ?? ''}
-              onValueChange={value => {
-                setSelectedWeekday(parseInt(value))
-                shouldUpdateScheduleRef.current = true
-              }}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder={t('selectWeekday')} />
-              </SelectTrigger>
-              <SelectContent>
-                {WEEKDAYS.map(day => (
-                  <SelectItem key={day.value} value={day.value.toString()}>
-                    {day.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>{t('rotationDay')}</Label>
+            {/* The rotation day is chosen on the teacher step (it is stored with the
+                teacher assignments); shown here read-only so the two never diverge. */}
+            <p className="mt-2 text-sm font-medium">
+              {selectedWeekday ? t(`weekdays.${selectedWeekday}`) : '—'}
+            </p>
           </div>
         </div>
 
@@ -582,7 +576,7 @@ export function RotationScheduleEditor({
 
         <div className="mb-4">
           <div className="space-y-3">
-            <h3 className="text-sm font-medium">Semesterweise planen</h3>
+            <h3 className="text-sm font-medium">{t('semesterPlanningTitle')}</h3>
             <div className="flex items-center gap-4">
               <Button
                 type="button"
@@ -594,7 +588,7 @@ export function RotationScheduleEditor({
                   shouldUpdateScheduleRef.current = true
                 }}
               >
-                Erstes Semester planen
+                {t('planFirstSemester')}
               </Button>
               <Button
                 type="button"
@@ -606,15 +600,18 @@ export function RotationScheduleEditor({
                   shouldUpdateScheduleRef.current = true
                 }}
               >
-                Zweites Semester planen
+                {t('planSecondSemester')}
               </Button>
             </div>
             <p className="text-muted-foreground text-sm">
               {onlyFirstSemester
-                ? `Rotation wird nur bis ${format(schoolYearMiddle, 'dd.MM.yyyy')} berechnet`
+                ? t('rotationUntil', { date: format(schoolYearMiddle, 'dd.MM.yyyy') })
                 : onlySecondSemester
-                  ? `Rotation wird ab ${format(schoolYearMiddle, 'dd.MM.yyyy')} bis ${format(schoolYearEnd, 'dd.MM.yyyy')} berechnet`
-                  : 'Rotation wird für das gesamte Schuljahr berechnet'}
+                  ? t('rotationFromUntil', {
+                      start: format(schoolYearMiddle, 'dd.MM.yyyy'),
+                      end: format(schoolYearEnd, 'dd.MM.yyyy'),
+                    })
+                  : t('rotationWholeYear')}
             </p>
           </div>
         </div>
@@ -725,18 +722,21 @@ export function RotationScheduleEditor({
           </div>
         </div>
 
-        <div className="mt-4 flex justify-end gap-4">
-          {onCancel && (
-            <Button variant="outline" onClick={onCancel}>
-              <ArrowLeft className="h-4 w-4" />
-              {t('back')}
-            </Button>
-          )}
+        <WizardFooter
+          back={
+            onCancel && (
+              <Button variant="outline" onClick={onCancel}>
+                <ArrowLeft className="h-4 w-4" />
+                {t('back')}
+              </Button>
+            )
+          }
+        >
           <Button onClick={handleSave} disabled={isSaving}>
             {isSaving ? <Spinner size="sm" /> : <Save className="h-4 w-4" />}
             {isSaving ? t('saving') : t('saveSchedule')}
           </Button>
-        </div>
+        </WizardFooter>
 
         {saveError && (
           <Alert variant="destructive" className="mt-4">
