@@ -211,11 +211,19 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
     ) => {
       if (classId == null || !schoolYearId) return
       if (!options?.skipSaving) setSaving(true)
+      setSaveError(null)
       try {
         // With Notensammler licensed, marks live there and only the
         // Betragensnote stays local; otherwise everything is stored here.
         const useNotensammler = isFeatureEnabled('notensammler')
-        if (useNotensammler && teacherId != null) {
+        if (useNotensammler) {
+          // The mark half of the save needs the teacher's Notensammler id;
+          // without it we'd silently drop the grades, so fail loudly instead.
+          if (teacherId == null) {
+            throw new Error(
+              'Notensammler-Lehrer-ID fehlt; Endnote konnte nicht gespeichert werden.',
+            )
+          }
           const gradesRes = await fetch('/api/notensammler/grades/batch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -246,7 +254,7 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
             }),
           })
           if (!conductRes.ok) throw new Error('Save conduct failed')
-        } else if (!useNotensammler) {
+        } else {
           const res = await fetch('/api/noten/final-grades', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
@@ -254,6 +262,8 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
           })
           if (!res.ok) throw new Error('Save final grades failed')
         }
+      } catch (err) {
+        setSaveError(err instanceof Error ? err.message : 'Save failed')
       } finally {
         if (!options?.skipSaving) setSaving(false)
       }
