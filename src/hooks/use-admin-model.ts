@@ -63,10 +63,18 @@ export function useAdminModelMutations(model: string, schoolYearId?: number) {
   })
 
   const update = useMutation({
+    // The PUT handler reads the row id from the query string, not the body, so
+    // it has to be appended here — same as remove below. Without it the request
+    // 400s ("Model and ID parameters are required") and every edit fails.
     mutationFn: (data: AdminModelRow) =>
-      apiSend<AdminModelRow>(endpoint(model), 'PUT', data, {
-        errorMessage: `${model} konnte nicht aktualisiert werden`,
-      }),
+      apiSend<AdminModelRow>(
+        `${endpoint(model)}&id=${encodeURIComponent(String(data.id))}`,
+        'PUT',
+        data,
+        {
+          errorMessage: `${model} konnte nicht aktualisiert werden`,
+        },
+      ),
     onSuccess: invalidate,
   })
 
