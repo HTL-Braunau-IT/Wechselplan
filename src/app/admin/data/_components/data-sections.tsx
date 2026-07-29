@@ -20,21 +20,11 @@ import { StudentTab } from './student-tab'
 import { TeacherTab } from './teacher-tab'
 import { ClassTab } from './class-tab'
 import { ScheduleTab } from './schedule-tab'
-import { GroupAssignmentTab } from './group-assignment-tab'
 import { TeacherAssignmentTab } from './teacher-assignment-tab'
-import { RoomTab } from './room-tab'
-import { SubjectTab } from './subject-tab'
-import { LearningContentTab } from './learning-content-tab'
-import { SchoolHolidayTab } from './school-holiday-tab'
-import { SchoolYearTab } from './school-year-tab'
-import { ScheduleTimeTab } from './schedule-time-tab'
-import { BreakTimeTab } from './break-time-tab'
-import { SchedulePDFTab } from './schedule-pdf-tab'
-import { TeacherRotationTab } from './teacher-rotation-tab'
-import { RoleTab } from './role-tab'
 import { UserRoleTab } from './user-role-tab'
-import { SupportMessageTab } from './support-message-tab'
 import { StudentPhotosUpload } from './student-photos-upload'
+import { ModelTab } from './model-tab'
+import { getModelConfig } from './model-configs'
 
 export type AdminDataSectionGroupId = 'coreData' | 'scheduling' | 'access' | 'support'
 
@@ -77,6 +67,9 @@ export const adminDataSections: AdminDataSection[] = [
 ]
 
 export function getAdminDataSectionContent(slug: string): ReactElement | null {
+  // Tabs with extra UI of their own (sync buttons, photo upload, status
+  // badges) stay bespoke; everything else is a standard CRUD table described
+  // by MODEL_CONFIGS.
   switch (slug) {
     case 'students':
       return <StudentTab />
@@ -86,37 +79,16 @@ export function getAdminDataSectionContent(slug: string): ReactElement | null {
       return <ClassTab />
     case 'schedules':
       return <ScheduleTab />
-    case 'group-assignments':
-      return <GroupAssignmentTab />
     case 'teacher-assignments':
       return <TeacherAssignmentTab />
-    case 'rooms':
-      return <RoomTab />
-    case 'subjects':
-      return <SubjectTab />
-    case 'learning-contents':
-      return <LearningContentTab />
-    case 'school-holidays':
-      return <SchoolHolidayTab />
-    case 'school-years':
-      return <SchoolYearTab />
-    case 'schedule-times':
-      return <ScheduleTimeTab />
-    case 'break-times':
-      return <BreakTimeTab />
-    case 'schedule-pdfs':
-      return <SchedulePDFTab />
-    case 'teacher-rotations':
-      return <TeacherRotationTab />
-    case 'roles':
-      return <RoleTab />
     case 'user-roles':
       return <UserRoleTab />
-    case 'support-messages':
-      return <SupportMessageTab />
     case 'student-photos':
       return <StudentPhotosUpload />
-    default:
-      return null
   }
+
+  const config = getModelConfig(slug)
+  if (!config) return null
+
+  return <ModelTab model={config.model} label={config.label} columns={config.columns} />
 }

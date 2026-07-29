@@ -1,208 +1,95 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useMemo } from 'react'
 import { useSchoolYear } from '@/contexts/school-year-context'
-import { DataTable } from './data-table'
+import { useAdminModel, type AdminModelRow } from '@/hooks/use-admin-model'
+import { ModelTab } from './model-tab'
+import { TIMESTAMP_COLUMNS } from './model-configs'
 import type { Column } from './data-table'
 
-interface TeacherAssignment {
-  id: number
-  classId: number
-  period: string
-  groupId: number
-  teacherId: number
-  subjectId: number
-  learningContentId: number
-  roomId: number
-  selectedWeekday: number
-  createdAt: string
-  updatedAt: string
-  teacher?: { id: number; firstName: string; lastName: string }
-  class?: { id: number; name: string }
-  subject?: { id: number; name: string }
-  learningContent?: { id: number; name: string }
-  room?: { id: number; name: string }
+/** Maps rows onto `{ value, label }` options for a select column. */
+function toOptions(
+  rows: AdminModelRow[] | undefined,
+  label: (row: AdminModelRow) => string,
+): { value: number; label: string }[] {
+  return (rows ?? []).map(row => ({ value: row.id as number, label: label(row) }))
 }
 
 export function TeacherAssignmentTab() {
   const { selectedYear } = useSchoolYear()
   const schoolYearId = selectedYear?.id
-  const [teacherAssignments, setTeacherAssignments] = useState<TeacherAssignment[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [teachers, setTeachers] = useState<{ id: number; firstName: string; lastName: string }[]>([])
-  const [classes, setClasses] = useState<{ id: number; name: string }[]>([])
-  const [subjects, setSubjects] = useState<{ id: number; name: string }[]>([])
-  const [learningContents, setLearningContents] = useState<{ id: number; name: string }[]>([])
-  const [rooms, setRooms] = useState<{ id: number; name: string }[]>([])
 
-  const columns: Column[] = [
-    { key: 'id', label: 'ID', type: 'number', readonly: true },
-    { 
-      key: 'classId', 
-      label: 'Class', 
-      type: 'select', 
-      required: true,
-      options: classes.map(c => ({ value: c.id, label: c.name }))
-    },
-    { key: 'period', label: 'Period', type: 'text', required: true },
-    { key: 'groupId', label: 'Gruppen-ID', type: 'number', required: true },
-    { 
-      key: 'teacherId', 
-      label: 'Teacher', 
-      type: 'select', 
-      required: true,
-      options: teachers.map(t => ({ value: t.id, label: `${t.firstName} ${t.lastName}` }))
-    },
-    { 
-      key: 'subjectId', 
-      label: 'Subject', 
-      type: 'select', 
-      required: true,
-      options: subjects.map(s => ({ value: s.id, label: s.name }))
-    },
-    { 
-      key: 'learningContentId', 
-      label: 'Learning Content', 
-      type: 'select', 
-      required: true,
-      options: learningContents.map(lc => ({ value: lc.id, label: lc.name }))
-    },
-    { 
-      key: 'roomId', 
-      label: 'Room', 
-      type: 'select', 
-      required: true,
-      options: rooms.map(r => ({ value: r.id, label: r.name }))
-    },
-    { key: 'selectedWeekday', label: 'Selected Weekday', type: 'number', required: true },
-    { key: 'createdAt', label: 'Erstellt am', type: 'date', readonly: true },
-    { key: 'updatedAt', label: 'Aktualisiert am', type: 'date', readonly: true }
-  ]
+  // Five lookup tables feed the select columns. Sharing the query cache with
+  // the other tabs means opening this one after Rooms or Subjects is instant.
+  const { data: teachers } = useAdminModel('teacher')
+  const { data: classes } = useAdminModel('class')
+  const { data: subjects } = useAdminModel('subject')
+  const { data: learningContents } = useAdminModel('learningContent')
+  const { data: rooms } = useAdminModel('room')
 
-  const fetchTeacherAssignments = async () => {
-    try {
-      setIsLoading(true)
-      const yearQ = schoolYearId != null ? `&schoolYearId=${schoolYearId}` : ''
-      const response = await fetch(`/api/admin/data?model=teacherAssignment${yearQ}`)
-      if (response.ok) {
-        const data = await response.json() as TeacherAssignment[]
-        setTeacherAssignments(data)
-      }
-    } catch (error) {
-      console.error('Error fetching teacher assignments:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const fetchRelatedData = async () => {
-    try {
-      const [teachersRes, classesRes, subjectsRes, learningContentsRes, roomsRes] = await Promise.all([
-        fetch('/api/admin/data?model=teacher'),
-        fetch('/api/admin/data?model=class'),
-        fetch('/api/admin/data?model=subject'),
-        fetch('/api/admin/data?model=learningContent'),
-        fetch('/api/admin/data?model=room')
-      ])
-
-      if (teachersRes.ok) {
-        const data = await teachersRes.json() as Record<string, unknown>[]
-        setTeachers(data.map((t: Record<string, unknown>) => ({ 
-          id: t.id as number, 
-          firstName: t.firstName as string, 
-          lastName: t.lastName as string 
-        })))
-      }
-      if (classesRes.ok) {
-        const data = await classesRes.json() as Record<string, unknown>[]
-        setClasses(data.map((c: Record<string, unknown>) => ({ 
-          id: c.id as number, 
-          name: c.name as string 
-        })))
-      }
-      if (subjectsRes.ok) {
-        const data = await subjectsRes.json() as Record<string, unknown>[]
-        setSubjects(data.map((s: Record<string, unknown>) => ({ 
-          id: s.id as number, 
-          name: s.name as string 
-        })))
-      }
-      if (learningContentsRes.ok) {
-        const data = await learningContentsRes.json() as Record<string, unknown>[]
-        setLearningContents(data.map((lc: Record<string, unknown>) => ({ 
-          id: lc.id as number, 
-          name: lc.name as string 
-        })))
-      }
-      if (roomsRes.ok) {
-        const data = await roomsRes.json() as Record<string, unknown>[]
-        setRooms(data.map((r: Record<string, unknown>) => ({ 
-          id: r.id as number, 
-          name: r.name as string 
-        })))
-      }
-    } catch (error) {
-      console.error('Error fetching related data:', error)
-    }
-  }
-
-  useEffect(() => {
-    void fetchTeacherAssignments()
-    void fetchRelatedData()
-  }, [schoolYearId])
-
-  const handleCreate = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
-    const payload = { ...data, ...(schoolYearId != null && { schoolYearId }) }
-    const response = await fetch('/api/admin/data?model=teacherAssignment', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-    
-    if (!response.ok) {
-      const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Erstellen fehlgeschlagen teacher assignment')
-    }
-    
-    return response.json() as Promise<Record<string, unknown>>
-  }
-
-  const handleEdit = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
-    const response = await fetch('/api/admin/data?model=teacherAssignment', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-    
-    if (!response.ok) {
-      const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Aktualisieren fehlgeschlagen teacher assignment')
-    }
-    
-    return response.json() as Promise<Record<string, unknown>>
-  }
-
-  const handleDelete = async (id: number): Promise<void> => {
-    const response = await fetch(`/api/admin/data?model=teacherAssignment&id=${id}`, {
-      method: 'DELETE'
-    })
-    
-    if (!response.ok) {
-      const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Löschen fehlgeschlagen teacher assignment')
-    }
-  }
+  const columns: Column[] = useMemo(
+    () => [
+      { key: 'id', label: 'ID', type: 'number', readonly: true, sortable: true },
+      {
+        key: 'classId',
+        label: 'Klasse',
+        type: 'select',
+        required: true,
+        sortable: true,
+        options: toOptions(classes, row => row.name as string),
+      },
+      { key: 'period', label: 'Zeitraum', type: 'text', required: true, sortable: true },
+      { key: 'groupId', label: 'Gruppen-ID', type: 'number', required: true, sortable: true },
+      {
+        key: 'teacherId',
+        label: 'Lehrkraft',
+        type: 'select',
+        required: true,
+        sortable: true,
+        options: toOptions(teachers, row => `${row.firstName as string} ${row.lastName as string}`),
+      },
+      {
+        key: 'subjectId',
+        label: 'Fach',
+        type: 'select',
+        required: true,
+        sortable: true,
+        options: toOptions(subjects, row => row.name as string),
+      },
+      {
+        key: 'learningContentId',
+        label: 'Lehrinhalt',
+        type: 'select',
+        required: true,
+        sortable: true,
+        options: toOptions(learningContents, row => row.name as string),
+      },
+      {
+        key: 'roomId',
+        label: 'Raum',
+        type: 'select',
+        required: true,
+        sortable: true,
+        options: toOptions(rooms, row => row.name as string),
+      },
+      {
+        key: 'selectedWeekday',
+        label: 'Wochentag',
+        type: 'number',
+        required: true,
+        sortable: true,
+      },
+      ...TIMESTAMP_COLUMNS,
+    ],
+    [classes, teachers, subjects, learningContents, rooms],
+  )
 
   return (
-    <DataTable
-      model="Teacher Assignment"
+    <ModelTab
+      model="teacherAssignment"
+      label="Lehrkraftzuordnung"
       columns={columns}
-      data={teacherAssignments as unknown as Record<string, unknown>[]}
-      onRefresh={fetchTeacherAssignments}
-      onEdit={handleEdit}
-      onDelete={handleDelete}
-      onCreate={handleCreate}
-      isLoading={isLoading}
+      schoolYearId={schoolYearId}
     />
   )
 }
