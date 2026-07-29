@@ -10,6 +10,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:push": "prisma db push",
     "db:seed": "npx tsx prisma/seed.ts",
+    "db:seed:local": "npx tsx scripts/seed-local-fixtures.ts",
     "db:normalize-usernames": "npx tsx scripts/normalize-usernames.ts",
     "db:audit-teacher-identities": "npx tsx scripts/audit-teacher-identity-collisions.ts",
     "db:audit-entra-adoption": "npx tsx scripts/audit-entra-adoption.ts",
@@ -25,7 +26,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
+    "e2e:session": "npx tsx scripts/mint-session.ts"
   },
   "dependencies": {
     "@azure/msal-browser": "^4.13.2",
@@ -86,6 +90,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.3",
+    "@playwright/test": "^1.62.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",

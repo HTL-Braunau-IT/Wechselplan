@@ -19,6 +19,10 @@ export default defineConfig({
       // Agent worktrees are full checkouts living inside the repo, so the glob
       // above matches every test twice — once here and once in a stale copy.
       '.claude/worktrees/**',
+      // `e2e/` holds Playwright specs, which match the `.spec.ts` pattern above
+      // but throw "Playwright Test did not expect test.describe() to be called
+      // here" under vitest. They are run by `npm run e2e`, not `npm run test`.
+      'e2e/**',
     ],
     coverage: {
       provider: 'v8',

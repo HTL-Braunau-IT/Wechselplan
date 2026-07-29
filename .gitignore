@@ -8,6 +8,13 @@
 # testing
 /coverage
 
+# playwright — .auth holds a minted session cookie, never commit it
+/e2e/.auth/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
 # database
 /prisma/db.sqlite
 /prisma/db.sqlite-journal
