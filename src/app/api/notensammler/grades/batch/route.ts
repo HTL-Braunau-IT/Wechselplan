@@ -5,6 +5,14 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { denyUnlessAccess } from '@/lib/api-guard'
+import {
+  canManageSokrates,
+  getSokratesStatus,
+  isEditBlocked,
+  recordSokratesChanges,
+  resolveCurrentTeacher,
+  type GradeChange,
+} from '@/lib/sokrates-lock'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -154,6 +162,56 @@ export async function POST(request: Request) {
       })
     }
 
+    // Sokrates lock: reject the batch if it changes any hard-locked grade, and
+    // collect the changes that land on a marked semester so we can notify the
+    // class lead after the write. Unchanged cells are never blocked or reported.
+    const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId)
+    const anyMarked = sokratesStatus.first.marked || sokratesStatus.second.marked
+    const sokratesChanges: GradeChange[] = []
+    let currentTeacher: Awaited<ReturnType<typeof resolveCurrentTeacher>> = null
+    if (anyMarked) {
+      currentTeacher = await resolveCurrentTeacher(session)
+      const canOverride = await canManageSokrates({
+        classId: classIdNum,
+        role: session.user?.role,
+        teacherId: currentTeacher?.id ?? null,
+      })
+      const existing = await prisma.grade.findMany({
+        where: { classId: classIdNum, schoolYearId },
+        select: { studentId: true, teacherId: true, semester: true, grade: true },
+      })
+      const existingMap = new Map<string, number | null>()
+      for (const e of existing) {
+        existingMap.set(`${e.studentId}:${e.teacherId}:${e.semester}`, e.grade)
+      }
+      let blockedCount = 0
+      for (const g of grades) {
+        if (!sokratesStatus[g.semester].marked) continue
+        const oldGrade = existingMap.get(`${g.studentId}:${g.teacherId}:${g.semester}`) ?? null
+        if (oldGrade === g.grade) continue // unchanged: never blocked, never notified
+        if (isEditBlocked(sokratesStatus, g.semester, g.teacherId, canOverride)) {
+          blockedCount++
+        } else {
+          sokratesChanges.push({
+            studentId: g.studentId,
+            teacherId: g.teacherId,
+            semester: g.semester,
+            oldGrade,
+            newGrade: g.grade,
+          })
+        }
+      }
+      if (blockedCount > 0) {
+        return NextResponse.json(
+          {
+            error:
+              'Einige Noten wurden bereits in Sokrates eingetragen und sind gesperrt. Bitte den Klassenleiter kontaktieren.',
+          },
+          { status: 423 },
+        )
+      }
+    }
+
     await prisma.$transaction(
       grades.map(g =>
         prisma.grade.upsert({
@@ -178,6 +236,17 @@ export async function POST(request: Request) {
         }),
       ),
     )
+
+    if (anyMarked && sokratesChanges.length > 0) {
+      await recordSokratesChanges({
+        classId: classIdNum,
+        schoolYearId,
+        changedById: currentTeacher?.id ?? 0,
+        changedByName: currentTeacher?.name ?? session.user?.name ?? 'Unbekannt',
+        status: sokratesStatus,
+        changes: sokratesChanges,
+      })
+    }
 
     return NextResponse.json({ success: true, count: grades.length })
   } catch (error) {

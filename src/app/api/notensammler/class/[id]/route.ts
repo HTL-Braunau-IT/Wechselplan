@@ -73,6 +73,7 @@ export async function GET(
       include: {
         classLead: {
           select: {
+            id: true,
             firstName: true,
             lastName: true,
           },
@@ -213,6 +214,7 @@ export async function GET(
       classLead: classRecord.classLead
         ? `${classRecord.classLead.firstName} ${classRecord.classLead.lastName}`
         : null,
+      classLeadId: classRecord.classLead?.id ?? null,
       students: studentsList,
       amTeachers,
       pmTeachers,

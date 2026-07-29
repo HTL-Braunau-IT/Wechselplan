@@ -55,6 +55,12 @@ export type GradeTableProps = {
   onFinalGradeChange: (studentId: number, semester: Semester, value: string) => void
   onConductWishChange: (studentId: number, semester: Semester, value: string) => void
   onDeleteTeacher: (teacher: Teacher) => void
+  /** Sokrates transfer lock: the class lead or an admin may still edit. */
+  canManageSokrates?: boolean
+  isSemesterMarked?: (semester: Semester) => boolean
+  isCellLocked?: (teacherId: number, semester: Semester) => boolean
+  isCellDrifted?: (studentId: number, teacherId: number, semester: Semester) => boolean
+  onToggleColumnLock?: (teacherId: number, semester: Semester, locked: boolean) => void
 }
 
 /**
@@ -81,6 +87,11 @@ export function GradeTable(props: GradeTableProps) {
     onFinalGradeChange,
     onConductWishChange,
     onDeleteTeacher,
+    canManageSokrates = false,
+    isSemesterMarked,
+    isCellLocked,
+    isCellDrifted,
+    onToggleColumnLock,
   } = props
 
   const showAm = !tablePeriod || tablePeriod === 'AM'
@@ -182,6 +193,8 @@ export function GradeTable(props: GradeTableProps) {
         )
       }
       const { teacher } = column
+      const locked = isCellLocked?.(teacher.id, semester) ?? false
+      const drifted = isCellDrifted?.(student.id, teacher.id, semester) ?? false
       return (
         <TableCell
           key={`${student.id}-${column.key}`}
@@ -189,10 +202,22 @@ export function GradeTable(props: GradeTableProps) {
             'w-16 min-w-16 p-1',
             currentTeacherId === teacher.id && 'bg-primary/10',
             missing && MISSING_CELL_CLASS,
+            drifted && 'bg-amber-100 ring-2 ring-amber-500 ring-inset dark:bg-amber-950/50',
           )}
+          title={
+            drifted
+              ? t(
+                  'notensammler.sokratesDrift',
+                  'Nach Sokrates-Übertragung geändert — der Klassenleiter wurde informiert.',
+                )
+              : locked
+                ? t('notensammler.sokratesCellLocked', 'In Sokrates eingetragen und gesperrt.')
+                : undefined
+          }
         >
           <GradeCombobox
             compact
+            disabled={locked && !canManageSokrates}
             value={getGrade(student.id, teacher.id, semester)}
             onChange={value => onGradeChange(student.id, teacher.id, semester, value)}
             aria-label={`${student.lastName} ${student.firstName} — ${teacher.lastName}`}
@@ -300,6 +325,11 @@ export function GradeTable(props: GradeTableProps) {
                     isCurrentTeacher={currentTeacherId === column.teacher.id}
                     onDelete={onDeleteTeacher}
                     deleteLabel={deleteLabel}
+                    showLock={canManageSokrates && (isSemesterMarked?.('first') ?? false)}
+                    locked={isCellLocked?.(column.teacher.id, 'first') ?? false}
+                    onToggleLock={locked =>
+                      onToggleColumnLock?.(column.teacher.id, 'first', locked)
+                    }
                   />
                 ),
               )}
@@ -312,6 +342,11 @@ export function GradeTable(props: GradeTableProps) {
                     isCurrentTeacher={currentTeacherId === column.teacher.id}
                     onDelete={onDeleteTeacher}
                     deleteLabel={deleteLabel}
+                    showLock={canManageSokrates && (isSemesterMarked?.('second') ?? false)}
+                    locked={isCellLocked?.(column.teacher.id, 'second') ?? false}
+                    onToggleLock={locked =>
+                      onToggleColumnLock?.(column.teacher.id, 'second', locked)
+                    }
                   />
                 ),
               )}

@@ -24,6 +24,8 @@ type Params = {
   setFinalGrades: React.Dispatch<React.SetStateAction<FinalGradesData>>
   setError: (message: string | null) => void
   refreshTeacherClasses: () => Promise<void>
+  /** Re-reads Sokrates lock/drift state after a save so badges stay current. */
+  refreshSokrates?: () => void | Promise<void>
 }
 
 const emptyFinalGrade = () => ({
@@ -43,6 +45,7 @@ export function useGradeEditing({
   setFinalGrades,
   setError,
   refreshTeacherClasses,
+  refreshSokrates,
 }: Params) {
   const [saving, setSaving] = useState(false)
   const [savingAll, setSavingAll] = useState(false)
@@ -109,6 +112,7 @@ export function useGradeEditing({
         void (async () => {
           try {
             await saveGrade(studentId, teacherId, semester, gradeValue)
+            void refreshSokrates?.()
           } catch {
             setGrades(prev => {
               const next = { ...prev }
@@ -122,7 +126,7 @@ export function useGradeEditing({
         })()
       })
     },
-    [grades, saveGrade, schedule, setError, setGrades],
+    [grades, saveGrade, schedule, setError, setGrades, refreshSokrates],
   )
 
   const getGrade = useCallback(
@@ -368,6 +372,7 @@ export function useGradeEditing({
 
       // Refresh so the per-class tab ticks reflect the new completion state.
       await refreshTeacherClasses()
+      void refreshSokrates?.()
     } catch (e) {
       captureFrontendError(e, { location: 'notensammler', type: 'save-all-grades' })
       setError(e instanceof Error ? e.message : 'Failed to save all grades')
@@ -381,6 +386,7 @@ export function useGradeEditing({
     getFinalGradeDisplay,
     grades,
     refreshTeacherClasses,
+    refreshSokrates,
     schoolYearId,
     setError,
   ])

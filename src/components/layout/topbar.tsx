@@ -11,6 +11,7 @@ import { SchoolYearSelector } from '@/components/school-year-selector'
 import { Button } from '@/components/ui/button'
 import { Avatar, initialsFrom } from '@/components/ui/avatar'
 import { SupportDialog } from '@/components/support-dialog'
+import { NotificationBell } from '@/components/notification-bell'
 import { ChangelogDialog } from '@/components/changelog-dialog'
 import { useGitHubVersion } from '@/hooks/use-github-version'
 import {
@@ -95,6 +96,7 @@ export function Topbar({
 
         <ThemeToggle />
         <LanguageSwitcher />
+        {session && <NotificationBell />}
 
         {session ? (
           <DropdownMenu>
