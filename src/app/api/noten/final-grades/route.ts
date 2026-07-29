@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { normalizeUsername } from '@/lib/username'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -23,6 +24,9 @@ const MAX_FINAL_GRADES_BATCH = 100
  * Body: { classId, schoolYearId?, finalGrades: Array<{ studentId, semester, grade?, conductNoteWish? }> }
  */
 export async function PATCH(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	let requestData: unknown
 	try {
 		const session = await getServerSession(authOptions)

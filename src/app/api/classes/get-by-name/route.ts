@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * Handles GET requests to retrieve class information by its name.
@@ -10,6 +11,9 @@ import { captureError } from '@/lib/sentry'
  * @returns A JSON response containing the class data or an error message with the appropriate HTTP status code.
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('session')
+  if (denied) return denied
+
   try {
     const { searchParams } = new URL(request.url)
     const name = searchParams.get('name')

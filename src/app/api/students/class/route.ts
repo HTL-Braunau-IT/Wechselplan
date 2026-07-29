@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '~/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
+import { denyUnlessAccess } from '@/lib/api-guard'
 /**
  * Processes a GET request to retrieve the class name and group ID assigned to a student by username.
  *
@@ -10,6 +11,9 @@ import { normalizeUsername } from '@/lib/username'
  * @returns A JSON response containing the class name and groupId, or an error message with the corresponding HTTP status code.
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('session')
+  if (denied) return denied
+
     const { searchParams } = new URL(request.url)
     const rawUsername = searchParams.get('username')
     if (!rawUsername) {

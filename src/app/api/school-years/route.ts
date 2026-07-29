@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * GET /api/school-years
@@ -8,6 +9,9 @@ import { captureError } from '@/lib/sentry'
  * Used by header dropdown and by semester/notensammler logic.
  */
 export async function GET() {
+  const denied = await denyUnlessAccess('session')
+  if (denied) return denied
+
   try {
     const schoolYears = await prisma.schoolYear.findMany({
       select: {

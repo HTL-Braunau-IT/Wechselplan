@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
 import { captureError } from '~/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 /**
  * Handles DELETE requests to remove a holiday entry by its ID.
  *
@@ -15,6 +16,9 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     const resolvedParams = await params
     await prisma.schoolHoliday.delete({

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 interface TeacherRotationRequest {
   classId: number
@@ -23,6 +24,9 @@ interface TeacherRotationRequest {
  * @returns A JSON response indicating success or providing an error message.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     const data = await request.json() as TeacherRotationRequest
     const { classId, turns, amRotation, pmRotation } = data

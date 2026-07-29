@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 interface CreateStudentRequest {
 	firstName: string
@@ -18,6 +19,9 @@ interface CreateStudentRequest {
  * @returns A JSON response containing the list of students or an error message.
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	const { searchParams } = new URL(request.url)
 	const className = searchParams.get('class')
 
@@ -113,6 +117,9 @@ export async function GET(request: Request) {
  * Expects a JSON body containing `firstName`, `lastName`, `username`, and `className`. Validates required fields, ensures the username is unique, and associates the student with an existing class. Returns the created student as a JSON response, or an error response with an appropriate status code if validation fails or an error occurs.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	let requestBody: CreateStudentRequest = {
 		firstName: '',
 		lastName: '',

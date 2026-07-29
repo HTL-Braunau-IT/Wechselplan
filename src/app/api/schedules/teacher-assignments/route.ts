@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 
 /**
@@ -11,6 +12,9 @@ import { prisma } from '@/lib/prisma'
  * @returns A JSON response containing `amAssignments`, `pmAssignments`, and `selectedWeekday`, or an error message with the appropriate HTTP status code if the class is not specified, not found, or an unexpected error occurs.
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('session')
+  if (denied) return denied
+
 	try {
 		const { searchParams } = new URL(request.url)
 		const classIdParam = searchParams.get('classId')
@@ -151,6 +155,9 @@ export async function GET(request: Request) {
  * @returns A JSON response with `{ success: true }` on success, or an error message with the appropriate HTTP status code if validation fails or an error occurs.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	let requestData;
 	try {
 		requestData = await request.json()

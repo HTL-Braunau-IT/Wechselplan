@@ -6,6 +6,7 @@ import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { normalizeUsername } from '@/lib/username'
 import { toLocalDateString } from '@/lib/date-utils'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 function dateToLocalString(d: Date | string): string {
 	return d instanceof Date ? toLocalDateString(d) : String(d)
@@ -15,6 +16,9 @@ function dateToLocalString(d: Date | string): string {
  * GET: Returns weight config, Lehrstoff per day, and all NotenEntry rows for (teacher, class, group, school year).
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {

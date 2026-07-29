@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -23,6 +24,9 @@ type GradeEntry = {
  * Body: { classId, schoolYearId?, grades: Array<{ studentId, teacherId, semester, grade }> }
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	let requestData: unknown
 	try {
 		const session = await getServerSession(authOptions)

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * Handles HTTP GET requests to fetch a list of rooms from the database.
@@ -8,6 +9,9 @@ import { captureError } from '@/lib/sentry'
  * Returns a JSON response with an array of room objects, each containing `id` and `name`, ordered alphabetically by name. If retrieval fails, responds with a 500 status and an error message.
  */
 export async function GET() {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	try {
 		const rooms = await prisma.room.findMany({
 			select: {

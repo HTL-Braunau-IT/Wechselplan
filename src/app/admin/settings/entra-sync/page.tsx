@@ -38,7 +38,7 @@ interface DirectorySyncSettings {
   syncedClassGroupIds: string[]
   syncMode: 'hybrid' | 'nightly_only'
   syncEnabled: boolean
-  studentFotoQuellePriority: 'manual_first' | 'o365_first'
+  studentPhotoSourcePriority: 'manual_first' | 'o365_first'
   teacherPhotoSourcePriority: 'manual_first' | 'o365_first'
   lastSyncAt: string | null
   lastSyncStatus: string | null
@@ -85,10 +85,10 @@ export default function EntraSyncSettingsPage() {
   const [isLoadingGroups, setIsLoadingGroups] = useState(true)
   const [settings, setSettings] = useState<DirectorySyncSettings | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [photoQuellePriority, setFotoQuellePriority] = useState<'manual_first' | 'o365_first'>(
+  const [studentPhotoSourcePriority, setStudentPhotoSourcePriority] = useState<'manual_first' | 'o365_first'>(
     'manual_first',
   )
-  const [teacherPhotoSourcePriority, setTeacherPhotoQuellePriority] = useState<
+  const [teacherPhotoSourcePriority, setTeacherPhotoSourcePriority] = useState<
     'manual_first' | 'o365_first'
   >('manual_first')
   const [isLoadingSettings, setIsLoadingSettings] = useState(true)
@@ -108,8 +108,8 @@ export default function EntraSyncSettingsPage() {
       const data = (await res.json()) as DirectorySyncSettings
       setSettings(data)
       setSelectedIds(new Set(data.syncedClassGroupIds))
-      setFotoQuellePriority(data.studentFotoQuellePriority ?? 'manual_first')
-      setTeacherPhotoQuellePriority(data.teacherPhotoSourcePriority ?? 'manual_first')
+      setStudentPhotoSourcePriority(data.studentPhotoSourcePriority ?? 'manual_first')
+      setTeacherPhotoSourcePriority(data.teacherPhotoSourcePriority ?? 'manual_first')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Einstellungen konnten nicht geladen werden')
     } finally {
@@ -262,7 +262,7 @@ export default function EntraSyncSettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           syncedClassGroupIds: Array.from(selectedIds),
-          studentFotoQuellePriority: photoQuellePriority,
+          studentPhotoSourcePriority,
           teacherPhotoSourcePriority,
         }),
       })
@@ -273,8 +273,8 @@ export default function EntraSyncSettingsPage() {
       const data = (await res.json()) as DirectorySyncSettings
       setSettings(data)
       setSelectedIds(new Set(data.syncedClassGroupIds))
-      setFotoQuellePriority(data.studentFotoQuellePriority ?? 'manual_first')
-      setTeacherPhotoQuellePriority(data.teacherPhotoSourcePriority ?? 'manual_first')
+      setStudentPhotoSourcePriority(data.studentPhotoSourcePriority ?? 'manual_first')
+      setTeacherPhotoSourcePriority(data.teacherPhotoSourcePriority ?? 'manual_first')
       toast.success('Synchronisierte Klassengruppen gespeichert')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Einstellungen konnten nicht gespeichert werden'
@@ -343,10 +343,10 @@ export default function EntraSyncSettingsPage() {
       if (!current.has(id)) return true
     }
     return (
-      settings.studentFotoQuellePriority !== photoQuellePriority ||
+      settings.studentPhotoSourcePriority !== studentPhotoSourcePriority ||
       settings.teacherPhotoSourcePriority !== teacherPhotoSourcePriority
     )
-  }, [photoQuellePriority, settings, selectedIds, teacherPhotoSourcePriority])
+  }, [studentPhotoSourcePriority, settings, selectedIds, teacherPhotoSourcePriority])
 
   return (
     <div className="space-y-6 p-6">
@@ -433,9 +433,9 @@ export default function EntraSyncSettingsPage() {
           <div className="max-w-md space-y-2">
             <Label htmlFor="photo-source-priority">Priorität</Label>
             <Select
-              value={photoQuellePriority}
+              value={studentPhotoSourcePriority}
               onValueChange={value =>
-                setFotoQuellePriority(value as 'manual_first' | 'o365_first')
+                setStudentPhotoSourcePriority(value as 'manual_first' | 'o365_first')
               }
             >
               <SelectTrigger id="photo-source-priority">
@@ -455,7 +455,7 @@ export default function EntraSyncSettingsPage() {
             <Select
               value={teacherPhotoSourcePriority}
               onValueChange={value =>
-                setTeacherPhotoQuellePriority(value as 'manual_first' | 'o365_first')
+                setTeacherPhotoSourcePriority(value as 'manual_first' | 'o365_first')
               }
             >
               <SelectTrigger id="teacher-photo-source-priority">

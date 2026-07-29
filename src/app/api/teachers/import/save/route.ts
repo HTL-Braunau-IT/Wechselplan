@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import { captureError } from '~/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 const prisma = new PrismaClient()
 
@@ -26,6 +27,9 @@ interface ImportRequest {
  * @throws {Error} If parsing the request body or database operations fail, returns a 500 response with an error message.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     const data = await request.json() as ImportRequest
     let importedCount = 0

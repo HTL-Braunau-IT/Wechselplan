@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * Handles HTTP GET requests to retrieve schedule, student, rotation, assignment, and class information for a specified teacher and weekday.
@@ -13,6 +14,9 @@ import { normalizeUsername } from '@/lib/username'
  * @remark All error conditions except internal server errors return HTTP 200 with an error message in the JSON payload. Only unexpected exceptions result in a 500 status code.
  */
 export async function GET(req: Request) {
+  const denied = await denyUnlessAccess('session')
+  if (denied) return denied
+
     const { searchParams } = new URL(req.url)
     try {
         const rawTeacherUsername = searchParams.get('teacher')

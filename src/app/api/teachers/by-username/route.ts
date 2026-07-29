@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * Handles GET requests to retrieve a teacher's information by username.
@@ -11,6 +12,9 @@ import { normalizeUsername } from '@/lib/username'
  * @returns A JSON response containing the teacher's information, or an error message with HTTP status 400, 404, or 500.
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     const { searchParams } = new URL(request.url)
     const rawUsername = searchParams.get('username')

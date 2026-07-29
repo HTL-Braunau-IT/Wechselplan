@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 interface Assignment {
 	groupId: number
@@ -22,6 +23,9 @@ interface RequestBody {
  * @returns A JSON response with `assignments` (group assignments) and `unassignedStudents` (students not assigned to any group).
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('session')
+  if (denied) return denied
+
 	try {
 		const { searchParams } = new URL(request.url)
 		const classIdParam = searchParams.get('classId')
@@ -168,6 +172,9 @@ export async function GET(request: Request) {
  * @returns A JSON response indicating success, or an error message with HTTP status 400, 404, or 500.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	let rawBody = ''
 	try {
 		// Capture raw body once so it can be reused in error reporting

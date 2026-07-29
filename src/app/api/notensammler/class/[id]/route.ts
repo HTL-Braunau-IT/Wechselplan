@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { getSubjectKey } from '@/lib/subject-utils'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * Handles GET requests to retrieve class data with students and unique teachers.
@@ -19,6 +20,9 @@ export async function GET(
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	context: any
 ) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {

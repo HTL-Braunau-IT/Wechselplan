@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * Handles GET requests to retrieve all school holiday records, ordered by start date.
@@ -8,6 +9,9 @@ import { captureError } from '@/lib/sentry'
  * @returns A JSON response with an array of school holiday objects, or an error message with HTTP status 500 if retrieval fails.
  */
 export async function GET() {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     const holidays = await prisma.schoolHoliday.findMany({
       orderBy: {
@@ -42,6 +46,9 @@ interface HolidayRequest {
  * @returns A JSON response containing the created holiday object, or an error message with HTTP status 400 or 500.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   // Initialize requestClone with the original request
   const requestClone = request.clone();
   try {

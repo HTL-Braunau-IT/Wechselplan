@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client'
 import { captureError } from '~/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { parseJsonToNormalized, createScheduleTurnData, normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 const scheduleSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -30,6 +31,9 @@ const scheduleSchema = z.object({
  * @returns A JSON response containing the newly created schedule, or an error response with details if validation fails.
  */
 export async function POST(req: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     const body = await req.json()
     
@@ -181,6 +185,9 @@ export async function POST(req: Request) {
  * @returns A JSON response containing the list of matching schedules, or an error message with appropriate HTTP status if not found or on error.
  */
 export async function GET(req: Request) {
+  const denied = await denyUnlessAccess('session')
+  if (denied) return denied
+
   try {
     const { searchParams } = new URL(req.url)
     const className = searchParams.get('classId')

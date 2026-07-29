@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * Handles HTTP OPTIONS requests for the schedule times API route.
@@ -24,6 +25,9 @@ export async function OPTIONS() {
  * @returns A JSON response containing the latest schedule and break times for the class.
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('session')
+  if (denied) return denied
+
   const { searchParams } = new URL(request.url)
   const classIdParam = searchParams.get('classId')
 
@@ -67,6 +71,9 @@ export async function GET(request: Request) {
  * Expects a JSON body containing `scheduleTimes`, `breakTimes`, and `classId`. Validates the presence of `classId`, retrieves the latest schedule for the specified class, and updates its associated times. Returns the updated schedule in JSON format, or an error response if validation fails, the class or schedule is not found, or an internal error occurs.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     const { scheduleTimes, breakTimes, classId } = await request.json()
 

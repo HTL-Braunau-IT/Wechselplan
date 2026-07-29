@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 
 /**
@@ -9,6 +10,9 @@ import { captureError } from '@/lib/sentry'
  * @returns A JSON response containing the list of schedule times, or an error message with HTTP status 500 if retrieval fails.
  */
 export async function GET() {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     const scheduleTimes = await prisma.scheduleTime.findMany({
       orderBy: {
@@ -44,6 +48,9 @@ export async function GET() {
  * @returns A JSON response with the created schedule time record, or an error message with an appropriate HTTP status code.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     const data = await request.json()
     

@@ -7,6 +7,7 @@ import { normalizeUsername } from '@/lib/username'
 import { captureError } from '@/lib/sentry'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
 import { toLocalDateString } from '@/lib/date-utils'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 type SearchByNameResult = {
 	classId: number
@@ -36,6 +37,9 @@ function parseDateString(d: string): Date | null {
 }
 
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {

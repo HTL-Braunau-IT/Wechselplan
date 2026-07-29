@@ -3,6 +3,7 @@ export const runtime = 'nodejs'
 import { NextResponse } from 'next/server'
 import ldap from 'ldapjs'
 import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 
 interface LDAPConfig {
@@ -61,6 +62,9 @@ interface LDAPTeacher {
  * @returns A JSON response with an array of imported teachers or an error message on failure.
  */
 export async function POST(): Promise<Response> {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 
   try {
     const config = getLDAPConfig()

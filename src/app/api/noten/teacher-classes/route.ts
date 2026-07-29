@@ -5,12 +5,16 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { normalizeUsername } from '@/lib/username'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * GET: Returns classes the current teacher is assigned to, each with all group IDs for that class
  * (from any teacher's assignment in the school year). Used for class and group tabs on the Noten page.
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {

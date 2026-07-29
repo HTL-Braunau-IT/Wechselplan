@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { normalizeUsername } from '@/lib/username'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * Handles GET requests to retrieve classes where the current teacher has an assignment for the given school year,
@@ -13,6 +14,9 @@ import { normalizeUsername } from '@/lib/username'
  * @returns A JSON response containing classes array with id, name, allGradesEnteredFirst, allGradesEnteredSecond.
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {

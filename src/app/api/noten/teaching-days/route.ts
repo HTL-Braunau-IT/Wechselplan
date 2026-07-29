@@ -7,6 +7,7 @@ import { isFeatureEnabled } from '@/lib/entitlements'
 import { normalizeUsername } from '@/lib/username'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
 import { toLocalDateString } from '@/lib/date-utils'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 type TeachingDay = { date: string; period: string }
 
@@ -26,6 +27,9 @@ function parseDateString(d: string): Date | null {
  * Uses TeacherRotation + schedule turns/weeks; excludes holidays.
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {

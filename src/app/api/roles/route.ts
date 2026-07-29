@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { z } from 'zod'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 const roleSchema = z.object({
   name: z.string()
@@ -19,6 +20,9 @@ const roleSchema = z.object({
  * Returns a JSON array of role objects on success, or a 500 error response if retrieval fails.
  */
 export async function GET() {
+  const denied = await denyUnlessAccess('admin')
+  if (denied) return denied
+
   try {
     const roles = await prisma.role.findMany({
       orderBy: {
@@ -48,6 +52,9 @@ export async function GET() {
  * @returns A JSON response with the created role and status 201 on success, or an error message with status 400, 409, or 500 on failure.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('admin')
+  if (denied) return denied
+
   let requestBody: string;
   try {
     requestBody = await request.text();

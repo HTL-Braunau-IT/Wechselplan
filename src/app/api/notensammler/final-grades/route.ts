@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 // Force dynamic rendering - no caching
 export const dynamic = 'force-dynamic'
@@ -29,6 +30,9 @@ const ALLOWED_CONDUCT_NOTE_WISH = [
  * @returns A JSON response with success status or an error message.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	let requestData: unknown
 	try {
 		const session = await getServerSession(authOptions)

@@ -4,8 +4,12 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { resolveStudentPhoto } from '@/lib/student-photo-source'
 import { resolveTeacherPhoto } from '@/lib/teacher-photo-source'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('session')
+  if (denied) return denied
+
   const session = await getServerSession(authOptions)
   if (!session?.user?.name || !session.user.role) {
     return NextResponse.json({ error: 'Nicht angemeldet' }, { status: 401 })

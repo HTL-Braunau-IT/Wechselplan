@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '~/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * Handles GET requests to retrieve student records.
@@ -10,6 +11,9 @@ import { captureError } from '~/lib/sentry'
  * @returns A JSON response containing the list of students, or an error message with status 500 if the query fails.
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
     try {
         const { searchParams } = new URL(request.url)
         const schoolYearIdParam = searchParams.get('schoolYearId')

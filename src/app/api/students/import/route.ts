@@ -3,6 +3,7 @@ export const runtime = 'nodejs'
 import { NextResponse } from 'next/server'
 import * as ldap from 'ldapjs'
 import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 // Add runtime check
 
@@ -88,6 +89,9 @@ interface ImportData {
  * @returns A JSON response containing imported class and student data, or an error object with details and user-friendly messages.
  */
 export async function POST() {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     let LDAP_CONFIG: LDAPConfig
     try {

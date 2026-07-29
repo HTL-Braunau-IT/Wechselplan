@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * Handles HTTP GET requests to retrieve all subjects from the database.
@@ -8,6 +9,9 @@ import { captureError } from '@/lib/sentry'
  * Returns a JSON response with an array of subjects, each containing its `id` and `name`, ordered alphabetically by name. Responds with a 500 status and error message if retrieval fails.
  */
 export async function GET() {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	try {
 		const subjects = await prisma.subject.findMany({
 			select: {

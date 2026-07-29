@@ -7,6 +7,7 @@ import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { truncateSubject } from '@/lib/subject-utils'
 import { normalizeUsername } from '@/lib/username'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 type Semester = 'first' | 'second'
 
@@ -85,6 +86,9 @@ function toLfDate(d: Date): string {
 }
 
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   let requestData: unknown
   try {
     const session = await getServerSession(authOptions)

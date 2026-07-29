@@ -3,6 +3,7 @@ import path from 'path'
 import fs from 'fs'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { hasEffectiveStudentPhoto } from '@/lib/student-photo-source'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 const PHOTO_DIR = path.join(process.cwd(), 'data', 'student-photos')
 const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png'] as const
@@ -25,6 +26,9 @@ function hasPhotoForStudent(studentId: number): boolean {
  * Returns { "1": true, "2": false } for each student id (true if photo exists).
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('session')
+  if (denied) return denied
+
   if (!(await isFeatureEnabled('student_photos'))) {
     return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
   }

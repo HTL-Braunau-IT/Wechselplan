@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import path from 'path'
 import fs from 'fs'
 import { hasEffectiveTeacherPhoto } from '@/lib/teacher-photo-source'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 const PHOTO_DIR = path.join(process.cwd(), 'data', 'teacher-photos')
 const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png'] as const
@@ -20,6 +21,9 @@ function hasPhotoForTeacher(teacherId: number): boolean {
 }
 
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('session')
+  if (denied) return denied
+
   const { searchParams } = new URL(request.url)
   const idsParam = searchParams.get('ids')
   const useEffective = searchParams.get('effective') === 'true'

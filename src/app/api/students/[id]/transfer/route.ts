@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 const transferSchema = z.object({
 	targetClassId: z.number().int().positive(),
@@ -23,6 +24,9 @@ export async function POST(
 	request: NextRequest,
 	context: { params: Promise<{ id: string }> }
 ) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	let rawBody = ''
 	try {
 		const { id: idParam } = await context.params

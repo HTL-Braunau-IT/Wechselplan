@@ -6,6 +6,7 @@ import { authOptions, hasRole } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 const PHOTO_DIR = path.join(process.cwd(), 'data', 'student-photos')
 const ALLOWED_MIMES = ['image/jpeg', 'image/png', 'image/jpg'] as const
@@ -29,6 +30,9 @@ export type UploadResultItem = {
  * Filenames must be LastName_FirstName.ext. Matches to students in that class and saves as data/student-photos/<studentId>.<ext> (overwrite).
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.name) {

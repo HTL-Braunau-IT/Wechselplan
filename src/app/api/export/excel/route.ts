@@ -3,6 +3,7 @@ import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import * as XLSX from 'xlsx'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 interface Week {
     date: string
@@ -35,6 +36,9 @@ type ScheduleData = Record<string, Turnus>
  * @throws {Error} If an unexpected error occurs during Excel file generation or data retrieval, a 500 error response is returned.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
     try {
         const { searchParams } = new URL(request.url)
         const className = searchParams.get('className')

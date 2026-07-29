@@ -3,6 +3,7 @@ import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { generateSchedulePDF } from '@/lib/pdf-generator'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * Handles HTTP POST requests to generate and return a PDF schedule for a specified class.
@@ -23,6 +24,9 @@ async function resolveSchoolYearId(param: string | null): Promise<number | null>
 }
 
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
     try {
         const { searchParams } = new URL(request.url)
         const className = searchParams.get('className')

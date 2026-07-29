@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { captureError } from '~/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 const breakTimeSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -36,6 +37,9 @@ const breakTimeSchema = z.object({
  * @returns A JSON response containing an array of break time records, or an error message with status 500 if retrieval fails.
  */
 export async function GET() {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     const breakTimes = await prisma.breakTime.findMany({
       orderBy: {
@@ -61,6 +65,9 @@ export async function GET() {
  * Validates the request body against the break time schema and, if valid, stores the new record in the database. Returns the created record as JSON, or an error response with status 400 for validation errors or 500 for server errors.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     const data = await request.json()
     

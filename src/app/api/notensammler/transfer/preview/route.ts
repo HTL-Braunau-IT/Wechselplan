@@ -7,6 +7,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { truncateSubject } from '@/lib/subject-utils'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 type Semester = 'first' | 'second'
 
@@ -72,6 +73,9 @@ async function fetchNotenmanagementStudents(accessToken: string): Promise<Notenm
 }
 
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   let requestData: unknown
   try {
     const session = await getServerSession(authOptions)

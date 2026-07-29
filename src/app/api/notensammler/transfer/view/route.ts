@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { env } from '~/env'
 import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 type NotenmanagementTokenResponse = {
   expires_in: number
@@ -47,6 +48,9 @@ async function getNotenmanagementAccessToken(
 }
 
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     const session = await getServerSession(authOptions)
     const username = session?.user?.name

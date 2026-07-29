@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '~/lib/sentry'
 import { prisma } from '@/lib/prisma'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 
 /**
@@ -10,6 +11,9 @@ import { prisma } from '@/lib/prisma'
  * @returns A JSON response containing all schedules, or a 500 error response if retrieval fails.
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('session')
+  if (denied) return denied
+
   try {
     const { searchParams } = new URL(request.url)
     const schoolYearIdParam = searchParams.get('schoolYearId')

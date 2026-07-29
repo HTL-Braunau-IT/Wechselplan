@@ -6,6 +6,7 @@ import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { normalizeUsername } from '@/lib/username'
 import { toLocalDateString } from '@/lib/date-utils'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 function parseDateString(d: string): Date | null {
 	const parts = d.split('.')
@@ -60,6 +61,9 @@ function getCurrentTurnName(
  * Uses TeacherRotation + schedule to find which class+group the teacher has today at current period.
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {

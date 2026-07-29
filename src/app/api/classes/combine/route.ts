@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import type { Student } from '@prisma/client'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 interface CombineClassesRequest {
 	class1Id: number
@@ -19,6 +20,9 @@ interface CombineClassesRequest {
  * @returns A JSON response containing the new class information or an error message
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	try {
 		const body = await request.json() as CombineClassesRequest
 		const { class1Id, class2Id, combinedClassName } = body

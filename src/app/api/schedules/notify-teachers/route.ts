@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/server/send-support-email-graph'
 import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 interface NotifyTeachersRequest {
   classId: number
@@ -20,6 +21,9 @@ interface NotifyTeachersRequest {
  * @returns A JSON response indicating success or providing an error message
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     const data = await request.json() as NotifyTeachersRequest
     const { classId, className, teacherIds, scheduleLink } = data

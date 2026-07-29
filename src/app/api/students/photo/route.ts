@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveStudentPhoto } from '@/lib/student-photo-source'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * GET /api/students/photo?studentId=123
@@ -8,6 +9,9 @@ import { resolveStudentPhoto } from '@/lib/student-photo-source'
  * Tries .jpg, .jpeg, .png. Returns 404 when studentId is missing/invalid or no file found.
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('session')
+  if (denied) return denied
+
   if (!(await isFeatureEnabled('student_photos'))) {
     return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
   }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/server/db'
 import { captureError } from '~/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 /**
  * Handles bulk creation of school holidays from a POST request.
  *
@@ -9,6 +10,9 @@ import { captureError } from '~/lib/sentry'
  * @returns A JSON response containing the created holiday records, or an error message with the appropriate HTTP status code.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     const holidays = await request.json() as Array<{
       name: string

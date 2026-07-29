@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server'
 import { resolveTeacherPhoto } from '@/lib/teacher-photo-source'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('session')
+  if (denied) return denied
+
   const { searchParams } = new URL(request.url)
   const teacherIdParam = searchParams.get('teacherId')
   const teacherId = teacherIdParam ? parseInt(teacherIdParam, 10) : NaN

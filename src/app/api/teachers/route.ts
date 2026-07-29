@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
 import { z } from 'zod'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 const teacherSchema = z.object({
 	firstName: z.string().min(1, 'First name is required').trim(),
@@ -21,6 +22,9 @@ const teacherSchema = z.object({
  * Returns a JSON array of teachers, each including `id`, `firstName`, `lastName`, and `username`, ordered by last name ascending. On failure, returns a JSON error message with status 500.
  */
 export async function GET() {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	try {
 		const teachers = await prisma.teacher.findMany({
 			select: {
@@ -56,6 +60,9 @@ export async function GET() {
  * @returns A JSON response containing the created teacher object, or an error message with an appropriate HTTP status code if validation or creation fails.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	if (!prisma) {
 		return NextResponse.json({ error: 'Database not initialized' }, { status: 500 })
 	}

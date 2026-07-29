@@ -5,6 +5,7 @@ import { generateNotensammlerPDF } from '@/lib/pdf-generator'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * Handles GET requests to generate and return a PDF of notensammler (grade collector) data for a specific class.
@@ -12,6 +13,9 @@ import { isFeatureEnabled } from '@/lib/entitlements'
  * @returns A PDF file as a response if successful, or a JSON error response with status 400 or 500 if an error occurs.
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {

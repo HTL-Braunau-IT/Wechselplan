@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * Retrieves all classes from the database and returns them as a JSON array.
@@ -11,6 +12,9 @@ import { captureError } from '@/lib/sentry'
  * @returns A JSON response containing the list of classes, or an error message with status 500 if retrieval fails.
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('session')
+  if (denied) return denied
+
     try {
         const { searchParams } = new URL(request.url)
         const schoolYearIdParam = searchParams.get('schoolYearId')

@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 // Force dynamic rendering - no caching
 export const dynamic = 'force-dynamic'
@@ -20,6 +21,9 @@ const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7]
  * { [studentId]: { [teacherId]: { first: grade | null, second: grade | null } } }
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {
@@ -162,6 +166,9 @@ export async function GET(request: Request) {
  * @returns A JSON response with success status or an error message.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	let requestData: unknown
 	try {
 		const session = await getServerSession(authOptions)
@@ -372,6 +379,9 @@ export async function POST(request: Request) {
  * @returns A JSON response with success status or an error message.
  */
 export async function DELETE(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {

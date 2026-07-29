@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * Retrieves all break time records from the database, ordered by start time.
@@ -8,6 +9,9 @@ import { captureError } from '@/lib/sentry'
  * @returns A JSON response containing an array of break time records, or an error message with status 500 if retrieval fails.
  */
 export async function GET() {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     const breakTimes = await prisma.breakTime.findMany({
       orderBy: {
@@ -43,6 +47,9 @@ interface BreakTimeRequest {
  * @returns A JSON response containing the created break time record, or an error message with an appropriate HTTP status code if validation fails or an error occurs.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 
   try {
     // Clone the request before reading its body

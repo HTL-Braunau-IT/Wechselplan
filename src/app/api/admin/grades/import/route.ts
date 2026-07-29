@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions, hasRole } from '@/lib/auth'
 import { captureError } from '@/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7]
 
@@ -21,6 +22,9 @@ interface ImportRequest {
  * @returns A JSON response with import statistics or an error message.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	const rawBody = await request.text()
 	try {
 		const session = await getServerSession(authOptions)

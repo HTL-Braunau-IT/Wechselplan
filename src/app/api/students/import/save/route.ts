@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { captureError } from '~/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
 import * as ldap from 'ldapjs'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 interface ImportRequest {
   classes: string[]
@@ -218,6 +219,9 @@ async function fetchLDAPData(): Promise<ImportData> {
  * @returns A JSON response containing a success message and counts of imported students and updated classes, or an error message with status 500 if the import fails.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     const data = await request.json() as ImportRequest & { schoolYearId?: number }
     const { classes: classNames, schoolYearId: bodySchoolYearId } = data

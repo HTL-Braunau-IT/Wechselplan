@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * Handles GET requests to retrieve students in a specified class who have a non-null group ID.
@@ -10,6 +11,9 @@ import { captureError } from '@/lib/sentry'
  * @returns A JSON response containing the list of students with a 200 status on success, or an error message with an appropriate status code on failure.
  */
 export async function GET(req: Request) {
+  const denied = await denyUnlessAccess('session')
+  if (denied) return denied
+
     const { searchParams } = new URL(req.url)
     try {
         const className = searchParams.get('className')

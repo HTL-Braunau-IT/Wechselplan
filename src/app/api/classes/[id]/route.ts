@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 // Validation schema
 const updateClassSchema = z.object({
@@ -24,6 +25,9 @@ export async function PATCH(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   context: any 
 ) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     const id = context?.params?.id
     // eslint-disable-next-line @typescript-eslint/no-unsafe-argument

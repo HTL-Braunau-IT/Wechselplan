@@ -7,6 +7,7 @@ import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { normalizeUsername } from '@/lib/username'
 import type { NotensammlerAllClassesClassData } from '@/lib/pdf-generator'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * Handles GET requests to generate a PDF of the current teacher's grades for all classes they are assigned to in the given school year.
@@ -14,6 +15,9 @@ import type { NotensammlerAllClassesClassData } from '@/lib/pdf-generator'
  * @returns A PDF file as response, or JSON error with status 400/404/500.
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {

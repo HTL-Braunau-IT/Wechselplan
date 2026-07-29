@@ -5,6 +5,7 @@ import ScheduleTurnusPDF, { type ScheduleData } from '@/components/ScheduleTurnu
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
 
 import { prisma } from '@/lib/prisma'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * Handles POST requests to generate and return a PDF schedule for a specified class and weekday.
@@ -14,6 +15,9 @@ import { prisma } from '@/lib/prisma'
  * @returns A PDF file response containing the schedule, or a JSON error response with an appropriate HTTP status code.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
     try {
         const { searchParams } = new URL(request.url)
         const className = searchParams.get('className')

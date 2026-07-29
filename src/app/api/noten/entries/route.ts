@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { normalizeUsername } from '@/lib/username'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
 const ALLOWED_ATTENDANCE = ['Anwesend', 'Krank', 'Entschuldigt', 'Unentschuldigt']
@@ -29,6 +30,9 @@ type EntryPayload = {
  * PATCH/POST: Batch upsert NotenEntry rows. Body: { classId, groupId, schoolYearId, entries: EntryPayload[] }
  */
 export async function PATCH(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	try {
 		const session = await getServerSession(authOptions)
 		if (!session?.user?.name) {

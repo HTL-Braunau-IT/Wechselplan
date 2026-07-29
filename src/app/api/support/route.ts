@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '~/lib/prisma'
 import { sendSupportEmail } from '~/server/send-support-email-graph'
 import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * Processes a support message submitted via HTTP POST, validating input, storing it in the database, and attempting to notify the admin.
@@ -12,6 +13,9 @@ import { captureError } from '@/lib/sentry'
  * @returns A JSON response with the created support message, or an error message with the appropriate HTTP status.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('session')
+  if (denied) return denied
+
   // Store request body as string before parsing
   const requestBody = await request.text()
   let body: { name?: string; message?: string; currentUri?: string }

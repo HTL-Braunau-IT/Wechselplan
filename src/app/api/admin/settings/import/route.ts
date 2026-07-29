@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { parse } from 'csv-parse/sync'
 import { type Prisma } from '@prisma/client'
 import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 interface ImportRequest {
 	type: 'room' | 'subject' | 'learningContent'
@@ -26,6 +27,9 @@ interface ImportData {
  * @remark Duplicate entries by name are ignored; only records with unique names are imported.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	const rawBody = await request.text() // Cache the raw body first
 	try {
 		const body = JSON.parse(rawBody) as ImportRequest
@@ -134,6 +138,9 @@ export async function POST(request: Request) {
  * @returns A JSON response with the retrieved data or an error message.
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
 	try {
 		const { searchParams } = new URL(request.url)
 		const type = searchParams.get('type')

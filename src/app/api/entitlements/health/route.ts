@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions, hasRole } from '@/lib/auth'
 import { getEnabledFeatures } from '@/lib/entitlements'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * GET /api/entitlements/health
@@ -9,6 +10,9 @@ import { getEnabledFeatures } from '@/lib/entitlements'
  * Returns { ok: true, features: [...] } or an error. Useful for debugging license server connectivity.
  */
 export async function GET() {
+  const denied = await denyUnlessAccess('session')
+  if (denied) return denied
+
   const session = await getServerSession(authOptions)
   if (!session?.user?.name) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

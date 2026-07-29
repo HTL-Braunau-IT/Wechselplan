@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 // Generic CRUD operations for all models
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('admin')
+  if (denied) return denied
+
   const { searchParams } = new URL(request.url)
   const model = searchParams.get('model')
   const id = searchParams.get('id')
@@ -61,6 +65,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('admin')
+  if (denied) return denied
+
   const { searchParams } = new URL(request.url)
   const model = searchParams.get('model')
 
@@ -90,6 +97,9 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const denied = await denyUnlessAccess('admin')
+  if (denied) return denied
+
   const { searchParams } = new URL(request.url)
   const model = searchParams.get('model')
   const id = searchParams.get('id')
@@ -120,6 +130,9 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const denied = await denyUnlessAccess('admin')
+  if (denied) return denied
+
   const { searchParams } = new URL(request.url)
   const model = searchParams.get('model')
   const id = searchParams.get('id')
