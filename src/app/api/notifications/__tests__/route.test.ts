@@ -7,7 +7,7 @@ import { POST } from '../acknowledge/route'
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     teacher: { findUnique: vi.fn() },
-    notification: { findMany: vi.fn(), updateMany: vi.fn() },
+    notification: { findMany: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
     sokratesChangeNotice: { updateMany: vi.fn() },
   },
 }))
@@ -30,6 +30,7 @@ describe('GET /api/notifications', () => {
     vi.clearAllMocks()
     signInAs('anna.berger')
     vi.mocked(prisma.teacher.findUnique).mockResolvedValue(teacherRow as never)
+    vi.mocked(prisma.notification.count).mockResolvedValue(1 as never)
   })
 
   it("returns the caller's rows with an unread count", async () => {
@@ -64,6 +65,31 @@ describe('GET /api/notifications', () => {
     expect(prisma.notification.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { recipientId: 7 } }),
     )
+  })
+
+  it('reports the true unread backlog, not just what fits on the page', async () => {
+    // The window is unread-first, so past its size every row in it is unread and
+    // deriving the badge from the page would peg it at the page size.
+    vi.mocked(prisma.notification.findMany).mockResolvedValue(
+      Array.from({ length: 100 }, (_, i) => ({
+        id: i + 1,
+        type: 'schedule-updated',
+        params: { className: '1AHIT' },
+        link: null,
+        actorName: 'Max Muster',
+        createdAt: new Date('2026-03-01T08:00:00.000Z'),
+        readAt: null,
+      })) as never,
+    )
+    vi.mocked(prisma.notification.count).mockResolvedValue(137 as never)
+
+    const data = await (await GET()).json()
+
+    expect(data.notifications).toHaveLength(100)
+    expect(data.unreadCount).toBe(137)
+    expect(prisma.notification.count).toHaveBeenCalledWith({
+      where: { recipientId: 7, readAt: null },
+    })
   })
 
   it('is empty rather than an error for an admin with no Teacher row', async () => {
@@ -158,6 +184,23 @@ describe('POST /api/notifications/acknowledge', () => {
     await POST(request({ id: 5 }))
 
     expect(prisma.sokratesChangeNotice.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('still reports success when resolving the linked notices fails', async () => {
+    // The acknowledgement has already committed; a 500 here would claim a
+    // dismissal failed that the user can see took effect.
+    vi.mocked(prisma.notification.findMany).mockResolvedValue([
+      {
+        type: 'sokrates-change',
+        params: { classId: 3, schoolYearId: 2, semester: 'first', className: '1AHIT', count: 2 },
+      },
+    ] as never)
+    vi.mocked(prisma.sokratesChangeNotice.updateMany).mockRejectedValue(new Error('db down'))
+
+    const response = await POST(request({ id: 5 }))
+
+    expect(response.status).toBe(200)
+    expect(prisma.notification.updateMany).toHaveBeenCalled()
   })
 
   it('refuses a signed-in user with no Teacher row', async () => {

@@ -5,6 +5,7 @@ import { denyUnlessAccess } from '@/lib/api-guard'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { resolveCurrentTeacher } from '@/lib/current-teacher'
+import { bestEffort } from '@/lib/notifications'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -93,7 +94,13 @@ export async function POST(request: Request) {
 
     const now = new Date()
     const result = await prisma.notification.updateMany({ where: scope, data: { readAt: now } })
-    await resolveLinkedSokratesNotices(affected, teacher.id, now)
+
+    // The acknowledgement itself has committed by now, so resolving the linked
+    // notices is best-effort: failing it would report a 500 for a dismissal the
+    // user can already see took effect, and re-marking would be a no-op.
+    await bestEffort('acknowledge:sokrates-notices', () =>
+      resolveLinkedSokratesNotices(affected, teacher.id, now),
+    )
 
     return NextResponse.json({ success: true, count: result.count })
   } catch (error) {

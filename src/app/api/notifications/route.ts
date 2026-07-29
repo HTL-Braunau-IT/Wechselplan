@@ -32,13 +32,19 @@ export async function GET() {
     const teacher = await resolveCurrentTeacher(session)
     if (!teacher) return NextResponse.json({ notifications: [], unreadCount: 0 })
 
-    const rows = await prisma.notification.findMany({
-      where: { recipientId: teacher.id },
-      // Unread (null) first, then newest — nulls: 'first' is explicit so the
-      // intent survives any change to Prisma's default null placement.
-      orderBy: [{ readAt: { sort: 'asc', nulls: 'first' } }, { createdAt: 'desc' }],
-      take: MAX_NOTIFICATIONS,
-    })
+    const [rows, unreadCount] = await Promise.all([
+      prisma.notification.findMany({
+        where: { recipientId: teacher.id },
+        // Unread (null) first, then newest — nulls: 'first' is explicit so the
+        // intent survives any change to Prisma's default null placement.
+        orderBy: [{ readAt: { sort: 'asc', nulls: 'first' } }, { createdAt: 'desc' }],
+        take: MAX_NOTIFICATIONS,
+      }),
+      // Counted separately rather than off `rows`: past MAX_NOTIFICATIONS unread
+      // the window is entirely unread, and deriving the badge from it would cap
+      // the count at the page size instead of reporting the real backlog.
+      prisma.notification.count({ where: { recipientId: teacher.id, readAt: null } }),
+    ])
 
     const notifications = rows.map(row => ({
       id: row.id,
@@ -50,10 +56,7 @@ export async function GET() {
       read: row.readAt != null,
     }))
 
-    return NextResponse.json({
-      notifications,
-      unreadCount: notifications.filter(n => !n.read).length,
-    })
+    return NextResponse.json({ notifications, unreadCount })
   } catch (error) {
     captureError(error as Error, { location: 'api/notifications', type: 'list' })
     return NextResponse.json({ error: 'Failed to load notifications' }, { status: 500 })
