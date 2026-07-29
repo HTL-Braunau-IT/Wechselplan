@@ -560,7 +560,7 @@ model SokratesChangeNotice {
   subjectTeacherName String
   oldGrade           Float?
   newGrade           Float?
-  changedById        Int      // teacher who made the change
+  changedById        Int?     // teacher who made the change (null: admin without a Teacher row)
   changedByName      String
   recipientId        Int?     // class lead notified (null if the class has no lead)
   changedAt          DateTime  @default(now())
@@ -568,6 +568,7 @@ model SokratesChangeNotice {
 
   transfer SokratesTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
 
+  @@index([transferId])
   @@index([classId, schoolYearId])
   @@index([recipientId, acknowledgedAt])
 }

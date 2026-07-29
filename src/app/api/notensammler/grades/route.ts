@@ -323,20 +323,6 @@ export async function POST(request: Request) {
     const currentTeacher = semesterMarked ? await resolveCurrentTeacher(session) : null
     let sokratesOldGrade: number | null = null
     if (semesterMarked) {
-      const canOverride = await canManageSokrates({
-        classId: classIdNum,
-        role: session.user?.role,
-        teacherId: currentTeacher?.id ?? null,
-      })
-      if (isEditBlocked(sokratesStatus, semesterTyped, teacherIdNum, canOverride)) {
-        return NextResponse.json(
-          {
-            error:
-              'Diese Note wurde bereits in Sokrates eingetragen und ist gesperrt. Bitte den Klassenleiter kontaktieren.',
-          },
-          { status: 423 },
-        )
-      }
       const existingGrade = await prisma.grade.findUnique({
         where: {
           studentId_teacherId_classId_semester_schoolYearId: {
@@ -350,6 +336,25 @@ export async function POST(request: Request) {
         select: { grade: true },
       })
       sokratesOldGrade = existingGrade?.grade ?? null
+
+      // Re-saving the same value is a no-op — never block it (mirrors the batch
+      // route, and the documented contract). Only an actual change is gated.
+      if (sokratesOldGrade !== gradeValue) {
+        const canOverride = await canManageSokrates({
+          classId: classIdNum,
+          role: session.user?.role,
+          teacherId: currentTeacher?.id ?? null,
+        })
+        if (isEditBlocked(sokratesStatus, semesterTyped, teacherIdNum, canOverride)) {
+          return NextResponse.json(
+            {
+              error:
+                'Diese Note wurde bereits in Sokrates eingetragen und ist gesperrt. Bitte den Klassenleiter kontaktieren.',
+            },
+            { status: 423 },
+          )
+        }
+      }
     }
 
     console.log(`[POST /api/notensammler/grades] Attempting to upsert grade:`, {
@@ -420,7 +425,7 @@ export async function POST(request: Request) {
       await recordSokratesChanges({
         classId: classIdNum,
         schoolYearId,
-        changedById: currentTeacher?.id ?? 0,
+        changedById: currentTeacher?.id ?? null,
         changedByName: currentTeacher?.name ?? session.user?.name ?? 'Unbekannt',
         status: sokratesStatus,
         changes: [

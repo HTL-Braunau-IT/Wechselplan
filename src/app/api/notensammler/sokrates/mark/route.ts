@@ -62,19 +62,22 @@ export async function POST(request: Request) {
     const markedByName = teacher?.name ?? session?.user?.name ?? 'Administrator'
     const now = new Date()
 
-    const transfer = await prisma.sokratesTransfer.upsert({
-      where: {
-        classId_semester_schoolYearId: { classId, semester, schoolYearId },
-      },
-      update: { markedById, markedByName, markedAt: now },
-      create: { classId, semester, schoolYearId, markedById, markedByName, markedAt: now },
-    })
-
-    // Re-marking means the class lead has re-entered Sokrates: any changes that
-    // happened before this moment are now resolved.
-    await prisma.sokratesChangeNotice.updateMany({
-      where: { transferId: transfer.id, acknowledgedAt: null },
-      data: { acknowledgedAt: now },
+    // Mark (or refresh the mark) and, since re-marking means the class lead has
+    // re-entered Sokrates, resolve any changes recorded before this moment —
+    // atomically, so a notice can never be left dangling against a stale mark.
+    const transfer = await prisma.$transaction(async tx => {
+      const t = await tx.sokratesTransfer.upsert({
+        where: {
+          classId_semester_schoolYearId: { classId, semester, schoolYearId },
+        },
+        update: { markedById, markedByName, markedAt: now },
+        create: { classId, semester, schoolYearId, markedById, markedByName, markedAt: now },
+      })
+      await tx.sokratesChangeNotice.updateMany({
+        where: { transferId: t.id, acknowledgedAt: null },
+        data: { acknowledgedAt: now },
+      })
+      return t
     })
 
     return NextResponse.json({ success: true, transferId: transfer.id })

@@ -38,7 +38,7 @@ CREATE TABLE "SokratesChangeNotice" (
     "subjectTeacherName" TEXT NOT NULL,
     "oldGrade" DOUBLE PRECISION,
     "newGrade" DOUBLE PRECISION,
-    "changedById" INTEGER NOT NULL,
+    "changedById" INTEGER,
     "changedByName" TEXT NOT NULL,
     "recipientId" INTEGER,
     "changedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -55,6 +55,9 @@ CREATE UNIQUE INDEX "SokratesTransfer_classId_semester_schoolYearId_key" ON "Sok
 
 -- CreateIndex
 CREATE UNIQUE INDEX "SokratesSubjectLock_transferId_teacherId_key" ON "SokratesSubjectLock"("transferId", "teacherId");
+
+-- CreateIndex
+CREATE INDEX "SokratesChangeNotice_transferId_idx" ON "SokratesChangeNotice"("transferId");
 
 -- CreateIndex
 CREATE INDEX "SokratesChangeNotice_classId_schoolYearId_idx" ON "SokratesChangeNotice"("classId", "schoolYearId");

@@ -22,10 +22,12 @@ export async function resolveSchoolYearId(raw: unknown): Promise<number | null> 
   return latest?.id ?? null
 }
 
+/** Narrows an unknown value to a valid semester, or null. */
 export function parseSemester(raw: unknown): Semester | null {
   return raw === 'first' || raw === 'second' ? raw : null
 }
 
+/** Parses an id from a number or numeric string; null when not an integer. */
 export function parseId(raw: unknown): number | null {
   const parsed = typeof raw === 'number' ? raw : typeof raw === 'string' ? parseInt(raw, 10) : NaN
   return Number.isInteger(parsed) ? parsed : null

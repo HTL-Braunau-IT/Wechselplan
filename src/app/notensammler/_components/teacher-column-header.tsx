@@ -65,6 +65,11 @@ export function TeacherColumnHeader({
                   ? t('notensammler.sokratesUnlockColumn', 'Spalte entsperren')
                   : t('notensammler.sokratesLockColumn', 'Spalte sperren (Sokrates)')
               }
+              aria-label={
+                locked
+                  ? t('notensammler.sokratesUnlockColumn', 'Spalte entsperren')
+                  : t('notensammler.sokratesLockColumn', 'Spalte sperren (Sokrates)')
+              }
             >
               {locked ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />}
             </Button>
@@ -78,6 +83,7 @@ export function TeacherColumnHeader({
               onDelete(teacher)
             }}
             title={deleteLabel}
+            aria-label={deleteLabel}
           >
             <X className="h-3 w-3" />
           </Button>

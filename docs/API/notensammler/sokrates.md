@@ -104,10 +104,12 @@ the class+semester to already be marked.
 Both `POST /api/notensammler/grades` (single) and
 `POST /api/notensammler/grades/batch` call into `sokrates-lock`:
 
-- **Before writing** — if the change lands on a hard-locked column/class and the
-  caller is not the class lead or an admin, the request is rejected with
-  **HTTP 423 Locked** and a German message. Unchanged values (re-saving the same
-  grade) are never blocked.
+- **Before writing** — a change that lands on a hard-locked column/class from a
+  caller who is not the class lead or an admin is refused. The **single** route
+  rejects with **HTTP 423 Locked**; the **batch** route ("Alle speichern")
+  instead **skips** the locked rows, still persists everything else, and returns
+  `{ success, count, skippedLocked }` so the client can warn. Unchanged values
+  (re-saving the same grade) are never blocked by either route.
 - **After writing** — for a change on a *marked* semester, a `SokratesChangeNotice`
   is created and the class lead is emailed (best-effort via Microsoft Graph,
   `src/server/send-support-email-graph.ts`). A change made by the class lead

@@ -20,7 +20,13 @@ type Props = {
 const formatDate = (iso: string | null): string => {
   if (!iso) return ''
   const d = new Date(iso)
-  return d.toLocaleDateString('de-AT', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  // Pin the timezone so server and client render the same day (no hydration drift).
+  return d.toLocaleDateString('de-AT', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: 'Europe/Vienna',
+  })
 }
 
 /** Mark/lock controls and status for one semester. */

@@ -112,7 +112,8 @@ export function useGradeEditing({
         void (async () => {
           try {
             await saveGrade(studentId, teacherId, semester, gradeValue)
-            void refreshSokrates?.()
+            // Coalesce the status refresh: one GET per typing burst, not per cell.
+            schedule('sokrates-refresh', () => void refreshSokrates?.())
           } catch {
             setGrades(prev => {
               const next = { ...prev }
@@ -368,6 +369,17 @@ export function useGradeEditing({
       if (!finalGradesRes.ok) {
         const err = (await finalGradesRes.json()) as { error?: string }
         throw new Error(err.error ?? 'Failed to save final grades')
+      }
+
+      // Some grades may have been skipped because they are locked in Sokrates —
+      // the rest were still saved, so surface a notice rather than failing.
+      const gradesResult = (await gradesRes.json().catch(() => null)) as {
+        skippedLocked?: number
+      } | null
+      if (gradesResult?.skippedLocked && gradesResult.skippedLocked > 0) {
+        setError(
+          `${gradesResult.skippedLocked} in Sokrates gesperrte Note(n) wurden nicht gespeichert. Bitte den Klassenleiter kontaktieren.`,
+        )
       }
 
       // Refresh so the per-class tab ticks reflect the new completion state.

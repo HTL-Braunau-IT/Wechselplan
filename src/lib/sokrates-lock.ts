@@ -49,6 +49,7 @@ export async function resolveCurrentTeacher(
  * {@link recordSokratesChanges} after.
  */
 
+/** Mark + lock state for a single semester of a class. */
 export interface SemesterLockStatus {
   /** The class lead has marked this class+semester as entered into Sokrates. */
   marked: boolean
@@ -61,6 +62,7 @@ export interface SemesterLockStatus {
   transferId: number | null
 }
 
+/** Mark + lock state for both semesters of a class. */
 export interface SokratesStatus {
   first: SemesterLockStatus
   second: SemesterLockStatus
@@ -160,7 +162,7 @@ const formatGrade = (grade: number | null): string =>
 export async function recordSokratesChanges(params: {
   classId: number
   schoolYearId: number
-  changedById: number
+  changedById: number | null
   changedByName: string
   status: SokratesStatus
   changes: GradeChange[]

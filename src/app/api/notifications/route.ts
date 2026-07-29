@@ -35,7 +35,9 @@ export async function GET() {
 
     const notices = await prisma.sokratesChangeNotice.findMany({
       where: { recipientId: teacher.id },
-      orderBy: [{ acknowledgedAt: 'asc' }, { changedAt: 'desc' }],
+      // Unacknowledged (null) first, then newest — nulls: 'first' is explicit so
+      // the intent survives any change to Prisma's default null placement.
+      orderBy: [{ acknowledgedAt: { sort: 'asc', nulls: 'first' } }, { changedAt: 'desc' }],
       take: MAX_NOTIFICATIONS,
     })
 

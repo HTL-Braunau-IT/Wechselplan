@@ -45,34 +45,41 @@ export function useSokrates({ classId, schoolYearId, setError }: Params) {
   const [canManage, setCanManage] = useState(false)
   const [busy, setBusy] = useState(false)
 
-  const refresh = useCallback(async () => {
-    if (classId == null || schoolYearId == null) {
-      setStatus(emptyStatus())
-      setDriftedCells(new Set())
-      setCanManage(false)
-      return
-    }
-    try {
-      const res = await fetch(
-        `/api/notensammler/sokrates?classId=${classId}&schoolYearId=${schoolYearId}`,
-        { cache: 'no-store' },
-      )
-      if (!res.ok) return
-      const data = (await res.json()) as {
-        status: SokratesStatus
-        canManage: boolean
-        driftedCells: string[]
+  const refresh = useCallback(
+    async (signal?: AbortSignal) => {
+      if (classId == null || schoolYearId == null) {
+        setStatus(emptyStatus())
+        setDriftedCells(new Set())
+        setCanManage(false)
+        return
       }
-      setStatus(data.status ?? emptyStatus())
-      setCanManage(Boolean(data.canManage))
-      setDriftedCells(new Set(data.driftedCells ?? []))
-    } catch (e) {
-      captureFrontendError(e, { location: 'notensammler', type: 'fetch-sokrates-status' })
-    }
-  }, [classId, schoolYearId])
+      try {
+        const res = await fetch(
+          `/api/notensammler/sokrates?classId=${classId}&schoolYearId=${schoolYearId}`,
+          { cache: 'no-store', signal },
+        )
+        if (!res.ok) return
+        const data = (await res.json()) as {
+          status: SokratesStatus
+          canManage: boolean
+          driftedCells: string[]
+        }
+        setStatus(data.status ?? emptyStatus())
+        setCanManage(Boolean(data.canManage))
+        setDriftedCells(new Set(data.driftedCells ?? []))
+      } catch (e) {
+        // A superseded request (class switched mid-flight) is aborted, not an error.
+        if (e instanceof DOMException && e.name === 'AbortError') return
+        captureFrontendError(e, { location: 'notensammler', type: 'fetch-sokrates-status' })
+      }
+    },
+    [classId, schoolYearId],
+  )
 
   useEffect(() => {
-    void refresh()
+    const controller = new AbortController()
+    void refresh(controller.signal)
+    return () => controller.abort()
   }, [refresh])
 
   const post = useCallback(

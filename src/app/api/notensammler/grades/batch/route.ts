@@ -162,12 +162,15 @@ export async function POST(request: Request) {
       })
     }
 
-    // Sokrates lock: reject the batch if it changes any hard-locked grade, and
-    // collect the changes that land on a marked semester so we can notify the
-    // class lead after the write. Unchanged cells are never blocked or reported.
+    // Sokrates lock: a hard-locked grade that would change is skipped (not
+    // written) rather than failing the whole "Alle speichern" — unrelated edits
+    // in the same batch still persist. Changes that land on a marked semester
+    // are collected so we can notify the class lead after the write. Unchanged
+    // cells are never blocked or reported.
     const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId)
     const anyMarked = sokratesStatus.first.marked || sokratesStatus.second.marked
     const sokratesChanges: GradeChange[] = []
+    const blockedKeys = new Set<string>()
     let currentTeacher: Awaited<ReturnType<typeof resolveCurrentTeacher>> = null
     if (anyMarked) {
       currentTeacher = await resolveCurrentTeacher(session)
@@ -184,13 +187,13 @@ export async function POST(request: Request) {
       for (const e of existing) {
         existingMap.set(`${e.studentId}:${e.teacherId}:${e.semester}`, e.grade)
       }
-      let blockedCount = 0
       for (const g of grades) {
         if (!sokratesStatus[g.semester].marked) continue
-        const oldGrade = existingMap.get(`${g.studentId}:${g.teacherId}:${g.semester}`) ?? null
+        const key = `${g.studentId}:${g.teacherId}:${g.semester}`
+        const oldGrade = existingMap.get(key) ?? null
         if (oldGrade === g.grade) continue // unchanged: never blocked, never notified
         if (isEditBlocked(sokratesStatus, g.semester, g.teacherId, canOverride)) {
-          blockedCount++
+          blockedKeys.add(key)
         } else {
           sokratesChanges.push({
             studentId: g.studentId,
@@ -201,19 +204,16 @@ export async function POST(request: Request) {
           })
         }
       }
-      if (blockedCount > 0) {
-        return NextResponse.json(
-          {
-            error:
-              'Einige Noten wurden bereits in Sokrates eingetragen und sind gesperrt. Bitte den Klassenleiter kontaktieren.',
-          },
-          { status: 423 },
-        )
-      }
     }
 
+    // Locked-and-changed cells are dropped from the write; everything else saves.
+    const gradesToWrite =
+      blockedKeys.size === 0
+        ? grades
+        : grades.filter(g => !blockedKeys.has(`${g.studentId}:${g.teacherId}:${g.semester}`))
+
     await prisma.$transaction(
-      grades.map(g =>
+      gradesToWrite.map(g =>
         prisma.grade.upsert({
           where: {
             studentId_teacherId_classId_semester_schoolYearId: {
@@ -241,14 +241,18 @@ export async function POST(request: Request) {
       await recordSokratesChanges({
         classId: classIdNum,
         schoolYearId,
-        changedById: currentTeacher?.id ?? 0,
+        changedById: currentTeacher?.id ?? null,
         changedByName: currentTeacher?.name ?? session.user?.name ?? 'Unbekannt',
         status: sokratesStatus,
         changes: sokratesChanges,
       })
     }
 
-    return NextResponse.json({ success: true, count: grades.length })
+    return NextResponse.json({
+      success: true,
+      count: gradesToWrite.length,
+      skippedLocked: blockedKeys.size,
+    })
   } catch (error) {
     captureError(error as Error, {
       location: 'api/notensammler/grades/batch',
