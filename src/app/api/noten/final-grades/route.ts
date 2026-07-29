@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
-import { normalizeUsername } from '@/lib/username'
+import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { denyUnlessAccess } from '@/lib/api-guard'
 
 export const dynamic = 'force-dynamic'
@@ -93,8 +93,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
     }
 
-    const username = normalizeUsername(session.user.name)
-    const teacher = await prisma.teacher.findUnique({ where: { username } })
+    const teacher = await resolveSessionTeacher(session)
     if (!teacher) {
       return NextResponse.json({ error: 'Teacher not found' }, { status: 403 })
     }

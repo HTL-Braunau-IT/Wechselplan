@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
-import { normalizeUsername } from '@/lib/username'
+import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { toLocalDateString } from '@/lib/date-utils'
 import { denyUnlessAccess } from '@/lib/api-guard'
 
@@ -103,8 +103,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ classId: null, groupId: null })
     }
 
-    const username = normalizeUsername(session.user.name)
-    const teacher = await prisma.teacher.findUnique({ where: { username } })
+    const teacher = await resolveSessionTeacher(session)
     if (!teacher) {
       return NextResponse.json({ classId: null, groupId: null })
     }

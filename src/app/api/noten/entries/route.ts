@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
-import { normalizeUsername } from '@/lib/username'
+import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { denyUnlessAccess } from '@/lib/api-guard'
 
 const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
@@ -57,8 +57,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const username = normalizeUsername(session.user.name)
-    const teacher = await prisma.teacher.findUnique({ where: { username } })
+    const teacher = await resolveSessionTeacher(session)
     if (!teacher) {
       return NextResponse.json({ error: 'Teacher not found' }, { status: 403 })
     }
