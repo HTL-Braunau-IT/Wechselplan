@@ -2,13 +2,21 @@ import * as React from 'react'
 
 import { cn } from '@/lib/utils'
 
-const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
-  ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto">
-      <table ref={ref} className={cn('w-full caption-bottom text-sm', className)} {...props} />
-    </div>
-  ),
-)
+const Table = React.forwardRef<
+  HTMLTableElement,
+  React.HTMLAttributes<HTMLTableElement> & {
+    /**
+     * Styles the scroll container rather than the table. A grid that wants a
+     * sticky header needs to bound that container's height — the table itself
+     * can't, since it is not the element that scrolls.
+     */
+    containerClassName?: string
+  }
+>(({ className, containerClassName, ...props }, ref) => (
+  <div className={cn('relative w-full overflow-auto', containerClassName)}>
+    <table ref={ref} className={cn('w-full caption-bottom text-sm', className)} {...props} />
+  </div>
+))
 Table.displayName = 'Table'
 
 const TableHeader = React.forwardRef<

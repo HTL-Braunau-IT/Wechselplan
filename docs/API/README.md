@@ -12,6 +12,7 @@ The API is organized into different modules based on functionality:
 - **Export API** - Data export functionality (PDF, Excel)
 - **Learning Contents API** - Learning content management and retrieval
 - **Notifications API** - In-app notifications behind the bell in the top bar
+- **Teachers API** - Teacher records, including "who is signed in"
 - **Rooms API** - Room management and retrieval
 - **Schedule API** - Schedule management, teacher assignments, and rotations
 - **Schedules API** - General schedule management and data retrieval
@@ -57,6 +58,9 @@ docs/API/
 │   ├── teacher-assignments.md # Teacher assignments management
 │   ├── turns.md             # Turn schedules
 │   └── assignments.md       # Student group assignments
+├── teachers/                 # Teachers API documentation
+│   ├── README.md            # Teachers API overview
+│   └── me.md                # The signed-in user's Teacher record
 ├── schedules/                # Schedules API documentation
 │   ├── README.md            # Schedules API overview
 │   ├── index.md             # Main schedules endpoints
@@ -114,5 +118,6 @@ API endpoints may be subject to rate limiting. Check response headers for rate l
 6. Check the [Notifications API documentation](./notifications/README.md) for the in-app bell
 7. Check the [Schedule API documentation](./schedule/README.md) for schedule management
 8. Check the [Schedules API documentation](./schedules/README.md) for general schedule management
-9. Check the [examples](./examples/README.md) for common usage patterns
-10. Use the specific endpoint documentation for detailed information about each API route 
+9. Check the [Teachers API documentation](./teachers/README.md) for teacher records and identity resolution
+10. Check the [examples](./examples/README.md) for common usage patterns
+11. Use the specific endpoint documentation for detailed information about each API route 

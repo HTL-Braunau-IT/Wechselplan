@@ -49,3 +49,10 @@ export type TeacherClassSummary = {
 export type Period = 'AM' | 'PM'
 export type SortField = 'lastName' | 'groupId'
 export type SortDirection = 'asc' | 'desc'
+
+/**
+ * Which half of the year the grid shows. Replaces the pair of independent
+ * "1. Semester anzeigen" / "2. Semester anzeigen" checkboxes, which allowed a
+ * fourth, useless state (both off) and read as two unrelated settings.
+ */
+export type SemesterView = 'first' | 'second' | 'both'
