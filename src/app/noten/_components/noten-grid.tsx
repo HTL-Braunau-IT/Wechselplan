@@ -2,7 +2,7 @@
 
 import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
-import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -10,7 +10,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -28,7 +27,6 @@ import {
   getGradeBoxClass,
   isSemester2,
 } from '@/lib/grades'
-import { CHECKBOX_COLUMN_WIDTH_PX } from '../_hooks/use-sticky-columns'
 import {
   emptyEntry,
   type FinalGradePerStudent,
@@ -38,11 +36,25 @@ import {
 } from '../_lib/types'
 import type { StudentSummary } from '../_lib/summary'
 
-const TODAY_BG = 'bg-accent'
 const HIDDEN_PLACEHOLDER = '•••'
 
-const VERTICAL_HEAD =
-  'p-0.5 text-[10px] font-medium min-w-[4.5rem] w-[4.5rem] h-24 align-bottom [writing-mode:vertical-rl] [text-orientation:mixed] border-r border-border'
+/** Header row heights, in the order they stack. The second row pins below the first. */
+const DAY_ROW_H = 'h-9'
+const DAY_ROW_OFFSET = 'top-9'
+
+/**
+ * Pinned cells must be opaque or the columns scrolling underneath show through
+ * them, and `border-collapse` drops borders on sticky cells entirely — hence
+ * `border-separate` on the table and a shadow, not a border, for the divider
+ * that marks where the frozen columns end.
+ */
+const PINNED_DIVIDER = 'shadow-[1px_0_0_0_var(--color-border)]'
+const HEAD_CLASS = 'bg-muted border-border sticky z-20 border-b px-1 text-[11px] font-medium'
+const PINNED_HEAD_CLASS = cn(HEAD_CLASS, 'z-30')
+const CELL_BORDER = 'border-border/60 border-r border-b'
+/** The day boundary, and the boundary before the summary block. */
+const BLOCK_BORDER = 'border-border border-r-2 border-b'
+const TODAY_BG = 'bg-accent'
 
 /** Stand-in shown when a row's grades are hidden. */
 function Hidden({ className }: { className?: string }) {
@@ -73,8 +85,8 @@ function CategoryGrades({
   if (!visible) {
     return (
       <div className="flex flex-col gap-1">
-        <Hidden className="h-7 w-20 min-w-[4.5rem]" />
-        <Hidden className="h-7 w-20 min-w-[4.5rem]" />
+        <Hidden className="h-7 w-full" />
+        <Hidden className="h-7 w-full" />
       </div>
     )
   }
@@ -91,7 +103,7 @@ function CategoryGrades({
               onChange(slot, v === GRADE_CLEAR_VALUE || v === '' ? null : parseFloat(v))
             }
           >
-            <SelectTrigger className={cn('h-7 w-20 min-w-[4.5rem]', getGradeBoxClass(value))}>
+            <SelectTrigger className={cn('h-7 w-full px-2', getGradeBoxClass(value))}>
               <SelectValue placeholder="-" />
             </SelectTrigger>
             <SelectContent>
@@ -124,7 +136,7 @@ function TruncatedTextButton({
       type="button"
       onClick={onClick}
       className={cn(
-        'border-input text-foreground hover:bg-muted/50 focus:ring-ring block h-full min-h-[4.5rem] w-full max-w-full overflow-hidden rounded-md border bg-transparent px-2 py-1.5 text-left text-sm shadow-xs focus:ring-2 focus:outline-none',
+        'border-input text-foreground hover:bg-muted/50 focus:ring-ring block h-full w-full max-w-full overflow-hidden rounded-md border bg-transparent px-2 py-1.5 text-left text-sm shadow-xs focus:ring-2 focus:outline-none',
         className,
       )}
     >
@@ -178,6 +190,12 @@ export type NotenGridProps = {
 /**
  * The Noten grid: one column block per teaching day, plus per-student totals
  * and final grades. Days can be collapsed to a narrow spacer column.
+ *
+ * The column headings used to be set in `writing-mode: vertical-rl`, which cost
+ * 96px of header on every screen and still had to be read sideways; they are
+ * abbreviations with a `title` now. Native titles rather than tooltip
+ * components on purpose — there is one per column *per teaching day*, and a
+ * term's worth of mounted Radix tooltips is not free.
  */
 export function NotenGrid(props: NotenGridProps) {
   const { t } = useTranslation('common')
@@ -220,16 +238,77 @@ export function NotenGrid(props: NotenGridProps) {
         ? t('noten.gradeGestundet', { defaultValue: 'Gestundet' })
         : String(grade)
 
-  const summaryHeadings = [
-    t('noten.nichtAnwesendTage', { defaultValue: 'Nicht anwesend' }),
-    t('noten.anwesendTage', { defaultValue: 'Anwesend' }),
-    t('noten.alleTage', { defaultValue: 'Alle Tage' }),
-    t('noten.anwesenheitProzent', { defaultValue: 'Anw. %' }),
-    t('noten.gradeBerechnet', { defaultValue: 'Note' }),
-    t('noten.endnoteSem1', { defaultValue: 'Endn. 1' }),
-    t('noten.betragenSem1', { defaultValue: 'Betr. 1' }),
-    t('noten.endnoteSem2', { defaultValue: 'Endn. 2' }),
-    t('noten.betragenSem2', { defaultValue: 'Betr. 2' }),
+  /** Per-day columns: a short head, the full name kept for the tooltip. */
+  const dayColumns: Array<{ short: string; full: string; width: string }> = [
+    {
+      short: t('noten.anwesenheitShort', { defaultValue: 'Anw.' }),
+      full: t('noten.anwesenheit'),
+      width: 'w-14 min-w-14',
+    },
+    {
+      short: t('noten.wiederholungShort', { defaultValue: 'Wdh.' }),
+      full: t('noten.wiederholung'),
+      width: 'w-16 min-w-16',
+    },
+    {
+      short: t('noten.berichtShort', { defaultValue: 'Ber.' }),
+      full: t('noten.bericht'),
+      width: 'w-16 min-w-16',
+    },
+    {
+      short: t('noten.mitarbeitShort', { defaultValue: 'Mit.' }),
+      full: t('noten.mitarbeit'),
+      width: 'w-16 min-w-16',
+    },
+    {
+      short: t('noten.praktischeArbeitShort', { defaultValue: 'Prakt.' }),
+      full: t('noten.praktischeArbeit'),
+      width: 'w-16 min-w-16',
+    },
+    {
+      short: t('noten.notizenShort', { defaultValue: 'Notiz' }),
+      full: t('noten.notizen'),
+      width: 'w-20 min-w-20',
+    },
+  ]
+
+  const summaryColumns: Array<{ short: string; full: string }> = [
+    {
+      short: t('noten.nichtAnwesendShort', { defaultValue: 'Fehlt' }),
+      full: t('noten.nichtAnwesendTage', { defaultValue: 'Nicht anwesend' }),
+    },
+    {
+      short: t('noten.anwesendShort', { defaultValue: 'Anw.' }),
+      full: t('noten.anwesendTage', { defaultValue: 'Anwesend' }),
+    },
+    {
+      short: t('noten.alleTageShort', { defaultValue: 'Tage' }),
+      full: t('noten.alleTage', { defaultValue: 'Alle Tage' }),
+    },
+    {
+      short: '%',
+      full: t('noten.anwesenheitProzent', { defaultValue: 'Anw. %' }),
+    },
+    {
+      short: t('noten.gradeBerechnetShort', { defaultValue: 'Note' }),
+      full: t('noten.gradeBerechnetLong', { defaultValue: 'Berechnete Note' }),
+    },
+    {
+      short: t('noten.endnoteShort1', { defaultValue: 'End 1' }),
+      full: t('noten.endnoteSem1', { defaultValue: 'Endnote 1. Semester' }),
+    },
+    {
+      short: t('noten.betragenShort1', { defaultValue: 'Betr 1' }),
+      full: t('noten.betragenSem1', { defaultValue: 'Betragen 1. Semester' }),
+    },
+    {
+      short: t('noten.endnoteShort2', { defaultValue: 'End 2' }),
+      full: t('noten.endnoteSem2', { defaultValue: 'Endnote 2. Semester' }),
+    },
+    {
+      short: t('noten.betragenShort2', { defaultValue: 'Betr 2' }),
+      full: t('noten.betragenSem2', { defaultValue: 'Betragen 2. Semester' }),
+    },
   ]
 
   /** A final-grade or Betragensnote select, or its hidden stand-in. */
@@ -257,7 +336,7 @@ export function NotenGrid(props: NotenGridProps) {
           if (!open) onFinalGradeCommit(studentId)
         }}
       >
-        <SelectTrigger className="h-8 w-full min-w-0">
+        <SelectTrigger className="h-8 w-full min-w-0 px-2">
           <SelectValue placeholder="–" />
         </SelectTrigger>
         <SelectContent>
@@ -279,157 +358,174 @@ export function NotenGrid(props: NotenGridProps) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-md border">
-      <table className="w-full caption-bottom border-collapse text-sm">
-        <TableHeader>
-          <TableRow className="[&>th]:border-border [&>th]:border-r">
-            <TableHead className="bg-background sticky left-0 z-30 w-[2.5rem] min-w-[2.5rem] px-2 py-1.5 text-center" />
-            <TableHead
+    <div className="relative max-h-[70vh] w-full overflow-auto rounded-md border">
+      <table className="w-full border-separate border-spacing-0 text-sm">
+        <thead>
+          <tr>
+            <th
               ref={nameColumnRef}
-              style={{ left: `${CHECKBOX_COLUMN_WIDTH_PX}px` }}
-              className="bg-background sticky z-20 min-w-[180px] px-2 py-1.5"
+              style={{ left: 0 }}
+              className={cn(
+                PINNED_HEAD_CLASS,
+                DAY_ROW_H,
+                'top-0 left-0 min-w-[200px] px-2 text-left',
+              )}
             >
               {t('noten.name')}
-            </TableHead>
-            <TableHead
+            </th>
+            <th
               style={{ left: sitzplatzLeft }}
-              className="border-border bg-background sticky z-18 h-auto min-w-[3rem] border-r border-l px-2 py-1.5"
+              className={cn(PINNED_HEAD_CLASS, DAY_ROW_H, 'top-0 w-14 min-w-14', PINNED_DIVIDER)}
             />
             {teachingDays.map((day, dayIndex) => {
               const key = `${day.date}-${day.period}`
               const isCollapsed = collapsedDays.has(key)
               const isToday = day.date === focusDate
+              const previous = teachingDays[dayIndex - 1]
+              // Only where it changes: repeating "1. Sem." on every column was
+              // noise on a term with forty of them.
+              const startsSemester =
+                dayIndex === 0 ||
+                (previous != null &&
+                  isSemester2(previous.date, semesterChangeDate) !==
+                    isSemester2(day.date, semesterChangeDate))
+              const semesterLabel = isSemester2(day.date, semesterChangeDate)
+                ? t('noten.semester2', { defaultValue: '2. Sem.' })
+                : t('noten.semester1', { defaultValue: '1. Sem.' })
+              const dayLabel = `${t('noten.tag')} ${dayIndex + 1} · ${day.date.split('-').reverse().join('.')}`
+
               return (
-                <TableHead
+                <th
                   key={key}
                   ref={registerDayColumn(key, dayIndex === firstTodayIndex)}
-                  colSpan={isCollapsed ? 1 : 6}
+                  colSpan={isCollapsed ? 1 : dayColumns.length}
                   className={cn(
-                    'bg-muted/30 align-top',
-                    isCollapsed
-                      ? 'border-border w-12 max-w-[3rem] min-w-0 border-r-2 px-1 py-1.5'
-                      : 'border-border min-w-[28rem] border-r px-2 py-1.5',
+                    HEAD_CLASS,
+                    DAY_ROW_H,
+                    'top-0 text-left',
+                    isCollapsed ? 'w-9 min-w-9 px-0' : 'px-1',
+                    startsSemester && 'border-primary/40 border-l-2',
                     isToday && TODAY_BG,
                   )}
                 >
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <Checkbox
-                      checked={!isCollapsed}
-                      onCheckedChange={() => onToggleDay(day.date, day.period)}
-                      aria-label={
-                        isCollapsed
-                          ? t('noten.expandDay', { defaultValue: 'Tag aufklappen' })
-                          : t('noten.collapseDay', { defaultValue: 'Tag zuklappen' })
-                      }
-                    />
-                    <span className="text-sm font-medium">
-                      {t('noten.tag')} {dayIndex + 1}
-                    </span>
-                    <span className="text-muted-foreground text-xs">
-                      {isSemester2(day.date, semesterChangeDate)
-                        ? t('noten.semester2', { defaultValue: '2. Sem.' })
-                        : t('noten.semester1', { defaultValue: '1. Sem.' })}
-                    </span>
-                    {!isCollapsed && (
-                      <>
-                        <span className="text-xs whitespace-nowrap">
-                          {day.date.split('-').reverse().join('.')}
+                  {isCollapsed ? (
+                    <button
+                      type="button"
+                      title={`${dayLabel} — ${t('noten.expandDay', { defaultValue: 'Tag aufklappen' })}`}
+                      aria-label={`${dayLabel} — ${t('noten.expandDay', { defaultValue: 'Tag aufklappen' })}`}
+                      onClick={() => onToggleDay(day.date, day.period)}
+                      className="hover:bg-muted-foreground/10 flex h-full w-full items-center justify-center"
+                    >
+                      <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-1.5 whitespace-nowrap">
+                      <button
+                        type="button"
+                        title={t('noten.collapseDay', { defaultValue: 'Tag zuklappen' })}
+                        aria-label={`${dayLabel} — ${t('noten.collapseDay', { defaultValue: 'Tag zuklappen' })}`}
+                        onClick={() => onToggleDay(day.date, day.period)}
+                        className="hover:bg-muted-foreground/10 rounded p-0.5"
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
+                      </button>
+                      <span className="text-xs font-semibold">
+                        {t('noten.tag')} {dayIndex + 1}
+                      </span>
+                      <span className="text-muted-foreground text-xs">
+                        {day.date.split('-').reverse().join('.')}
+                      </span>
+                      {startsSemester && (
+                        <span className="text-primary text-[10px] font-semibold">
+                          {semesterLabel}
                         </span>
-                        <Button
-                          size="sm"
-                          className="bg-success text-success-foreground hover:bg-success/90 h-7 px-2 text-xs"
-                          onClick={() => onSetAllAnwesend(day.date, day.period)}
-                          disabled={saving}
-                        >
-                          {t('noten.allPresent', { defaultValue: 'Alle anwesend' })}
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </TableHead>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="ml-auto h-6 px-2 text-[11px] font-normal"
+                        onClick={() => onSetAllAnwesend(day.date, day.period)}
+                        disabled={saving}
+                      >
+                        {t('noten.allPresent', { defaultValue: 'Alle anwesend' })}
+                      </Button>
+                    </div>
+                  )}
+                </th>
               )
             })}
-            <TableHead
-              colSpan={9}
-              className="border-border bg-muted/30 w-[9rem] max-w-[9rem] min-w-0 border-r-2 px-0 py-1.5 align-top"
-            />
-          </TableRow>
-
-          <TableRow className="[&>th]:border-border border-0 hover:bg-transparent [&>th]:border-r">
-            <TableHead className="bg-background sticky left-0 z-30 w-[2.5rem] min-w-[2.5rem] p-0" />
-            <TableHead
-              style={{ left: `${CHECKBOX_COLUMN_WIDTH_PX}px` }}
-              className="bg-background sticky z-20 min-w-[180px] p-0"
-            />
-            <TableHead
-              style={{ left: sitzplatzLeft }}
-              className={cn(
-                VERTICAL_HEAD,
-                'bg-background sticky z-18 w-[3rem] min-w-[3rem] border-l',
-              )}
+            <th
+              colSpan={summaryColumns.length}
+              className={cn(HEAD_CLASS, DAY_ROW_H, 'border-border top-0 border-l-2 px-2 text-left')}
             >
-              {t('noten.sitzplatz', { defaultValue: 'Sitzplatz' })}
-            </TableHead>
+              {t('noten.zusammenfassung', { defaultValue: 'Zusammenfassung' })}
+            </th>
+          </tr>
+
+          <tr>
+            <th className={cn(PINNED_HEAD_CLASS, DAY_ROW_OFFSET, 'left-0 h-8 min-w-[200px]')} />
+            <th
+              style={{ left: sitzplatzLeft }}
+              className={cn(PINNED_HEAD_CLASS, DAY_ROW_OFFSET, 'h-8 w-14 min-w-14', PINNED_DIVIDER)}
+              title={t('noten.sitzplatz', { defaultValue: 'Sitzplatz' })}
+            >
+              {t('noten.sitzplatzShort', { defaultValue: 'Platz' })}
+            </th>
             {teachingDays.map(day => {
               const key = `${day.date}-${day.period}`
               const isToday = day.date === focusDate
               if (collapsedDays.has(key)) {
                 return (
-                  <TableHead
+                  <th
                     key={key}
                     className={cn(
-                      'border-border h-24 w-12 max-w-[3rem] min-w-0 border-r-2 p-0',
-                      isToday ? TODAY_BG : 'bg-background',
+                      HEAD_CLASS,
+                      DAY_ROW_OFFSET,
+                      'h-8 w-9 min-w-9',
+                      isToday && TODAY_BG,
                     )}
                   />
                 )
               }
-              const columns = [
-                t('noten.anwesenheit'),
-                t('noten.wiederholung'),
-                t('noten.bericht'),
-                t('noten.mitarbeit'),
-                t('noten.praktischeArbeit'),
-                t('noten.notizen'),
-              ]
               return (
                 <Fragment key={key}>
-                  {columns.map((label, index) => {
-                    const isLast = index === columns.length - 1
-                    // The attendance column keeps the plain background even on today.
-                    const highlight = isToday && index > 0
-                    return (
-                      <TableHead
-                        key={label}
-                        className={cn(
-                          VERTICAL_HEAD,
-                          isLast && 'border-r-2',
-                          highlight ? TODAY_BG : 'bg-background',
-                        )}
-                      >
-                        {label}
-                      </TableHead>
-                    )
-                  })}
+                  {dayColumns.map((column, index) => (
+                    <th
+                      key={column.short}
+                      title={column.full}
+                      className={cn(
+                        HEAD_CLASS,
+                        DAY_ROW_OFFSET,
+                        'h-8 text-center',
+                        column.width,
+                        index === dayColumns.length - 1 ? 'border-border border-r-2' : 'border-r',
+                        isToday && TODAY_BG,
+                      )}
+                    >
+                      {column.short}
+                    </th>
+                  ))}
                 </Fragment>
               )
             })}
-            {summaryHeadings.map((heading, index) => (
-              <TableHead
-                key={heading}
+            {summaryColumns.map((column, index) => (
+              <th
+                key={column.short}
+                title={column.full}
                 className={cn(
-                  VERTICAL_HEAD,
-                  'bg-background',
-                  index === summaryHeadings.length - 1 && 'border-r-2',
+                  HEAD_CLASS,
+                  DAY_ROW_OFFSET,
+                  'h-8 w-14 min-w-14 border-r text-center',
+                  index === summaryColumns.length - 1 && 'border-border border-r-2',
                 )}
               >
-                {heading}
-              </TableHead>
+                {column.short}
+              </th>
             ))}
-          </TableRow>
-        </TableHeader>
+          </tr>
+        </thead>
 
-        <TableBody>
+        <tbody>
           {students.map(student => {
             const visible = rowGradeVisibility[student.id] ?? true
             const totals = summary[student.id]
@@ -437,59 +533,92 @@ export function NotenGrid(props: NotenGridProps) {
               first: { grade: null, conductNoteWish: null },
               second: { grade: null, conductNoteWish: null },
             }
+            const highlighted = highlightedStudentId === student.id
+            // The pinned cells are opaque, so a row background set on the <tr>
+            // never reaches them — they carry their own.
+            const rowBg = highlighted ? 'bg-warning/15' : 'bg-card group-hover:bg-muted'
 
             return (
-              <TableRow
+              <tr
                 key={student.id}
                 ref={el => {
                   studentRowRefs.current[student.id] = el
                 }}
-                className={highlightedStudentId === student.id ? 'bg-warning/15' : ''}
+                className={cn('group', highlighted && 'bg-warning/15')}
               >
-                <TableCell className="bg-background sticky left-0 z-30 p-1 align-top">
-                  <div className="flex items-center justify-center pt-1">
-                    <Checkbox
-                      checked={visible}
-                      onCheckedChange={checked => onToggleRowVisible(student.id, checked === true)}
-                      aria-label={`Noten anzeigen für ${student.lastName} ${student.firstName}`}
+                <td
+                  style={{ left: 0 }}
+                  className={cn(
+                    'sticky left-0 z-10 min-w-[200px] p-1 align-top',
+                    CELL_BORDER,
+                    rowBg,
+                  )}
+                >
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => onToggleRowVisible(student.id, !visible)}
+                      title={
+                        visible
+                          ? t('noten.hideRowGrades', {
+                              defaultValue: 'Noten dieser Zeile ausblenden',
+                            })
+                          : t('noten.showRowGrades', {
+                              defaultValue: 'Noten dieser Zeile einblenden',
+                            })
+                      }
+                      aria-label={`${
+                        visible
+                          ? t('noten.hideRowGrades', {
+                              defaultValue: 'Noten dieser Zeile ausblenden',
+                            })
+                          : t('noten.showRowGrades', {
+                              defaultValue: 'Noten dieser Zeile einblenden',
+                            })
+                      }: ${student.lastName} ${student.firstName}`}
+                      className="text-muted-foreground hover:text-foreground hover:bg-muted-foreground/10 shrink-0 rounded p-1"
+                    >
+                      {visible ? (
+                        <Eye className="h-3.5 w-3.5" aria-hidden />
+                      ) : (
+                        <EyeOff className="h-3.5 w-3.5" aria-hidden />
+                      )}
+                    </button>
+                    <StudentPhoto
+                      studentId={student.id}
+                      firstName={student.firstName}
+                      lastName={student.lastName}
+                      nameFormat="lastFirst"
                     />
                   </div>
-                </TableCell>
-                <TableCell
-                  style={{ left: `${CHECKBOX_COLUMN_WIDTH_PX}px` }}
-                  className="bg-background sticky z-20 align-top"
-                >
-                  <StudentPhoto
-                    studentId={student.id}
-                    firstName={student.firstName}
-                    lastName={student.lastName}
-                    nameFormat="lastFirst"
-                  />
-                </TableCell>
-                <TableCell
+                </td>
+                <td
                   style={{ left: sitzplatzLeft }}
-                  className="bg-background sticky z-18 w-[3rem] min-w-[3rem] border-r border-l p-1 align-top"
+                  className={cn(
+                    'sticky z-10 w-14 min-w-14 p-1 align-top',
+                    CELL_BORDER,
+                    PINNED_DIVIDER,
+                    rowBg,
+                  )}
                 >
                   <Input
                     type="text"
                     value={student.sitzplatz ?? ''}
                     onChange={e => onSitzplatzChange(student.id, e.target.value || null)}
                     placeholder={t('noten.sitzplatzPlaceholder', { defaultValue: 'Platz' })}
-                    className="h-7 w-full text-xs"
+                    aria-label={`${t('noten.sitzplatz', { defaultValue: 'Sitzplatz' })}: ${student.lastName} ${student.firstName}`}
+                    className="h-7 w-full px-1 text-center text-xs"
                   />
-                </TableCell>
+                </td>
 
                 {teachingDays.map(day => {
                   const key = `${day.date}-${day.period}`
                   const isToday = day.date === focusDate
                   if (collapsedDays.has(key)) {
                     return (
-                      <TableCell
+                      <td
                         key={key}
-                        className={cn(
-                          'border-border w-12 max-w-[3rem] min-w-0 border-r-2 p-0',
-                          isToday && TODAY_BG,
-                        )}
+                        className={cn('w-9 min-w-9 p-0', BLOCK_BORDER, isToday && TODAY_BG)}
                       />
                     )
                   }
@@ -517,12 +646,15 @@ export function NotenGrid(props: NotenGridProps) {
 
                   return (
                     <Fragment key={key}>
-                      <TableCell className={cn('border-border/70 w-0 border-r p-1', attendanceBg)}>
+                      <td className={cn('w-14 min-w-14 p-1 align-top', CELL_BORDER, attendanceBg)}>
                         <Select
                           value={entry.attendance ?? ''}
                           onValueChange={v => onEntryChange(entry, { attendance: v })}
                         >
-                          <SelectTrigger className="h-10 w-12 min-w-12 shrink-0 justify-center px-1.5">
+                          <SelectTrigger
+                            className="h-7 w-full justify-center px-1"
+                            aria-label={`${t('noten.anwesenheit')}: ${student.lastName} ${student.firstName}`}
+                          >
                             <SelectValue placeholder="-">
                               {entry.attendance ? entry.attendance.charAt(0) : null}
                             </SelectValue>
@@ -535,12 +667,16 @@ export function NotenGrid(props: NotenGridProps) {
                             ))}
                           </SelectContent>
                         </Select>
-                      </TableCell>
+                      </td>
 
                       {categories.map(({ first, second }) => (
-                        <TableCell
+                        <td
                           key={first}
-                          className={cn('border-border/70 border-r p-1', isToday && TODAY_BG)}
+                          className={cn(
+                            'w-16 min-w-16 p-1 align-top',
+                            CELL_BORDER,
+                            isToday && TODAY_BG,
+                          )}
                         >
                           <CategoryGrades
                             visible={visible}
@@ -550,12 +686,13 @@ export function NotenGrid(props: NotenGridProps) {
                               onEntryChange(entry, { [slot === 1 ? first : second]: value })
                             }
                           />
-                        </TableCell>
+                        </td>
                       ))}
 
-                      <TableCell
+                      <td
                         className={cn(
-                          'border-border w-[4.5rem] max-w-[4.5rem] min-w-[4.5rem] overflow-hidden border-r-2 p-1 align-top',
+                          'w-20 max-w-20 min-w-20 overflow-hidden p-1 align-top',
+                          BLOCK_BORDER,
                           isToday && TODAY_BG,
                         )}
                       >
@@ -563,27 +700,33 @@ export function NotenGrid(props: NotenGridProps) {
                           <TruncatedTextButton
                             value={(entry.notizen ?? '').trim()}
                             onClick={() => onOpenNotizen(student.id, day.date, day.period)}
+                            className="min-h-[3.75rem]"
                           />
                         ) : (
-                          <Hidden className="h-full min-h-[4.5rem] w-full py-1.5 text-sm" />
+                          <Hidden className="min-h-[3.75rem] w-full py-1.5 text-sm" />
                         )}
-                      </TableCell>
+                      </td>
                     </Fragment>
                   )
                 })}
 
-                <TableCell className="border-border w-8 min-w-[2rem] border-r p-1 text-center">
-                  {totals?.nichtAnwesend ?? 0}
-                </TableCell>
-                <TableCell className="border-border w-8 min-w-[2rem] border-r p-1 text-center">
-                  {totals?.anwesend ?? 0}
-                </TableCell>
-                <TableCell className="border-border w-8 min-w-[2rem] border-r p-1 text-center">
-                  {totals?.alle ?? 0}
-                </TableCell>
-                <TableCell
+                <td
                   className={cn(
-                    'border-border w-8 min-w-[2rem] border-r p-1 text-center',
+                    'border-border w-14 min-w-14 border-r border-b border-l-2 p-1 text-center',
+                  )}
+                >
+                  {totals?.nichtAnwesend ?? 0}
+                </td>
+                <td className={cn('w-14 min-w-14 p-1 text-center', CELL_BORDER)}>
+                  {totals?.anwesend ?? 0}
+                </td>
+                <td className={cn('w-14 min-w-14 p-1 text-center', CELL_BORDER)}>
+                  {totals?.alle ?? 0}
+                </td>
+                <td
+                  className={cn(
+                    'w-14 min-w-14 p-1 text-center',
+                    CELL_BORDER,
                     totals != null &&
                       (totals.pct < 50
                         ? 'text-destructive font-medium'
@@ -593,14 +736,14 @@ export function NotenGrid(props: NotenGridProps) {
                   )}
                 >
                   {totals != null ? `${totals.pct} %` : '–'}
-                </TableCell>
-                <TableCell className="border-border w-8 min-w-[2rem] border-r p-1 text-center">
+                </td>
+                <td className={cn('w-14 min-w-14 p-1 text-center', CELL_BORDER)}>
                   {visible ? (totals?.calculatedGrade ?? '–') : HIDDEN_PLACEHOLDER}
-                </TableCell>
-                <TableCell className="border-border w-10 min-w-[2.5rem] border-r p-1">
+                </td>
+                <td className={cn('w-14 min-w-14 p-1', CELL_BORDER)}>
                   {finalSelect(student.id, visible, 'first', 'grade', final.first.grade)}
-                </TableCell>
-                <TableCell className="border-border w-10 min-w-[2.5rem] border-r p-1">
+                </td>
+                <td className={cn('w-14 min-w-14 p-1', CELL_BORDER)}>
                   {finalSelect(
                     student.id,
                     visible,
@@ -608,11 +751,11 @@ export function NotenGrid(props: NotenGridProps) {
                     'conductNoteWish',
                     final.first.conductNoteWish,
                   )}
-                </TableCell>
-                <TableCell className="border-border w-10 min-w-[2.5rem] border-r p-1">
+                </td>
+                <td className={cn('w-14 min-w-14 p-1', CELL_BORDER)}>
                   {finalSelect(student.id, visible, 'second', 'grade', final.second.grade)}
-                </TableCell>
-                <TableCell className="border-border w-10 min-w-[2.5rem] border-r-2 p-1">
+                </td>
+                <td className={cn('w-14 min-w-14 p-1', BLOCK_BORDER)}>
                   {finalSelect(
                     student.id,
                     visible,
@@ -620,53 +763,60 @@ export function NotenGrid(props: NotenGridProps) {
                     'conductNoteWish',
                     final.second.conductNoteWish,
                   )}
-                </TableCell>
-              </TableRow>
+                </td>
+              </tr>
             )
           })}
 
-          <TableRow>
-            <TableCell className="bg-background sticky left-0 z-10 w-[2.5rem] min-w-[2.5rem] border-r" />
-            <TableCell
-              style={{ left: `${CHECKBOX_COLUMN_WIDTH_PX}px` }}
-              className="bg-background sticky z-10 border-r font-medium shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]"
+          <tr className="group">
+            <td
+              style={{ left: 0 }}
+              className={cn(
+                'bg-card group-hover:bg-muted sticky left-0 z-10 px-2 text-sm font-medium',
+                CELL_BORDER,
+              )}
             >
               {t('noten.lehrstoff')}
-            </TableCell>
-            <TableCell className="border-border bg-muted/20 w-[3rem] max-w-[3rem] min-w-[3rem] border-r p-1" />
+            </td>
+            <td
+              style={{ left: sitzplatzLeft }}
+              className={cn(
+                'bg-card group-hover:bg-muted sticky z-10 w-14 min-w-14 p-1',
+                CELL_BORDER,
+                PINNED_DIVIDER,
+              )}
+            />
             {teachingDays.map(day => {
               const key = `${day.date}-${day.period}`
               const isToday = day.date === focusDate
               if (collapsedDays.has(key)) {
                 return (
-                  <TableCell
+                  <td
                     key={key}
-                    className={cn(
-                      'border-border w-12 max-w-[3rem] min-w-0 border-r-2 p-0',
-                      isToday && TODAY_BG,
-                    )}
+                    className={cn('w-9 min-w-9 p-0', BLOCK_BORDER, isToday && TODAY_BG)}
                   />
                 )
               }
               return (
-                <TableCell
+                <td
                   key={key}
-                  colSpan={6}
-                  className={cn(
-                    'border-border w-[28rem] max-w-[28rem] min-w-[28rem] overflow-hidden border-r-2 p-1',
-                    isToday && TODAY_BG,
-                  )}
+                  colSpan={dayColumns.length}
+                  className={cn('overflow-hidden p-1', BLOCK_BORDER, isToday && TODAY_BG)}
                 >
                   <TruncatedTextButton
                     value={(lehrstoffByDay[key] ?? '').trim()}
                     onClick={() => onOpenLehrstoff(day.date, day.period)}
+                    className="min-h-9"
                   />
-                </TableCell>
+                </td>
               )
             })}
-            <TableCell colSpan={9} className="border-border bg-muted/20 border-r-2 p-1" />
-          </TableRow>
-        </TableBody>
+            <td
+              colSpan={summaryColumns.length}
+              className={cn('border-border border-r-2 border-b border-l-2 p-1')}
+            />
+          </tr>
+        </tbody>
       </table>
     </div>
   )

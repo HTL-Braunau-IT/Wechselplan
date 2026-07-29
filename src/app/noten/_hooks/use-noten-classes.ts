@@ -1,63 +1,42 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { useSession } from 'next-auth/react'
-import { addWeeks, isValid, isWithinInterval, parse } from 'date-fns'
+import { captureFrontendError } from '@/lib/frontend-error'
 import type { ClassItem } from '../_lib/types'
 
-type ScheduleData = {
-  schedules?: Array<
-    Array<{
-      classId: number | null
-      turns?: Array<{ name: string; weeks: Array<{ date: string; isHoliday?: boolean }> }>
-    }>
-  >
-  teacherRotation?: Array<{
-    teacherId: number
-    classId: number
-    period: string
-    turnId: string
-    groupId: number
-  }>
-  assignments?: Array<{ teacherId: number; classId: number; period: string; groupId: number }>
-}
+type AutoSelect = { classId: number | null; groupId: number | null }
 
-/** Turn whose week range contains the given date, if any. */
-function findCurrentTurnName(
-  turns: Array<{ name: string; weeks: Array<{ date: string }> }> | undefined,
-  now: Date,
-): string | null {
-  if (!turns?.length) return null
-  for (const turn of turns) {
-    const active = turn.weeks.some(week => {
-      const start = parse(week.date, 'dd.MM.yy', new Date())
-      if (!isValid(start)) return false
-      return isWithinInterval(now, { start, end: addWeeks(start, 1) })
-    })
-    if (active) return turn.name
-  }
-  return null
+/** Today as YYYY-MM-DD in the browser's timezone. */
+function todayLocalYmd(now: Date): string {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 
 /**
  * The teacher's classes plus the initial class/group selection.
  *
  * Selection comes from the URL when present (a link from the teacher
- * overview), otherwise it is inferred from the rotation for right now so the
- * page opens on the group the teacher is actually teaching.
+ * overview), otherwise from `/api/noten/auto-select`, which resolves the
+ * rotation for right now so the page opens on the group actually being taught.
+ *
+ * That inference used to be duplicated here: the page refetched the whole
+ * schedule payload and re-walked turns, weeks and rotations in the browser,
+ * keyed on `session.user.name` — a display name since the move to Entra, not
+ * the username the endpoint matches on. The server already does this from the
+ * session's object id, so it is asked instead of re-implemented.
  */
 export function useNotenClasses(schoolYearId: number | null) {
-  const { data: session } = useSession()
   const searchParams = useSearchParams()
 
   const [classes, setClasses] = useState<ClassItem[]>([])
   const [loadingClasses, setLoadingClasses] = useState(true)
   const [selectedClassId, setSelectedClassId] = useState<number | null>(null)
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
+  /** What the rotation says is on right now, so the picker can mark it. */
+  const [currentSlot, setCurrentSlot] = useState<AutoSelect>({ classId: null, groupId: null })
 
   // Guards a race: an in-flight auto-select must not overwrite a newer choice.
   const selectedClassIdRef = useRef<number | null>(null)
   selectedClassIdRef.current = selectedClassId
-  const urlParamsAppliedRef = useRef(false)
+  const initialSelectionRef = useRef(false)
 
   useEffect(() => {
     if (!schoolYearId) return
@@ -69,6 +48,8 @@ export function useNotenClasses(schoolYearId: number | null) {
         if (!res.ok || cancelled) return
         const data = (await res.json()) as { classes?: ClassItem[] }
         if (!cancelled) setClasses(data.classes ?? [])
+      } catch (err) {
+        captureFrontendError(err, { location: 'noten', type: 'load-teacher-classes' })
       } finally {
         if (!cancelled) setLoadingClasses(false)
       }
@@ -78,107 +59,66 @@ export function useNotenClasses(schoolYearId: number | null) {
     }
   }, [schoolYearId])
 
-  // Explicit ?classId/&groupId wins over any inference.
+  // One initial selection per mount: an explicit ?classId, else the rotation.
   useEffect(() => {
-    if (urlParamsAppliedRef.current || classes.length === 0) return
-    const classIdParam = searchParams.get('classId')
-    if (!classIdParam) return
-    urlParamsAppliedRef.current = true
+    if (initialSelectionRef.current || classes.length === 0 || !schoolYearId) return
+    initialSelectionRef.current = true
 
-    const classId = Number(classIdParam)
-    if (!Number.isFinite(classId)) return
-    const cls = classes.find(c => c.id === classId)
-    if (!cls) return
-
-    const groupIdParam = searchParams.get('groupId')
-    const groupId = groupIdParam ? Number(groupIdParam) : null
-    setSelectedClassId(cls.id)
-    setSelectedGroupId(
-      groupId != null && Number.isFinite(groupId) && cls.groupIds.includes(groupId)
-        ? groupId
-        : (cls.groupIds[0] ?? null),
-    )
-  }, [classes, searchParams])
-
-  // Infer the class/group being taught right now, matching the teacher overview.
-  useEffect(() => {
-    if (searchParams.get('classId')) return
-    const teacherName = session?.user?.name
-    if (!schoolYearId || classes.length === 0 || !teacherName) return
-
-    let cancelled = false
-    const fallbackToFirstClass = () => {
-      const first = classes[0]
-      if (first && !cancelled) {
-        setSelectedClassId(first.id)
-        setSelectedGroupId(first.groupIds[0] ?? null)
-      }
+    const first = classes[0]
+    const applyFallback = () => {
+      if (selectedClassIdRef.current != null || !first) return
+      setSelectedClassId(first.id)
+      setSelectedGroupId(first.groupIds[0] ?? null)
     }
 
-    void (async () => {
-      const now = new Date()
-      const day = now.getDay()
-      // Weekends have no lessons; fall back to Monday's plan.
-      const weekday = day === 0 || day === 6 ? 1 : day
-      const period = now.getHours() < 12 ? 'AM' : 'PM'
+    const classIdParam = Number(searchParams.get('classId'))
+    const urlClass = Number.isFinite(classIdParam)
+      ? classes.find(cls => cls.id === classIdParam)
+      : undefined
 
-      const res = await fetch(
-        `/api/schedules/data?teacher=${encodeURIComponent(teacherName)}&weekday=${weekday}&schoolYearId=${schoolYearId}`,
+    if (urlClass) {
+      const groupIdParam = Number(searchParams.get('groupId'))
+      setSelectedClassId(urlClass.id)
+      setSelectedGroupId(
+        Number.isFinite(groupIdParam) && urlClass.groupIds.includes(groupIdParam)
+          ? groupIdParam
+          : (urlClass.groupIds[0] ?? null),
       )
-      if (!res.ok || cancelled) return
-      const data = (await res.json()) as ScheduleData
+      return
+    }
 
-      if (!data.assignments?.length || !data.schedules?.length) {
-        fallbackToFirstClass()
-        return
-      }
-
-      const periodAssignments = data.assignments.filter(a => a.period === period)
-      const turnsForClass = (classId: number) =>
-        data.schedules?.find(schedules => schedules.some(s => Number(s.classId) === classId))?.[0]
-          ?.turns
-
-      for (const assignment of periodAssignments) {
-        const turnName = findCurrentTurnName(turnsForClass(assignment.classId), now)
-        if (!turnName || !data.teacherRotation?.length) continue
-        const rotation = data.teacherRotation.find(
-          r =>
-            r.classId === assignment.classId &&
-            r.period === period &&
-            r.turnId === turnName &&
-            Number(r.teacherId) === Number(assignment.teacherId),
+    let cancelled = false
+    void (async () => {
+      try {
+        const now = new Date()
+        const period = now.getHours() < 12 ? 'AM' : 'PM'
+        const res = await fetch(
+          `/api/noten/auto-select?schoolYearId=${schoolYearId}&date=${todayLocalYmd(now)}&period=${period}`,
         )
-        if (rotation && !cancelled) {
-          setSelectedClassId(rotation.classId)
-          setSelectedGroupId(rotation.groupId)
-          return
-        }
-      }
+        if (!res.ok) return applyFallback()
+        const data = (await res.json()) as AutoSelect
+        if (cancelled) return
 
-      const first = periodAssignments[0]
-      if (first && !cancelled) {
-        setSelectedClassId(first.classId)
-        setSelectedGroupId(first.groupId)
-      } else {
-        fallbackToFirstClass()
+        const match = classes.find(cls => cls.id === data.classId)
+        if (!match) return applyFallback()
+        const groupId =
+          data.groupId != null && match.groupIds.includes(data.groupId)
+            ? data.groupId
+            : (match.groupIds[0] ?? null)
+        setCurrentSlot({ classId: match.id, groupId })
+        if (selectedClassIdRef.current != null) return
+        setSelectedClassId(match.id)
+        setSelectedGroupId(groupId)
+      } catch (err) {
+        captureFrontendError(err, { location: 'noten', type: 'auto-select' })
+        if (!cancelled) applyFallback()
       }
     })()
 
     return () => {
       cancelled = true
     }
-  }, [schoolYearId, classes, session?.user?.name, searchParams])
-
-  // Nothing chosen and nothing inferred: open the first class.
-  useEffect(() => {
-    if (searchParams.get('classId')) return
-    if (selectedClassId !== null || classes.length === 0) return
-    const first = classes[0]
-    if (first) {
-      setSelectedClassId(first.id)
-      setSelectedGroupId(first.groupIds[0] ?? null)
-    }
-  }, [classes, selectedClassId, searchParams])
+  }, [classes, schoolYearId, searchParams])
 
   /** Switch class, then ask the server which group is on right now. */
   const selectClass = useCallback(
@@ -190,23 +130,21 @@ export function useNotenClasses(schoolYearId: number | null) {
       if (!schoolYearId || !cls) return
 
       void (async () => {
-        const fallback = () => {
-          if (selectedClassIdRef.current === classId) setSelectedGroupId(cls.groupIds[0] ?? null)
-        }
         try {
+          const now = new Date()
           const res = await fetch(
-            `/api/noten/auto-select?schoolYearId=${schoolYearId}&classId=${classId}`,
+            `/api/noten/auto-select?schoolYearId=${schoolYearId}&classId=${classId}&date=${todayLocalYmd(now)}`,
           )
-          if (!res.ok) return fallback()
-          const data = (await res.json()) as { classId: number | null; groupId: number | null }
+          if (!res.ok) return
+          const data = (await res.json()) as AutoSelect
           const groupId =
             data.groupId != null && cls.groupIds.includes(data.groupId)
               ? data.groupId
               : (cls.groupIds[0] ?? null)
           // Only apply if the user has not moved on to another class.
           if (selectedClassIdRef.current === classId) setSelectedGroupId(groupId)
-        } catch {
-          fallback()
+        } catch (err) {
+          captureFrontendError(err, { location: 'noten', type: 'auto-select-class' })
         }
       })()
     },
@@ -220,6 +158,7 @@ export function useNotenClasses(schoolYearId: number | null) {
     setSelectedClassId,
     selectedGroupId,
     setSelectedGroupId,
+    currentSlot,
     selectClass,
   }
 }

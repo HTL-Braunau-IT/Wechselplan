@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { captureFrontendError } from '@/lib/frontend-error'
 import type { SearchByDateMatch, SearchByNameMatch, Student } from '../_lib/types'
 
 type Params = {
@@ -29,17 +30,17 @@ export function useNotenSearch({ schoolYearId, onNavigate }: Params) {
   const [studentsByGroup, setStudentsByGroup] = useState<Record<string, Student[]>>({})
 
   const studentRowRefs = useRef<Record<number, HTMLTableRowElement | null>>({})
+  // A slow date search must not overwrite the results of a later one.
+  const dateTokenRef = useRef(0)
 
   const gotoNameMatch = useCallback(
     (match: SearchByNameMatch) => {
       setFocusDateYmd(null)
       setHighlightedStudentId(match.studentId)
-      setMessage(
-        `${match.lastName} ${match.firstName} – ${match.className}, ${t('noten.gruppe')} ${match.groupId}`,
-      )
+      setMessage(null)
       onNavigate(match)
     },
-    [onNavigate, t],
+    [onNavigate],
   )
 
   const performNameSearch = useCallback(async () => {
@@ -49,27 +50,31 @@ export function useNotenSearch({ schoolYearId, onNavigate }: Params) {
     setDateMatches([])
     setStudentsByGroup({})
 
-    const res = await fetch(
-      `/api/noten/search?schoolYearId=${schoolYearId}&nameQuery=${encodeURIComponent(query)}`,
-    )
-    if (!res.ok) {
-      setMessage(t('noten.searchError', { defaultValue: 'Suche fehlgeschlagen.' }))
-      return
-    }
-
-    const data = (await res.json()) as { byName?: SearchByNameMatch[] }
-    const matches = data.byName ?? []
-    setNameMatches(matches)
-    setActiveNameMatchIndex(0)
-
-    if (matches.length === 0) {
-      setHighlightedStudentId(null)
-      setMessage(
-        t('noten.searchNoNameResult', { defaultValue: 'Kein passender Schüler gefunden.' }),
+    try {
+      const res = await fetch(
+        `/api/noten/search?schoolYearId=${schoolYearId}&nameQuery=${encodeURIComponent(query)}`,
       )
-      return
+      if (!res.ok) throw new Error('Search failed')
+
+      const data = (await res.json()) as { byName?: SearchByNameMatch[] }
+      const matches = data.byName ?? []
+      setNameMatches(matches)
+      setActiveNameMatchIndex(0)
+
+      if (matches.length === 0) {
+        setHighlightedStudentId(null)
+        setMessage(
+          t('noten.searchNoNameResult', { defaultValue: 'Kein passender Schüler gefunden.' }),
+        )
+        return
+      }
+      gotoNameMatch(matches[0]!)
+      // The result is the grid itself; keeping the popover open covers it.
+      setOpen(false)
+    } catch (err) {
+      captureFrontendError(err, { location: 'noten', type: 'search-by-name' })
+      setMessage(t('noten.searchError', { defaultValue: 'Suche fehlgeschlagen.' }))
     }
-    gotoNameMatch(matches[0]!)
   }, [searchText, schoolYearId, t, gotoNameMatch])
 
   const gotoNextNameMatch = useCallback(() => {
@@ -81,53 +86,73 @@ export function useNotenSearch({ schoolYearId, onNavigate }: Params) {
 
   const performDateSearch = useCallback(async () => {
     if (!searchDate || !schoolYearId) return
+    const token = ++dateTokenRef.current
 
     setNameMatches([])
     setHighlightedStudentId(null)
 
-    const res = await fetch(
-      `/api/noten/search?schoolYearId=${schoolYearId}&dateQuery=${encodeURIComponent(searchDate)}`,
-    )
-    if (!res.ok) {
-      setMessage(t('noten.searchError', { defaultValue: 'Suche fehlgeschlagen.' }))
-      return
-    }
+    try {
+      const res = await fetch(
+        `/api/noten/search?schoolYearId=${schoolYearId}&dateQuery=${encodeURIComponent(searchDate)}`,
+      )
+      if (!res.ok) throw new Error('Search failed')
 
-    const data = (await res.json()) as { byDate?: SearchByDateMatch[] }
-    const matches = data.byDate ?? []
-    setDateMatches(matches)
-    setFocusDateYmd(searchDate)
+      const data = (await res.json()) as { byDate?: SearchByDateMatch[] }
+      if (dateTokenRef.current !== token) return
+      const matches = data.byDate ?? []
+      setDateMatches(matches)
+      setFocusDateYmd(searchDate)
 
-    if (matches.length === 0) {
-      setMessage(
-        t('noten.searchNoDateResult', {
-          defaultValue: 'An diesem Datum wurden keine Gruppen gefunden.',
+      if (matches.length === 0) {
+        setMessage(
+          t('noten.searchNoDateResult', {
+            defaultValue: 'An diesem Datum wurden keine Gruppen gefunden.',
+          }),
+        )
+        setStudentsByGroup({})
+        return
+      }
+
+      setMessage(null)
+      setOpen(false)
+
+      const entries = await Promise.all(
+        matches.map(async match => {
+          const key = `${match.classId}-${match.groupId}`
+          const studentsRes = await fetch(
+            `/api/noten/students?classId=${match.classId}&groupId=${match.groupId}&schoolYearId=${schoolYearId}`,
+          )
+          if (!studentsRes.ok) return [key, [] as Student[]] as const
+          const studentsData = (await studentsRes.json()) as { students?: Student[] }
+          return [key, studentsData.students ?? []] as const
         }),
       )
-      setStudentsByGroup({})
-      return
+      if (dateTokenRef.current !== token) return
+      setStudentsByGroup(Object.fromEntries(entries) as Record<string, Student[]>)
+    } catch (err) {
+      captureFrontendError(err, { location: 'noten', type: 'search-by-date' })
+      if (dateTokenRef.current === token) {
+        setMessage(t('noten.searchError', { defaultValue: 'Suche fehlgeschlagen.' }))
+      }
     }
-
-    setMessage(
-      t('noten.searchDateResultCount', {
-        defaultValue: '{{count}} Klassen/Gruppen an diesem Datum gefunden.',
-        count: matches.length,
-      }),
-    )
-
-    const entries = await Promise.all(
-      matches.map(async match => {
-        const key = `${match.classId}-${match.groupId}`
-        const res = await fetch(
-          `/api/noten/students?classId=${match.classId}&groupId=${match.groupId}&schoolYearId=${schoolYearId}`,
-        )
-        if (!res.ok) return [key, [] as Student[]] as const
-        const data = (await res.json()) as { students?: Student[] }
-        return [key, data.students ?? []] as const
-      }),
-    )
-    setStudentsByGroup(Object.fromEntries(entries) as Record<string, Student[]>)
   }, [searchDate, schoolYearId, t])
+
+  /** Drop the name result chip and the row highlight it points at. */
+  const clearNameSearch = useCallback(() => {
+    setNameMatches([])
+    setActiveNameMatchIndex(0)
+    setHighlightedStudentId(null)
+    setSearchText('')
+    setMessage(null)
+  }, [])
+
+  const clearDateSearch = useCallback(() => {
+    dateTokenRef.current += 1
+    setDateMatches([])
+    setStudentsByGroup({})
+    setFocusDateYmd(null)
+    setMessage(null)
+  }, [])
 
   // Bring the highlighted row into view once the grid has re-rendered for it.
   useEffect(() => {
@@ -139,6 +164,8 @@ export function useNotenSearch({ schoolYearId, onNavigate }: Params) {
     })
   }, [highlightedStudentId])
 
+  const activeNameMatch = nameMatches[activeNameMatchIndex] ?? null
+
   return {
     searchText,
     setSearchText,
@@ -148,6 +175,7 @@ export function useNotenSearch({ schoolYearId, onNavigate }: Params) {
     setOpen,
     message,
     nameMatches,
+    activeNameMatch,
     activeNameMatchIndex,
     highlightedStudentId,
     focusDateYmd,
@@ -157,5 +185,7 @@ export function useNotenSearch({ schoolYearId, onNavigate }: Params) {
     performNameSearch,
     gotoNextNameMatch,
     performDateSearch,
+    clearNameSearch,
+    clearDateSearch,
   }
 }

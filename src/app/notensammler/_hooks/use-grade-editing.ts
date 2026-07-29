@@ -10,8 +10,9 @@ import {
   type GradesData,
   type Semester,
 } from '@/lib/grades'
+import { useKeyedDebounce } from '@/hooks/use-keyed-debounce'
+import type { SaveState } from '@/components/save-status'
 import type { ClassData, FinalGradesData, Period } from '../_lib/types'
-import { useKeyedDebounce } from './use-keyed-debounce'
 
 const SAVE_DEBOUNCE_MS = 500
 /**
@@ -22,8 +23,7 @@ const SAVE_DEBOUNCE_MS = 500
 const GRADES_CHUNK_SIZE = 200
 const FINAL_GRADES_CHUNK_SIZE = 50
 
-/** What the toolbar's autosave indicator should be showing. */
-export type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error'
+export type { SaveState }
 
 type Params = {
   classData: ClassData | null

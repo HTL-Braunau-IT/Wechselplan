@@ -1,8 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-/** Width of the leading checkbox column, which the name column sits after. */
-export const CHECKBOX_COLUMN_WIDTH_PX = 40
-
 type Params = {
   /** Re-measure whenever the grid's shape changes. */
   deps: unknown[]
@@ -16,8 +13,10 @@ type Params = {
  * DOM measurement for the grid's frozen left columns, plus the one-time scroll
  * to today's column.
  *
- * Purely presentational bookkeeping — seven refs and a rAF loop that had no
- * business sitting in the page component.
+ * Purely presentational bookkeeping — refs and a rAF loop that had no business
+ * sitting in the page component. Only the name column has to be measured: the
+ * row-visibility checkbox used to occupy a frozen column of its own in front of
+ * it, so the offset was a fixed width plus a measured one.
  */
 export function useStickyColumns({ deps, focusColumnKey, resetKey }: Params) {
   const nameColumnRef = useRef<HTMLTableCellElement | null>(null)
@@ -31,7 +30,7 @@ export function useStickyColumns({ deps, focusColumnKey, resetKey }: Params) {
 
   useEffect(() => {
     if (!nameColumnRef.current) return
-    setSitzplatzLeft(`${CHECKBOX_COLUMN_WIDTH_PX + nameColumnRef.current.offsetWidth}px`)
+    setSitzplatzLeft(`${nameColumnRef.current.offsetWidth}px`)
   }, deps)
 
   useEffect(() => {
