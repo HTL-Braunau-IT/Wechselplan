@@ -164,18 +164,22 @@ export function SokratesPanel({ status, canManage, busy, onMark, onUnmark, onSet
         <h2 className="text-sm font-semibold">{t('notensammler.sokratesTitle', 'Sokrates')}</h2>
         <Tooltip>
           <TooltipTrigger asChild>
-            <span
-              tabIndex={0}
-              className="text-muted-foreground hover:text-foreground focus-visible:ring-ring rounded-full focus-visible:ring-2 focus-visible:outline-none"
-              aria-label={t('notensammler.sokratesTitle', 'Sokrates')}
+            {/* A button, not a focusable span: it needs button semantics, and
+                the label has to describe the tooltip rather than repeat the
+                heading next to it. */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-foreground h-5 w-5"
+              aria-label={t('notensammler.sokratesExplainerLabel', 'Was ist Sokrates?')}
             >
               <Info className="h-3.5 w-3.5" />
-            </span>
+            </Button>
           </TooltipTrigger>
           <TooltipContent>
             {t(
               'notensammler.sokratesExplainer',
-              'Noten werden in Sokrates von Hand eingetragen. Die Klassenleitung hält hier fest, dass das erledigt ist — danach sind die Noten gesperrt.',
+              'Noten werden in Sokrates von Hand eingetragen. Die Klassenleitung hält hier fest, dass das erledigt ist — die Noten werden dabei gesperrt, die Sperre kann aber wieder aufgehoben werden.',
             )}
           </TooltipContent>
         </Tooltip>

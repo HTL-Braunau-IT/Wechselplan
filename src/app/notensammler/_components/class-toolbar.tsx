@@ -122,24 +122,22 @@ export function ClassToolbar({
           onValueChange={value => onSemesterViewChange(value as SemesterView)}
         >
           <TabsList>
-            <TabsTrigger value="first">
-              {t('notensammler.firstSemesterShort', '1. Sem')}
-              {currentSemester === 'first' && (
-                <span
-                  className="bg-primary ml-1.5 h-1.5 w-1.5 rounded-full"
-                  aria-label={t('notensammler.currentSemester', 'Aktuell')}
-                />
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="second">
-              {t('notensammler.secondSemesterShort', '2. Sem')}
-              {currentSemester === 'second' && (
-                <span
-                  className="bg-primary ml-1.5 h-1.5 w-1.5 rounded-full"
-                  aria-label={t('notensammler.currentSemester', 'Aktuell')}
-                />
-              )}
-            </TabsTrigger>
+            {(['first', 'second'] as const).map(semester => (
+              <TabsTrigger key={semester} value={semester}>
+                {semester === 'first'
+                  ? t('notensammler.firstSemesterShort', '1. Sem')
+                  : t('notensammler.secondSemesterShort', '2. Sem')}
+                {currentSemester === semester && (
+                  // The dot is the only marker for "the semester the school is
+                  // in", so it needs a role to be announced at all.
+                  <span
+                    role="img"
+                    aria-label={t('notensammler.currentSemesterLabel', 'Aktuelles Semester')}
+                    className="bg-primary ml-1.5 h-1.5 w-1.5 rounded-full"
+                  />
+                )}
+              </TabsTrigger>
+            ))}
             <TabsTrigger value="both">{t('notensammler.bothSemesters', 'Beide')}</TabsTrigger>
           </TabsList>
         </Tabs>

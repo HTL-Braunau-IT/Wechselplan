@@ -405,7 +405,6 @@
     "completionComplete": "vollständig",
     "completionIncomplete": "unvollständig",
     "bothSemesters": "Beide",
-    "currentSemester": "Aktuell",
     "groupShort": "Gr.",
     "conductNoteWish": "Betragensnote (Wunsch)",
     "conductNoteWishShort": "Betragen",
@@ -440,7 +439,7 @@
     "tooltipTransfer": "Überträgt die Noten an das Notenmanagement.",
     "deleteTeacherGrades": "Alle Noten für diesen Lehrer löschen",
     "sokratesTitle": "Sokrates",
-    "sokratesExplainer": "Noten werden in Sokrates von Hand eingetragen. Die Klassenleitung hält hier fest, dass das erledigt ist — danach sind die Noten gesperrt.",
+    "sokratesExplainer": "Noten werden in Sokrates von Hand eingetragen. Die Klassenleitung hält hier fest, dass das erledigt ist — die Noten werden dabei gesperrt, die Sperre kann aber wieder aufgehoben werden.",
     "sokratesOpen": "Offen",
     "sokratesMarkShort": "Als eingetragen markieren",
     "sokratesMarkHint": "Sperrt alle Noten dieses Semesters für alle Lehrer.",
@@ -454,7 +453,9 @@
     "sokratesLockColumn": "Spalte sperren (Sokrates)",
     "sokratesUnlockColumn": "Spalte entsperren",
     "sokratesCellLocked": "In Sokrates eingetragen und gesperrt.",
-    "sokratesDrift": "Nach Sokrates-Übertragung geändert — der Klassenleiter wurde informiert."
+    "sokratesDrift": "Nach Sokrates-Übertragung geändert — der Klassenleiter wurde informiert.",
+    "sokratesExplainerLabel": "Was ist Sokrates?",
+    "currentSemesterLabel": "Aktuelles Semester"
   },
   "notifications": {
     "title": "Benachrichtigungen",

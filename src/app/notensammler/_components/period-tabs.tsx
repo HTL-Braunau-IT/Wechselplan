@@ -20,10 +20,22 @@ export type PeriodCompletion = {
 }
 
 /** Semester completion chip, matching the markers on the class chips. */
-function CompletionMark({ label, complete }: { label: string; complete: boolean | null }) {
+function CompletionMark({
+  label,
+  title,
+  complete,
+}: {
+  label: string
+  /** Spelled out for assistive tech — the state is otherwise only a colour. */
+  title: string
+  complete: boolean | null
+}) {
   if (complete === null) return null
   return (
     <span
+      role="img"
+      aria-label={title}
+      title={title}
       className={cn(
         'inline-flex h-4 items-center gap-0.5 rounded-full px-1.5 text-[10px] leading-none font-semibold',
         complete ? 'bg-success/15 text-success' : 'bg-destructive/10 text-destructive',
@@ -53,6 +65,11 @@ export function PeriodTabs({
   completion: PeriodCompletion
 }) {
   const { t } = useTranslation()
+
+  const completionWord = (complete: boolean | null) =>
+    complete
+      ? t('notensammler.completionComplete', 'vollständig')
+      : t('notensammler.completionIncomplete', 'unvollständig')
 
   const periods = [
     {
@@ -85,8 +102,16 @@ export function PeriodTabs({
             )}
             {showCompletion && (
               <span className="flex items-center gap-1">
-                <CompletionMark label="1" complete={first} />
-                <CompletionMark label="2" complete={second} />
+                <CompletionMark
+                  label="1"
+                  complete={first}
+                  title={`${t('notensammler.firstSemesterShort', '1. Sem')}: ${completionWord(first)}`}
+                />
+                <CompletionMark
+                  label="2"
+                  complete={second}
+                  title={`${t('notensammler.secondSemesterShort', '2. Sem')}: ${completionWord(second)}`}
+                />
               </span>
             )}
           </TabsTrigger>

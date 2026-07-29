@@ -141,8 +141,11 @@ export function useGradeEditing({
         void (async () => {
           try {
             await saveGrade(studentId, teacherId, semester, gradeValue)
-            // Coalesce the status refresh: one GET per typing burst, not per cell.
-            schedule('sokrates-refresh', () => void refreshSokrates?.())
+            // Coalesce the status refresh: one GET per typing burst, not per
+            // cell. It writes nothing, so it must not count as unsaved work —
+            // otherwise every successful save was followed by half a second of
+            // "Nicht gespeichert" and an unload warning with nothing pending.
+            schedule('sokrates-refresh', () => void refreshSokrates?.(), { persists: false })
           } catch {
             setGrades(prev => {
               const next = { ...prev }

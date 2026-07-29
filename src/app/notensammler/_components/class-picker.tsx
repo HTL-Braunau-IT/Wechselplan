@@ -32,6 +32,9 @@ function SemesterDot({
     <Tooltip>
       <TooltipTrigger asChild>
         <span
+          // Without a role the label is not exposed, and the state is carried
+          // by colour alone — the chip would read as a bare "1" or "2".
+          role="img"
           aria-label={title}
           className={cn(
             'inline-flex h-5 min-w-5 items-center justify-center gap-0.5 rounded-full px-1.5 text-[11px] leading-none font-semibold tabular-nums',

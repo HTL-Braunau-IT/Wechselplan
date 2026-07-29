@@ -405,7 +405,6 @@
     "completionComplete": "complete",
     "completionIncomplete": "incomplete",
     "bothSemesters": "Both",
-    "currentSemester": "Current",
     "groupShort": "Grp.",
     "conductNoteWish": "Conduct grade (suggestion)",
     "conductNoteWishShort": "Conduct",
@@ -440,7 +439,7 @@
     "tooltipTransfer": "Transfers the grades to Notenmanagement.",
     "deleteTeacherGrades": "Delete all grades for this teacher",
     "sokratesTitle": "Sokrates",
-    "sokratesExplainer": "Grades are typed into Sokrates by hand. The class lead records here that this is done — after that the grades are locked.",
+    "sokratesExplainer": "Grades are typed into Sokrates by hand. The class lead records here that this is done, which locks the grades — the lock can be lifted again.",
     "sokratesOpen": "Open",
     "sokratesMarkShort": "Mark as entered",
     "sokratesMarkHint": "Locks every grade of this semester for all teachers.",
@@ -454,7 +453,9 @@
     "sokratesLockColumn": "Lock column (Sokrates)",
     "sokratesUnlockColumn": "Unlock column",
     "sokratesCellLocked": "Entered in Sokrates and locked.",
-    "sokratesDrift": "Changed after the Sokrates transfer — the class lead has been notified."
+    "sokratesDrift": "Changed after the Sokrates transfer — the class lead has been notified.",
+    "sokratesExplainerLabel": "What is Sokrates?",
+    "currentSemesterLabel": "Current semester"
   },
   "notifications": {
     "title": "Notifications",
