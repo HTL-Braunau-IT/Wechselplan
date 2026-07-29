@@ -2,10 +2,10 @@
 const config = {
   i18n: {
     defaultLocale: 'de',
-    locales: ['en', 'de']
+    locales: ['en', 'de'],
   },
   defaultNS: 'common',
   localePath: './public/locales',
 }
 
-export default config 
+export default config

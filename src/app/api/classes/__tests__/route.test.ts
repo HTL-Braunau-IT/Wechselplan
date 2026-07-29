@@ -1,10 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GET } from '../route';
-import { captureError } from '@/lib/sentry';
-
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { GET } from '../route'
+import { captureError } from '@/lib/sentry'
 
 // Create hoisted mock function
-const mockFindMany = vi.hoisted(() => vi.fn());
+const mockFindMany = vi.hoisted(() => vi.fn())
 
 // Mock PrismaClient. `$extends` has to be present because lib/prisma applies
 // the active-by-default query extension at construction time.
@@ -15,21 +14,20 @@ vi.mock('@prisma/client', () => ({
         findMany: mockFindMany,
       },
       $extends: () => client,
-    };
-    return client;
+    }
+    return client
   }),
-}));
+}))
 
 // Mock sentry
 vi.mock('@/lib/sentry', () => ({
   captureError: vi.fn(),
-}));
-
+}))
 
 describe('Classes API', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-  });
+    vi.clearAllMocks()
+  })
 
   describe('GET /api/classes', () => {
     it('should return all classes ordered by name', async () => {
@@ -44,15 +42,15 @@ describe('Classes API', () => {
           name: '1AHELS',
           description: null,
         },
-      ];
+      ]
 
-      mockFindMany.mockResolvedValue(mockClasses);
+      mockFindMany.mockResolvedValue(mockClasses)
 
-      const response = await GET(new Request('http://localhost/api/classes'));
-      const data = await response.json();
+      const response = await GET(new Request('http://localhost/api/classes'))
+      const data = await response.json()
 
-      expect(response.status).toBe(200);
-      expect(data).toEqual(mockClasses);
+      expect(response.status).toBe(200)
+      expect(data).toEqual(mockClasses)
       expect(mockFindMany).toHaveBeenCalledWith({
         select: {
           id: true,
@@ -62,22 +60,22 @@ describe('Classes API', () => {
           classLeadId: true,
         },
         orderBy: { name: 'asc' },
-      });
-    });
+      })
+    })
 
     it('should handle database errors', async () => {
-      const error = new Error('Database error');
-      mockFindMany.mockRejectedValue(error);
+      const error = new Error('Database error')
+      mockFindMany.mockRejectedValue(error)
 
-      const response = await GET(new Request('http://localhost/api/classes'));
-      const data = await response.json();
+      const response = await GET(new Request('http://localhost/api/classes'))
+      const data = await response.json()
 
-      expect(response.status).toBe(500);
-      expect(data).toEqual({ error: 'Failed to fetch classes' });
+      expect(response.status).toBe(500)
+      expect(data).toEqual({ error: 'Failed to fetch classes' })
       expect(captureError).toHaveBeenCalledWith(error, {
         location: 'api/classes',
         type: 'fetch-classes',
-      });
-    });
-  });
-});
+      })
+    })
+  })
+})

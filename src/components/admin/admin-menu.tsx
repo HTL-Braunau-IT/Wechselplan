@@ -67,7 +67,12 @@ function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
           Einstellungen
         </p>
         {SETTINGS_LINKS.map(({ href, label, icon: Icon }) => (
-          <Link key={href} href={href} onClick={onNavigate} className={linkClass(pathname === href)}>
+          <Link
+            key={href}
+            href={href}
+            onClick={onNavigate}
+            className={linkClass(pathname === href)}
+          >
             <Icon className="h-4 w-4 shrink-0" />
             <span className="truncate">{label}</span>
           </Link>

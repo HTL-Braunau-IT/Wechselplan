@@ -9,14 +9,14 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
 } from '@/components/ui/select'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter
+  DialogFooter,
 } from '@/components/ui/dialog'
 import { Upload, CheckCircle, XCircle, FolderOpen, Loader2 } from 'lucide-react'
 
@@ -52,7 +52,7 @@ export function StudentPhotosUpload() {
     if (fileList && fileList.length > 0) {
       const first = fileList[0]
       const path = first
-        ? (first as File & { webkitRelativePath?: string }).webkitRelativePath ?? first.name
+        ? ((first as File & { webkitRelativePath?: string }).webkitRelativePath ?? first.name)
         : ''
       setAllClassesFolderName(path.split('/')[0] ?? null)
     } else {
@@ -81,7 +81,7 @@ export function StudentPhotosUpload() {
         const response = await fetch(url, schoolYearId != null ? { cache: 'no-store' } : undefined)
         if (response.ok) {
           const data = (await response.json()) as Array<{ id: number; name: string }>
-          setClasses(data.map((c) => ({ id: c.id, name: c.name })))
+          setClasses(data.map(c => ({ id: c.id, name: c.name })))
           if (data.length > 0 && !selectedClassId) {
             setSelectedClassId(String(data[0]!.id))
           }
@@ -100,7 +100,11 @@ export function StudentPhotosUpload() {
       return
     }
     if (!filesToUse || filesToUse.length === 0) {
-      setError(forAllClasses ? 'Bitte mindestens eine Datei auswaehlen.' : 'Bitte Klasse und mindestens eine Datei auswaehlen.')
+      setError(
+        forAllClasses
+          ? 'Bitte mindestens eine Datei auswaehlen.'
+          : 'Bitte Klasse und mindestens eine Datei auswaehlen.',
+      )
       return
     }
     setError(null)
@@ -128,7 +132,7 @@ export function StudentPhotosUpload() {
 
         const response = await fetch('/api/admin/student-photos/upload', {
           method: 'POST',
-          body: formData
+          body: formData,
         })
         const data = (await response.json()) as { results?: UploadResultItem[]; error?: string }
         if (response.ok && data.results?.length) {
@@ -137,7 +141,7 @@ export function StudentPhotosUpload() {
           collectedResults.push({
             filename: file.name,
             success: false,
-            error: data.error ?? 'Upload fehlgeschlagen'
+            error: data.error ?? 'Upload fehlgeschlagen',
           })
         }
         setResults([...collectedResults])
@@ -165,9 +169,9 @@ export function StudentPhotosUpload() {
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">
-        Dateinamen muessen <strong>Nachname_Vorname</strong> sein (z. B. Mustermann_Max.jpg).
-        Pro Schueler wird ein Foto gespeichert und bei erneutem Upload ueberschrieben.
+      <p className="text-muted-foreground text-sm">
+        Dateinamen muessen <strong>Nachname_Vorname</strong> sein (z. B. Mustermann_Max.jpg). Pro
+        Schueler wird ein Foto gespeichert und bei erneutem Upload ueberschrieben.
       </p>
 
       <div className="space-y-4">
@@ -180,7 +184,7 @@ export function StudentPhotosUpload() {
                 <SelectValue placeholder="Klasse auswaehlen" />
               </SelectTrigger>
               <SelectContent>
-                {classes.map((c) => (
+                {classes.map(c => (
                   <SelectItem key={c.id} value={String(c.id)}>
                     {c.name}
                   </SelectItem>
@@ -195,8 +199,8 @@ export function StudentPhotosUpload() {
               type="file"
               accept="image/jpeg,image/png,image/jpg"
               multiple
-              className="block w-full text-sm text-muted-foreground file:mr-4 file:rounded-md file:border-0 file:bg-primary file:px-4 file:py-2 file:text-primary-foreground file:text-sm"
-              onChange={(e) => setFiles(e.target.files ?? null)}
+              className="text-muted-foreground file:bg-primary file:text-primary-foreground block w-full text-sm file:mr-4 file:rounded-md file:border-0 file:px-4 file:py-2 file:text-sm"
+              onChange={e => setFiles(e.target.files ?? null)}
             />
           </div>
           <Button
@@ -211,11 +215,11 @@ export function StudentPhotosUpload() {
 
       <div className="space-y-4 border-t pt-4">
         <h4 className="text-sm font-medium">Import fuer alle Klassen auf einmal</h4>
-        <p className="text-sm text-muted-foreground">
-          Waehlen Sie einen Ordner oder mehrere Dateien; jedes Bild wird klassenuebergreifend per Name
-          Schuelern zugeordnet. Wenn mehrere Schueler denselben Vor- und Nachnamen haben, wird dasselbe
-          Foto fuer alle gespeichert. Wenn kein Treffer gefunden wird, wird die Datei uebersprungen und
-          gemeldet.
+        <p className="text-muted-foreground text-sm">
+          Waehlen Sie einen Ordner oder mehrere Dateien; jedes Bild wird klassenuebergreifend per
+          Name Schuelern zugeordnet. Wenn mehrere Schueler denselben Vor- und Nachnamen haben, wird
+          dasselbe Foto fuer alle gespeichert. Wenn kein Treffer gefunden wird, wird die Datei
+          uebersprungen und gemeldet.
         </p>
         <div className="flex flex-wrap items-end gap-4">
           <div className="space-y-2">
@@ -225,8 +229,8 @@ export function StudentPhotosUpload() {
               type="file"
               accept="image/jpeg,image/png,image/jpg"
               multiple
-              className="block w-full text-sm text-muted-foreground file:mr-4 file:rounded-md file:border-0 file:bg-primary file:px-4 file:py-2 file:text-primary-foreground file:text-sm"
-              onChange={(e) => setAllClassesFromFiles(e.target.files ?? null)}
+              className="text-muted-foreground file:bg-primary file:text-primary-foreground block w-full text-sm file:mr-4 file:rounded-md file:border-0 file:px-4 file:py-2 file:text-sm"
+              onChange={e => setAllClassesFromFiles(e.target.files ?? null)}
             />
           </div>
           <div className="space-y-2">
@@ -239,8 +243,8 @@ export function StudentPhotosUpload() {
               type="file"
               accept="image/jpeg,image/png,image/jpg"
               multiple
-              className="block w-full text-sm text-muted-foreground file:mr-4 file:rounded-md file:border-0 file:bg-primary file:px-4 file:py-2 file:text-primary-foreground file:text-sm"
-              onChange={(e) => setAllClassesFromFolder(e.target.files ?? null)}
+              className="text-muted-foreground file:bg-primary file:text-primary-foreground block w-full text-sm file:mr-4 file:rounded-md file:border-0 file:px-4 file:py-2 file:text-sm"
+              onChange={e => setAllClassesFromFolder(e.target.files ?? null)}
               {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
             />
           </div>
@@ -253,13 +257,14 @@ export function StudentPhotosUpload() {
           </Button>
         </div>
         {allClassesFolderName != null && allClassesFiles != null && allClassesFiles.length > 0 && (
-          <p className="text-sm text-muted-foreground">
-            Ordner &bdquo;{allClassesFolderName}&ldquo;: {allClassesFiles.length} Datei(en) ausgewählt.
+          <p className="text-muted-foreground text-sm">
+            Ordner &bdquo;{allClassesFolderName}&ldquo;: {allClassesFiles.length} Datei(en)
+            ausgewählt.
           </p>
         )}
       </div>
       {error && (
-        <p className="text-sm text-destructive" role="alert">
+        <p className="text-destructive text-sm" role="alert">
           {error}
         </p>
       )}
@@ -272,25 +277,30 @@ export function StudentPhotosUpload() {
                 {r.success ? (
                   <CheckCircle className="h-4 w-4 shrink-0 text-green-600" />
                 ) : (
-                  <XCircle className="h-4 w-4 shrink-0 text-destructive" />
+                  <XCircle className="text-destructive h-4 w-4 shrink-0" />
                 )}
                 <span className="truncate">{r.filename}</span>
-                {r.success && (r.studentIds?.length ? (
-                  <span className="text-muted-foreground">(IDs {r.studentIds.join(', ')})</span>
-                ) : r.studentId != null ? (
-                  <span className="text-muted-foreground">(ID {r.studentId})</span>
-                ) : null)}
-                {!r.success && r.error && (
-                  <span className="text-destructive">{r.error}</span>
-                )}
+                {r.success &&
+                  (r.studentIds?.length ? (
+                    <span className="text-muted-foreground">(IDs {r.studentIds.join(', ')})</span>
+                  ) : r.studentId != null ? (
+                    <span className="text-muted-foreground">(ID {r.studentId})</span>
+                  ) : null)}
+                {!r.success && r.error && <span className="text-destructive">{r.error}</span>}
               </li>
             ))}
           </ul>
         </div>
       )}
 
-      <Dialog open={progressOpen} onOpenChange={(open) => !uploading && open === false && closeProgressModal()}>
-        <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => uploading && e.preventDefault()}>
+      <Dialog
+        open={progressOpen}
+        onOpenChange={open => !uploading && open === false && closeProgressModal()}
+      >
+        <DialogContent
+          className="sm:max-w-md"
+          onPointerDownOutside={e => uploading && e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle>
               {progressDone ? 'Upload abgeschlossen' : 'Schuelerfotos werden hochgeladen'}
@@ -299,25 +309,28 @@ export function StudentPhotosUpload() {
           <div className="space-y-3 py-2">
             {!progressDone ? (
               <>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   Verarbeite {progressCurrent} von {progressTotal}
                 </p>
                 {progressFileName != null && (
                   <>
-                    <p className="text-sm font-medium">{parseFileNameToStudentName(progressFileName)}</p>
-                    <p className="text-xs text-muted-foreground truncate" title={progressFileName}>
+                    <p className="text-sm font-medium">
+                      {parseFileNameToStudentName(progressFileName)}
+                    </p>
+                    <p className="text-muted-foreground truncate text-xs" title={progressFileName}>
                       {progressFileName}
                     </p>
                   </>
                 )}
                 <div className="flex justify-center py-2">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <Loader2 className="text-primary h-8 w-8 animate-spin" />
                 </div>
               </>
             ) : (
               <>
-                <p className="text-sm text-muted-foreground">
-                  {results.filter((r) => r.success).length} erfolgreich, {results.filter((r) => !r.success).length} fehlgeschlagen.
+                <p className="text-muted-foreground text-sm">
+                  {results.filter(r => r.success).length} erfolgreich,{' '}
+                  {results.filter(r => !r.success).length} fehlgeschlagen.
                 </p>
               </>
             )}

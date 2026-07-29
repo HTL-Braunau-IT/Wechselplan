@@ -48,18 +48,18 @@ export default function StudentsPage() {
       const yearQ = schoolYearId != null ? `?schoolYearId=${schoolYearId}` : ''
       const studentsRes = await fetch(`/api/students/all${yearQ}`, { cache: 'no-store' })
       if (!studentsRes.ok) throw new Error('Failed to fetch students')
-      const studentsData = await studentsRes.json() as Student[]
+      const studentsData = (await studentsRes.json()) as Student[]
       setStudents(studentsData)
 
       const classesRes = await fetch(`/api/classes${yearQ}`, { cache: 'no-store' })
       if (!classesRes.ok) throw new Error('Failed to fetch classes')
-      const classesData = await classesRes.json() as Class[]
+      const classesData = (await classesRes.json()) as Class[]
       setClasses(classesData)
     } catch (e) {
       console.error('Error fetching students data:', e)
       captureFrontendError(e, {
         location: 'students',
-        type: 'fetch-data'
+        type: 'fetch-data',
       })
       const errMsg = e instanceof Error ? e.message : 'Failed to load data'
       setError(errMsg)
@@ -74,22 +74,26 @@ export default function StudentsPage() {
     return classData?.name ?? 'Unknown Class'
   }
 
-  if (loading) return (
-    <div className="p-8 flex items-center justify-center min-h-[200px]">
-      <Spinner size="lg" />
-    </div>
-  )
+  if (loading)
+    return (
+      <div className="flex min-h-[200px] items-center justify-center p-8">
+        <Spinner size="lg" />
+      </div>
+    )
   if (error) return <div className="p-8 text-center text-red-500">{error}</div>
 
   // Group students by class and then by group
-  const studentsByClass = students.reduce((acc, student) => {
-    const className = getClassName(student.classId)
-    acc[className] ??= {}
-    const groupId = student.groupId ?? 'No Group'
-    acc[className][groupId] ??= []
-    acc[className][groupId].push(student)
-    return acc
-  }, {} as Record<string, Record<string | number, Student[]>>)
+  const studentsByClass = students.reduce(
+    (acc, student) => {
+      const className = getClassName(student.classId)
+      acc[className] ??= {}
+      const groupId = student.groupId ?? 'No Group'
+      acc[className][groupId] ??= []
+      acc[className][groupId].push(student)
+      return acc
+    },
+    {} as Record<string, Record<string | number, Student[]>>,
+  )
 
   // Sort students within each group by last name, then first name
   Object.values(studentsByClass).forEach(classGroups => {
@@ -113,7 +117,7 @@ export default function StudentsPage() {
   return (
     <div className="container mx-auto p-4">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-4">Students Overview</h1>
+        <h1 className="mb-4 text-3xl font-bold">Students Overview</h1>
       </div>
 
       {sortedClassEntries.map(([className, classGroups]) => (
@@ -128,8 +132,8 @@ export default function StudentsPage() {
                   <h3 className="text-lg font-semibold">
                     {groupId === 'No Group' ? 'No Group Assigned' : `Group ${groupId}`}
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {groupStudents.map((student) => (
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {groupStudents.map(student => (
                       <Card key={student.id} className="p-4">
                         <StudentPhoto
                           studentId={student.id}
@@ -148,4 +152,4 @@ export default function StudentsPage() {
       ))}
     </div>
   )
-} 
+}

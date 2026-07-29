@@ -4,7 +4,13 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { useTranslation } from 'react-i18next'
 import { Spinner } from '@/components/ui/spinner'
 import { AlertCircle } from 'lucide-react'
@@ -48,14 +54,14 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
     startTime: '',
     endTime: '',
     hours: 0,
-    period: 'AM'
+    period: 'AM',
   })
 
   const [newBreakTime, setNewBreakTime] = useState<Partial<BreakTime>>({
     name: '',
     startTime: '',
     endTime: '',
-    period: 'AM'
+    period: 'AM',
   })
 
   const [isScheduleTimeFormOpen, setIsScheduleTimeFormOpen] = useState(false)
@@ -106,7 +112,7 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
       // Fetch schedule times
       const scheduleResponse = await fetch('/api/admin/settings/schedule-times')
       if (!scheduleResponse.ok) throw new Error('Failed to fetch schedule times')
-      const scheduleData = await scheduleResponse.json() as ScheduleTime[]
+      const scheduleData = (await scheduleResponse.json()) as ScheduleTime[]
 
       // Filter schedule times based on periods in assignments
       const filteredScheduleTimes = scheduleData.filter(time => newPeriods.has(time.period))
@@ -115,12 +121,12 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
       // Fetch break times
       const breakResponse = await fetch('/api/admin/settings/break-times')
       if (!breakResponse.ok) throw new Error('Failed to fetch break times')
-      const breakData = await breakResponse.json() as BreakTime[]
+      const breakData = (await breakResponse.json()) as BreakTime[]
 
       // Filter break times based on periods and lunch breaks
       const filteredBreakTimes = breakData.filter(time => {
         // Always show lunch breaks if there are any assignments
-        if (time.period === "LUNCH") {
+        if (time.period === 'LUNCH') {
           return newPeriods.size > 0 // Show lunch breaks if there are any AM or PM assignments
         }
         // For other breaks, filter by period
@@ -138,17 +144,27 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
 
           // Set selected schedule times
           if (savedTimes.times?.scheduleTimes && Array.isArray(savedTimes.times.scheduleTimes)) {
-            const amTime = savedTimes.times.scheduleTimes.find((time: { id: number; period: string }) => time.period === 'AM')
-            const pmTime = savedTimes.times.scheduleTimes.find((time: { id: number; period: string }) => time.period === 'PM')
+            const amTime = savedTimes.times.scheduleTimes.find(
+              (time: { id: number; period: string }) => time.period === 'AM',
+            )
+            const pmTime = savedTimes.times.scheduleTimes.find(
+              (time: { id: number; period: string }) => time.period === 'PM',
+            )
             if (amTime?.id) setSelectedAMScheduleTime(Number(amTime.id))
             if (pmTime?.id) setSelectedPMScheduleTime(Number(pmTime.id))
           }
 
           // Set selected break times
           if (savedTimes.times?.breakTimes && Array.isArray(savedTimes.times.breakTimes)) {
-            const amBreak = savedTimes.times.breakTimes.find((time: { id: number; period: string }) => time.period === 'AM')
-            const lunchBreak = savedTimes.times.breakTimes.find((time: { id: number; period: string }) => time.period === 'LUNCH')
-            const pmBreak = savedTimes.times.breakTimes.find((time: { id: number; period: string }) => time.period === 'PM')
+            const amBreak = savedTimes.times.breakTimes.find(
+              (time: { id: number; period: string }) => time.period === 'AM',
+            )
+            const lunchBreak = savedTimes.times.breakTimes.find(
+              (time: { id: number; period: string }) => time.period === 'LUNCH',
+            )
+            const pmBreak = savedTimes.times.breakTimes.find(
+              (time: { id: number; period: string }) => time.period === 'PM',
+            )
             if (amBreak?.id) setSelectedAMBreakTime(Number(amBreak.id))
             if (lunchBreak?.id) setSelectedLunchBreakTime(Number(lunchBreak.id))
             if (pmBreak?.id) setSelectedPMBreakTime(Number(pmBreak.id))
@@ -166,7 +182,6 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
       } finally {
         setIsLoadingSavedTimes(false)
       }
-
     } catch (error) {
       console.error('Error fetching data:', error)
       setError('Failed to load times')
@@ -218,7 +233,7 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
       await saveTimesMutation.mutateAsync({
         classId,
         scheduleTimes,
-        breakTimes
+        breakTimes,
       })
 
       if (onSave) {
@@ -260,7 +275,7 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
         startTime: '',
         endTime: '',
         hours: 0,
-        period: 'AM'
+        period: 'AM',
       })
       setSuccess(t('settings.times.scheduleTimeAdded'))
     } catch (error) {
@@ -285,13 +300,13 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
         throw new Error('Failed to add break time')
       }
 
-      const data = await response.json() as BreakTime
+      const data = (await response.json()) as BreakTime
       setBreakTimes([...breakTimes, data])
       setNewBreakTime({
         name: '',
         startTime: '',
         endTime: '',
-        period: 'AM'
+        period: 'AM',
       })
       setSuccess(t('settings.times.breakTimeAdded'))
     } catch (error) {
@@ -300,11 +315,12 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
     }
   }
 
-  if (isLoading) return (
-    <div className="p-8 flex items-center justify-center min-h-[200px]">
-      <Spinner size="lg" />
-    </div>
-  )
+  if (isLoading)
+    return (
+      <div className="flex min-h-[200px] items-center justify-center p-8">
+        <Spinner size="lg" />
+      </div>
+    )
 
   return (
     <>
@@ -314,39 +330,42 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
         </CardHeader>
         <CardContent>
           {success && (
-            <div className="mb-4 p-4 text-green-500 bg-green-50 rounded-md">
-              {success}
-            </div>
+            <div className="mb-4 rounded-md bg-green-50 p-4 text-green-500">{success}</div>
           )}
 
           {isLoadingSavedTimes && (
-            <div className="mb-4 p-4 text-blue-500 bg-blue-50 rounded-md flex items-center gap-2">
+            <div className="mb-4 flex items-center gap-2 rounded-md bg-blue-50 p-4 text-blue-500">
               <Spinner size="sm" />
               {t('settings.times.loadingSavedTimes')}
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
             {/* Schedule Times */}
             <div>
-              <h2 className="text-xl font-semibold mb-4">{t('settings.times.scheduleTimes')}</h2>
+              <h2 className="mb-4 text-xl font-semibold">{t('settings.times.scheduleTimes')}</h2>
 
               {/* Existing schedule times */}
               <div className="space-y-6">
                 {periods.has('AM') && (
                   <div>
-                    <h3 className="text-lg font-medium mb-3">{t('settings.times.labels.amScheduleTime')}</h3>
+                    <h3 className="mb-3 text-lg font-medium">
+                      {t('settings.times.labels.amScheduleTime')}
+                    </h3>
                     <select
                       value={selectedAMScheduleTime ?? ''}
-                      onChange={(e) => setSelectedAMScheduleTime(e.target.value ? parseInt(e.target.value) : null)}
-                      className="w-full p-2 border rounded"
+                      onChange={e =>
+                        setSelectedAMScheduleTime(e.target.value ? parseInt(e.target.value) : null)
+                      }
+                      className="w-full rounded border p-2"
                     >
                       <option value="">{t('settings.times.select.amScheduleTime')}</option>
                       {scheduleTimes
                         .filter(time => time.period === 'AM')
                         .map(time => (
                           <option key={time.id} value={time.id}>
-                            {time.startTime} - {time.endTime} | {time.hours} {t('settings.times.hours')}
+                            {time.startTime} - {time.endTime} | {time.hours}{' '}
+                            {t('settings.times.hours')}
                           </option>
                         ))}
                     </select>
@@ -355,18 +374,23 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
 
                 {periods.has('PM') && (
                   <div>
-                    <h3 className="text-lg font-medium mb-3">{t('settings.times.labels.pmScheduleTime')}</h3>
+                    <h3 className="mb-3 text-lg font-medium">
+                      {t('settings.times.labels.pmScheduleTime')}
+                    </h3>
                     <select
                       value={selectedPMScheduleTime ?? ''}
-                      onChange={(e) => setSelectedPMScheduleTime(e.target.value ? parseInt(e.target.value) : null)}
-                      className="w-full p-2 border rounded"
+                      onChange={e =>
+                        setSelectedPMScheduleTime(e.target.value ? parseInt(e.target.value) : null)
+                      }
+                      className="w-full rounded border p-2"
                     >
                       <option value="">{t('settings.times.select.pmScheduleTime')}</option>
                       {scheduleTimes
                         .filter(time => time.period === 'PM')
                         .map(time => (
                           <option key={time.id} value={time.id}>
-                            {time.startTime} - {time.endTime} | {time.hours} {t('settings.times.hours')}
+                            {time.startTime} - {time.endTime} | {time.hours}{' '}
+                            {t('settings.times.hours')}
                           </option>
                         ))}
                     </select>
@@ -377,19 +401,22 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
 
             {/* Break Times */}
             <div>
-              <h2 className="text-xl font-semibold mb-4">{t('settings.times.breakTimes')}</h2>
+              <h2 className="mb-4 text-xl font-semibold">{t('settings.times.breakTimes')}</h2>
 
               {/* Existing break times */}
               <div className="space-y-6">
                 {periods.has('AM') && (
                   <div>
-                    <h3 className="text-lg font-medium mb-3">
-                      {t('settings.times.labels.amBreak')} <span className="text-sm text-gray-500 font-normal"></span>
+                    <h3 className="mb-3 text-lg font-medium">
+                      {t('settings.times.labels.amBreak')}{' '}
+                      <span className="text-sm font-normal text-gray-500"></span>
                     </h3>
                     <select
                       value={selectedAMBreakTime ?? ''}
-                      onChange={(e) => setSelectedAMBreakTime(e.target.value ? parseInt(e.target.value) : null)}
-                      className="w-full p-2 border rounded"
+                      onChange={e =>
+                        setSelectedAMBreakTime(e.target.value ? parseInt(e.target.value) : null)
+                      }
+                      className="w-full rounded border p-2"
                     >
                       <option value="">{t('settings.times.select.amBreak')}</option>
                       {breakTimes
@@ -405,13 +432,16 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
 
                 {periods.size > 0 && (
                   <div>
-                    <h3 className="text-lg font-medium mb-3">
-                      {t('settings.times.labels.lunchBreak')} <span className="text-sm text-gray-500 font-normal"></span>
+                    <h3 className="mb-3 text-lg font-medium">
+                      {t('settings.times.labels.lunchBreak')}{' '}
+                      <span className="text-sm font-normal text-gray-500"></span>
                     </h3>
                     <select
                       value={selectedLunchBreakTime ?? ''}
-                      onChange={(e) => setSelectedLunchBreakTime(e.target.value ? parseInt(e.target.value) : null)}
-                      className="w-full p-2 border rounded"
+                      onChange={e =>
+                        setSelectedLunchBreakTime(e.target.value ? parseInt(e.target.value) : null)
+                      }
+                      className="w-full rounded border p-2"
                     >
                       <option value="">{t('settings.times.select.lunchBreak')}</option>
                       {breakTimes
@@ -427,13 +457,18 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
 
                 {periods.has('PM') && (
                   <div>
-                    <h3 className="text-lg font-medium mb-3">
-                      {t('settings.times.labels.pmBreak')} <span className="text-sm text-gray-500 font-normal">({t('settings.times.optional')})</span>
+                    <h3 className="mb-3 text-lg font-medium">
+                      {t('settings.times.labels.pmBreak')}{' '}
+                      <span className="text-sm font-normal text-gray-500">
+                        ({t('settings.times.optional')})
+                      </span>
                     </h3>
                     <select
                       value={selectedPMBreakTime ?? ''}
-                      onChange={(e) => setSelectedPMBreakTime(e.target.value ? parseInt(e.target.value) : null)}
-                      className="w-full p-2 border rounded"
+                      onChange={e =>
+                        setSelectedPMBreakTime(e.target.value ? parseInt(e.target.value) : null)
+                      }
+                      className="w-full rounded border p-2"
                     >
                       <option value="">{t('settings.times.select.pmBreak')}</option>
                       {breakTimes
@@ -453,7 +488,10 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
           {/* Creation Forms */}
           <div className="mt-8 grid grid-cols-2 gap-4">
             <Card className="border-dashed">
-              <CardHeader className="cursor-pointer py-2" onClick={() => setIsScheduleTimeFormOpen(!isScheduleTimeFormOpen)}>
+              <CardHeader
+                className="cursor-pointer py-2"
+                onClick={() => setIsScheduleTimeFormOpen(!isScheduleTimeFormOpen)}
+              >
                 <CardTitle className="flex items-center justify-between text-sm">
                   {t('settings.times.addNewScheduleTime')}
                   <span className="text-sm text-gray-500">
@@ -466,55 +504,81 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
                   <div className="space-y-2">
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <Label htmlFor="startTime" className="text-sm">{t('settings.times.startTime')}</Label>
+                        <Label htmlFor="startTime" className="text-sm">
+                          {t('settings.times.startTime')}
+                        </Label>
                         <input
                           type="time"
                           id="startTime"
                           value={newScheduleTime.startTime}
-                          onChange={(e) => setNewScheduleTime({ ...newScheduleTime, startTime: e.target.value })}
-                          className="w-full p-1.5 border rounded text-sm"
+                          onChange={e =>
+                            setNewScheduleTime({ ...newScheduleTime, startTime: e.target.value })
+                          }
+                          className="w-full rounded border p-1.5 text-sm"
                         />
                       </div>
                       <div>
-                        <Label htmlFor="endTime" className="text-sm">{t('settings.times.endTime')}</Label>
+                        <Label htmlFor="endTime" className="text-sm">
+                          {t('settings.times.endTime')}
+                        </Label>
                         <input
                           type="time"
                           id="endTime"
                           value={newScheduleTime.endTime}
-                          onChange={(e) => setNewScheduleTime({ ...newScheduleTime, endTime: e.target.value })}
-                          className="w-full p-1.5 border rounded text-sm"
+                          onChange={e =>
+                            setNewScheduleTime({ ...newScheduleTime, endTime: e.target.value })
+                          }
+                          className="w-full rounded border p-1.5 text-sm"
                         />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <Label htmlFor="hours" className="text-sm">{t('settings.times.hours')}</Label>
+                        <Label htmlFor="hours" className="text-sm">
+                          {t('settings.times.hours')}
+                        </Label>
                         <input
                           type="number"
                           id="hours"
                           value={newScheduleTime.hours}
-                          onChange={(e) => setNewScheduleTime({ ...newScheduleTime, hours: e.target.valueAsNumber || 0 })}
-                          className="w-full p-1.5 border rounded text-sm"
+                          onChange={e =>
+                            setNewScheduleTime({
+                              ...newScheduleTime,
+                              hours: e.target.valueAsNumber || 0,
+                            })
+                          }
+                          className="w-full rounded border p-1.5 text-sm"
                           min="0"
                           step="0.5"
                         />
                       </div>
                       <div>
-                        <Label htmlFor="period" className="text-sm">{t('settings.times.period')}</Label>
+                        <Label htmlFor="period" className="text-sm">
+                          {t('settings.times.period')}
+                        </Label>
                         <select
                           id="period"
                           value={newScheduleTime.period}
-                          onChange={(e) => setNewScheduleTime({ ...newScheduleTime, period: e.target.value as 'AM' | 'PM' })}
-                          className="w-full p-1.5 border rounded text-sm"
+                          onChange={e =>
+                            setNewScheduleTime({
+                              ...newScheduleTime,
+                              period: e.target.value as 'AM' | 'PM',
+                            })
+                          }
+                          className="w-full rounded border p-1.5 text-sm"
                         >
-                          {periods.has('AM') && <option value="AM">{t('settings.times.periods.AM')}</option>}
-                          {periods.has('PM') && <option value="PM">{t('settings.times.periods.PM')}</option>}
+                          {periods.has('AM') && (
+                            <option value="AM">{t('settings.times.periods.AM')}</option>
+                          )}
+                          {periods.has('PM') && (
+                            <option value="PM">{t('settings.times.periods.PM')}</option>
+                          )}
                         </select>
                       </div>
                     </div>
                     <Button
                       onClick={handleAddScheduleTime}
-                      className="w-full text-sm py-1"
+                      className="w-full py-1 text-sm"
                       disabled={isSubmittingScheduleTime}
                     >
                       {isSubmittingScheduleTime
@@ -527,64 +591,86 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
             </Card>
 
             <Card className="border-dashed">
-              <CardHeader className="cursor-pointer py-2" onClick={() => setIsBreakTimeFormOpen(!isBreakTimeFormOpen)}>
+              <CardHeader
+                className="cursor-pointer py-2"
+                onClick={() => setIsBreakTimeFormOpen(!isBreakTimeFormOpen)}
+              >
                 <CardTitle className="flex items-center justify-between text-sm">
                   {t('settings.times.addNewBreakTime')}
-                  <span className="text-sm text-gray-500">
-                    {isBreakTimeFormOpen ? '▼' : '▶'}
-                  </span>
+                  <span className="text-sm text-gray-500">{isBreakTimeFormOpen ? '▼' : '▶'}</span>
                 </CardTitle>
               </CardHeader>
               {isBreakTimeFormOpen && (
                 <CardContent className="pt-0">
                   <div className="space-y-2">
                     <div>
-                      <Label htmlFor="breakName" className="text-sm">{t('settings.times.breakName')}</Label>
+                      <Label htmlFor="breakName" className="text-sm">
+                        {t('settings.times.breakName')}
+                      </Label>
                       <input
                         type="text"
                         id="breakName"
                         value={newBreakTime.name}
-                        onChange={(e) => setNewBreakTime({ ...newBreakTime, name: e.target.value })}
-                        className="w-full p-1.5 border rounded text-sm"
+                        onChange={e => setNewBreakTime({ ...newBreakTime, name: e.target.value })}
+                        className="w-full rounded border p-1.5 text-sm"
                         placeholder={t('settings.times.breakNamePlaceholder')}
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <Label htmlFor="breakStartTime" className="text-sm">{t('settings.times.startTime')}</Label>
+                        <Label htmlFor="breakStartTime" className="text-sm">
+                          {t('settings.times.startTime')}
+                        </Label>
                         <input
                           type="time"
                           id="breakStartTime"
                           value={newBreakTime.startTime}
-                          onChange={(e) => setNewBreakTime({ ...newBreakTime, startTime: e.target.value })}
-                          className="w-full p-1.5 border rounded text-sm"
+                          onChange={e =>
+                            setNewBreakTime({ ...newBreakTime, startTime: e.target.value })
+                          }
+                          className="w-full rounded border p-1.5 text-sm"
                         />
                       </div>
                       <div>
-                        <Label htmlFor="breakEndTime" className="text-sm">{t('settings.times.endTime')}</Label>
+                        <Label htmlFor="breakEndTime" className="text-sm">
+                          {t('settings.times.endTime')}
+                        </Label>
                         <input
                           type="time"
                           id="breakEndTime"
                           value={newBreakTime.endTime}
-                          onChange={(e) => setNewBreakTime({ ...newBreakTime, endTime: e.target.value })}
-                          className="w-full p-1.5 border rounded text-sm"
+                          onChange={e =>
+                            setNewBreakTime({ ...newBreakTime, endTime: e.target.value })
+                          }
+                          className="w-full rounded border p-1.5 text-sm"
                         />
                       </div>
                     </div>
                     <div>
-                      <Label htmlFor="breakPeriod" className="text-sm">{t('settings.times.period')}</Label>
+                      <Label htmlFor="breakPeriod" className="text-sm">
+                        {t('settings.times.period')}
+                      </Label>
                       <select
                         id="breakPeriod"
                         value={newBreakTime.period}
-                        onChange={(e) => setNewBreakTime({ ...newBreakTime, period: e.target.value as 'AM' | 'PM' | 'LUNCH' })}
-                        className="w-full p-1.5 border rounded text-sm"
+                        onChange={e =>
+                          setNewBreakTime({
+                            ...newBreakTime,
+                            period: e.target.value as 'AM' | 'PM' | 'LUNCH',
+                          })
+                        }
+                        className="w-full rounded border p-1.5 text-sm"
                       >
-                        {periods.has('AM') && <option value="AM">{t('settings.times.periods.AM')}</option>}
+                        {periods.has('AM') && (
+                          <option value="AM">{t('settings.times.periods.AM')}</option>
+                        )}
                         <option value="LUNCH">{t('settings.times.periods.LUNCH')}</option>
-                        {periods.has('PM') && <option value="PM">{t('settings.times.periods.PM')}</option>}
+                        {periods.has('PM') && (
+                          <option value="PM">{t('settings.times.periods.PM')}</option>
+                        )}
                       </select>
                     </div>
-                    <Button onClick={handleAddBreakTime} className="w-full text-sm py-1">
+                    <Button onClick={handleAddBreakTime} className="w-full py-1 text-sm">
                       {t('settings.times.addBreakTime')}
                     </Button>
                   </div>
@@ -618,13 +704,10 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end">
-            <Button onClick={() => setIsErrorDialogOpen(false)}>
-              {t('schedule:ok')}
-            </Button>
+            <Button onClick={() => setIsErrorDialogOpen(false)}>{t('schedule:ok')}</Button>
           </div>
         </DialogContent>
       </Dialog>
     </>
   )
 }
-

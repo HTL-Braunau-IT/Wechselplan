@@ -28,7 +28,7 @@ export async function GET() {
   } catch (err) {
     return NextResponse.json(
       { ok: false, error: err instanceof Error ? err.message : 'Unknown error' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }

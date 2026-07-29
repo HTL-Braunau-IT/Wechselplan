@@ -61,13 +61,23 @@ describe('assertDeactivationWithinLimit', () => {
 
   it('passes when nothing is being deactivated', () => {
     expect(() =>
-      assertDeactivationWithinLimit({ scope: 'students', deactivating: 0, activeBefore: 0, limit: 0 }),
+      assertDeactivationWithinLimit({
+        scope: 'students',
+        deactivating: 0,
+        activeBefore: 0,
+        limit: 0,
+      }),
     ).not.toThrow()
   })
 
   it('passes on an empty starting set rather than dividing by zero', () => {
     expect(() =>
-      assertDeactivationWithinLimit({ scope: 'students', deactivating: 3, activeBefore: 0, limit: 0.2 }),
+      assertDeactivationWithinLimit({
+        scope: 'students',
+        deactivating: 3,
+        activeBefore: 0,
+        limit: 0.2,
+      }),
     ).not.toThrow()
   })
 

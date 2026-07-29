@@ -31,9 +31,6 @@ export async function GET() {
       location: 'api/school-years',
       type: 'fetch-school-years',
     })
-    return NextResponse.json(
-      { error: 'Failed to fetch school years' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to fetch school years' }, { status: 500 })
   }
 }

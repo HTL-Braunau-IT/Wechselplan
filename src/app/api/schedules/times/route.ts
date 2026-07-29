@@ -12,7 +12,7 @@ export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
     headers: {
-      'Allow': 'GET, POST, OPTIONS',
+      Allow: 'GET, POST, OPTIONS',
     },
   })
 }
@@ -43,27 +43,23 @@ export async function GET(request: Request) {
   // Get the latest schedule for this class
   const times = await prisma.schedule.findFirst({
     where: {
-      classId: classId
+      classId: classId,
     },
     orderBy: {
-      createdAt: 'desc'
+      createdAt: 'desc',
     },
     include: {
       scheduleTimes: true,
-      breakTimes: true
-    }
+      breakTimes: true,
+    },
   })
 
   if (!times) {
-    return NextResponse.json(
-      { error: 'No schedule times found for this class' },
-      { status: 404 }
-    )
+    return NextResponse.json({ error: 'No schedule times found for this class' }, { status: 404 })
   }
 
   return NextResponse.json({ times })
 }
-
 
 /**
  * Updates the latest schedule for a class with new schedule and break times.
@@ -78,63 +74,52 @@ export async function POST(request: Request) {
     const { scheduleTimes, breakTimes, classId } = await request.json()
 
     if (!classId || typeof classId !== 'number') {
-      return NextResponse.json(
-        { error: 'Class ID is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Class ID is required' }, { status: 400 })
     }
 
     // Get the latest schedule for this class
     const latestSchedule = await prisma.schedule.findFirst({
       where: {
-        classId: classId
+        classId: classId,
       },
       orderBy: {
-        createdAt: 'desc'
+        createdAt: 'desc',
       },
       include: {
         scheduleTimes: true,
-        breakTimes: true
-      }
+        breakTimes: true,
+      },
     })
 
     if (!latestSchedule) {
-      return NextResponse.json(
-        { error: 'No schedule found for this class' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'No schedule found for this class' }, { status: 404 })
     }
 
     // Update the schedule with the selected times
     const updatedSchedule = await prisma.schedule.update({
       where: {
-        id: latestSchedule.id
+        id: latestSchedule.id,
       },
       data: {
         scheduleTimes: {
-          set: scheduleTimes.map((time: { id: number }) => ({ id: time.id }))
+          set: scheduleTimes.map((time: { id: number }) => ({ id: time.id })),
         },
         breakTimes: {
-          set: breakTimes.map((time: { id: number }) => ({ id: time.id }))
-        }
+          set: breakTimes.map((time: { id: number }) => ({ id: time.id })),
+        },
       },
       include: {
         scheduleTimes: true,
-        breakTimes: true
-      }
+        breakTimes: true,
+      },
     })
 
     return NextResponse.json(updatedSchedule)
   } catch (error) {
-    
     captureError(error, {
       location: 'api/schedules/times',
-      type: 'save-times'
+      type: 'save-times',
     })
-    return NextResponse.json(
-      { error: 'Failed to save times' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to save times' }, { status: 500 })
   }
 }
-

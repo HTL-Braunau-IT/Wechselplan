@@ -12,26 +12,23 @@ export async function GET() {
   const denied = await denyUnlessAccess('staff')
   if (denied) return denied
 
-	try {
-		const rooms = await prisma.room.findMany({
-			select: {
-				id: true,
-				name: true
-			},
-			orderBy: {
-				name: 'asc'
-			}
-		})
+  try {
+    const rooms = await prisma.room.findMany({
+      select: {
+        id: true,
+        name: true,
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    })
 
-		return NextResponse.json({ rooms })
-	} catch (error) {
-		captureError(error instanceof Error ? error : new Error(String(error)), {
-			location: 'api/rooms',
-			type: 'fetch-rooms'
-		})
-		return NextResponse.json(
-			{ error: 'Failed to fetch rooms' },
-			{ status: 500 }
-		)
-	}
-} 
+    return NextResponse.json({ rooms })
+  } catch (error) {
+    captureError(error instanceof Error ? error : new Error(String(error)), {
+      location: 'api/rooms',
+      type: 'fetch-rooms',
+    })
+    return NextResponse.json({ error: 'Failed to fetch rooms' }, { status: 500 })
+  }
+}

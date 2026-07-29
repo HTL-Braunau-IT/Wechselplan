@@ -22,10 +22,7 @@ import {
   useSyncPreview,
 } from '@/components/sync/use-sync-preview'
 import { useSchoolYear } from '@/contexts/school-year-context'
-import type {
-  ClassStudentSyncDiff,
-  ClassStudentSyncSummary,
-} from '@/lib/class-student-sync'
+import type { ClassStudentSyncDiff, ClassStudentSyncSummary } from '@/lib/class-student-sync'
 
 type Bucket =
   | 'classCreate'
@@ -194,9 +191,9 @@ export function ClassStudentSyncDialog({
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Gruppen nicht erreichbar</AlertTitle>
               <AlertDescription>
-                {diff.unresolvedGroupIds.length} konfigurierte Entra-Gruppe(n) konnten nicht
-                gelesen werden. Betroffene Klassen erscheinen dadurch als &bdquo;zu
-                deaktivieren&ldquo;. Bitte vor dem Anwenden prüfen.
+                {diff.unresolvedGroupIds.length} konfigurierte Entra-Gruppe(n) konnten nicht gelesen
+                werden. Betroffene Klassen erscheinen dadurch als &bdquo;zu deaktivieren&ldquo;.
+                Bitte vor dem Anwenden prüfen.
               </AlertDescription>
             </Alert>
           )}
@@ -206,11 +203,7 @@ export function ClassStudentSyncDialog({
             {diff.debug.mappedUserCount} Personen aus Graph
           </p>
 
-          <Tabs
-            value={outerTab ?? initialOuterTab}
-            onValueChange={setOuterTab}
-            className="w-full"
-          >
+          <Tabs value={outerTab ?? initialOuterTab} onValueChange={setOuterTab} className="w-full">
             <TabsList className="grid w-full grid-cols-3">
               <CountTabTrigger value="classes" label="Klassen" count={counts.classes.total} />
               <CountTabTrigger value="students" label="Schüler" count={counts.students.total} />
@@ -558,10 +551,10 @@ export function ClassStudentSyncDialog({
                         <AlertCircle className="h-4 w-4" />
                         <AlertTitle>Mehrdeutige Klassenzugehörigkeit</AlertTitle>
                         <AlertDescription>
-                          Diese Schüler sind in mehreren synchronisierten Klassengruppen. Sie
-                          werden angelegt bzw. beibehalten, aber ohne Klasse und mit dem
-                          Sync-Status &bdquo;keine Klasse&ldquo;. Die Zugehörigkeit muss in Entra
-                          bereinigt werden.
+                          Diese Schüler sind in mehreren synchronisierten Klassengruppen. Sie werden
+                          angelegt bzw. beibehalten, aber ohne Klasse und mit dem Sync-Status
+                          &bdquo;keine Klasse&ldquo;. Die Zugehörigkeit muss in Entra bereinigt
+                          werden.
                         </AlertDescription>
                       </Alert>
                       <SyncSelectionTable

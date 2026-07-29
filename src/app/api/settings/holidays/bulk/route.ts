@@ -14,17 +14,14 @@ export async function POST(request: Request) {
   if (denied) return denied
 
   try {
-    const holidays = await request.json() as Array<{
+    const holidays = (await request.json()) as Array<{
       name: string
       startDate: string
       endDate: string
     }>
 
     if (!Array.isArray(holidays) || holidays.length === 0) {
-      return NextResponse.json(
-        { error: 'Invalid holidays data' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Invalid holidays data' }, { status: 400 })
     }
 
     // Create all holidays in a transaction
@@ -34,22 +31,18 @@ export async function POST(request: Request) {
           data: {
             name: holiday.name,
             startDate: new Date(holiday.startDate),
-            endDate: new Date(holiday.endDate)
-          }
-        })
-      )
+            endDate: new Date(holiday.endDate),
+          },
+        }),
+      ),
     )
 
     return NextResponse.json(createdHolidays)
   } catch (error) {
-   
     captureError(error, {
       location: 'api/settings/holidays/bulk',
-      type: 'save-holidays'
+      type: 'save-holidays',
     })
-    return NextResponse.json(
-      { error: 'Failed to save holidays' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to save holidays' }, { status: 500 })
   }
-} 
+}

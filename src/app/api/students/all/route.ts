@@ -14,47 +14,38 @@ export async function GET(request: Request) {
   const denied = await denyUnlessAccess('staff')
   if (denied) return denied
 
-    try {
-        const { searchParams } = new URL(request.url)
-        const schoolYearIdParam = searchParams.get('schoolYearId')
-        const schoolYearId = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
+  try {
+    const { searchParams } = new URL(request.url)
+    const schoolYearIdParam = searchParams.get('schoolYearId')
+    const schoolYearId = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
 
-        if (schoolYearId != null && !Number.isNaN(schoolYearId)) {
-            const memberships = await prisma.classMembership.findMany({
-                where: { schoolYearId },
-                include: {
-                    student: true,
-                    class: { select: { id: true, name: true } }
-                },
-                orderBy: [
-                    { student: { lastName: 'asc' } },
-                    { student: { firstName: 'asc' } }
-                ]
-            })
-            const students = memberships.map((m) => ({
-                ...m.student,
-                classId: m.classId,
-                class: m.class
-            }))
-            return NextResponse.json(students)
-        }
-
-        const students = await prisma.student.findMany({
-            include: { class: true },
-            orderBy: [
-                { lastName: 'asc' },
-                { firstName: 'asc' }
-            ]
-        })
-        return NextResponse.json(students)
-    } catch (error) {
-        captureError(error, {
-            location: 'api/students/all',
-            type: 'fetch-students'
-        })
-        return NextResponse.json(
-            { error: 'Failed to fetch students' },
-            { status: 500 }
-        )
+    if (schoolYearId != null && !Number.isNaN(schoolYearId)) {
+      const memberships = await prisma.classMembership.findMany({
+        where: { schoolYearId },
+        include: {
+          student: true,
+          class: { select: { id: true, name: true } },
+        },
+        orderBy: [{ student: { lastName: 'asc' } }, { student: { firstName: 'asc' } }],
+      })
+      const students = memberships.map(m => ({
+        ...m.student,
+        classId: m.classId,
+        class: m.class,
+      }))
+      return NextResponse.json(students)
     }
-} 
+
+    const students = await prisma.student.findMany({
+      include: { class: true },
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+    })
+    return NextResponse.json(students)
+  } catch (error) {
+    captureError(error, {
+      location: 'api/students/all',
+      type: 'fetch-students',
+    })
+    return NextResponse.json({ error: 'Failed to fetch students' }, { status: 500 })
+  }
+}

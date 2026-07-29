@@ -35,12 +35,14 @@ function normalizeNamePart(v: string): string {
  * Classes without a weekday suffix are returned unchanged.
  */
 function classNameForNotenmanagement(name: string): string {
-  return name.replace(/\s*(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)$/u, '').trim()
+  return name
+    .replace(/\s*(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)$/u, '')
+    .trim()
 }
 
 async function getNotenmanagementAccessToken(
   username: string,
-  password: string
+  password: string,
 ): Promise<{ token: string; expiresIn: number }> {
   const tokenUrl = new URL('Token', env.NOTENMANAGEMENT_BASE_URL).toString()
   const body = new URLSearchParams({
@@ -65,7 +67,9 @@ async function getNotenmanagementAccessToken(
   }
 }
 
-async function fetchNotenmanagementStudents(accessToken: string): Promise<NotenmanagementStudent[]> {
+async function fetchNotenmanagementStudents(
+  accessToken: string,
+): Promise<NotenmanagementStudent[]> {
   const url = new URL('api/Schueler', env.NOTENMANAGEMENT_BASE_URL).toString()
   const res = await fetch(url, {
     headers: { Authorization: `bearer ${accessToken}` },
@@ -120,8 +124,7 @@ export async function POST(request: Request) {
             ? parseInt(body.groupId, 10)
             : Number.NaN
         : null
-    const groupId =
-      groupIdParam !== null && !Number.isNaN(groupIdParam) ? groupIdParam : null
+    const groupId = groupIdParam !== null && !Number.isNaN(groupIdParam) ? groupIdParam : null
 
     if (groupId !== null && !(await isFeatureEnabled('notenmgmt_htl'))) {
       return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
@@ -131,7 +134,8 @@ export async function POST(request: Request) {
     }
 
     const classId = typeof body.classId === 'number' ? body.classId : parseInt(String(body.classId))
-    const semester = body.semester === 'first' || body.semester === 'second' ? (body.semester as Semester) : null
+    const semester =
+      body.semester === 'first' || body.semester === 'second' ? (body.semester as Semester) : null
 
     // Resolve school year: from body or current
     let schoolYearId = body.schoolYearId
@@ -139,21 +143,32 @@ export async function POST(request: Request) {
       const now = new Date()
       const current = await prisma.schoolYear.findFirst({
         where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true }
+        select: { id: true },
       })
-      schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
+      schoolYearId =
+        current?.id ??
+        (
+          await prisma.schoolYear.findFirst({
+            orderBy: { startDate: 'desc' },
+            select: { id: true },
+          })
+        )?.id
     }
     if (schoolYearId == null) {
       return NextResponse.json(
-        { error: 'No school year found. Create a school year in Admin / Data / School Years first.' },
-        { status: 400 }
+        {
+          error: 'No school year found. Create a school year in Admin / Data / School Years first.',
+        },
+        { status: 400 },
       )
     }
     const nmUsername = typeof body.username === 'string' ? body.username : null
     const password = typeof body.password === 'string' ? body.password : null
     const providedToken = typeof body.token === 'string' ? body.token : null
     const notes = Array.isArray(body.notes) ? body.notes : null
-    const notesByMatrikelnummerRaw = Array.isArray(body.notesByMatrikelnummer) ? body.notesByMatrikelnummer : []
+    const notesByMatrikelnummerRaw = Array.isArray(body.notesByMatrikelnummer)
+      ? body.notesByMatrikelnummer
+      : []
 
     if (!classId || Number.isNaN(classId) || !semester || !nmUsername || !notes) {
       return NextResponse.json({ error: 'Missing or invalid parameters' }, { status: 400 })
@@ -165,10 +180,18 @@ export async function POST(request: Request) {
 
     const notesByStudentId = new Map<number, 1 | 2 | 3 | 4 | 5 | null>()
     const nullNoteReasonByStudentId = new Map<number, 'Nicht beurteilt' | 'Gestundet'>()
-    for (const n of notes as Array<{ studentId?: unknown; note?: unknown; nullNoteReason?: unknown }>) {
-      const studentId = typeof n.studentId === 'number' ? n.studentId : parseInt(String(n.studentId))
+    for (const n of notes as Array<{
+      studentId?: unknown
+      note?: unknown
+      nullNoteReason?: unknown
+    }>) {
+      const studentId =
+        typeof n.studentId === 'number' ? n.studentId : parseInt(String(n.studentId))
       if (!studentId || Number.isNaN(studentId)) continue
-      const reason = n.nullNoteReason === 'Nicht beurteilt' || n.nullNoteReason === 'Gestundet' ? n.nullNoteReason : undefined
+      const reason =
+        n.nullNoteReason === 'Nicht beurteilt' || n.nullNoteReason === 'Gestundet'
+          ? n.nullNoteReason
+          : undefined
       if (n.note === null || n.note === undefined) {
         notesByStudentId.set(studentId, null)
         if (reason) nullNoteReasonByStudentId.set(studentId, reason)
@@ -176,7 +199,12 @@ export async function POST(request: Request) {
       }
       // Notenmanagement only accepts integer grades 1-5. Prefill/half grades (e.g. 1.5) are
       // rounded to the nearest whole grade instead of being dropped to "Keine Note".
-      const rawNote = typeof n.note === 'number' ? n.note : (typeof n.note === 'string' ? parseFloat(n.note) : Number.NaN)
+      const rawNote =
+        typeof n.note === 'number'
+          ? n.note
+          : typeof n.note === 'string'
+            ? parseFloat(n.note)
+            : Number.NaN
       const noteNum = Number.isNaN(rawNote) ? Number.NaN : Math.round(rawNote)
       if (Number.isNaN(noteNum) || ![1, 2, 3, 4, 5].includes(noteNum)) {
         notesByStudentId.set(studentId, null)
@@ -207,7 +235,7 @@ export async function POST(request: Request) {
     // For group transfer (Notenstand): filter students to this group only
     const classStudents =
       groupId !== null
-        ? classRecord.students.filter((st) => st.groupId === groupId)
+        ? classRecord.students.filter(st => st.groupId === groupId)
         : classRecord.students
 
     const assignments = await prisma.teacherAssignment.findMany({
@@ -216,7 +244,9 @@ export async function POST(request: Request) {
         subject: { select: { name: true } },
       },
     })
-    const teacherIds = Array.from(new Set(assignments.map((a: { teacherId: number }) => a.teacherId)))
+    const teacherIds = Array.from(
+      new Set(assignments.map((a: { teacherId: number }) => a.teacherId)),
+    )
     if (teacherIds.length === 0) {
       return NextResponse.json({ error: 'No teachers assigned to class' }, { status: 400 })
     }
@@ -225,7 +255,8 @@ export async function POST(request: Request) {
     if (assignments.length > 0) {
       const subjectCounts = new Map<string, number>()
       for (const a of assignments) {
-        if (a.subject?.name) subjectCounts.set(a.subject.name, (subjectCounts.get(a.subject.name) ?? 0) + 1)
+        if (a.subject?.name)
+          subjectCounts.set(a.subject.name, (subjectCounts.get(a.subject.name) ?? 0) + 1)
       }
       let maxCount = 0
       for (const [s, c] of subjectCounts.entries()) {
@@ -236,7 +267,10 @@ export async function POST(request: Request) {
       }
     }
     if (!subjectName) {
-      return NextResponse.json({ error: 'Could not determine subject for this class' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Could not determine subject for this class' },
+        { status: 400 },
+      )
     }
     const subjectTruncated = truncateSubject(subjectName)
 
@@ -272,7 +306,10 @@ export async function POST(request: Request) {
       accessToken = providedToken
     } else {
       if (!password) {
-        return NextResponse.json({ error: 'Password required when token is not provided' }, { status: 400 })
+        return NextResponse.json(
+          { error: 'Password required when token is not provided' },
+          { status: 400 },
+        )
       }
       const tokenData = await getNotenmanagementAccessToken(nmUsername, password)
       accessToken = tokenData.token
@@ -308,15 +345,27 @@ export async function POST(request: Request) {
       groupId !== null
         ? classStudents
         : classRecord.students
-            .filter((st: (typeof classRecord.students)[number]) => st.groupId !== null && st.groupId !== undefined)
-            .filter((st: (typeof classRecord.students)[number]): st is (typeof classRecord.students)[number] => {
-              return teacherIds.every((tid) => {
-                const g = gradeByStudentTeacher.get(`${st.id}:${tid}`)
-                return typeof g === 'number'
-              })
-            })
+            .filter(
+              (st: (typeof classRecord.students)[number]) =>
+                st.groupId !== null && st.groupId !== undefined,
+            )
+            .filter(
+              (
+                st: (typeof classRecord.students)[number],
+              ): st is (typeof classRecord.students)[number] => {
+                return teacherIds.every(tid => {
+                  const g = gradeByStudentTeacher.get(`${st.id}:${tid}`)
+                  return typeof g === 'number'
+                })
+              },
+            )
 
-    type NotenEntry = { Matrikelnummer: number; Note: number | null; Punkte: number; Kommentar: string }
+    type NotenEntry = {
+      Matrikelnummer: number
+      Note: number | null
+      Punkte: number
+      Kommentar: string
+    }
 
     // When Note is null, set Kommentar: use payload nullNoteReason if provided, else infer from student grades (6 or 7)
     function commentForNullNote(st: { id: number }): string {
@@ -365,17 +414,33 @@ export async function POST(request: Request) {
       }
       const note = notesByStudentId.get(st.id) ?? null
       const kommentar = note === null ? commentForNullNote(st) : ''
-      pushNote(match.klasse, { Matrikelnummer: match.matr, Note: note, Punkte: 0.0, Kommentar: kommentar })
+      pushNote(match.klasse, {
+        Matrikelnummer: match.matr,
+        Note: note,
+        Punkte: 0.0,
+        Kommentar: kommentar,
+      })
       notenCount++
     }
 
     // Add entries for NM-only students (in Notenmanagement but not locally matched)
-    for (const item of notesByMatrikelnummerRaw as Array<{ matrikelnummer?: unknown; note?: unknown }>) {
-      const matr = typeof item.matrikelnummer === 'number' ? item.matrikelnummer : parseInt(String(item.matrikelnummer))
+    for (const item of notesByMatrikelnummerRaw as Array<{
+      matrikelnummer?: unknown
+      note?: unknown
+    }>) {
+      const matr =
+        typeof item.matrikelnummer === 'number'
+          ? item.matrikelnummer
+          : parseInt(String(item.matrikelnummer))
       if (!matr || Number.isNaN(matr)) continue
       let note: number | null = null
       if (item.note !== null && item.note !== undefined) {
-        const n = typeof item.note === 'number' ? item.note : (typeof item.note === 'string' ? parseInt(item.note, 10) : Number.NaN)
+        const n =
+          typeof item.note === 'number'
+            ? item.note
+            : typeof item.note === 'string'
+              ? parseInt(item.note, 10)
+              : Number.NaN
         if (!Number.isNaN(n) && [1, 2, 3, 4, 5].includes(n)) note = n as 1 | 2 | 3 | 4 | 5
       }
       const klasse = klasseByMatr.get(matr) ?? nmClassName
@@ -394,17 +459,18 @@ export async function POST(request: Request) {
               : 'No matched students with notes to transfer',
           diagnostics: {
             class: nmClassName,
-            payloadStudents: completeStudents.filter((st) => notesByStudentId.has(st.id)).length,
+            payloadStudents: completeStudents.filter(st => notesByStudentId.has(st.id)).length,
             unmatched,
           },
         },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
     const semesterLabel = semester === 'first' ? '1. Semester' : '2. Semester'
     const semesterN = semester === 'first' ? '1' : '2'
-    const typ = groupId !== null ? 'Notenstand' : semester === 'first' ? 'Semesternote' : 'Jahresnote'
+    const typ =
+      groupId !== null ? 'Notenstand' : semester === 'first' ? 'Semesternote' : 'Jahresnote'
     const kommentar =
       groupId !== null
         ? `Notenstand Semester ${semesterN} Gruppe ${groupId} ${teacherFirstName} ${teacherLastName}`
@@ -413,10 +479,10 @@ export async function POST(request: Request) {
     function extractLfId(body: unknown): string | null {
       const id =
         typeof body === 'object' && body !== null
-          ? (body as Record<string, unknown>).LF_ID ??
+          ? ((body as Record<string, unknown>).LF_ID ??
             (body as Record<string, unknown>).Lf_ID ??
             (body as Record<string, unknown>).id ??
-            (body as Record<string, unknown>).Id
+            (body as Record<string, unknown>).Id)
           : null
       return typeof id === 'number' || typeof id === 'string' ? String(id) : null
     }
@@ -446,18 +512,31 @@ export async function POST(request: Request) {
       const ct = postRes.headers.get('content-type') ?? ''
       const postBody = ct.includes('application/json') ? await postRes.json() : await postRes.text()
       if (!postRes.ok) {
-        return { error: NextResponse.json({ error: 'Notenmanagement /api/LFs POST failed', details: postBody }, { status: 502 }) }
+        return {
+          error: NextResponse.json(
+            { error: 'Notenmanagement /api/LFs POST failed', details: postBody },
+            { status: 502 },
+          ),
+        }
       }
       const lfId = extractLfId(postBody)
       if (lfId === null) {
-        return { error: NextResponse.json({ error: 'LF created but no LF_ID returned', response: postBody }, { status: 502 }) }
+        return {
+          error: NextResponse.json(
+            { error: 'LF created but no LF_ID returned', response: postBody },
+            { status: 502 },
+          ),
+        }
       }
       return { lfId }
     }
 
     // PUT an existing LF; returns the (possibly new) LF id, or null when the LF could not be updated.
     async function putLf(lfId: string, payload: unknown): Promise<string | null> {
-      const putUrl = new URL(`api/LFs/${encodeURIComponent(lfId)}`, env.NOTENMANAGEMENT_BASE_URL).toString()
+      const putUrl = new URL(
+        `api/LFs/${encodeURIComponent(lfId)}`,
+        env.NOTENMANAGEMENT_BASE_URL,
+      ).toString()
       const putRes = await fetch(putUrl, {
         method: 'PUT',
         headers: { Authorization: `bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -468,7 +547,7 @@ export async function POST(request: Request) {
       if (!putRes.ok) {
         console.warn(
           `[Notenmanagement] PUT /api/LFs/${lfId} failed (status ${putRes.status}); will create a new LF instead.`,
-          typeof putBody === 'string' ? putBody : JSON.stringify(putBody)
+          typeof putBody === 'string' ? putBody : JSON.stringify(putBody),
         )
         return null
       }
@@ -481,7 +560,10 @@ export async function POST(request: Request) {
     for (const klasse of klassen) {
       const entries = notenByKlasse.get(klasse)!
       const payload = buildPayload(klasse, entries)
-      console.log(`[Notenmanagement] transfer class "${klasse}" (${entries.length} Noten):`, JSON.stringify(payload, null, 2))
+      console.log(
+        `[Notenmanagement] transfer class "${klasse}" (${entries.length} Noten):`,
+        JSON.stringify(payload, null, 2),
+      )
 
       // Find the record for this real class. For a single-class transfer also accept the
       // legacy record written before nmKlasse existed (nmKlasse = null) and adopt it.
@@ -534,8 +616,9 @@ export async function POST(request: Request) {
       type: 'transfer',
       extra: { requestData },
     })
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Transfer failed' }, { status: 500 })
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Transfer failed' },
+      { status: 500 },
+    )
   }
 }
-
-

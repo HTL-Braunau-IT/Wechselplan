@@ -25,8 +25,8 @@ i18n
     backend: {
       loadPath: '/locales/{{lng}}/{{ns}}.json',
       requestOptions: {
-        cache: 'no-store'
-      }
+        cache: 'no-store',
+      },
     },
     interpolation: {
       escapeValue: false,
@@ -39,4 +39,4 @@ i18n
     console.error('Failed to initialize i18n:', err)
   })
 
-export default i18n 
+export default i18n

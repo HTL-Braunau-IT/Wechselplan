@@ -70,8 +70,8 @@ export async function resolveMicrosoftAccess(objectId: string): Promise<Microsof
   const legacyStudentGroups = parseCsvEnv(process.env.MS_STUDENT_GROUPS)
   const legacyTeacherGroups = parseCsvEnv(process.env.MS_TEACHER_GROUPS)
 
-  const teacherGroups = [teacherGroupId, ...legacyTeacherGroups].filter(
-    (id): id is string => Boolean(id),
+  const teacherGroups = [teacherGroupId, ...legacyTeacherGroups].filter((id): id is string =>
+    Boolean(id),
   )
   const studentGroups = [...syncedClassGroupIds, ...legacyStudentGroups]
 
@@ -113,15 +113,15 @@ async function ensureRolesExist() {
         update: {},
         create: {
           name: role,
-          description: `${role.charAt(0).toUpperCase() + role.slice(1)} role`
-        }
+          description: `${role.charAt(0).toUpperCase() + role.slice(1)} role`,
+        },
       })
     }
   } catch (error) {
     console.error('Error ensuring roles exist:', error)
     captureError(error, {
       location: 'auth',
-      type: 'ensure_roles_error'
+      type: 'ensure_roles_error',
     })
   }
 }
@@ -176,7 +176,7 @@ async function saveUserRole(username: string, role: AppRole) {
 
     // Get the role ID
     const roleRecord = await prisma.role.findUnique({
-      where: { name: role }
+      where: { name: role },
     })
 
     if (!roleRecord) {
@@ -184,7 +184,7 @@ async function saveUserRole(username: string, role: AppRole) {
       captureError(new Error(`Role ${role} not found in database`), {
         location: 'auth',
         type: 'role_not_found',
-        extra: { username, role }
+        extra: { username, role },
       })
       return
     }
@@ -199,17 +199,17 @@ async function saveUserRole(username: string, role: AppRole) {
           userId: username,
           role: {
             name: {
-              in: ['teacher', 'student', 'user']
-            }
-          }
-        }
+              in: ['teacher', 'student', 'user'],
+            },
+          },
+        },
       })
 
       await tx.userRole.create({
         data: {
           userId: username,
-          roleId: roleRecord.id
-        }
+          roleId: roleRecord.id,
+        },
       })
     })
   } catch (error) {
@@ -217,7 +217,7 @@ async function saveUserRole(username: string, role: AppRole) {
     captureError(error, {
       location: 'auth',
       type: 'save_user_role_error',
-      extra: { username, role }
+      extra: { username, role },
     })
   }
 }
@@ -230,141 +230,142 @@ interface LDAPUser extends User {
 
 export const authOptions: NextAuthOptions = {
   providers: [
-    ...(isEnabled(process.env.AUTH_LDAP_ENABLED) ? [CredentialsProvider({
-      id: 'ldap',
-      name: 'LDAP',
-      credentials: {
-        username: { label: 'Username', type: 'text' },
-        password: { label: 'Password', type: 'password' },
-      },
-      async authorize(credentials) {
-        if (!credentials?.username || !credentials?.password) {
-          return null
-        }
+    ...(isEnabled(process.env.AUTH_LDAP_ENABLED)
+      ? [
+          CredentialsProvider({
+            id: 'ldap',
+            name: 'LDAP',
+            credentials: {
+              username: { label: 'Username', type: 'text' },
+              password: { label: 'Password', type: 'password' },
+            },
+            async authorize(credentials) {
+              if (!credentials?.username || !credentials?.password) {
+                return null
+              }
 
-        try {
-          const client = new LDAPClient({
-            url: process.env.LDAP_URL!,
-            baseDN: process.env.LDAP_BASE_DN!,
-            bindDN: process.env.LDAP_USERNAME!,
-            bindPassword: process.env.LDAP_PASSWORD!,
-            timeout: 3000 // 3 seconds timeout for initial auth
-          })
+              try {
+                const client = new LDAPClient({
+                  url: process.env.LDAP_URL!,
+                  baseDN: process.env.LDAP_BASE_DN!,
+                  bindDN: process.env.LDAP_USERNAME!,
+                  bindPassword: process.env.LDAP_PASSWORD!,
+                  timeout: 3000, // 3 seconds timeout for initial auth
+                })
 
-          const user = await client.authenticate(
-            credentials.username,
-            credentials.password
-          )
+                const user = await client.authenticate(credentials.username, credentials.password)
 
-          if (!user) {
-            return null
-          }
+                if (!user) {
+                  return null
+                }
 
-          // Check if user is in student or teacher groups
-          const studentGroups = process.env.LDAP_STUDENT_GROUPS?.split(',') ?? []
-          const teacherGroups = process.env.LDAP_TEACHER_GROUPS?.split(',') ?? []
+                // Check if user is in student or teacher groups
+                const studentGroups = process.env.LDAP_STUDENT_GROUPS?.split(',') ?? []
+                const teacherGroups = process.env.LDAP_TEACHER_GROUPS?.split(',') ?? []
 
-          // Create a new client instance for group search to avoid connection issues
-          const groupClient = new LDAPClient({
-            url: process.env.LDAP_URL!,
-            baseDN: process.env.LDAP_BASE_DN!,
-            bindDN: process.env.LDAP_USERNAME!,
-            bindPassword: process.env.LDAP_PASSWORD!,
-            timeout: 3000 // 3 seconds timeout for group search
-          })
+                // Create a new client instance for group search to avoid connection issues
+                const groupClient = new LDAPClient({
+                  url: process.env.LDAP_URL!,
+                  baseDN: process.env.LDAP_BASE_DN!,
+                  bindDN: process.env.LDAP_USERNAME!,
+                  bindPassword: process.env.LDAP_PASSWORD!,
+                  timeout: 3000, // 3 seconds timeout for group search
+                })
 
-          const userGroups = await groupClient.getUserGroups(user.dn)
+                const userGroups = await groupClient.getUserGroups(user.dn)
 
-          const isStudent = userGroups.some((group) =>
-            studentGroups.includes(group)
-          )
-          const isTeacher = userGroups.some((group) =>
-            teacherGroups.includes(group)
-          )
+                const isStudent = userGroups.some(group => studentGroups.includes(group))
+                const isTeacher = userGroups.some(group => teacherGroups.includes(group))
 
-          const role = isTeacher ? 'teacher' : isStudent ? 'student' : 'user'
-          const normalizedName = normalizeUsername(credentials.username)
-          // Save the role to the database asynchronously (use normalized username)
-          saveUserRole(normalizedName, role).catch(error => {
-            console.error('Error saving user role:', error)
-            captureError(error, {
-              location: 'auth',
-              type: 'async_save_user_role_error',
-              extra: { username: normalizedName, role }
-            })
-          })
+                const role = isTeacher ? 'teacher' : isStudent ? 'student' : 'user'
+                const normalizedName = normalizeUsername(credentials.username)
+                // Save the role to the database asynchronously (use normalized username)
+                saveUserRole(normalizedName, role).catch(error => {
+                  console.error('Error saving user role:', error)
+                  captureError(error, {
+                    location: 'auth',
+                    type: 'async_save_user_role_error',
+                    extra: { username: normalizedName, role },
+                  })
+                })
 
-          return {
-            id: normalizedName,
-            name: normalizedName,
-            firstName: user.givenName,
-            lastName: user.sn,
-            email: user.mail,
-            role,
-          } as LDAPUser
-        } catch (error) {
-          console.error('LDAP authentication error:', error)
-          captureError(error, {
-            location: 'auth',
-            type: 'ldap_authentication_error',
-            extra: { username: credentials.username }
-          })
-          return null
-        }
-      },
-    })] : []),
-    ...(isEnabled(process.env.AUTH_MS_ENABLED) ? [AzureADProvider({
-      clientId: process.env.ENTRA_CLIENT_ID ?? process.env.AZURE_AD_CLIENT_ID!,
-      clientSecret: process.env.ENTRA_CLIENT_SECRET ?? process.env.AZURE_AD_CLIENT_SECRET!,
-      tenantId: process.env.ENTRA_TENANT_ID ?? process.env.AZURE_AD_TENANT_ID,
-      authorization: {
-        params: {
-          scope: 'openid profile email',
-        },
-      },
-      // Use Entra Object ID (oid) as the stable user identifier so it matches
-      // ENTRA_SUPER_ADMIN_OBJECT_ID and the external key we'll use for sync.
-      profile(profile) {
-        const entraProfile = profile as {
-          oid?: string
-          sub?: string
-          name?: string
-          email?: string
-          preferred_username?: string
-          given_name?: string
-          family_name?: string
-        }
+                return {
+                  id: normalizedName,
+                  name: normalizedName,
+                  firstName: user.givenName,
+                  lastName: user.sn,
+                  email: user.mail,
+                  role,
+                } as LDAPUser
+              } catch (error) {
+                console.error('LDAP authentication error:', error)
+                captureError(error, {
+                  location: 'auth',
+                  type: 'ldap_authentication_error',
+                  extra: { username: credentials.username },
+                })
+                return null
+              }
+            },
+          }),
+        ]
+      : []),
+    ...(isEnabled(process.env.AUTH_MS_ENABLED)
+      ? [
+          AzureADProvider({
+            clientId: process.env.ENTRA_CLIENT_ID ?? process.env.AZURE_AD_CLIENT_ID!,
+            clientSecret: process.env.ENTRA_CLIENT_SECRET ?? process.env.AZURE_AD_CLIENT_SECRET!,
+            tenantId: process.env.ENTRA_TENANT_ID ?? process.env.AZURE_AD_TENANT_ID,
+            authorization: {
+              params: {
+                scope: 'openid profile email',
+              },
+            },
+            // Use Entra Object ID (oid) as the stable user identifier so it matches
+            // ENTRA_SUPER_ADMIN_OBJECT_ID and the external key we'll use for sync.
+            profile(profile) {
+              const entraProfile = profile as {
+                oid?: string
+                sub?: string
+                name?: string
+                email?: string
+                preferred_username?: string
+                given_name?: string
+                family_name?: string
+              }
 
-        const displayName = entraProfile.name?.trim() ?? ''
-        let firstName = entraProfile.given_name?.trim() ?? null
-        let lastName = entraProfile.family_name?.trim() ?? null
+              const displayName = entraProfile.name?.trim() ?? ''
+              let firstName = entraProfile.given_name?.trim() ?? null
+              let lastName = entraProfile.family_name?.trim() ?? null
 
-        // Entra sometimes omits given_name/family_name from the id_token even
-        // with the `profile` scope (depends on tenant config and user profile
-        // population). Fall back to splitting the display name so the UI still
-        // shows something meaningful.
-        if (!firstName && !lastName && displayName) {
-          const parts = displayName.split(/\s+/).filter(Boolean)
-          if (parts.length === 1) {
-            firstName = parts[0] ?? null
-          } else if (parts.length > 1) {
-            firstName = parts[0] ?? null
-            lastName = parts.slice(1).join(' ') || null
-          }
-        } else if (!firstName && displayName) {
-          firstName = displayName
-        }
+              // Entra sometimes omits given_name/family_name from the id_token even
+              // with the `profile` scope (depends on tenant config and user profile
+              // population). Fall back to splitting the display name so the UI still
+              // shows something meaningful.
+              if (!firstName && !lastName && displayName) {
+                const parts = displayName.split(/\s+/).filter(Boolean)
+                if (parts.length === 1) {
+                  firstName = parts[0] ?? null
+                } else if (parts.length > 1) {
+                  firstName = parts[0] ?? null
+                  lastName = parts.slice(1).join(' ') || null
+                }
+              } else if (!firstName && displayName) {
+                firstName = displayName
+              }
 
-        return {
-          id: entraProfile.oid ?? entraProfile.sub ?? '',
-          name: displayName || null,
-          email: entraProfile.email ?? entraProfile.preferred_username ?? null,
-          image: null,
-          firstName,
-          lastName,
-        } as User & { firstName: string | null; lastName: string | null }
-      },
-    })] : []),
+              return {
+                id: entraProfile.oid ?? entraProfile.sub ?? '',
+                name: displayName || null,
+                email: entraProfile.email ?? entraProfile.preferred_username ?? null,
+                image: null,
+                firstName,
+                lastName,
+              } as User & { firstName: string | null; lastName: string | null }
+            },
+          }),
+        ]
+      : []),
   ],
   callbacks: {
     async signIn({ account, user }) {
@@ -426,7 +427,7 @@ export const authOptions: NextAuthOptions = {
 
           const jwtToken = token as typeof token & { preferred_username?: string }
           const roleUserId = normalizeUsername(
-            String(token.email ?? jwtToken.preferred_username ?? token.name ?? token.sub ?? '')
+            String(token.email ?? jwtToken.preferred_username ?? token.name ?? token.sub ?? ''),
           )
           if (roleUserId) {
             await saveUserRole(roleUserId, accessResult.role)
@@ -447,7 +448,7 @@ export const authOptions: NextAuthOptions = {
           captureError(error, {
             location: 'auth',
             type: 'azure_ad_groups_error',
-            extra: { userId: token.sub }
+            extra: { userId: token.sub },
           })
         }
       }
@@ -475,7 +476,7 @@ export const authOptions: NextAuthOptions = {
         session.user.lastName = token.lastName as string | null
         // Normalize name for teacher/student lookups (e.g. firstname.lastname, email/UPN)
         session.user.name = normalizeUsername(
-          session.user.name ?? session.user.email ?? token.sub ?? ''
+          session.user.name ?? session.user.email ?? token.sub ?? '',
         )
       }
       return session
@@ -492,9 +493,9 @@ export async function hasRole(userId: string, roleName: string): Promise<boolean
       where: {
         userId,
         role: {
-          name: roleName
-        }
-      }
+          name: roleName,
+        },
+      },
     })
     return !!userRole
   } catch (error) {
@@ -502,7 +503,7 @@ export async function hasRole(userId: string, roleName: string): Promise<boolean
     captureError(error, {
       location: 'auth',
       type: 'check_role_error',
-      extra: { userId, roleName }
+      extra: { userId, roleName },
     })
     return false
   }
@@ -512,11 +513,11 @@ export async function getUserRoles(userId: string): Promise<string[]> {
   try {
     const userRoles = await prisma.userRole.findMany({
       where: {
-        userId
+        userId,
       },
       include: {
-        role: true
-      }
+        role: true,
+      },
     })
     return userRoles.map(ur => ur.role.name)
   } catch (error) {
@@ -524,7 +525,7 @@ export async function getUserRoles(userId: string): Promise<string[]> {
     captureError(error, {
       location: 'auth',
       type: 'get_user_roles_error',
-      extra: { userId }
+      extra: { userId },
     })
     return []
   }
@@ -538,7 +539,7 @@ export async function requireRole(userId: string, roleName: string): Promise<boo
       captureError(error, {
         location: 'auth',
         type: 'missing_required_role',
-        extra: { userId, roleName }
+        extra: { userId, roleName },
       })
       throw error
     }
@@ -550,8 +551,8 @@ export async function requireRole(userId: string, roleName: string): Promise<boo
     captureError(error, {
       location: 'auth',
       type: 'require_role_error',
-      extra: { userId, roleName }
+      extra: { userId, roleName },
     })
     throw error
   }
-} 
+}

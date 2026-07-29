@@ -37,36 +37,29 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const rawUserId = searchParams.get('userId')
     if (!rawUserId) {
-      return NextResponse.json(
-        { error: 'User ID is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
     }
     const userId = normalizeUsername(rawUserId)
 
     const userRoles = await prisma.userRole.findMany({
       where: {
-        userId
+        userId,
       },
       include: {
-        role: true
-      }
+        role: true,
+      },
     })
 
     return NextResponse.json(userRoles)
   } catch (error) {
-   
     captureError(error, {
       location: 'api/user-roles',
       type: 'fetch-user-roles',
       extra: {
-        searchParams: Object.fromEntries(new URL(request.url).searchParams)
-      }
+        searchParams: Object.fromEntries(new URL(request.url).searchParams),
+      },
     })
-    return NextResponse.json(
-      { error: 'Failed to fetch user roles' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to fetch user roles' }, { status: 500 })
   }
 }
 
@@ -85,70 +78,60 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
-    const { userId, roleId } = await request.json() as { userId?: string; roleId?: string | number }
+    const { userId, roleId } = (await request.json()) as {
+      userId?: string
+      roleId?: string | number
+    }
     const numericRoleId = Number(roleId)
- 
+
     if (!userId || Number.isNaN(numericRoleId)) {
-      return NextResponse.json(
-        { error: 'User ID and Role ID are required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'User ID and Role ID are required' }, { status: 400 })
     }
 
     // Check if the role exists
     const role = await prisma.role.findUnique({
-      where: { id: numericRoleId }
+      where: { id: numericRoleId },
     })
 
     if (!role) {
-      return NextResponse.json(
-        { error: 'Role not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Role not found' }, { status: 404 })
     }
 
     // Check if the user exists (either as a teacher or student)
     const normalizedUserId = normalizeUsername(userId)
     const teacher = await prisma.teacher.findUnique({
-      where: { username: normalizedUserId }
+      where: { username: normalizedUserId },
     })
 
     const student = await prisma.student.findUnique({
-      where: { username: normalizedUserId }
+      where: { username: normalizedUserId },
     })
 
     if (!teacher && !student) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
     // Create the user role assignment (store normalized userId)
     const userRole = await prisma.userRole.create({
       data: {
         userId: normalizedUserId,
-        roleId: numericRoleId
+        roleId: numericRoleId,
       },
       include: {
-        role: true
-      }
+        role: true,
+      },
     })
 
     return NextResponse.json(userRole)
   } catch (error) {
-   
     captureError(error, {
       location: 'api/user-roles',
       type: 'assign-role',
       extra: {
-        requestBody: await request.text()
-      }
+        requestBody: await request.text(),
+      },
     })
-    return NextResponse.json(
-      { error: 'Failed to assign role to user' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to assign role to user' }, { status: 500 })
   }
 }
 
@@ -172,43 +155,33 @@ export async function DELETE(request: Request) {
     const roleId = searchParams.get('roleId')
 
     if (!rawUserId || !roleId) {
-      return NextResponse.json(
-        { error: 'User ID and Role ID are required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'User ID and Role ID are required' }, { status: 400 })
     }
     const userId = normalizeUsername(rawUserId)
 
     const numericRoleId = Number(roleId)
     if (Number.isNaN(numericRoleId)) {
-      return NextResponse.json(
-        { error: 'Invalid Role ID format' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Invalid Role ID format' }, { status: 400 })
     }
 
     await prisma.userRole.delete({
       where: {
         userId_roleId: {
           userId,
-          roleId: numericRoleId
-        }
-      }
+          roleId: numericRoleId,
+        },
+      },
     })
 
     return NextResponse.json({ message: 'Role assignment removed successfully' })
   } catch (error) {
-    
     captureError(error, {
       location: 'api/user-roles',
       type: 'remove-role',
       extra: {
-        requestBody: await request.text()
-      }
+        requestBody: await request.text(),
+      },
     })
-    return NextResponse.json(
-      { error: 'Failed to remove role assignment' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to remove role assignment' }, { status: 500 })
   }
-} 
+}

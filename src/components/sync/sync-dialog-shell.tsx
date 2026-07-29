@@ -116,13 +116,7 @@ export function SyncDialogShell({
 }
 
 /** Success banner shown after a sync has been applied. */
-export function SyncSummaryAlert({
-  lines,
-  issueCount,
-}: {
-  lines: string[]
-  issueCount: number
-}) {
+export function SyncSummaryAlert({ lines, issueCount }: { lines: string[]; issueCount: number }) {
   return (
     <Alert>
       <CheckCircle2 className="h-4 w-4" />

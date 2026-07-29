@@ -13,26 +13,29 @@ import { captureFrontendError } from '@/lib/frontend-error'
  */
 export async function generateSchedulePDF(classId: string, weekday: number) {
   try {
-    const export_response = await fetch(`/api/export/schedule-dates?className=${classId}&selectedWeekday=${weekday}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
+    const export_response = await fetch(
+      `/api/export/schedule-dates?className=${classId}&selectedWeekday=${weekday}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      },
+    )
 
-    if (!export_response.ok) throw new Error('Failed to export PDF');
+    if (!export_response.ok) throw new Error('Failed to export PDF')
 
-    const today = new Date().toLocaleDateString('de-DE');
-    const blob = await export_response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${classId} - TURNUSTAGE ${getWeekday(weekday)} - ${today}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
+    const today = new Date().toLocaleDateString('de-DE')
+    const blob = await export_response.blob()
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${classId} - TURNUSTAGE ${getWeekday(weekday)} - ${today}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
   } catch (err) {
-    console.error('Error generating PDF:', err);
-    throw new Error('Failed to generate PDF.');
+    console.error('Error generating PDF:', err)
+    throw new Error('Failed to generate PDF.')
   }
 }
 
@@ -50,45 +53,49 @@ export async function generateSchedulePDF(classId: string, weekday: number) {
  *
  * @throws {Error} If the export request fails or the file cannot be generated.
  */
-export async function generateExcel(classId: string, weekday: number, teacher: string, period?: 'AM' | 'PM') {
+export async function generateExcel(
+  classId: string,
+  weekday: number,
+  teacher: string,
+  period?: 'AM' | 'PM',
+) {
   try {
     const params = new URLSearchParams({
       className: classId,
       selectedWeekday: weekday.toString(),
-      teacher: teacher
+      teacher: teacher,
     })
-    
+
     // Add period parameter if specified
     if (period) {
       params.append('period', period)
     }
-    
+
     const export_response = await fetch(`/api/export/notenliste?${params}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    
-    if (!export_response.ok) throw new Error('Failed to export Excel');
-    
+      headers: { 'Content-Type': 'application/json' },
+    })
 
-    const blob = await export_response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
+    if (!export_response.ok) throw new Error('Failed to export Excel')
+
+    const blob = await export_response.blob()
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
     // Update filename to include period if specified
-    const periodSuffix = period ? ` - ${period}` : '';
-    a.download = `${classId} - Notenliste - ${teacher}${periodSuffix}.xlsm`;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
+    const periodSuffix = period ? ` - ${period}` : ''
+    a.download = `${classId} - Notenliste - ${teacher}${periodSuffix}.xlsm`
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
   } catch (err) {
-    console.error('Error generating Excel:', err);
+    console.error('Error generating Excel:', err)
     captureFrontendError(err, {
       location: 'schedule/create/overview',
-      type: 'generate-excel'
-    });
-    throw new Error('Failed to generate Excel.');
+      type: 'generate-excel',
+    })
+    throw new Error('Failed to generate Excel.')
   }
 }
 
@@ -106,36 +113,35 @@ export async function generatePdf(classId: string, weekday: number) {
   try {
     const export_response = await fetch(`/api/export?className=${classId}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
+      headers: { 'Content-Type': 'application/json' },
+    })
 
     if (!export_response.ok) {
-      const error = new Error('Failed to export schedule');
+      const error = new Error('Failed to export schedule')
       captureError(error, {
         location: 'schedule/create/overview',
-        type: 'export-schedule'
+        type: 'export-schedule',
       })
-      throw new Error('Failed to export schedule');
+      throw new Error('Failed to export schedule')
     }
 
-    const today = new Date().toLocaleDateString('de-DE');
-    const blob = await export_response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${classId} - ${getWeekday(weekday)} Wechselplan - ${today}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-
+    const today = new Date().toLocaleDateString('de-DE')
+    const blob = await export_response.blob()
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${classId} - ${getWeekday(weekday)} Wechselplan - ${today}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
   } catch (err) {
-    console.error('Error generating PDF:', err);
+    console.error('Error generating PDF:', err)
     captureFrontendError(err, {
       location: 'schedule/create/overview',
-      type: 'generate-pdf'
-    });
-    throw new Error('Failed to generate PDF.');
+      type: 'generate-pdf',
+    })
+    throw new Error('Failed to generate PDF.')
   }
 }
 
@@ -146,6 +152,6 @@ export async function generatePdf(classId: string, weekday: number) {
  * @returns The German name of the weekday, or 'Unbekannt' if the number is outside the 0–6 range.
  */
 function getWeekday(weekday: number): string {
-  const days = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
-  return days[weekday] ?? 'Unbekannt';
-} 
+  const days = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag']
+  return days[weekday] ?? 'Unbekannt'
+}

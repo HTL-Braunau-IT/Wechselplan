@@ -44,9 +44,10 @@ function splitDisplayName(displayName: string | null | undefined): {
  * Returns a mapping issue instead of throwing so the caller can collect and
  * surface all problems in a single preview pass.
  */
-export function mapMemberToEntraUser(
-  member: EntraGroupMember,
-): { user: EntraUser | null; issue: EntraUserMappingIssue | null } {
+export function mapMemberToEntraUser(member: EntraGroupMember): {
+  user: EntraUser | null
+  issue: EntraUserMappingIssue | null
+} {
   const oid = member.id?.trim()
   if (!oid) {
     return {

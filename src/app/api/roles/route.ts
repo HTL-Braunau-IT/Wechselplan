@@ -5,13 +5,15 @@ import { z } from 'zod'
 import { denyUnlessAccess } from '@/lib/api-guard'
 
 const roleSchema = z.object({
-  name: z.string()
+  name: z
+    .string()
     .min(2, 'Role name must be at least 2 characters')
     .max(50, 'Role name must not exceed 50 characters')
-    .regex(/^[a-zA-Z0-9\s-_]+$/, 'Role name can only contain letters, numbers, spaces, hyphens and underscores'),
-  description: z.string()
-    .max(200, 'Description must not exceed 200 characters')
-    .optional()
+    .regex(
+      /^[a-zA-Z0-9\s-_]+$/,
+      'Role name can only contain letters, numbers, spaces, hyphens and underscores',
+    ),
+  description: z.string().max(200, 'Description must not exceed 200 characters').optional(),
 })
 
 /**
@@ -26,20 +28,16 @@ export async function GET() {
   try {
     const roles = await prisma.role.findMany({
       orderBy: {
-        name: 'asc'
-      }
+        name: 'asc',
+      },
     })
     return NextResponse.json(roles)
   } catch (error) {
-
     captureError(error, {
       location: 'api/roles',
-      type: 'fetch-roles'
+      type: 'fetch-roles',
     })
-    return NextResponse.json(
-      { error: 'Failed to fetch roles' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to fetch roles' }, { status: 500 })
   }
 }
 
@@ -55,17 +53,17 @@ export async function POST(request: Request) {
   const denied = await denyUnlessAccess('admin')
   if (denied) return denied
 
-  let requestBody: string;
+  let requestBody: string
   try {
-    requestBody = await request.text();
-    const body = JSON.parse(requestBody);
-    
+    requestBody = await request.text()
+    const body = JSON.parse(requestBody)
+
     // Validate the request body
     const validationResult = roleSchema.safeParse(body)
     if (!validationResult.success) {
       return NextResponse.json(
         { error: 'Invalid role data', details: validationResult.error.format() },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -73,33 +71,26 @@ export async function POST(request: Request) {
 
     // Check if role with same name already exists
     const existingRole = await prisma.role.findFirst({
-      where: { name }
+      where: { name },
     })
 
     if (existingRole) {
-      return NextResponse.json(
-        { error: 'A role with this name already exists' },
-        { status: 409 }
-      )
+      return NextResponse.json({ error: 'A role with this name already exists' }, { status: 409 })
     }
 
     const role = await prisma.role.create({
       data: {
         name,
-        description
-      }
+        description,
+      },
     })
 
     return NextResponse.json(role, { status: 201 })
   } catch (error) {
-
     captureError(error, {
       location: 'api/roles',
       type: 'create-role',
     })
-    return NextResponse.json(
-      { error: 'Failed to create role' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to create role' }, { status: 500 })
   }
-} 
+}

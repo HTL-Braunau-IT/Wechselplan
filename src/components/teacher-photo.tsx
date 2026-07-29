@@ -24,14 +24,17 @@ export function TeacherPhoto({
   const initials =
     [firstName, lastName]
       .filter(Boolean)
-      .map((s) => s.charAt(0))
+      .map(s => s.charAt(0))
       .join('')
       .toUpperCase()
       .slice(0, 2) || '?'
 
   return (
     <span
-      className={cn('inline-flex shrink-0 overflow-hidden rounded-full bg-muted align-middle', className)}
+      className={cn(
+        'bg-muted inline-flex shrink-0 overflow-hidden rounded-full align-middle',
+        className,
+      )}
       style={{ width: size, height: size }}
     >
       <img
@@ -48,7 +51,7 @@ export function TeacherPhoto({
       />
       {(!loaded || error) && (
         <span
-          className="inline-flex h-full w-full items-center justify-center text-xs font-medium text-muted-foreground"
+          className="text-muted-foreground inline-flex h-full w-full items-center justify-center text-xs font-medium"
           style={{ fontSize: size * 0.4 }}
         >
           {initials}

@@ -3,24 +3,28 @@ import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
-import { parseJsonToNormalized, createScheduleTurnData, normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
+import {
+  parseJsonToNormalized,
+  createScheduleTurnData,
+  normalizeToJsonFormat,
+} from '@/lib/schedule-data-helpers'
 import { denyUnlessAccess } from '@/lib/api-guard'
 
 const scheduleSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
-  startDate: z.string().refine((date) => !isNaN(Date.parse(date)), {
-    message: 'Invalid start date format'
+  startDate: z.string().refine(date => !isNaN(Date.parse(date)), {
+    message: 'Invalid start date format',
   }),
-  endDate: z.string().refine((date) => !isNaN(Date.parse(date)), {
-    message: 'Invalid end date format'
+  endDate: z.string().refine(date => !isNaN(Date.parse(date)), {
+    message: 'Invalid end date format',
   }),
   selectedWeekday: z.number().int().min(0).max(6),
   scheduleData: z.any(), // Using any for now since the exact structure isn't clear
   classId: z.string().optional(),
   schoolYearId: z.number().int().positive().optional(),
   additionalInfo: z.any().optional(),
-  semesterPlanning: z.enum(['first', 'second']).nullable().optional()
+  semesterPlanning: z.enum(['first', 'second']).nullable().optional(),
 })
 
 /**
@@ -36,17 +40,28 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json()
-    
+
     // Validate the request body against the schema
     const validationResult = scheduleSchema.safeParse(body)
     if (!validationResult.success) {
       return NextResponse.json(
         { error: 'Invalid request data', details: validationResult.error.format() },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
-    const { name, description, startDate, endDate, selectedWeekday, scheduleData, classId, schoolYearId: bodySchoolYearId, additionalInfo, semesterPlanning } = validationResult.data
+    const {
+      name,
+      description,
+      startDate,
+      endDate,
+      selectedWeekday,
+      scheduleData,
+      classId,
+      schoolYearId: bodySchoolYearId,
+      additionalInfo,
+      semesterPlanning,
+    } = validationResult.data
 
     // Resolve school year: from body or current
     let schoolYearId = bodySchoolYearId
@@ -54,14 +69,23 @@ export async function POST(req: Request) {
       const now = new Date()
       const current = await prisma.schoolYear.findFirst({
         where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true }
+        select: { id: true },
       })
-      schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
+      schoolYearId =
+        current?.id ??
+        (
+          await prisma.schoolYear.findFirst({
+            orderBy: { startDate: 'desc' },
+            select: { id: true },
+          })
+        )?.id
     }
     if (schoolYearId == null) {
       return NextResponse.json(
-        { error: 'No school year found. Create a school year in Admin / Data / School Years first.' },
-        { status: 400 }
+        {
+          error: 'No school year found. Create a school year in Admin / Data / School Years first.',
+        },
+        { status: 400 },
       )
     }
 
@@ -70,19 +94,19 @@ export async function POST(req: Request) {
       where: {
         classId: classId ? parseInt(classId) : null,
         selectedWeekday,
-        schoolYearId
+        schoolYearId,
       },
       include: {
         scheduleTimes: true,
-        breakTimes: true
-      }
+        breakTimes: true,
+      },
     })
 
     let newSchedule
     if (existingSchedule) {
       // Delete existing turns (cascade will delete weeks and holidays)
       await prisma.scheduleTurn.deleteMany({
-        where: { scheduleId: existingSchedule.id }
+        where: { scheduleId: existingSchedule.id },
       })
 
       // Update existing schedule, preserving times
@@ -98,13 +122,15 @@ export async function POST(req: Request) {
           additionalInfo,
           semesterPlanning,
           // Create normalized turns if scheduleData is provided
-          ...(scheduleData ? {
-            turns: {
-              create: parseJsonToNormalized(scheduleData).map((turnData, order) =>
-                createScheduleTurnData(turnData, order)
-              )
-            }
-          } : {})
+          ...(scheduleData
+            ? {
+                turns: {
+                  create: parseJsonToNormalized(scheduleData).map((turnData, order) =>
+                    createScheduleTurnData(turnData, order),
+                  ),
+                },
+              }
+            : {}),
         },
         include: {
           scheduleTimes: true,
@@ -114,15 +140,15 @@ export async function POST(req: Request) {
               weeks: true,
               holidays: {
                 include: {
-                  holiday: true
-                }
-              }
+                  holiday: true,
+                },
+              },
             },
             orderBy: {
-              order: 'asc'
-            }
-          }
-        }
+              order: 'asc',
+            },
+          },
+        },
       })
     } else {
       // Create new schedule
@@ -139,13 +165,15 @@ export async function POST(req: Request) {
           additionalInfo,
           semesterPlanning,
           // Create normalized turns if scheduleData is provided
-          ...(scheduleData ? {
-            turns: {
-              create: parseJsonToNormalized(scheduleData).map((turnData, order) =>
-                createScheduleTurnData(turnData, order)
-              )
-            }
-          } : {})
+          ...(scheduleData
+            ? {
+                turns: {
+                  create: parseJsonToNormalized(scheduleData).map((turnData, order) =>
+                    createScheduleTurnData(turnData, order),
+                  ),
+                },
+              }
+            : {}),
         },
         include: {
           scheduleTimes: true,
@@ -155,15 +183,15 @@ export async function POST(req: Request) {
               weeks: true,
               holidays: {
                 include: {
-                  holiday: true
-                }
-              }
+                  holiday: true,
+                },
+              },
             },
             orderBy: {
-              order: 'asc'
-            }
-          }
-        }
+              order: 'asc',
+            },
+          },
+        },
       })
     }
 
@@ -171,7 +199,7 @@ export async function POST(req: Request) {
   } catch (error) {
     captureError(error, {
       location: 'api/schedules',
-      type: 'create-schedule'
+      type: 'create-schedule',
     })
     return new NextResponse('Internal Error', { status: 500 })
   }
@@ -193,14 +221,23 @@ export async function GET(req: Request) {
     const className = searchParams.get('classId')
     const weekday = searchParams.get('weekday')
     const schoolYearIdParam = searchParams.get('schoolYearId')
-    let schoolYearId: number | undefined = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
+    let schoolYearId: number | undefined = schoolYearIdParam
+      ? parseInt(schoolYearIdParam, 10)
+      : undefined
     if (schoolYearId == null || Number.isNaN(schoolYearId)) {
       const now = new Date()
       const current = await prisma.schoolYear.findFirst({
         where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true }
+        select: { id: true },
       })
-      schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
+      schoolYearId =
+        current?.id ??
+        (
+          await prisma.schoolYear.findFirst({
+            orderBy: { startDate: 'desc' },
+            select: { id: true },
+          })
+        )?.id
     }
 
     if (!className) {
@@ -209,8 +246,8 @@ export async function GET(req: Request) {
 
     const classRecord = await prisma.class.findFirst({
       where: {
-        name: className
-      }
+        name: className,
+      },
     })
 
     if (!classRecord) {
@@ -221,7 +258,7 @@ export async function GET(req: Request) {
       where: {
         classId: classRecord.id,
         ...(schoolYearId != null ? { schoolYearId } : {}),
-        ...(weekday ? { selectedWeekday: parseInt(weekday) } : {})
+        ...(weekday ? { selectedWeekday: parseInt(weekday) } : {}),
       },
       include: {
         turns: {
@@ -229,24 +266,24 @@ export async function GET(req: Request) {
             weeks: true,
             holidays: {
               include: {
-                holiday: true
-              }
-            }
+                holiday: true,
+              },
+            },
           },
           orderBy: {
-            order: 'asc'
-          }
-        }
+            order: 'asc',
+          },
+        },
       },
       orderBy: {
-        createdAt: 'desc'
-      }
+        createdAt: 'desc',
+      },
     })
 
     if (schedules.length === 0) {
       captureError(new Error('No schedules found for classId ' + classRecord.id), {
         location: 'api/schedules',
-        type: 'fetch-schedules'
+        type: 'fetch-schedules',
       })
       return NextResponse.json({ error: 'No schedules found' }, { status: 404 })
     }
@@ -254,17 +291,16 @@ export async function GET(req: Request) {
     // Convert normalized turns back to scheduleData JSON format for backward compatibility
     const schedulesWithData = schedules.map(schedule => ({
       ...schedule,
-      scheduleData: schedule.turns && schedule.turns.length > 0
-        ? normalizeToJsonFormat(schedule.turns)
-        : null
+      scheduleData:
+        schedule.turns && schedule.turns.length > 0 ? normalizeToJsonFormat(schedule.turns) : null,
     }))
 
     return NextResponse.json(schedulesWithData)
   } catch (error) {
     captureError(error, {
       location: 'api/schedules',
-      type: 'fetch-schedules'
+      type: 'fetch-schedules',
     })
     return new NextResponse('Internal Error', { status: 500 })
   }
-} 
+}

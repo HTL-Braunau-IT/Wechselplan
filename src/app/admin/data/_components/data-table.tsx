@@ -3,8 +3,21 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,9 +26,18 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle
+  AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Plus, Edit, Trash2, Search, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import {
+  Plus,
+  Edit,
+  Trash2,
+  Search,
+  RefreshCw,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+} from 'lucide-react'
 import { TableSkeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 
@@ -68,46 +90,50 @@ export function DataTable({
   onCreate,
   onDeleteAll,
   deleteAllLabel = `Alle ${model}-Einträge löschen`,
-  isLoading = false
+  isLoading = false,
 }: DataTableProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<Record<string, unknown> | null>(null)
   const [formData, setFormData] = useState<Record<string, unknown>>({})
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null)
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(
+    null,
+  )
   const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false)
   const [isDeleteAllLoading, setIsDeleteAllLoading] = useState(false)
 
   const filteredAndSortedData = (() => {
     const filtered = data.filter(item =>
       Object.values(item).some(value =>
-        String(value).toLowerCase().includes(searchTerm.toLowerCase())
-      )
+        String(value).toLowerCase().includes(searchTerm.toLowerCase()),
+      ),
     )
 
     if (sortConfig) {
       filtered.sort((a, b) => {
         const aValue = a[sortConfig.key]
         const bValue = b[sortConfig.key]
-        
+
         // Handle null/undefined values
         if (aValue === null || aValue === undefined) return sortConfig.direction === 'asc' ? 1 : -1
         if (bValue === null || bValue === undefined) return sortConfig.direction === 'asc' ? -1 : 1
-        
+
         // Handle different data types
         if (typeof aValue === 'number' && typeof bValue === 'number') {
           return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue
         }
-        
+
         if (aValue instanceof Date && bValue instanceof Date) {
-          return sortConfig.direction === 'asc' ? aValue.getTime() - bValue.getTime() : bValue.getTime() - aValue.getTime()
+          return sortConfig.direction === 'asc'
+            ? aValue.getTime() - bValue.getTime()
+            : bValue.getTime() - aValue.getTime()
         }
-        
+
         // String comparison
         const aStr = safeStringify(aValue).toLowerCase()
         const bStr = safeStringify(bValue).toLowerCase()
-        
+
         if (aStr < bStr) return sortConfig.direction === 'asc' ? -1 : 1
         if (aStr > bStr) return sortConfig.direction === 'asc' ? 1 : -1
         return 0
@@ -119,11 +145,11 @@ export function DataTable({
 
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc'
-    
+
     if (sortConfig?.key === key && sortConfig.direction === 'asc') {
       direction = 'desc'
     }
-    
+
     setSortConfig({ key, direction })
   }
 
@@ -131,10 +157,12 @@ export function DataTable({
     if (sortConfig?.key !== key) {
       return <ArrowUpDown className="h-4 w-4" />
     }
-    
-    return sortConfig.direction === 'asc' 
-      ? <ArrowUp className="h-4 w-4" />
-      : <ArrowDown className="h-4 w-4" />
+
+    return sortConfig.direction === 'asc' ? (
+      <ArrowUp className="h-4 w-4" />
+    ) : (
+      <ArrowDown className="h-4 w-4" />
+    )
   }
 
   const handleCreate = () => {
@@ -188,7 +216,7 @@ export function DataTable({
       toast.success(
         totalDeleted > 0
           ? `${totalDeleted} Einträge gelöscht`
-          : `Keine ${model.toLowerCase()}-Einträge wurden gelöscht`
+          : `Keine ${model.toLowerCase()}-Einträge wurden gelöscht`,
       )
       setIsDeleteAllDialogOpen(false)
       onRefresh()
@@ -201,7 +229,7 @@ export function DataTable({
 
   const formatValue = (value: unknown, column: Column) => {
     if (value === null || value === undefined) return '-'
-    
+
     switch (column.type) {
       case 'date':
         return new Date(value as string | number | Date).toLocaleDateString()
@@ -223,8 +251,8 @@ export function DataTable({
         return (
           <textarea
             value={safeStringify(value)}
-            onChange={(e) => setFormData(prev => ({ ...prev, [column.key]: e.target.value }))}
-            className="w-full p-2 border rounded"
+            onChange={e => setFormData(prev => ({ ...prev, [column.key]: e.target.value }))}
+            className="w-full rounded border p-2"
             rows={3}
             required={column.required}
             readOnly={column.readonly}
@@ -234,8 +262,8 @@ export function DataTable({
         return (
           <select
             value={safeStringify(value)}
-            onChange={(e) => setFormData(prev => ({ ...prev, [column.key]: e.target.value }))}
-            className="w-full p-2 border rounded"
+            onChange={e => setFormData(prev => ({ ...prev, [column.key]: e.target.value }))}
+            className="w-full rounded border p-2"
             required={column.required}
             disabled={column.readonly}
           >
@@ -252,7 +280,7 @@ export function DataTable({
           <Input
             type="number"
             value={safeStringify(value)}
-            onChange={(e) => setFormData(prev => ({ ...prev, [column.key]: Number(e.target.value) }))}
+            onChange={e => setFormData(prev => ({ ...prev, [column.key]: Number(e.target.value) }))}
             required={column.required}
             readOnly={column.readonly}
           />
@@ -261,8 +289,12 @@ export function DataTable({
         return (
           <Input
             type="datetime-local"
-            value={value ? new Date(value as string | number | Date).toISOString().slice(0, 16) : ''}
-            onChange={(e) => setFormData(prev => ({ ...prev, [column.key]: new Date(e.target.value) }))}
+            value={
+              value ? new Date(value as string | number | Date).toISOString().slice(0, 16) : ''
+            }
+            onChange={e =>
+              setFormData(prev => ({ ...prev, [column.key]: new Date(e.target.value) }))
+            }
             required={column.required}
             readOnly={column.readonly}
           />
@@ -272,7 +304,7 @@ export function DataTable({
           <input
             type="checkbox"
             checked={Boolean(value)}
-            onChange={(e) => setFormData(prev => ({ ...prev, [column.key]: e.target.checked }))}
+            onChange={e => setFormData(prev => ({ ...prev, [column.key]: e.target.checked }))}
             disabled={column.readonly}
           />
         )
@@ -280,7 +312,7 @@ export function DataTable({
         return (
           <Input
             value={safeStringify(value)}
-            onChange={(e) => setFormData(prev => ({ ...prev, [column.key]: e.target.value }))}
+            onChange={e => setFormData(prev => ({ ...prev, [column.key]: e.target.value }))}
             required={column.required}
             readOnly={column.readonly}
           />
@@ -293,20 +325,15 @@ export function DataTable({
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
             <Input
               placeholder="Suchen..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 w-64"
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-64 pl-8"
             />
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onRefresh}
-            disabled={isLoading}
-          >
+          <Button variant="outline" size="sm" onClick={onRefresh} disabled={isLoading}>
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
         </div>
@@ -318,7 +345,7 @@ export function DataTable({
                 onClick={() => setIsDeleteAllDialogOpen(true)}
                 disabled={isLoading || isDeleteAllLoading || data.length === 0}
               >
-                <Trash2 className="h-4 w-4 mr-2" />
+                <Trash2 className="mr-2 h-4 w-4" />
                 {deleteAllLabel}
               </Button>
               <AlertDialogContent>
@@ -332,7 +359,7 @@ export function DataTable({
                 <AlertDialogFooter>
                   <AlertDialogCancel disabled={isDeleteAllLoading}>Abbrechen</AlertDialogCancel>
                   <AlertDialogAction
-                    onClick={(event) => {
+                    onClick={event => {
                       event.preventDefault()
                       void handleDeleteAll()
                     }}
@@ -347,31 +374,31 @@ export function DataTable({
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={handleCreate}>
-                <Plus className="h-4 w-4 mr-2" />
+                <Plus className="mr-2 h-4 w-4" />
                 {model} hinzufügen
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogContent className="max-h-[80vh] max-w-2xl overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{model} erstellen</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
-                {columns.filter((c) => !c.render).map(column => (
-                  <div key={column.key} className="space-y-2">
-                    <label className="text-sm font-medium">
-                      {column.label}
-                      {column.required && <span className="text-red-500 ml-1">*</span>}
-                    </label>
-                    {renderFormField(column)}
-                  </div>
-                ))}
+                {columns
+                  .filter(c => !c.render)
+                  .map(column => (
+                    <div key={column.key} className="space-y-2">
+                      <label className="text-sm font-medium">
+                        {column.label}
+                        {column.required && <span className="ml-1 text-red-500">*</span>}
+                      </label>
+                      {renderFormField(column)}
+                    </div>
+                  ))}
                 <div className="flex justify-end space-x-2">
                   <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
                     Abbrechen
                   </Button>
-                  <Button onClick={handleSave}>
-                    Erstellen
-                  </Button>
+                  <Button onClick={handleSave}>Erstellen</Button>
                 </div>
               </div>
             </DialogContent>
@@ -387,54 +414,54 @@ export function DataTable({
             <TableSkeleton columns={Math.min(columns.length + 1, 7)} />
           </div>
         ) : (
-        <Table>
-          <TableHeader className="bg-background sticky top-0 z-10">
-            <TableRow>
-              {columns.map(column => (
-                <TableHead 
-                  key={column.key}
-                  className={column.sortable !== false ? "cursor-pointer hover:bg-muted/50 select-none" : ""}
-                  onClick={() => column.sortable !== false && handleSort(column.key)}
-                >
-                  <div className="flex items-center space-x-1">
-                    <span>{column.label}</span>
-                    {column.sortable !== false && getSortIcon(column.key)}
-                  </div>
-                </TableHead>
-              ))}
-              <TableHead className="w-24">Aktionen</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredAndSortedData.map((item, index) => (
-              <TableRow key={(item.id as number) ?? index}>
-              {columns.map(column => (
-                <TableCell key={column.key}>
-                    {column.render ? column.render(item) : formatValue(item[column.key], column)}
-                  </TableCell>
+          <Table>
+            <TableHeader className="bg-background sticky top-0 z-10">
+              <TableRow>
+                {columns.map(column => (
+                  <TableHead
+                    key={column.key}
+                    className={
+                      column.sortable !== false
+                        ? 'hover:bg-muted/50 cursor-pointer select-none'
+                        : ''
+                    }
+                    onClick={() => column.sortable !== false && handleSort(column.key)}
+                  >
+                    <div className="flex items-center space-x-1">
+                      <span>{column.label}</span>
+                      {column.sortable !== false && getSortIcon(column.key)}
+                    </div>
+                  </TableHead>
                 ))}
-                <TableCell>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEdit(item)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete((item.id as number) ?? 0)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
+                <TableHead className="w-24">Aktionen</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {filteredAndSortedData.map((item, index) => (
+                <TableRow key={(item.id as number) ?? index}>
+                  {columns.map(column => (
+                    <TableCell key={column.key}>
+                      {column.render ? column.render(item) : formatValue(item[column.key], column)}
+                    </TableCell>
+                  ))}
+                  <TableCell>
+                    <div className="flex items-center space-x-2">
+                      <Button variant="ghost" size="sm" onClick={() => handleEdit(item)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDelete((item.id as number) ?? 0)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </div>
 
@@ -445,28 +472,28 @@ export function DataTable({
       ) : null}
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-h-[80vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{model} bearbeiten</DialogTitle>
           </DialogHeader>
-            <div className="space-y-4">
-              {columns.filter((c) => !c.render).map(column => (
+          <div className="space-y-4">
+            {columns
+              .filter(c => !c.render)
+              .map(column => (
                 <div key={column.key} className="space-y-2">
                   <label className="text-sm font-medium">
                     {column.label}
-                    {column.required && <span className="text-red-500 ml-1">*</span>}
+                    {column.required && <span className="ml-1 text-red-500">*</span>}
                   </label>
                   {renderFormField(column)}
                 </div>
               ))}
             <div className="flex justify-end space-x-2">
-                <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                  Abbrechen
-                </Button>
-                <Button onClick={handleSave}>
-                  Änderungen speichern
-                </Button>
-              </div>
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                Abbrechen
+              </Button>
+              <Button onClick={handleSave}>Änderungen speichern</Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

@@ -3,10 +3,7 @@ export const runtime = 'nodejs'
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { requireAdmin } from '@/lib/require-admin'
-import {
-  applyClassStudentSync,
-  type ClassStudentSyncSelection,
-} from '@/lib/class-student-sync'
+import { applyClassStudentSync, type ClassStudentSyncSelection } from '@/lib/class-student-sync'
 
 export async function POST(request: Request) {
   const auth = await requireAdmin()

@@ -12,10 +12,7 @@ import { denyUnlessAccess } from '@/lib/api-guard'
  * @param params - An object containing a promise that resolves to an object with the holiday `id`.
  * @returns A JSON response indicating the result of the deletion operation.
  */
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const denied = await denyUnlessAccess('staff')
   if (denied) return denied
 
@@ -23,19 +20,16 @@ export async function DELETE(
     const resolvedParams = await params
     await prisma.schoolHoliday.delete({
       where: {
-        id: parseInt(resolvedParams.id)
-      }
+        id: parseInt(resolvedParams.id),
+      },
     })
-    
+
     return NextResponse.json({ success: true })
   } catch (error) {
     captureError(error, {
       location: 'api/settings/holidays/[id]',
-      type: 'delete-holiday'
+      type: 'delete-holiday',
     })
-    return NextResponse.json(
-      { error: 'Failed to delete holiday' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to delete holiday' }, { status: 500 })
   }
-} 
+}

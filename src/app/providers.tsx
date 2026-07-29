@@ -16,13 +16,11 @@ export function Providers({ children }: { children: ReactNode }) {
           <LicenseGate>
             <SchoolYearProvider>
               <Header />
-              <div className="pt-16">
-                {children}
-              </div>
+              <div className="pt-16">{children}</div>
             </SchoolYearProvider>
           </LicenseGate>
         </EntitlementsProvider>
       </I18nProvider>
     </SessionProvider>
   )
-} 
+}

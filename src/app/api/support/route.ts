@@ -27,12 +27,9 @@ export async function POST(request: Request) {
     if (!name || !message) {
       captureError(new Error('Missing required fields'), {
         location: 'api/support',
-        type: 'missing-required-fields'
+        type: 'missing-required-fields',
       })
-      return NextResponse.json(
-        { error: 'Name and message are required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Name and message are required' }, { status: 400 })
     }
 
     const supportMessage = await prisma.supportMessage.create({
@@ -47,35 +44,30 @@ export async function POST(request: Request) {
     try {
       await sendSupportEmail(
         `New support message from ${name}`,
-        `Name: ${name}\nMessage: ${message}\nLocation: ${currentUri ?? 'Not specified'}`
+        `Name: ${name}\nMessage: ${message}\nLocation: ${currentUri ?? 'Not specified'}`,
       )
     } catch (emailError) {
-      
       captureError(emailError, {
         location: 'api/support',
         type: 'send-support-email',
         extra: {
           name,
           message,
-          currentUri
-        }
+          currentUri,
+        },
       })
       // Don't throw here, we still want to return success to the user
     }
 
     return NextResponse.json(supportMessage)
   } catch (error) {
-    
     captureError(error, {
       location: 'api/support',
       type: 'send-support-email',
       extra: {
-        requestBody
-      }
+        requestBody,
+      },
     })
-    return NextResponse.json(
-      { error: 'Failed to process support request' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to process support request' }, { status: 500 })
   }
-} 
+}

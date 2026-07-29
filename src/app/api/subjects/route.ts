@@ -12,27 +12,23 @@ export async function GET() {
   const denied = await denyUnlessAccess('staff')
   if (denied) return denied
 
-	try {
-		const subjects = await prisma.subject.findMany({
-			select: {
-				id: true,
-				name: true
-			},
-			orderBy: {
-				name: 'asc'
-			}
-		})
+  try {
+    const subjects = await prisma.subject.findMany({
+      select: {
+        id: true,
+        name: true,
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    })
 
-		return NextResponse.json({ subjects })
-	} catch (error) {
-		
-		captureError(error, {
-			location: 'api/subjects',
-			type: 'fetch-subjects'
-		})
-		return NextResponse.json(
-			{ error: 'Failed to fetch subjects' },
-			{ status: 500 }
-		)
-	}
-} 
+    return NextResponse.json({ subjects })
+  } catch (error) {
+    captureError(error, {
+      location: 'api/subjects',
+      type: 'fetch-subjects',
+    })
+    return NextResponse.json({ error: 'Failed to fetch subjects' }, { status: 500 })
+  }
+}

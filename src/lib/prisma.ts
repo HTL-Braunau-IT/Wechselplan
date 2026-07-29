@@ -1,4 +1,4 @@
-import { PrismaClient, type Prisma } from '@prisma/client';
+import { PrismaClient, type Prisma } from '@prisma/client'
 
 /**
  * Models that are soft-deleted by directory sync rather than removed.
@@ -6,7 +6,7 @@ import { PrismaClient, type Prisma } from '@prisma/client';
  * Entra sync sets `isActive = false` instead of deleting, so without a default
  * filter every list in the app would keep showing people who left the school.
  */
-const SOFT_DELETED_MODELS = new Set(['Student', 'Teacher', 'Class']);
+const SOFT_DELETED_MODELS = new Set(['Student', 'Teacher', 'Class'])
 
 /**
  * Read operations that accept a `where` and should therefore default to active
@@ -28,7 +28,7 @@ const FILTERED_OPERATIONS = new Set([
   'count',
   'aggregate',
   'groupBy',
-]);
+])
 
 /**
  * Opt out of the default active-only filter.
@@ -42,7 +42,7 @@ const FILTERED_OPERATIONS = new Set([
  * job is to make `where.isActive` defined, which is the signal the extension
  * below uses to keep its hands off.
  */
-export const ANY_ACTIVE_STATE: Prisma.BoolFilter = { not: undefined };
+export const ANY_ACTIVE_STATE: Prisma.BoolFilter = { not: undefined }
 
 /**
  * Decides whether a query should have `isActive: true` injected.
@@ -54,11 +54,11 @@ export function shouldDefaultToActive(
   operation: string,
   where: Record<string, unknown> | undefined,
 ): boolean {
-  if (!model || !SOFT_DELETED_MODELS.has(model)) return false;
-  if (!FILTERED_OPERATIONS.has(operation)) return false;
+  if (!model || !SOFT_DELETED_MODELS.has(model)) return false
+  if (!FILTERED_OPERATIONS.has(operation)) return false
   // An explicit `isActive` in the caller's where always wins, which is what
   // makes ANY_ACTIVE_STATE work as an opt-out.
-  return where?.isActive === undefined;
+  return where?.isActive === undefined
 }
 
 function createPrismaClient() {
@@ -67,27 +67,27 @@ function createPrismaClient() {
     query: {
       $allModels: {
         $allOperations({ model, operation, args, query }) {
-          const typedArgs = args as { where?: Record<string, unknown> };
+          const typedArgs = args as { where?: Record<string, unknown> }
           if (!shouldDefaultToActive(model, operation, typedArgs.where)) {
-            return query(args);
+            return query(args)
           }
 
           return query({
             ...args,
             where: { ...typedArgs.where, isActive: true },
-          } as typeof args);
+          } as typeof args)
         },
       },
     },
-  });
+  })
 }
 
-type ExtendedPrismaClient = ReturnType<typeof createPrismaClient>;
+type ExtendedPrismaClient = ReturnType<typeof createPrismaClient>
 
-const globalForPrisma = globalThis as unknown as { prisma: ExtendedPrismaClient | undefined };
+const globalForPrisma = globalThis as unknown as { prisma: ExtendedPrismaClient | undefined }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+export const prisma = globalForPrisma.prisma ?? createPrismaClient()
 
 if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma;
+  globalForPrisma.prisma = prisma
 }

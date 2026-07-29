@@ -18,123 +18,115 @@ import { useTranslation } from 'react-i18next'
  * Displays a form for users to enter their username and password, handles authentication via LDAP, and shows relevant error or loading states. All user-facing text is internationalized.
  */
 export default function LoginPage() {
-	const [username, setUsername] = useState('')
-	const [password, setPassword] = useState('')
-	const [error, setError] = useState<string | null>(null)
-	const [isLoading, setIsLoading] = useState(false)
-	const router = useRouter()
-	const { t } = useTranslation()
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter()
+  const { t } = useTranslation()
 
-	const handleLDAPLogin = async (e: React.FormEvent) => {
-		e.preventDefault()
-		setIsLoading(true)
-		setError(null)
+  const handleLDAPLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError(null)
 
-		try {
-			const result = await signIn('ldap', {
-				username,
-				password,
-				redirect: false,
-			})
+    try {
+      const result = await signIn('ldap', {
+        username,
+        password,
+        redirect: false,
+      })
 
-			if (result?.error) {
-				setError(t('auth.error.invalidCredentials'))
-				return
-			}
+      if (result?.error) {
+        setError(t('auth.error.invalidCredentials'))
+        return
+      }
 
-			router.push('/')
-		} catch (err) {
-			console.error('Error during LDAP login:', err)
-			captureFrontendError(err, {
-				location: 'login',
-				type: 'ldap-login',
-			})
-			setError(t('auth.error.generic'))
-		} finally {
-			setIsLoading(false)
-		}
-	}
+      router.push('/')
+    } catch (err) {
+      console.error('Error during LDAP login:', err)
+      captureFrontendError(err, {
+        location: 'login',
+        type: 'ldap-login',
+      })
+      setError(t('auth.error.generic'))
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
-	const handleMicrosoftLogin = async () => {
-		setIsLoading(true)
-		setError(null)
-		try {
-			await signIn('azure-ad', { callbackUrl: '/' })
-		} catch (err) {
-			console.error('Error during Microsoft login:', err)
-			captureFrontendError(err, {
-				location: 'login',
-				type: 'microsoft-login',
-			})
-			setError(t('auth.error.generic'))
-			setIsLoading(false)
-		}
-	}
+  const handleMicrosoftLogin = async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      await signIn('azure-ad', { callbackUrl: '/' })
+    } catch (err) {
+      console.error('Error during Microsoft login:', err)
+      captureFrontendError(err, {
+        location: 'login',
+        type: 'microsoft-login',
+      })
+      setError(t('auth.error.generic'))
+      setIsLoading(false)
+    }
+  }
 
-	
+  return (
+    <div className="container flex h-screen w-screen flex-col items-center justify-center">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>{t('auth.title')}</CardTitle>
+          <CardDescription>{t('auth.description')}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-	return (
-		<div className="container flex h-screen w-screen flex-col items-center justify-center">
-			<Card className="w-full max-w-md">
-				<CardHeader>
-					<CardTitle>{t('auth.title')}</CardTitle>
-					<CardDescription>
-						{t('auth.description')}
-					</CardDescription>
-				</CardHeader>
-				<CardContent>
-					{error && (
-						<Alert variant="destructive" className="mb-4">
-							<AlertCircle className="h-4 w-4" />
-							<AlertDescription>{error}</AlertDescription>
-						</Alert>
-					)}
+          <Button
+            type="button"
+            className="mb-4 w-full"
+            disabled={isLoading}
+            onClick={handleMicrosoftLogin}
+          >
+            {isLoading ? t('auth.button.signingIn') : t('auth.button.signInMicrosoft')}
+          </Button>
 
-					<Button
-						type="button"
-						className="mb-4 w-full"
-						disabled={isLoading}
-						onClick={handleMicrosoftLogin}
-					>
-						{isLoading ? t('auth.button.signingIn') : t('auth.button.signInMicrosoft')}
-					</Button>
+          <div className="mb-4 border-t" />
 
-					<div className="mb-4 border-t" />
+          <form onSubmit={handleLDAPLogin} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="username">{t('auth.username.label')}</Label>
+              <Input
+                id="username"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+                placeholder={t('auth.username.placeholder')}
+                required
+              />
+            </div>
 
-					<form onSubmit={handleLDAPLogin} className="space-y-4">
-						<div className="space-y-2">
-							<Label htmlFor="username">{t('auth.username.label')}</Label>
-							<Input
-								id="username"
-								value={username}
-								onChange={(e) => setUsername(e.target.value)}
-								placeholder={t('auth.username.placeholder')}
-								required
-							/>
-						</div>
+            <div className="space-y-2">
+              <Label htmlFor="password">{t('auth.password.label')}</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder={t('auth.password.placeholder')}
+                required
+              />
+            </div>
 
-						<div className="space-y-2">
-							<Label htmlFor="password">{t('auth.password.label')}</Label>
-							<Input
-								id="password"
-								type="password"
-								value={password}
-								onChange={(e) => setPassword(e.target.value)}
-								placeholder={t('auth.password.placeholder')}
-								required
-							/>
-						</div>
-
-						<Button
-							type="submit"
-							className="w-full"
-							disabled={isLoading}
-						>
-							{isLoading ? t('auth.button.signingIn') : t('auth.button.signInLDAP')}
-						</Button>
-					</form>
-				</CardContent>
-			</Card>
-		</div>
-	)
-} 
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? t('auth.button.signingIn') : t('auth.button.signInLDAP')}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

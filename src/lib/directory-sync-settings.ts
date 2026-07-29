@@ -153,9 +153,7 @@ export interface DirectorySyncSettingsUpdate {
 export async function updateDirectorySyncSettings(
   update: DirectorySyncSettingsUpdate,
 ): Promise<DirectorySyncSettings> {
-  const cleanedGroupIds = update.syncedClassGroupIds
-    ?.map(id => id.trim())
-    .filter(Boolean)
+  const cleanedGroupIds = update.syncedClassGroupIds?.map(id => id.trim()).filter(Boolean)
 
   invalidateSyncedClassGroupIdsCache()
 

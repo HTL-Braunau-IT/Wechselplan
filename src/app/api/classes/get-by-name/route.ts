@@ -19,52 +19,42 @@ export async function GET(request: Request) {
     const name = searchParams.get('name')
 
     if (!name) {
-      return NextResponse.json(
-        { error: 'Class name is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Class name is required' }, { status: 400 })
     }
 
     const classData = await prisma.class.findUnique({
       where: {
-        name: name
+        name: name,
       },
       include: {
         classHead: {
           select: {
             firstName: true,
-            lastName: true
-          }
+            lastName: true,
+          },
         },
         classLead: {
           select: {
             firstName: true,
-            lastName: true
-          }
-        }
-      }
+            lastName: true,
+          },
+        },
+      },
     })
 
     if (!classData) {
-      return NextResponse.json(
-        { error: 'Class not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }
 
     return NextResponse.json(classData)
   } catch (error) {
-
     captureError(error, {
       location: 'api/classes/get-by-name',
       type: 'fetch-class-by-name',
       extra: {
-        searchParams: Object.fromEntries(new URL(request.url).searchParams)
-      }
+        searchParams: Object.fromEntries(new URL(request.url).searchParams),
+      },
     })
-    return NextResponse.json(
-      { error: 'Failed to fetch class' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to fetch class' }, { status: 500 })
   }
-} 
+}

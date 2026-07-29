@@ -76,5 +76,3 @@ export function hasTokenForUsername(username: string): boolean {
   if (tokenData === null) return false
   return normalizeUsername(tokenData.username) === normalizeUsername(username)
 }
-
-

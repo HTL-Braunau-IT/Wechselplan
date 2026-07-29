@@ -1,12 +1,7 @@
 import type { Class, Prisma, Student } from '@prisma/client'
 import { ANY_ACTIVE_STATE, prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
-import {
-  collectGroupMembers,
-  getGroup,
-  type EntraGroup,
-  type EntraGroupMember,
-} from '@/lib/graph'
+import { collectGroupMembers, getGroup, type EntraGroup, type EntraGroupMember } from '@/lib/graph'
 import { getSyncedClassGroupIds, recordSyncRun } from '@/lib/directory-sync-settings'
 import {
   mapMemberToEntraUser,
@@ -241,7 +236,9 @@ async function resolveSchoolYearId(preferred?: number): Promise<{ id: number; la
   })
   if (latest) return latest
 
-  throw new Error('No school year found. Create a school year in Admin / Data / School Years first.')
+  throw new Error(
+    'No school year found. Create a school year in Admin / Data / School Years first.',
+  )
 }
 
 function normalizeName(value: string): string {
@@ -259,9 +256,7 @@ function toClassRowSummary(row: Class): ClassRowSummary {
   }
 }
 
-function toStudentRowSummary(
-  row: Student & { class: { name: string } | null },
-): StudentRowSummary {
+function toStudentRowSummary(row: Student & { class: { name: string } | null }): StudentRowSummary {
   return {
     id: row.id,
     firstName: row.firstName,
@@ -423,7 +418,7 @@ export async function previewClassStudentSync(
     const byOid = classByExternalId.get(group.id)
     const byName = byOid
       ? null
-      : classByNormalizedName.get(normalizeName(group.displayName)) ?? null
+      : (classByNormalizedName.get(normalizeName(group.displayName)) ?? null)
     const existingRow = byOid ?? byName
 
     if (existingRow) {
@@ -541,8 +536,7 @@ export async function previewClassStudentSync(
     matchedStudentIds.add(existing.id)
 
     const summary = toStudentRowSummary(existing)
-    const willAdopt =
-      !existing.externalId || existing.externalSource !== EXTERNAL_SOURCE_ENTRA
+    const willAdopt = !existing.externalId || existing.externalSource !== EXTERNAL_SOURCE_ENTRA
 
     const profileChanges = computeStudentProfileChanges(existing, user)
     const localClassForGroup = localClassByGroupId.get(targetGroupId)
@@ -591,13 +585,19 @@ export async function previewClassStudentSync(
 
   /* ----- Sort & return ----- */
 
-  const sortByTargetClassThenEntraName = <T extends { entra: EntraUser; target: StudentTargetClass }>(
+  const sortByTargetClassThenEntraName = <
+    T extends { entra: EntraUser; target: StudentTargetClass },
+  >(
     rows: T[],
   ): T[] =>
     rows.sort((a, b) => {
-      const classCmp = a.target.groupDisplayName.localeCompare(b.target.groupDisplayName, undefined, {
-        sensitivity: 'base',
-      })
+      const classCmp = a.target.groupDisplayName.localeCompare(
+        b.target.groupDisplayName,
+        undefined,
+        {
+          sensitivity: 'base',
+        },
+      )
       if (classCmp !== 0) return classCmp
       const lastCmp = a.entra.lastName.localeCompare(b.entra.lastName, undefined, {
         sensitivity: 'base',
@@ -764,7 +764,9 @@ export async function applyClassStudentSync(
       scope: 'classes',
       deactivating: classDeactivations.length,
       activeBefore:
-        diff.classes.unchanged.length + diff.classes.toUpdate.length + diff.classes.toDeactivate.length,
+        diff.classes.unchanged.length +
+        diff.classes.toUpdate.length +
+        diff.classes.toDeactivate.length,
       limit: deactivationLimit,
     })
     assertDeactivationWithinLimit({

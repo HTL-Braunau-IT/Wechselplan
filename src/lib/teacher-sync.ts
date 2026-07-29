@@ -27,7 +27,17 @@ export interface TeacherSyncCreate {
 }
 
 export interface TeacherSyncUpdate {
-  existing: Pick<Teacher, 'id' | 'firstName' | 'lastName' | 'email' | 'username' | 'externalId' | 'externalSource' | 'isActive'>
+  existing: Pick<
+    Teacher,
+    | 'id'
+    | 'firstName'
+    | 'lastName'
+    | 'email'
+    | 'username'
+    | 'externalId'
+    | 'externalSource'
+    | 'isActive'
+  >
   entra: EntraTeacher
   changes: TeacherSyncChange[]
   willAdopt: boolean
@@ -324,7 +334,9 @@ export async function applyTeacherSync(
   try {
     const selectedCreateOids = selection?.createOids ? new Set(selection.createOids) : null
     const selectedUpdateOids = selection?.updateOids ? new Set(selection.updateOids) : null
-    const selectedReactivateOids = selection?.reactivateOids ? new Set(selection.reactivateOids) : null
+    const selectedReactivateOids = selection?.reactivateOids
+      ? new Set(selection.reactivateOids)
+      : null
     const selectedDeactivateTeacherIds = selection?.deactivateTeacherIds
       ? new Set(selection.deactivateTeacherIds)
       : null

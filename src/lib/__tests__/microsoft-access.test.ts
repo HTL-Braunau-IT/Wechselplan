@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const checkMemberGroups = vi.fn<(userId: string, groupIds: readonly string[]) => Promise<string[]>>()
+const checkMemberGroups =
+  vi.fn<(userId: string, groupIds: readonly string[]) => Promise<string[]>>()
 const getSyncedClassGroupIdsCached = vi.fn<() => Promise<string[]>>()
 
 vi.mock('@/lib/graph', () => ({ checkMemberGroups }))

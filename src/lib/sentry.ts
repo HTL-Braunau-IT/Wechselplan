@@ -1,7 +1,7 @@
 interface SentryErrorOptions {
-  location: string;
-  type: string;
-  extra?: Record<string, unknown>;
+  location: string
+  type: string
+  extra?: Record<string, unknown>
 }
 
 // No-op implementation - Sentry has been removed
@@ -11,8 +11,8 @@ export function captureError(_error: unknown, _options: SentryErrorOptions) {
 
 export async function withSentryErrorReporting<T>(
   operation: () => Promise<T>,
-  _options: SentryErrorOptions
+  _options: SentryErrorOptions,
 ): Promise<T> {
   // Just execute the operation without error reporting
-  return await operation();
+  return await operation()
 }

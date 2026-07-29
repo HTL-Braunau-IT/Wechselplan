@@ -1,6 +1,6 @@
-import '@testing-library/jest-dom';
-import { afterEach, vi } from 'vitest';
-import { cleanup } from '@testing-library/react';
+import '@testing-library/jest-dom'
+import { afterEach, vi } from 'vitest'
+import { cleanup } from '@testing-library/react'
 
 /**
  * Route handlers call `denyUnlessAccess` (see src/lib/api-guard.ts), which
@@ -18,9 +18,9 @@ vi.mock('@/lib/api-guard', () => ({
   withSession: (handler: unknown) => handler,
   withStaff: (handler: unknown) => handler,
   withAdmin: (handler: unknown) => handler,
-}));
+}))
 
 // Automatically cleanup after each test
 afterEach(() => {
-  cleanup();
-});
+  cleanup()
+})

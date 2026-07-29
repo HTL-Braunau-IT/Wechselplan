@@ -22,7 +22,11 @@ const EXEMPT = new Map<string, string>([
   ['/api/sync/run', 'authenticated by a shared secret header, not a session'],
 ])
 
-const GUARD_PATTERNS = [/denyUnlessAccess\s*\(/, /\bwith(Session|Staff|Admin)\s*\(/, /requireAdmin\s*\(/]
+const GUARD_PATTERNS = [
+  /denyUnlessAccess\s*\(/,
+  /\bwith(Session|Staff|Admin)\s*\(/,
+  /requireAdmin\s*\(/,
+]
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -53,7 +57,9 @@ describe('API route guards', () => {
       if (EXEMPT.has(route)) return
 
       const source = fs.readFileSync(file, 'utf8')
-      const handlers = [...source.matchAll(/export\s+(?:async\s+function|const)\s+(GET|POST|PUT|PATCH|DELETE)\b/g)]
+      const handlers = [
+        ...source.matchAll(/export\s+(?:async\s+function|const)\s+(GET|POST|PUT|PATCH|DELETE)\b/g),
+      ]
       if (handlers.length === 0) return
 
       const guarded = GUARD_PATTERNS.some(pattern => pattern.test(source))
@@ -77,15 +83,25 @@ describe('API route guards', () => {
       if (EXEMPT.has(route)) continue
 
       const source = fs.readFileSync(file, 'utf8')
-      for (const match of source.matchAll(/denyUnlessAccess\(\s*'(public|session|staff|admin)'\s*\)/g)) {
+      for (const match of source.matchAll(
+        /denyUnlessAccess\(\s*'(public|session|staff|admin)'\s*\)/g,
+      )) {
         const declared = match[1]!
         // Find which methods this file exports so we can compare against policy.
-        const methods = [...source.matchAll(/export\s+(?:async\s+function|const)\s+(GET|POST|PUT|PATCH|DELETE)\b/g)]
-          .map(m => m[1]!)
+        const methods = [
+          ...source.matchAll(
+            /export\s+(?:async\s+function|const)\s+(GET|POST|PUT|PATCH|DELETE)\b/g,
+          ),
+        ].map(m => m[1]!)
         const required = methods.map(m => resolveAccessTier(route, m))
         const order = ['public', 'session', 'staff', 'admin']
-        if (required.length > 0 && order.indexOf(declared) < Math.min(...required.map(r => order.indexOf(r)))) {
-          violations.push(`${route}: guards at '${declared}' but policy requires '${required.join('/')}'`)
+        if (
+          required.length > 0 &&
+          order.indexOf(declared) < Math.min(...required.map(r => order.indexOf(r)))
+        ) {
+          violations.push(
+            `${route}: guards at '${declared}' but policy requires '${required.join('/')}'`,
+          )
         }
       }
     }

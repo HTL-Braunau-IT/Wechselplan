@@ -15,27 +15,23 @@ export async function GET() {
   try {
     const holidays = await prisma.schoolHoliday.findMany({
       orderBy: {
-        startDate: 'asc'
-      }
+        startDate: 'asc',
+      },
     })
     return NextResponse.json(holidays)
   } catch (error) {
-
     captureError(error, {
       type: 'fetch-holidays',
-      location: 'api/settings/holidays'
+      location: 'api/settings/holidays',
     })
-    return NextResponse.json(
-      { error: 'Failed to fetch holidays' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to fetch holidays' }, { status: 500 })
   }
 }
 
 interface HolidayRequest {
-  name: string;
-  startDate: string;
-  endDate: string;
+  name: string
+  startDate: string
+  endDate: string
 }
 
 /**
@@ -50,36 +46,27 @@ export async function POST(request: Request) {
   if (denied) return denied
 
   // Initialize requestClone with the original request
-  const requestClone = request.clone();
+  const requestClone = request.clone()
   try {
-    const body = await request.json() as HolidayRequest;
+    const body = (await request.json()) as HolidayRequest
 
-    const { name, startDate, endDate } = body;
+    const { name, startDate, endDate } = body
 
     if (!name || !startDate || !endDate) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
     // Validate date format
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/
     if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
-      return NextResponse.json(
-        { error: 'Invalid date format' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Invalid date format' }, { status: 400 })
     }
 
     // Validate date order
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const start = new Date(startDate)
+    const end = new Date(endDate)
     if (end < start) {
-      return NextResponse.json(
-        { error: 'End date must be after start date' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'End date must be after start date' }, { status: 400 })
     }
 
     const holiday = await prisma.schoolHoliday.create({
@@ -87,23 +74,19 @@ export async function POST(request: Request) {
         name,
         startDate: start,
         endDate: end,
-      }
+      },
     })
-    
+
     return NextResponse.json(holiday)
   } catch (error) {
-
     // Use the cloned request for error logging
     captureError(error, {
       type: 'create-holiday',
       location: 'api/settings/holidays',
       extra: {
-        requestBody: await requestClone.text()
-      }
+        requestBody: await requestClone.text(),
+      },
     })
-    return NextResponse.json(
-      { error: 'Failed to create holiday' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to create holiday' }, { status: 500 })
   }
-} 
+}

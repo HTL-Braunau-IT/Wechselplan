@@ -41,7 +41,11 @@ interface SyncSummary {
 
 const STATUS_META: Record<
   string,
-  { label: string; icon: typeof CheckCircle2; variant: 'default' | 'secondary' | 'destructive' | 'outline' }
+  {
+    label: string
+    icon: typeof CheckCircle2
+    variant: 'default' | 'secondary' | 'destructive' | 'outline'
+  }
 > = {
   success: { label: 'Erfolgreich', icon: CheckCircle2, variant: 'default' },
   partial: { label: 'Mit Hinweisen', icon: AlertTriangle, variant: 'secondary' },

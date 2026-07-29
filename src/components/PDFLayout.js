@@ -1,12 +1,12 @@
 // components/MyDocument.js
-import { Document, Page, Text, StyleSheet, View } from '@react-pdf/renderer';
+import { Document, Page, Text, StyleSheet, View } from '@react-pdf/renderer'
 
 const GROUP_COLORS = [
   '#fef9c3', // yellow-200
   '#dcfce7', // green-200
   '#dbeafe', // blue-200
   '#fee2e2', // red-200
-];
+]
 
 const styles = StyleSheet.create({
   page: {
@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
     lineHeight: 1.1,
     textAlign: 'center',
   },
-});
+})
 
 /**
  * Renders a schedule table for the specified period, displaying teacher assignments and their group allocations for each turnus.
@@ -99,53 +99,82 @@ const styles = StyleSheet.create({
  * @param {{ id: number, students: { firstName: string, lastName: string }[] }[]} groups - Array of group objects with student information.
  * @param {any} styles - StyleSheet object for table styling.
  */
-function renderScheduleTable(period, assignments, turns, getTurnusInfo, getGroupForTeacherAndTurn, groups, styles) {
+function renderScheduleTable(
+  period,
+  assignments,
+  turns,
+  getTurnusInfo,
+  getGroupForTeacherAndTurn,
+  groups,
+  styles,
+) {
   return (
     <View style={styles.section}>
       <Text style={styles.title}>{period === 'AM' ? 'Vormittag' : 'Nachmittag'}</Text>
       <View style={styles.table}>
         <View style={styles.tableRow}>
           <Text style={{ ...styles.tableCol, ...styles.tableHeader, width: '10%' }}>Lehrer/in</Text>
-          <Text style={{ ...styles.tableCol, ...styles.tableHeader, width: '10%' }}>Werkstätte</Text>
-          <Text style={{ ...styles.tableCol, ...styles.tableHeader, width: '10%' }}>Lehrinhalt</Text>
+          <Text style={{ ...styles.tableCol, ...styles.tableHeader, width: '10%' }}>
+            Werkstätte
+          </Text>
+          <Text style={{ ...styles.tableCol, ...styles.tableHeader, width: '10%' }}>
+            Lehrinhalt
+          </Text>
           <Text style={{ ...styles.tableCol, ...styles.tableHeader, width: '10%' }}>Raum</Text>
           {Object.keys(turns).map((turn, turnIdx) => {
-            const { start, end, days } = getTurnusInfo(turn);
+            const { start, end, days } = getTurnusInfo(turn)
             // The 'days' value from getTurnusInfo is actually the number of weeks, not days
-            const weeks = days || 0;
+            const weeks = days || 0
             return (
-              <Text key={turn} style={{ ...styles.tableCol, ...styles.tableHeader, ...styles.compactTurnusHeader, width: `${60 / Object.keys(turns).length}%` }}>
-                T{turnIdx + 1}{'\n'}{start}-{end}{'\n'}({weeks}W)
+              <Text
+                key={turn}
+                style={{
+                  ...styles.tableCol,
+                  ...styles.tableHeader,
+                  ...styles.compactTurnusHeader,
+                  width: `${60 / Object.keys(turns).length}%`,
+                }}
+              >
+                T{turnIdx + 1}
+                {'\n'}
+                {start}-{end}
+                {'\n'}({weeks}W)
               </Text>
-            );
+            )
           })}
         </View>
         {assignments.map((assignment, teacherIdx) => (
           <View style={styles.tableRow} key={assignment.teacherId}>
-            <Text style={{ ...styles.tableCol, ...styles.teacherName, width: '10%' }}>{assignment.teacherLastName}, {assignment.teacherFirstName}</Text>
+            <Text style={{ ...styles.tableCol, ...styles.teacherName, width: '10%' }}>
+              {assignment.teacherLastName}, {assignment.teacherFirstName}
+            </Text>
             <Text style={{ ...styles.tableCol, width: '10%' }}>{assignment.subjectName ?? ''}</Text>
-            <Text style={{ ...styles.tableCol, width: '10%' }}>{assignment.learningContentName ?? ''}</Text>
+            <Text style={{ ...styles.tableCol, width: '10%' }}>
+              {assignment.learningContentName ?? ''}
+            </Text>
             <Text style={{ ...styles.tableCol, width: '10%' }}>{assignment.roomName ?? ''}</Text>
             {Object.keys(turns).map((turn, turnIdx) => {
-              const group = getGroupForTeacherAndTurn(teacherIdx, turnIdx, period);
+              const group = getGroupForTeacherAndTurn(teacherIdx, turnIdx, period)
               return (
-                <Text 
-                  key={turn} 
-                  style={{ 
-                    ...styles.tableCol, 
+                <Text
+                  key={turn}
+                  style={{
+                    ...styles.tableCol,
                     width: `${60 / Object.keys(turns).length}%`,
-                    backgroundColor: group ? GROUP_COLORS[(group.id - 1) % GROUP_COLORS.length] : undefined
+                    backgroundColor: group
+                      ? GROUP_COLORS[(group.id - 1) % GROUP_COLORS.length]
+                      : undefined,
                   }}
                 >
                   {group ? group.id : ''}
                 </Text>
-              );
+              )
             })}
           </View>
         ))}
       </View>
     </View>
-  );
+  )
 }
 
 /**
@@ -174,50 +203,49 @@ const PDFLayout = ({
   className = '',
   classHead = '—',
   classLead = '—',
-  additionalInfo = '—'
+  additionalInfo = '—',
 }) => {
   return (
     <Document>
       <Page size="A4" orientation="landscape" style={styles.page}>
         {/* Header */}
         <Text style={styles.title}>Wechselplan {className}</Text>
-        
+
         {/* Student Groups - All groups in one row */}
         <View style={styles.section}>
           <View style={styles.groupContainer}>
-            {groups.map((group) => (
+            {groups.map(group => (
               <View key={group.id} style={styles.groupTable}>
                 <View style={styles.table}>
                   <View style={styles.tableRow}>
-                    <Text 
-                      style={{ 
-                        ...styles.tableCol, 
+                    <Text
+                      style={{
+                        ...styles.tableCol,
                         ...styles.tableHeader,
                         backgroundColor: GROUP_COLORS[(group.id - 1) % GROUP_COLORS.length],
-                        fontSize: 8
+                        fontSize: 8,
                       }}
                     >
                       Gruppe {group.id}
                     </Text>
                   </View>
                   {[...Array(12)].map((_, idx) => {
-                    const student = group.students[idx];
+                    const student = group.students[idx]
                     return (
                       <View style={styles.tableRow} key={idx}>
-                        <Text 
-                          style={{ 
-                            ...styles.tableCol, 
+                        <Text
+                          style={{
+                            ...styles.tableCol,
                             ...styles.studentName,
-                            backgroundColor: GROUP_COLORS[(group.id - 1) % GROUP_COLORS.length]
+                            backgroundColor: GROUP_COLORS[(group.id - 1) % GROUP_COLORS.length],
                           }}
                         >
-                          {student 
+                          {student
                             ? `${idx + 1}. ${student.lastName} ${student.firstName}`
-                            : `${idx + 1}. -`
-                          }
+                            : `${idx + 1}. -`}
                         </Text>
                       </View>
-                    );
+                    )
                   })}
                 </View>
               </View>
@@ -227,8 +255,10 @@ const PDFLayout = ({
 
         {/* Class Information */}
         <View style={styles.infoSection}>
-          <Text>Klassenvorstand: {classHead}    Klassenleitung: {classLead}</Text>
-          <Text>  </Text>
+          <Text>
+            Klassenvorstand: {classHead} Klassenleitung: {classLead}
+          </Text>
+          <Text> </Text>
           <Text>
             <Text style={{ fontWeight: 'bold' }}>Zusätzliche Informationen:</Text>
             {'\n'}
@@ -240,16 +270,32 @@ const PDFLayout = ({
         <View style={styles.scheduleContainer}>
           {/* AM Schedule Table */}
           <View style={styles.scheduleTable}>
-            {renderScheduleTable('AM', amAssignments, turns, getTurnusInfo, getGroupForTeacherAndTurn, groups, styles)}
+            {renderScheduleTable(
+              'AM',
+              amAssignments,
+              turns,
+              getTurnusInfo,
+              getGroupForTeacherAndTurn,
+              groups,
+              styles,
+            )}
           </View>
           {/* PM Schedule Table */}
           <View style={styles.scheduleTable}>
-            {renderScheduleTable('PM', pmAssignments, turns, getTurnusInfo, getGroupForTeacherAndTurn, groups, styles)}
+            {renderScheduleTable(
+              'PM',
+              pmAssignments,
+              turns,
+              getTurnusInfo,
+              getGroupForTeacherAndTurn,
+              groups,
+              styles,
+            )}
           </View>
         </View>
       </Page>
     </Document>
-  );
-};
+  )
+}
 
-export default PDFLayout;
+export default PDFLayout

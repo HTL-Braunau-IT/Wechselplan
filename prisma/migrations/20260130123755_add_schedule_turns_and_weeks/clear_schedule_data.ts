@@ -1,12 +1,12 @@
 /**
  * Script to clear scheduleData JSON field after migration to normalized tables
- * 
+ *
  * This script:
  * 1. Verifies that normalized data exists for each schedule
  * 2. Clears the scheduleData JSON field (sets to null)
- * 
+ *
  * WARNING: This is irreversible. Only run after verifying all schedules work correctly.
- * 
+ *
  * Run with: npx tsx prisma/migrations/20260130123755_add_schedule_turns_and_weeks/clear_schedule_data.ts
  */
 
@@ -16,18 +16,20 @@ const prisma = new PrismaClient()
 
 async function clearScheduleData() {
   console.log('Starting scheduleData cleanup...')
-  console.log('This will clear the scheduleData JSON field for all schedules that have normalized data.\n')
+  console.log(
+    'This will clear the scheduleData JSON field for all schedules that have normalized data.\n',
+  )
 
   // Get all schedules
   const schedules = await prisma.schedule.findMany({
     where: {
       scheduleData: {
-        not: Prisma.JsonNull
-      }
+        not: Prisma.JsonNull,
+      },
     },
     include: {
-      turns: true
-    }
+      turns: true,
+    },
   })
 
   console.log(`Found ${schedules.length} schedules with scheduleData\n`)
@@ -44,10 +46,12 @@ async function clearScheduleData() {
       // Clear the scheduleData field
       await prisma.schedule.update({
         where: { id: schedule.id },
-        data: { scheduleData: Prisma.JsonNull }
+        data: { scheduleData: Prisma.JsonNull },
       })
       clearedCount++
-      console.log(`✓ Cleared scheduleData for schedule ${schedule.id} (${schedule.turns.length} turns)`)
+      console.log(
+        `✓ Cleared scheduleData for schedule ${schedule.id} (${schedule.turns.length} turns)`,
+      )
     } else {
       skippedCount++
       skippedSchedules.push(schedule.id)
@@ -59,7 +63,7 @@ async function clearScheduleData() {
   console.log('Cleanup Summary:')
   console.log(`  ✓ Cleared: ${clearedCount} schedules`)
   console.log(`  ⚠ Skipped: ${skippedCount} schedules`)
-  
+
   if (skippedSchedules.length > 0) {
     console.log(`\n  Skipped schedule IDs: ${skippedSchedules.join(', ')}`)
     console.log('  These schedules still have scheduleData JSON and no normalized data.')
@@ -70,11 +74,10 @@ async function clearScheduleData() {
 }
 
 clearScheduleData()
-  .catch((error) => {
+  .catch(error => {
     console.error('❌ Cleanup failed:', error)
     process.exit(1)
   })
   .finally(async () => {
     await prisma.$disconnect()
   })
-

@@ -54,9 +54,7 @@ describe('resolveAccessTier', () => {
     API_ACCESS_RULES.forEach((rule, index) => {
       const shadowedBy = API_ACCESS_RULES.slice(0, index).find(
         earlier =>
-          rule.prefix.startsWith(earlier.prefix) &&
-          earlier.tier !== rule.tier &&
-          !earlier.methods,
+          rule.prefix.startsWith(earlier.prefix) && earlier.tier !== rule.tier && !earlier.methods,
       )
       expect(
         shadowedBy,

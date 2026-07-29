@@ -13,7 +13,7 @@ const ALLOWED_MIMES = ['image/jpeg', 'image/png', 'image/jpg'] as const
 const EXT_BY_MIME: Record<string, string> = {
   'image/jpeg': '.jpg',
   'image/jpg': '.jpg',
-  'image/png': '.png'
+  'image/png': '.png',
 }
 
 export type UploadResultItem = {
@@ -39,7 +39,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     const isAdmin = session.user?.role === 'admin' || (await hasRole(session.user.name, 'admin'))
-    const isTeacher = session.user?.role === 'teacher' || (await hasRole(session.user.name, 'teacher'))
+    const isTeacher =
+      session.user?.role === 'teacher' || (await hasRole(session.user.name, 'teacher'))
     if (!isAdmin && !isTeacher) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -49,36 +50,40 @@ export async function POST(request: Request) {
 
     const formData = await request.formData()
     const singleStudentIdRaw = formData.get('studentId')
-    const singleStudentIdParam =
-      typeof singleStudentIdRaw === 'string' ? singleStudentIdRaw : null
-    const singleStudentId =
-      singleStudentIdParam != null ? parseInt(singleStudentIdParam, 10) : NaN
-    const isSingleStudentUpload =
-      !Number.isNaN(singleStudentId) && singleStudentId >= 1
+    const singleStudentIdParam = typeof singleStudentIdRaw === 'string' ? singleStudentIdRaw : null
+    const singleStudentId = singleStudentIdParam != null ? parseInt(singleStudentIdParam, 10) : NaN
+    const isSingleStudentUpload = !Number.isNaN(singleStudentId) && singleStudentId >= 1
 
     if (isSingleStudentUpload) {
       const student = await prisma.student.findUnique({
         where: { id: singleStudentId },
-        select: { id: true }
+        select: { id: true },
       })
       if (!student) {
         return NextResponse.json({ error: 'Student not found', results: [] }, { status: 404 })
       }
       const files: File[] = formData.getAll('files') as File[]
-      const file = files[0] ?? (() => {
-        for (const [, value] of formData.entries()) {
-          if (value instanceof File) return value
-        }
-        return null
-      })()
+      const file =
+        files[0] ??
+        (() => {
+          for (const [, value] of formData.entries()) {
+            if (value instanceof File) return value
+          }
+          return null
+        })()
       if (!file) {
         return NextResponse.json({ error: 'No file provided', results: [] }, { status: 400 })
       }
       const mime = file.type?.toLowerCase() || ''
       if (!ALLOWED_MIMES.includes(mime as (typeof ALLOWED_MIMES)[number])) {
-        return NextResponse.json({
-          results: [{ filename: file.name, success: false, error: 'Invalid file type (use JPEG or PNG)' }]
-        }, { status: 400 })
+        return NextResponse.json(
+          {
+            results: [
+              { filename: file.name, success: false, error: 'Invalid file type (use JPEG or PNG)' },
+            ],
+          },
+          { status: 400 },
+        )
       }
       const outExt = EXT_BY_MIME[mime] ?? '.jpg'
       const outPath = path.join(PHOTO_DIR, `${student.id}${outExt}`)
@@ -90,23 +95,27 @@ export async function POST(request: Request) {
         const buffer = Buffer.from(await file.arrayBuffer())
         fs.writeFileSync(outPath, buffer)
         return NextResponse.json({
-          results: [{ filename: file.name, success: true, studentId: student.id }]
+          results: [{ filename: file.name, success: true, studentId: student.id }],
         })
       } catch (err) {
         captureError(err, {
           location: 'api/admin/student-photos/upload',
           type: 'write-photo',
-          extra: { studentId: student.id, filename: file.name }
+          extra: { studentId: student.id, filename: file.name },
         })
-        return NextResponse.json({
-          results: [{ filename: file.name, success: false, error: 'Failed to save file' }]
-        }, { status: 500 })
+        return NextResponse.json(
+          {
+            results: [{ filename: file.name, success: false, error: 'Failed to save file' }],
+          },
+          { status: 500 },
+        )
       }
     }
 
     const classIdRaw = formData.get('classId') ?? formData.get('className')
     const classIdParam = typeof classIdRaw === 'string' ? classIdRaw : null
-    const allClasses = formData.get('mode') === 'all' || classIdParam == null || classIdParam.trim() === ''
+    const allClasses =
+      formData.get('mode') === 'all' || classIdParam == null || classIdParam.trim() === ''
 
     const normalize = (s: string) => s.trim().toLowerCase()
     type StudentMatch = { id: number; firstName: string; lastName: string }
@@ -115,12 +124,13 @@ export async function POST(request: Request) {
 
     if (allClasses) {
       students = await prisma.student.findMany({
-        select: { id: true, firstName: true, lastName: true }
+        select: { id: true, firstName: true, lastName: true },
       })
       findStudents = (lastName: string, firstName: string) =>
         students.filter(
-          (s) =>
-            normalize(s.lastName) === normalize(lastName) && normalize(s.firstName) === normalize(firstName)
+          s =>
+            normalize(s.lastName) === normalize(lastName) &&
+            normalize(s.firstName) === normalize(firstName),
         )
     } else {
       const classId = parseInt(classIdParam, 10)
@@ -128,31 +138,32 @@ export async function POST(request: Request) {
       students = isNumericClassId
         ? await prisma.student.findMany({
             where: { classId },
-            select: { id: true, firstName: true, lastName: true }
+            select: { id: true, firstName: true, lastName: true },
           })
         : await prisma.class
             .findUnique({
               where: { name: classIdParam.trim() },
-              select: { id: true }
+              select: { id: true },
             })
-            .then((c) =>
+            .then(c =>
               c
                 ? prisma.student.findMany({
                     where: { classId: c.id },
-                    select: { id: true, firstName: true, lastName: true }
+                    select: { id: true, firstName: true, lastName: true },
                   })
-                : []
+                : [],
             )
       if (students.length === 0) {
         return NextResponse.json(
           { error: 'No students found for this class', results: [] },
-          { status: 400 }
+          { status: 400 },
         )
       }
       findStudents = (lastName: string, firstName: string) =>
         students.filter(
-          (s) =>
-            normalize(s.lastName) === normalize(lastName) && normalize(s.firstName) === normalize(firstName)
+          s =>
+            normalize(s.lastName) === normalize(lastName) &&
+            normalize(s.firstName) === normalize(firstName),
         )
     }
 
@@ -179,7 +190,11 @@ export async function POST(request: Request) {
       const base = basenameOnly.slice(0, -ext.length)
       const parts = base.split('_')
       if (parts.length < 2) {
-        results.push({ filename: rawName, success: false, error: 'Filename must be LastName_FirstName' })
+        results.push({
+          filename: rawName,
+          success: false,
+          error: 'Filename must be LastName_FirstName',
+        })
         return
       }
       const lastName = parts[0]!.trim()
@@ -191,7 +206,7 @@ export async function POST(request: Request) {
           success: false,
           error: allClasses
             ? `No student match for ${lastName}_${firstName}`
-            : `No student match for ${lastName}_${firstName} in this class`
+            : `No student match for ${lastName}_${firstName} in this class`,
         })
         return
       }
@@ -200,14 +215,12 @@ export async function POST(request: Request) {
         results.push({
           filename: rawName,
           success: false,
-          error: 'Invalid file type (use JPEG or PNG)'
+          error: 'Invalid file type (use JPEG or PNG)',
         })
         return
       }
       const outExt = EXT_BY_MIME[mime] ?? '.jpg'
-      const uniqueStudents = Array.from(
-        new Map(matchedStudents.map((s) => [s.id, s])).values()
-      )
+      const uniqueStudents = Array.from(new Map(matchedStudents.map(s => [s.id, s])).values())
       for (const s of uniqueStudents) {
         const outPath = path.join(PHOTO_DIR, `${s.id}${outExt}`)
         if (!path.resolve(outPath).startsWith(path.resolve(PHOTO_DIR))) {
@@ -222,18 +235,18 @@ export async function POST(request: Request) {
           const outPath = path.join(PHOTO_DIR, `${s.id}${outExt}`)
           fs.writeFileSync(outPath, buffer)
         }
-        const studentIds = uniqueStudents.map((s) => s.id)
+        const studentIds = uniqueStudents.map(s => s.id)
         results.push({
           filename: rawName,
           success: true,
           studentId: studentIds[0],
-          studentIds
+          studentIds,
         })
       } catch (err) {
         captureError(err, {
           location: 'api/admin/student-photos/upload',
           type: 'write-photo',
-          extra: { studentIds: uniqueStudents.map((s) => s.id), filename: rawName }
+          extra: { studentIds: uniqueStudents.map(s => s.id), filename: rawName },
         })
         results.push({ filename: rawName, success: false, error: 'Failed to save file' })
       }
@@ -247,11 +260,8 @@ export async function POST(request: Request) {
     captureError(error, {
       location: 'api/admin/student-photos/upload',
       type: 'upload-photos',
-      extra: {}
+      extra: {},
     })
-    return NextResponse.json(
-      { error: 'Failed to process upload', results: [] },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to process upload', results: [] }, { status: 500 })
   }
 }

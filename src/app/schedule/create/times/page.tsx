@@ -5,7 +5,7 @@ import { ScheduleTimesSelector } from '@/components/schedule/schedule-times-sele
 
 /**
  * Page component for managing schedule and break times.
- * 
+ *
  * Wraps the ScheduleTimesSelector component and handles navigation after save.
  */
 export default function TimesPage() {
@@ -23,11 +23,7 @@ export default function TimesPage() {
 
   return (
     <div className="container mx-auto p-4">
-      <ScheduleTimesSelector
-        className={className}
-        onSave={handleSave}
-        onCancel={handleCancel}
-      />
+      <ScheduleTimesSelector className={className} onSave={handleSave} onCancel={handleCancel} />
     </div>
   )
-} 
+}

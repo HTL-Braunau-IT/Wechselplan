@@ -36,11 +36,11 @@ export function EntitlementsProvider({ children }: { children: ReactNode }) {
     setIsLoading(true)
 
     fetch('/api/entitlements')
-      .then((res) => (res.ok ? res.json() : { features: [] }))
+      .then(res => (res.ok ? res.json() : { features: [] }))
       .then((data: { features?: string[] }) => {
         const raw = Array.isArray(data?.features) ? data.features : []
         const valid: FeatureKey[] = raw.filter(
-          (k): k is FeatureKey => typeof k === 'string' && isKnownFeatureKey(k)
+          (k): k is FeatureKey => typeof k === 'string' && isKnownFeatureKey(k),
         )
         setEnabledFeatures(valid)
       })
@@ -56,11 +56,7 @@ export function EntitlementsProvider({ children }: { children: ReactNode }) {
     isFeatureEnabled,
   }
 
-  return (
-    <EntitlementsContext.Provider value={value}>
-      {children}
-    </EntitlementsContext.Provider>
-  )
+  return <EntitlementsContext.Provider value={value}>{children}</EntitlementsContext.Provider>
 }
 
 export function useEntitlements(): EntitlementsContextType {

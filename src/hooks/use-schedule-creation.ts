@@ -4,75 +4,74 @@ import { useClassDataByName } from './use-class-data'
 
 /**
  * Hook for managing schedule creation flow state and navigation
- * 
+ *
  * Provides:
  * - Class name to ID resolution
  * - Navigation helpers for schedule creation steps
  * - Common state management
  */
 export function useScheduleCreation() {
-	const router = useRouter()
-	const searchParams = useSearchParams()
-	const className = searchParams.get('class')
-	const weekdayParam = searchParams.get('weekday')
-	
-	const [selectedClassId, setSelectedClassId] = useState<number | null>(null)
-	const [selectedWeekday, setSelectedWeekday] = useState<number | null>(
-		weekdayParam ? parseInt(weekdayParam) : null
-	)
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const className = searchParams.get('class')
+  const weekdayParam = searchParams.get('weekday')
 
-	// Resolve className to classId
-	const { data: classData, isLoading: isLoadingClass } = useClassDataByName(className ?? null)
-	
-	useEffect(() => {
-		if (classData) {
-			setSelectedClassId(classData.id)
-		} else if (!className) {
-			setSelectedClassId(null)
-		}
-	}, [classData, className])
+  const [selectedClassId, setSelectedClassId] = useState<number | null>(null)
+  const [selectedWeekday, setSelectedWeekday] = useState<number | null>(
+    weekdayParam ? parseInt(weekdayParam) : null,
+  )
 
-	// Navigation helpers
-	const navigateToTeachers = () => {
-		if (!className) return
-		router.push(`/schedule/create/teachers?class=${className}`)
-	}
+  // Resolve className to classId
+  const { data: classData, isLoading: isLoadingClass } = useClassDataByName(className ?? null)
 
-	const navigateToRotation = (weekday?: number) => {
-		if (!className) return
-		const weekdayParam = weekday ?? selectedWeekday ?? 1
-		router.push(`/schedule/create/rotation?class=${className}&weekday=${weekdayParam}`)
-	}
+  useEffect(() => {
+    if (classData) {
+      setSelectedClassId(classData.id)
+    } else if (!className) {
+      setSelectedClassId(null)
+    }
+  }, [classData, className])
 
-	const navigateToTimes = (weekday?: number) => {
-		if (!className) return
-		const weekdayParam = weekday ?? selectedWeekday ?? 1
-		router.push(`/schedule/create/times?class=${className}&weekday=${weekdayParam}`)
-	}
+  // Navigation helpers
+  const navigateToTeachers = () => {
+    if (!className) return
+    router.push(`/schedule/create/teachers?class=${className}`)
+  }
 
-	const navigateToOverview = () => {
-		if (!className) return
-		router.push(`/schedule/create/overview?class=${className}`)
-	}
+  const navigateToRotation = (weekday?: number) => {
+    if (!className) return
+    const weekdayParam = weekday ?? selectedWeekday ?? 1
+    router.push(`/schedule/create/rotation?class=${className}&weekday=${weekdayParam}`)
+  }
 
-	const navigateBack = () => {
-		router.back()
-	}
+  const navigateToTimes = (weekday?: number) => {
+    if (!className) return
+    const weekdayParam = weekday ?? selectedWeekday ?? 1
+    router.push(`/schedule/create/times?class=${className}&weekday=${weekdayParam}`)
+  }
 
-	return {
-		// State
-		className,
-		selectedClassId,
-		selectedWeekday,
-		setSelectedWeekday,
-		isLoadingClass,
-		
-		// Navigation
-		navigateToTeachers,
-		navigateToRotation,
-		navigateToTimes,
-		navigateToOverview,
-		navigateBack,
-	}
+  const navigateToOverview = () => {
+    if (!className) return
+    router.push(`/schedule/create/overview?class=${className}`)
+  }
+
+  const navigateBack = () => {
+    router.back()
+  }
+
+  return {
+    // State
+    className,
+    selectedClassId,
+    selectedWeekday,
+    setSelectedWeekday,
+    isLoadingClass,
+
+    // Navigation
+    navigateToTeachers,
+    navigateToRotation,
+    navigateToTimes,
+    navigateToOverview,
+    navigateBack,
+  }
 }
-

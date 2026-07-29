@@ -17,10 +17,7 @@ function isWindowsServerAdSourced(group: EntraGroup): boolean {
 export async function GET(request: Request) {
   const auth = await requireAdmin()
   if (!auth.ok) {
-    return NextResponse.json(
-      { error: 'Unauthorized: admin role required' },
-      { status: 403 },
-    )
+    return NextResponse.json({ error: 'Unauthorized: admin role required' }, { status: 403 })
   }
 
   try {

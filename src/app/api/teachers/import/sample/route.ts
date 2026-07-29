@@ -13,7 +13,7 @@ Michael,Johnson,1C;2A;3B`
   return new NextResponse(csvContent, {
     headers: {
       'Content-Type': 'text/csv',
-      'Content-Disposition': 'attachment; filename="sample_teachers.csv"'
-    }
+      'Content-Disposition': 'attachment; filename="sample_teachers.csv"',
+    },
   })
-} 
+}

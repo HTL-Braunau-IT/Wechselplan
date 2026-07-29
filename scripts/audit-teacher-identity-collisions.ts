@@ -11,7 +11,17 @@
 import { PrismaClient, type Teacher } from '@prisma/client'
 import { normalizeUsername } from '../src/lib/username'
 
-type TeacherWithKeys = Pick<Teacher, 'id' | 'firstName' | 'lastName' | 'username' | 'email' | 'externalId' | 'externalSource' | 'createdAt'>
+type TeacherWithKeys = Pick<
+  Teacher,
+  | 'id'
+  | 'firstName'
+  | 'lastName'
+  | 'username'
+  | 'email'
+  | 'externalId'
+  | 'externalSource'
+  | 'createdAt'
+>
 
 interface DependencyCounts {
   teacherAssignments: number
@@ -238,7 +248,7 @@ async function main() {
 }
 
 main()
-  .catch((error) => {
+  .catch(error => {
     console.error(error)
     process.exit(1)
   })

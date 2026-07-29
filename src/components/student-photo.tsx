@@ -36,7 +36,7 @@ export function StudentPhoto({
   className,
   avatarOnly = false,
   nameFormat = 'lastFirst',
-  children
+  children,
 }: StudentPhotoProps) {
   const [open, setOpen] = useState(false)
   const [position, setPosition] = useState({ top: 0, left: 0 })
@@ -57,7 +57,7 @@ export function StudentPhoto({
   const initials =
     [firstName, lastName]
       .filter(Boolean)
-      .map((s) => s!.charAt(0))
+      .map(s => s!.charAt(0))
       .join('')
       .toUpperCase()
       .slice(0, 2) || '?'
@@ -75,7 +75,7 @@ export function StudentPhoto({
     if (rect) {
       setPosition({
         left: rect.left,
-        top: rect.bottom + POPOVER_OFFSET
+        top: rect.bottom + POPOVER_OFFSET,
       })
     }
     setOpen(true)
@@ -91,17 +91,17 @@ export function StudentPhoto({
 
   const popoverContent = open && (
     <div
-      className="fixed flex flex-col items-center rounded-lg border bg-background p-3 shadow-lg z-[9999]"
+      className="bg-background fixed z-[9999] flex flex-col items-center rounded-lg border p-3 shadow-lg"
       style={{
         left: position.left,
         top: position.top,
-        minWidth: PHOTO_SIZE_LARGE + 32
+        minWidth: PHOTO_SIZE_LARGE + 32,
       }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
       <span
-        className="inline-flex overflow-hidden rounded-full bg-muted"
+        className="bg-muted inline-flex overflow-hidden rounded-full"
         style={{ width: PHOTO_SIZE_LARGE, height: PHOTO_SIZE_LARGE }}
       >
         {photoUrl ? (
@@ -114,19 +114,19 @@ export function StudentPhoto({
               className={cn('h-full w-full object-cover', error && 'hidden')}
             />
             {error && (
-              <span className="flex h-full w-full items-center justify-center text-2xl font-medium text-muted-foreground">
+              <span className="text-muted-foreground flex h-full w-full items-center justify-center text-2xl font-medium">
                 {initials}
               </span>
             )}
           </>
         ) : (
-          <span className="flex h-full w-full items-center justify-center text-2xl font-medium text-muted-foreground">
+          <span className="text-muted-foreground flex h-full w-full items-center justify-center text-2xl font-medium">
             {initials}
           </span>
         )}
       </span>
       {displayName && (
-        <p className="mt-2 text-center text-sm font-medium text-foreground">{displayName}</p>
+        <p className="text-foreground mt-2 text-center text-sm font-medium">{displayName}</p>
       )}
     </div>
   )
@@ -139,45 +139,46 @@ export function StudentPhoto({
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-      <div className="flex items-center gap-2 shrink-0 cursor-default">
-        <span
-          className="inline-flex shrink-0 overflow-hidden rounded-full bg-muted align-middle"
-          style={{ width: size, height: size }}
-        >
-          {photoUrl ? (
-            <>
-              <img
-                src={photoUrl}
-                alt=""
-                width={size}
-                height={size}
-                className={cn('h-full w-full object-cover', (error || !loaded) && 'hidden')}
-                onLoad={() => {
-                  setLoaded(true)
-                  setError(false)
-                }}
-                onError={() => setError(true)}
-              />
-              {(!loaded || error) && (
-                <span
-                  className="inline-flex h-full w-full items-center justify-center text-xs font-medium text-muted-foreground"
-                  style={{ fontSize: size * 0.4 }}
-                >
-                  {initials}
-                </span>
-              )}
-            </>
-          ) : (
-            <span
-              className="inline-flex h-full w-full items-center justify-center text-xs font-medium text-muted-foreground"
-              style={{ fontSize: size * 0.4 }}
-            >
-              {initials}
-            </span>
-          )}
-        </span>
-        {!avatarOnly && (children ?? (displayName ? <span className="truncate">{displayName}</span> : null))}
-      </div>
+        <div className="flex shrink-0 cursor-default items-center gap-2">
+          <span
+            className="bg-muted inline-flex shrink-0 overflow-hidden rounded-full align-middle"
+            style={{ width: size, height: size }}
+          >
+            {photoUrl ? (
+              <>
+                <img
+                  src={photoUrl}
+                  alt=""
+                  width={size}
+                  height={size}
+                  className={cn('h-full w-full object-cover', (error || !loaded) && 'hidden')}
+                  onLoad={() => {
+                    setLoaded(true)
+                    setError(false)
+                  }}
+                  onError={() => setError(true)}
+                />
+                {(!loaded || error) && (
+                  <span
+                    className="text-muted-foreground inline-flex h-full w-full items-center justify-center text-xs font-medium"
+                    style={{ fontSize: size * 0.4 }}
+                  >
+                    {initials}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span
+                className="text-muted-foreground inline-flex h-full w-full items-center justify-center text-xs font-medium"
+                style={{ fontSize: size * 0.4 }}
+              >
+                {initials}
+              </span>
+            )}
+          </span>
+          {!avatarOnly &&
+            (children ?? (displayName ? <span className="truncate">{displayName}</span> : null))}
+        </div>
       </div>
 
       {typeof document !== 'undefined' && createPortal(popoverContent, document.body)}

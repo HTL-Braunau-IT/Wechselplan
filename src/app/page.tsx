@@ -10,8 +10,6 @@ import { StudentOverview } from '@/components/overviews/students'
 import { ChangelogDialog } from '@/components/changelog-dialog'
 import { useGitHubVersion } from '@/hooks/use-github-version'
 
-
-
 /**
  * Renders the home page with authentication-aware and role-based content.
  *
@@ -26,9 +24,11 @@ export default function Home() {
   if (!session) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center space-y-4">
+        <div className="space-y-4 text-center">
           <h1 className="text-4xl font-bold dark:text-white">{t('common.welcome')}</h1>
-          <p className="text-lg text-muted-foreground dark:text-gray-400">{t('auth.pleaseLogin')}</p>
+          <p className="text-muted-foreground text-lg dark:text-gray-400">
+            {t('auth.pleaseLogin')}
+          </p>
           <Button onClick={() => signIn()} size="lg" className="mt-4">
             <LogIn className="mr-2 h-5 w-5" />
             {t('auth.login')}
@@ -36,20 +36,20 @@ export default function Home() {
         </div>
       </div>
     )
-  }  
+  }
 
   return (
     <main className="flex min-h-screen flex-col items-center p-24">
-      <div className="z-10 max-w-5xl w-full space-y-8">
-        <div className="flex justify-between items-center">
-          <h1 className="text-4xl font-bold mb-8 dark:text-white">
+      <div className="z-10 w-full max-w-5xl space-y-8">
+        <div className="flex items-center justify-between">
+          <h1 className="mb-8 text-4xl font-bold dark:text-white">
             {t('common.welcome')}, {session.user?.firstName} {session.user?.lastName}
           </h1>
 
           <div className="text-sm text-gray-400 dark:text-gray-500">
             <button
               onClick={() => setIsChangelogOpen(true)}
-              className="hover:text-gray-600 dark:hover:text-gray-300 transition-colors cursor-pointer"
+              className="cursor-pointer transition-colors hover:text-gray-600 dark:hover:text-gray-300"
               title="Click to view changelog"
               disabled={loading || !release}
             >
@@ -63,25 +63,20 @@ export default function Home() {
             onOpenChange={setIsChangelogOpen}
           />
         </div>
-        <p className="text-lg text-muted-foreground dark:text-gray-400">
-            {new Date().toLocaleDateString('de-DE', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric'
-            })}
-          </p>
+        <p className="text-muted-foreground text-lg dark:text-gray-400">
+          {new Date().toLocaleDateString('de-DE', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })}
+        </p>
         {/* Only show class selector for students */}
-        {session.user?.role === 'student' && (
-          <StudentOverview />
-        )}
+        {session.user?.role === 'student' && <StudentOverview />}
         {(session.user?.role === 'teacher' || session.user?.role === 'admin') && (
           <TeacherOverview />
         )}
-
-       
       </div>
-      
     </main>
   )
 }

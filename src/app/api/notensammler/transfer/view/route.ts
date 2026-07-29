@@ -22,7 +22,7 @@ type NotenmanagementNote = {
 
 async function getNotenmanagementAccessToken(
   username: string,
-  password: string
+  password: string,
 ): Promise<{ token: string; expiresIn: number }> {
   const tokenUrl = new URL('Token', env.NOTENMANAGEMENT_BASE_URL).toString()
   const body = new URLSearchParams({
@@ -94,7 +94,10 @@ export async function POST(request: Request) {
       accessToken = providedToken
     } else {
       if (!password) {
-        return NextResponse.json({ error: 'Password required when token is not provided' }, { status: 400 })
+        return NextResponse.json(
+          { error: 'Password required when token is not provided' },
+          { status: 400 },
+        )
       }
       const tokenData = await getNotenmanagementAccessToken(nmUsername, password)
       accessToken = tokenData.token
@@ -104,7 +107,7 @@ export async function POST(request: Request) {
     // Fetch LF data from Notenmanagement
     const getUrl = new URL(
       `api/LFs/${encodeURIComponent(lfId)}/Noten?sort=Nachname|Vorname`,
-      env.NOTENMANAGEMENT_BASE_URL
+      env.NOTENMANAGEMENT_BASE_URL,
     ).toString()
 
     const res = await fetch(getUrl, {
@@ -117,7 +120,7 @@ export async function POST(request: Request) {
       const errorText = await res.text()
       return NextResponse.json(
         { error: 'Failed to fetch LF data from Notenmanagement', details: errorText },
-        { status: 502 }
+        { status: 502 },
       )
     }
 
@@ -137,8 +140,7 @@ export async function POST(request: Request) {
     })
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to fetch LF data' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
-

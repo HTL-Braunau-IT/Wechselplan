@@ -32,7 +32,7 @@ export const isValidSchoolYear = (year: string): year is SchoolYear => {
  */
 export function getCurrentSemesterFromSchoolYear(
   semesterChangeDate: string,
-  referenceDate: Date = new Date()
+  referenceDate: Date = new Date(),
 ): 'first' | 'second' {
   const change = new Date(semesterChangeDate)
   const ref = new Date(referenceDate)
@@ -65,4 +65,4 @@ export function getStoredSchoolYearId(): number | null {
 export function setStoredSchoolYearId(id: number): void {
   if (typeof window === 'undefined') return
   localStorage.setItem(STORAGE_KEY, String(id))
-} 
+}

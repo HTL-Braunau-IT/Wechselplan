@@ -64,7 +64,7 @@ const getLDAPConfig = (): LDAPConfig => {
     baseDN: process.env.LDAP_BASE_DN,
     username: process.env.LDAP_USERNAME,
     password: process.env.LDAP_PASSWORD,
-    studentsOU: process.env.LDAP_STUDENTS_OU
+    studentsOU: process.env.LDAP_STUDENTS_OU,
   }
 
   // Validate required environment variables
@@ -91,8 +91,8 @@ async function fetchLDAPData(): Promise<ImportData> {
     reconnect: true,
     strictDN: false,
     tlsOptions: {
-      rejectUnauthorized: false
-    }
+      rejectUnauthorized: false,
+    },
   })
 
   // Connect to LDAP
@@ -109,42 +109,48 @@ async function fetchLDAPData(): Promise<ImportData> {
   // Search for class OUs under the Students OU
   const classOUs = await new Promise<LDAPClass[]>((resolve, reject) => {
     const classes: LDAPClass[] = []
-    client.search(LDAP_CONFIG.studentsOU, {
-      filter: '(objectClass=organizationalUnit)',
-      scope: 'one',
-      attributes: ['ou', 'distinguishedName']
-    }, (err: Error | null, res: LDAPSearchResponse) => {
-      if (err) {
-        reject(err)
-        return
-      }
-
-      res.on('searchEntry', (entry: LDAPEntry) => {
-        const ou = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'ou')?.values[0]
-        const dn = String(entry.objectName)
-        
-        // Only include OUs that are direct children of the Students OU
-        const normalizedDN = dn.toLowerCase()
-        const normalizedStudentsOU = LDAP_CONFIG.studentsOU.toLowerCase()
-        if (normalizedDN.includes(normalizedStudentsOU) && 
-            !normalizedDN.includes('ou=klassen') && 
-            !normalizedDN.includes('ou=dummy')) {
-          classes.push({ ou: ou ?? '', distinguishedName: dn })
+    client.search(
+      LDAP_CONFIG.studentsOU,
+      {
+        filter: '(objectClass=organizationalUnit)',
+        scope: 'one',
+        attributes: ['ou', 'distinguishedName'],
+      },
+      (err: Error | null, res: LDAPSearchResponse) => {
+        if (err) {
+          reject(err)
+          return
         }
-      })
 
-      res.on('end', () => {
-        resolve(classes)
-      })
+        res.on('searchEntry', (entry: LDAPEntry) => {
+          const ou = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'ou')?.values[0]
+          const dn = String(entry.objectName)
 
-      res.on('error', (err: Error) => {
-        reject(err)
-      })
-    })
+          // Only include OUs that are direct children of the Students OU
+          const normalizedDN = dn.toLowerCase()
+          const normalizedStudentsOU = LDAP_CONFIG.studentsOU.toLowerCase()
+          if (
+            normalizedDN.includes(normalizedStudentsOU) &&
+            !normalizedDN.includes('ou=klassen') &&
+            !normalizedDN.includes('ou=dummy')
+          ) {
+            classes.push({ ou: ou ?? '', distinguishedName: dn })
+          }
+        })
+
+        res.on('end', () => {
+          resolve(classes)
+        })
+
+        res.on('error', (err: Error) => {
+          reject(err)
+        })
+      },
+    )
   })
 
   const importData: ImportData = {
-    classes: []
+    classes: [],
   }
 
   // For each class OU, get all students
@@ -162,7 +168,7 @@ async function fetchLDAPData(): Promise<ImportData> {
         scope: 'sub' as const,
         attributes: ['givenName', 'sn', 'sAMAccountName'],
         paged: true,
-        sizeLimit: 1000
+        sizeLimit: 1000,
       }
 
       client.search(studentsOU, searchOptions, (err: Error | null, res: LDAPSearchResponse) => {
@@ -172,15 +178,19 @@ async function fetchLDAPData(): Promise<ImportData> {
         }
 
         res.on('searchEntry', (entry: LDAPEntry) => {
-          const givenName = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'givenName')?.values[0]
+          const givenName = entry.attributes.find(
+            (attr: LDAPAttribute) => attr.type === 'givenName',
+          )?.values[0]
           const sn = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'sn')?.values[0]
-          const sAMAccountName = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'sAMAccountName')?.values[0]
+          const sAMAccountName = entry.attributes.find(
+            (attr: LDAPAttribute) => attr.type === 'sAMAccountName',
+          )?.values[0]
 
           if (givenName && sn && sAMAccountName) {
             students.push({
               givenName,
               sn,
-              sAMAccountName
+              sAMAccountName,
             })
           }
         })
@@ -200,8 +210,8 @@ async function fetchLDAPData(): Promise<ImportData> {
       students: students.map(student => ({
         firstName: student.givenName,
         lastName: student.sn,
-        username: student.sAMAccountName
-      }))
+        username: student.sAMAccountName,
+      })),
     })
   }
 
@@ -223,21 +233,30 @@ export async function POST(request: Request) {
   if (denied) return denied
 
   try {
-    const data = await request.json() as ImportRequest & { schoolYearId?: number }
+    const data = (await request.json()) as ImportRequest & { schoolYearId?: number }
     const { classes: classNames, schoolYearId: bodySchoolYearId } = data
     let schoolYearId = bodySchoolYearId
     if (schoolYearId == null) {
       const now = new Date()
       const current = await prisma.schoolYear.findFirst({
         where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true }
+        select: { id: true },
       })
-      schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id
+      schoolYearId =
+        current?.id ??
+        (
+          await prisma.schoolYear.findFirst({
+            orderBy: { startDate: 'desc' },
+            select: { id: true },
+          })
+        )?.id
     }
     if (schoolYearId == null) {
       return NextResponse.json(
-        { error: 'No school year found. Create a school year in Admin / Data / School Years first.' },
-        { status: 400 }
+        {
+          error: 'No school year found. Create a school year in Admin / Data / School Years first.',
+        },
+        { status: 400 },
       )
     }
 
@@ -256,7 +275,7 @@ export async function POST(request: Request) {
       const classRecord = await prisma.class.upsert({
         where: { name: className },
         update: {},
-        create: { name: className }
+        create: { name: className },
       })
 
       // Note: We delete all students and recreate them to sync with LDAP.
@@ -267,16 +286,16 @@ export async function POST(request: Request) {
       // Delete existing students in this class
       await prisma.student.deleteMany({
         where: {
-          classId: classRecord.id
-        }
+          classId: classRecord.id,
+        },
       })
 
       // Clean up orphaned GroupAssignment records (groups with no students)
       // These will be recreated automatically when students are assigned to groups
       await prisma.groupAssignment.deleteMany({
         where: {
-          class: className
-        }
+          class: className,
+        },
       })
 
       // Import new students for this class (normalize username for storage) and ClassMembership for the year
@@ -287,22 +306,22 @@ export async function POST(request: Request) {
             firstName: student.firstName,
             lastName: student.lastName,
             username,
-            classId: classRecord.id
-          }
+            classId: classRecord.id,
+          },
         })
         await prisma.classMembership.upsert({
           where: {
             studentId_schoolYearId: {
               studentId: newStudent.id,
-              schoolYearId
-            }
+              schoolYearId,
+            },
           },
           create: {
             studentId: newStudent.id,
             classId: classRecord.id,
-            schoolYearId
+            schoolYearId,
           },
-          update: { classId: classRecord.id }
+          update: { classId: classRecord.id },
         })
         importedCount++
       }
@@ -312,17 +331,14 @@ export async function POST(request: Request) {
     return NextResponse.json({
       message: 'Import completed successfully',
       students: importedCount,
-      classes: updatedCount
-    })  
+      classes: updatedCount,
+    })
   } catch (error) {
     console.error('Error in import save:', error)
     captureError(error, {
       location: 'api/students/import/save',
-      type: 'import-students'
+      type: 'import-students',
     })
-    return NextResponse.json(
-      { error: 'Failed to import students' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to import students' }, { status: 500 })
   }
-} 
+}

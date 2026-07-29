@@ -1,4 +1,4 @@
-import "server-only";
+import 'server-only'
 
 import { createTRPCReact, httpBatchLink } from '@trpc/react-query'
 import { type inferRouterInputs, type inferRouterOutputs } from '@trpc/server'

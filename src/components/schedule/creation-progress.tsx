@@ -5,16 +5,16 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 
 interface Step {
-	id: string
-	path: string
+  id: string
+  path: string
 }
 
 const steps: Step[] = [
-	{ id: 'class', path: '/schedule/create' },
-	{ id: 'teachers', path: '/schedule/create/teachers' },
-	{ id: 'rotation', path: '/schedule/create/rotation' },
-	{ id: 'times', path: '/schedule/create/times' },
-	{ id: 'overview', path: '/schedule/create/overview' }
+  { id: 'class', path: '/schedule/create' },
+  { id: 'teachers', path: '/schedule/create/teachers' },
+  { id: 'rotation', path: '/schedule/create/rotation' },
+  { id: 'times', path: '/schedule/create/times' },
+  { id: 'overview', path: '/schedule/create/overview' },
 ]
 
 /**
@@ -23,85 +23,85 @@ const steps: Step[] = [
  * The progress indicator highlights the user's current position in the multi-step schedule creation flow, disables navigation to future steps, and preserves the selected class in the URL when navigating between steps.
  */
 export function CreationProgress() {
-	const { t } = useTranslation('schedule')
-	const pathname = usePathname()
-	const searchParams = new URLSearchParams(window.location.search)
-	const selectedClass = searchParams.get('class')
+  const { t } = useTranslation('schedule')
+  const pathname = usePathname()
+  const searchParams = new URLSearchParams(window.location.search)
+  const selectedClass = searchParams.get('class')
 
-	const currentStepIndex = steps.findIndex(step => pathname === step.path)
+  const currentStepIndex = steps.findIndex(step => pathname === step.path)
 
-	return (
-		<div className="sticky top-16 flex flex-col items-start py-8 px-4">
-			{steps.map((step, index) => {
-				const isCompleted = index < currentStepIndex
-				const isCurrent = index === currentStepIndex
-				const isClickable = isCompleted || isCurrent
-				const href = isClickable 
-					? selectedClass 
-						? `${step.path}?class=${selectedClass}`
-						: step.path
-					: '#'
+  return (
+    <div className="sticky top-16 flex flex-col items-start px-4 py-8">
+      {steps.map((step, index) => {
+        const isCompleted = index < currentStepIndex
+        const isCurrent = index === currentStepIndex
+        const isClickable = isCompleted || isCurrent
+        const href = isClickable
+          ? selectedClass
+            ? `${step.path}?class=${selectedClass}`
+            : step.path
+          : '#'
 
-				return (
-					<Link
-						key={step.id}
-						href={href}
-						className={`relative flex items-center w-full mb-8 group ${
-							isClickable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
-						}`}
-					>
-						{/* Circle */}
-						<div
-							className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-colors shrink-0 ${
-								isCompleted
-									? 'bg-green-600 border-green-600 text-white'
-									: isCurrent
-									? 'border-primary text-primary bg-primary/10'
-									: 'border-muted text-muted-foreground'
-							}`}
-						>
-							{isCompleted ? (
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									className="h-5 w-5"
-									viewBox="0 0 20 20"
-									fill="currentColor"
-								>
-									<path
-										fillRule="evenodd"
-										d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-										clipRule="evenodd"
-									/>
-								</svg>
-							) : (
-								<span>{index + 1}</span>
-							)}
-						</div>
+        return (
+          <Link
+            key={step.id}
+            href={href}
+            className={`group relative mb-8 flex w-full items-center ${
+              isClickable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
+            }`}
+          >
+            {/* Circle */}
+            <div
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                isCompleted
+                  ? 'border-green-600 bg-green-600 text-white'
+                  : isCurrent
+                    ? 'border-primary text-primary bg-primary/10'
+                    : 'border-muted text-muted-foreground'
+              }`}
+            >
+              {isCompleted ? (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              ) : (
+                <span>{index + 1}</span>
+              )}
+            </div>
 
-						{/* Label */}
-						<div
-							className={`ml-3 text-sm font-medium whitespace-nowrap transition-colors ${
-								isCompleted
-									? 'text-green-600'
-									: isCurrent
-									? 'text-primary font-semibold'
-									: 'text-muted-foreground'
-							}`}
-						>
-							{t(`steps.${step.id}`)}
-						</div>
+            {/* Label */}
+            <div
+              className={`ml-3 text-sm font-medium whitespace-nowrap transition-colors ${
+                isCompleted
+                  ? 'text-green-600'
+                  : isCurrent
+                    ? 'text-primary font-semibold'
+                    : 'text-muted-foreground'
+              }`}
+            >
+              {t(`steps.${step.id}`)}
+            </div>
 
-						{/* Connecting line */}
-						{index < steps.length - 1 && (
-							<div
-								className={`absolute left-4 top-[32px] w-0.5 h-8 ${
-									isCompleted ? 'bg-green-600' : 'bg-muted'
-								}`}
-							/>
-						)}
-					</Link>
-				)
-			})}
-		</div>
-	)
-} 
+            {/* Connecting line */}
+            {index < steps.length - 1 && (
+              <div
+                className={`absolute top-[32px] left-4 h-8 w-0.5 ${
+                  isCompleted ? 'bg-green-600' : 'bg-muted'
+                }`}
+              />
+            )}
+          </Link>
+        )
+      })}
+    </div>
+  )
+}

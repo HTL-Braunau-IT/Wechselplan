@@ -13,10 +13,10 @@ interface NotifyTeachersRequest {
 
 /**
  * Sends email notifications to all teachers included in a schedule rotation.
- * 
+ *
  * Fetches teacher details from the database and sends personalized German emails
  * notifying them about the new schedule for their class.
- * 
+ *
  * @param request - The HTTP request containing class and teacher information
  * @returns A JSON response indicating success or providing an error message
  */
@@ -25,29 +25,32 @@ export async function POST(request: Request) {
   if (denied) return denied
 
   try {
-    const data = await request.json() as NotifyTeachersRequest
+    const data = (await request.json()) as NotifyTeachersRequest
     const { classId, className, teacherIds, scheduleLink } = data
 
-    if (!classId || typeof classId !== 'number' || !className || !teacherIds || !Array.isArray(teacherIds)) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      )
+    if (
+      !classId ||
+      typeof classId !== 'number' ||
+      !className ||
+      !teacherIds ||
+      !Array.isArray(teacherIds)
+    ) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
     // Fetch teacher details from database
     const teachers = await prisma.teacher.findMany({
       where: {
         id: {
-          in: teacherIds
-        }
+          in: teacherIds,
+        },
       },
       select: {
         id: true,
         firstName: true,
         lastName: true,
-        email: true
-      }
+        email: true,
+      },
     })
 
     // Filter teachers with valid email addresses
@@ -56,12 +59,12 @@ export async function POST(request: Request) {
     if (teachersWithEmails.length === 0) {
       return NextResponse.json(
         { error: 'No teachers with valid email addresses found' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
     // Send emails to all teachers
-    const emailPromises = teachersWithEmails.map(async (teacher) => {
+    const emailPromises = teachersWithEmails.map(async teacher => {
       const subject = `Wechselplan ${className}`
       const message = `Hallo ${teacher.firstName} ${teacher.lastName}!\n\nEs wurde ein Wechselplan für Klasse ${className} erstellt. Du findest den Plan unter ${scheduleLink}.\n\nViele Grüße,\nDas Wechselplan-Team`
 
@@ -77,8 +80,8 @@ export async function POST(request: Request) {
           extra: {
             teacherId: teacher.id,
             teacherEmail: teacher.email,
-            className
-          }
+            className,
+          },
         })
       }
     })
@@ -86,22 +89,17 @@ export async function POST(request: Request) {
     // Wait for all emails to be sent (or fail)
     await Promise.allSettled(emailPromises)
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       emailsSent: teachersWithEmails.length,
-      totalTeachers: teachers.length
+      totalTeachers: teachers.length,
     })
-
   } catch (error) {
     console.error('Error in notify-teachers API:', error)
     captureError(error, {
       location: 'api/schedules/notify-teachers',
-      type: 'notify-teachers'
+      type: 'notify-teachers',
     })
-    return NextResponse.json(
-      { error: 'Failed to send teacher notifications' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to send teacher notifications' }, { status: 500 })
   }
 }
-

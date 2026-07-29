@@ -22,42 +22,42 @@ export default function RotationPage() {
     schedule: Schedule,
     selectedWeekday: number,
     additionalInfo: string,
-    semesterPlanning: 'first' | 'second' | null
+    semesterPlanning: 'first' | 'second' | null,
   ) => {
-      // First, get the numeric class ID from the class name
-      const classResponse = await fetch(`/api/classes/get-by-name?name=${className}`)
-      if (!classResponse.ok) {
-        throw new Error('Failed to fetch class information')
-      }
-      const classData = await classResponse.json()
-      if (!classData?.id) {
-        throw new Error('Class not found')
-      }
+    // First, get the numeric class ID from the class name
+    const classResponse = await fetch(`/api/classes/get-by-name?name=${className}`)
+    if (!classResponse.ok) {
+      throw new Error('Failed to fetch class information')
+    }
+    const classData = await classResponse.json()
+    if (!classData?.id) {
+      throw new Error('Class not found')
+    }
 
-      const response = await fetch('/api/schedules', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: 'Rotation Schedule',
-          description: `Rotation schedule for class ${className}`,
-          startDate: new Date().toISOString(),
-          endDate: new Date().toISOString(),
-          selectedWeekday: selectedWeekday,
-          scheduleData: schedule,
-          additionalInfo,
-          classId: classData.id.toString(),
-          ...(schoolYearId != null && { schoolYearId }),
-          semesterPlanning
-        }),
-      })
+    const response = await fetch('/api/schedules', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: 'Rotation Schedule',
+        description: `Rotation schedule for class ${className}`,
+        startDate: new Date().toISOString(),
+        endDate: new Date().toISOString(),
+        selectedWeekday: selectedWeekday,
+        scheduleData: schedule,
+        additionalInfo,
+        classId: classData.id.toString(),
+        ...(schoolYearId != null && { schoolYearId }),
+        semesterPlanning,
+      }),
+    })
 
-      if (!response.ok) {
-        throw new Error('Failed to save schedule')
-      }
+    if (!response.ok) {
+      throw new Error('Failed to save schedule')
+    }
 
-      // Navigate to the times page with both class and weekday parameters
+    // Navigate to the times page with both class and weekday parameters
     router.push(`/schedule/create/times?class=${className}&weekday=${selectedWeekday}`)
   }
 
@@ -75,4 +75,4 @@ export default function RotationPage() {
       />
     </div>
   )
-} 
+}

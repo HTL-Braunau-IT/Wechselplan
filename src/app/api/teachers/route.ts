@@ -6,14 +6,15 @@ import { z } from 'zod'
 import { denyUnlessAccess } from '@/lib/api-guard'
 
 const teacherSchema = z.object({
-	firstName: z.string().min(1, 'First name is required').trim(),
-	lastName: z.string().min(1, 'Last name is required').trim(),
-	username: z.string()
-		.min(3, 'Username must be at least 3 characters')
-		.max(50, 'Username must be less than 50 characters')
-		.trim()
-		.toLowerCase(),
-	email: z.string().email('Invalid email address').trim().toLowerCase()
+  firstName: z.string().min(1, 'First name is required').trim(),
+  lastName: z.string().min(1, 'Last name is required').trim(),
+  username: z
+    .string()
+    .min(3, 'Username must be at least 3 characters')
+    .max(50, 'Username must be less than 50 characters')
+    .trim()
+    .toLowerCase(),
+  email: z.string().email('Invalid email address').trim().toLowerCase(),
 })
 
 /**
@@ -25,31 +26,27 @@ export async function GET() {
   const denied = await denyUnlessAccess('staff')
   if (denied) return denied
 
-	try {
-		const teachers = await prisma.teacher.findMany({
-			select: {
-				id: true,
-				firstName: true,
-				lastName: true,
-				username: true
-			},
-			orderBy: {
-				lastName: 'asc'
-			}
-		})
+  try {
+    const teachers = await prisma.teacher.findMany({
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        username: true,
+      },
+      orderBy: {
+        lastName: 'asc',
+      },
+    })
 
-		return NextResponse.json(teachers)
-	} catch (error) {
-
-		captureError(error, {
-			location: 'api/teachers',
-			type: 'fetch-teachers'
-		})
-		return NextResponse.json(
-			{ error: 'Failed to fetch teachers' },
-			{ status: 500 }
-		)
-	}
+    return NextResponse.json(teachers)
+  } catch (error) {
+    captureError(error, {
+      location: 'api/teachers',
+      type: 'fetch-teachers',
+    })
+    return NextResponse.json({ error: 'Failed to fetch teachers' }, { status: 500 })
+  }
 }
 
 /**
@@ -63,66 +60,59 @@ export async function POST(request: Request) {
   const denied = await denyUnlessAccess('staff')
   if (denied) return denied
 
-	if (!prisma) {
-		return NextResponse.json({ error: 'Database not initialized' }, { status: 500 })
-	}
+  if (!prisma) {
+    return NextResponse.json({ error: 'Database not initialized' }, { status: 500 })
+  }
 
-	let requestBody: z.infer<typeof teacherSchema> = {
-		firstName: '',
-		lastName: '',
-		username: '',
-		email: ''
-	}
-	try {
-		const rawBody = await request.json()
-		const validationResult = teacherSchema.safeParse(rawBody)
-		
-		if (!validationResult.success) {
-			return NextResponse.json(
-				{ error: 'Validation failed', details: validationResult.error.format() },
-				{ status: 400 }
-			)
-		}
+  let requestBody: z.infer<typeof teacherSchema> = {
+    firstName: '',
+    lastName: '',
+    username: '',
+    email: '',
+  }
+  try {
+    const rawBody = await request.json()
+    const validationResult = teacherSchema.safeParse(rawBody)
 
-		requestBody = validationResult.data
-		const username = normalizeUsername(requestBody.username)
-		if (!username) {
-			return NextResponse.json(
-				{ error: 'Username is required' },
-				{ status: 400 }
-			)
-		}
+    if (!validationResult.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', details: validationResult.error.format() },
+        { status: 400 },
+      )
+    }
 
-		// Check for username uniqueness
-		const existingTeacher = await prisma.teacher.findUnique({
-			where: { username }
-		})
+    requestBody = validationResult.data
+    const username = normalizeUsername(requestBody.username)
+    if (!username) {
+      return NextResponse.json({ error: 'Username is required' }, { status: 400 })
+    }
 
-		if (existingTeacher) {
-			return NextResponse.json(
-				{ error: 'Username already exists' },
-				{ status: 400 }
-			)
-		}
+    // Check for username uniqueness
+    const existingTeacher = await prisma.teacher.findUnique({
+      where: { username },
+    })
 
-		const teacher = await prisma.teacher.create({
-			data: {
-				firstName: requestBody.firstName,
-				lastName: requestBody.lastName,
-				username,
-				email: requestBody.email
-			}
-		})
-		return NextResponse.json(teacher)
-	} catch (error) {
+    if (existingTeacher) {
+      return NextResponse.json({ error: 'Username already exists' }, { status: 400 })
+    }
 
-		captureError(error, {
-			location: 'api/teachers',
-			type: 'create-teachers',
-			extra: {
-				requestBody
-			}
-		})
-		return NextResponse.json({ error: 'Failed to create teacher' }, { status: 500 })
-	}
-} 
+    const teacher = await prisma.teacher.create({
+      data: {
+        firstName: requestBody.firstName,
+        lastName: requestBody.lastName,
+        username,
+        email: requestBody.email,
+      },
+    })
+    return NextResponse.json(teacher)
+  } catch (error) {
+    captureError(error, {
+      location: 'api/teachers',
+      type: 'create-teachers',
+      extra: {
+        requestBody,
+      },
+    })
+    return NextResponse.json({ error: 'Failed to create teacher' }, { status: 500 })
+  }
+}

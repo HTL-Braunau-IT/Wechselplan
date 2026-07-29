@@ -1,9 +1,7 @@
-import { describe, test, expect, vi, beforeEach, afterAll } from 'vitest';
-import { GET } from '../route';
-import { prisma } from '@/lib/prisma';
-import { makeClass, makeStudent } from '@/test/fixtures';
-
-
+import { describe, test, expect, vi, beforeEach, afterAll } from 'vitest'
+import { GET } from '../route'
+import { prisma } from '@/lib/prisma'
+import { makeClass, makeStudent } from '@/test/fixtures'
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
@@ -11,30 +9,29 @@ vi.mock('@/lib/prisma', () => ({
       findUnique: vi.fn(),
     },
   },
-}));
+}))
 
 interface Student {
-  id: number;
-  firstName: string;
-  lastName: string;
-  username: string;
-  classId: number | null;
-  groupId: number | null;
-  createdAt: Date;
-  updatedAt: Date;
+  id: number
+  firstName: string
+  lastName: string
+  username: string
+  classId: number | null
+  groupId: number | null
+  createdAt: Date
+  updatedAt: Date
   class?: {
-    id: number;
-    name: string;
-    createdAt: Date;
-    updatedAt: Date;
-  } | null;
+    id: number
+    name: string
+    createdAt: Date
+    updatedAt: Date
+  } | null
 }
 
 describe('Students Class API', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
+    vi.clearAllMocks()
+  })
 
   describe('GET', () => {
     const testCases = [
@@ -47,7 +44,7 @@ describe('Students Class API', () => {
       {
         name: 'should return 404 if student not found',
         setup: () => {
-          vi.mocked(prisma.student.findUnique).mockResolvedValue(null);
+          vi.mocked(prisma.student.findUnique).mockResolvedValue(null)
         },
         request: () => new Request('http://localhost/api/students/class?username=nonexistent'),
         expectedStatus: 404,
@@ -59,10 +56,10 @@ describe('Students Class API', () => {
           const mockStudent = {
             ...makeStudent({ id: 1, firstName: 'John', lastName: 'Doe', username: 'john.doe' }),
             class: null,
-          };
+          }
           vi.mocked(prisma.student.findUnique).mockResolvedValue(
-            mockStudent as unknown as Awaited<ReturnType<typeof prisma.student.findUnique>>
-          );
+            mockStudent as unknown as Awaited<ReturnType<typeof prisma.student.findUnique>>,
+          )
         },
         request: () => new Request('http://localhost/api/students/class?username=john.doe'),
         expectedStatus: 404,
@@ -83,10 +80,10 @@ describe('Students Class API', () => {
               groupId: 1,
             }),
             class: makeClass({ id: 1, name: '1A' }),
-          };
+          }
           vi.mocked(prisma.student.findUnique).mockResolvedValue(
-            mockStudent as unknown as Awaited<ReturnType<typeof prisma.student.findUnique>>
-          );
+            mockStudent as unknown as Awaited<ReturnType<typeof prisma.student.findUnique>>,
+          )
         },
         request: () => new Request('http://localhost/api/students/class?username=john.doe'),
         expectedStatus: 200,
@@ -95,22 +92,22 @@ describe('Students Class API', () => {
       {
         name: 'should return 500 on error',
         setup: () => {
-          vi.mocked(prisma.student.findUnique).mockRejectedValue(new Error('DB error'));
+          vi.mocked(prisma.student.findUnique).mockRejectedValue(new Error('DB error'))
         },
         request: () => new Request('http://localhost/api/students/class?username=john.doe'),
         expectedStatus: 500,
         expectedData: { error: 'Failed to fetch student class' },
       },
-    ];
+    ]
 
     testCases.forEach(({ name, setup, request, expectedStatus, expectedData }) => {
       test(name, async () => {
-        if (setup) setup();
-        const res = await GET(request());
-        const data = await res.json();
-        expect(res.status).toBe(expectedStatus);
-        expect(data).toEqual(expectedData);
-      });
-    });
-  });
-}); 
+        if (setup) setup()
+        const res = await GET(request())
+        const data = await res.json()
+        expect(res.status).toBe(expectedStatus)
+        expect(data).toEqual(expectedData)
+      })
+    })
+  })
+})

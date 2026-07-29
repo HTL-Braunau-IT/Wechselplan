@@ -14,71 +14,56 @@ export async function GET(request: Request) {
   const denied = await denyUnlessAccess('session')
   if (denied) return denied
 
-    const { searchParams } = new URL(request.url)
-    const rawUsername = searchParams.get('username')
-    if (!rawUsername) {
-        return NextResponse.json(
-            { error: 'Username parameter is required' },
-            { status: 400 }
-        )
+  const { searchParams } = new URL(request.url)
+  const rawUsername = searchParams.get('username')
+  if (!rawUsername) {
+    return NextResponse.json({ error: 'Username parameter is required' }, { status: 400 })
+  }
+  const username = normalizeUsername(rawUsername)
+  if (!username) {
+    return NextResponse.json({ error: 'Username parameter is required' }, { status: 400 })
+  }
+
+  const schoolYearIdParam = searchParams.get('schoolYearId')
+  const schoolYearId = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
+
+  try {
+    const student = await prisma.student.findUnique({
+      where: { username },
+      include: { class: true },
+    })
+
+    if (!student) {
+      console.warn('[username-match] Student not found', { raw: rawUsername, normalized: username })
+      return NextResponse.json({ error: 'Student not found' }, { status: 404 })
     }
-    const username = normalizeUsername(rawUsername)
-    if (!username) {
-        return NextResponse.json(
-            { error: 'Username parameter is required' },
-            { status: 400 }
-        )
-    }
 
-    const schoolYearIdParam = searchParams.get('schoolYearId')
-    const schoolYearId = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
-
-    try {
-        const student = await prisma.student.findUnique({
-            where: { username },
-            include: { class: true }
-        })
-
-        if (!student) {
-            console.warn('[username-match] Student not found', { raw: rawUsername, normalized: username })
-            return NextResponse.json(
-                { error: 'Student not found' },
-                { status: 404 }
-            )
-        }
-
-        if (schoolYearId != null && !Number.isNaN(schoolYearId)) {
-            const membership = await prisma.classMembership.findUnique({
-                where: { studentId_schoolYearId: { studentId: student.id, schoolYearId } },
-                include: { class: true }
-            })
-            if (membership?.class) {
-                return NextResponse.json({
-                    class: membership.class.name,
-                    groupId: student.groupId
-                })
-            }
-        }
-
-        if (!student.class) {
-            return NextResponse.json(
-                { error: 'Student has no class assigned' },
-                { status: 404 }
-            )
-        }
-
+    if (schoolYearId != null && !Number.isNaN(schoolYearId)) {
+      const membership = await prisma.classMembership.findUnique({
+        where: { studentId_schoolYearId: { studentId: student.id, schoolYearId } },
+        include: { class: true },
+      })
+      if (membership?.class) {
         return NextResponse.json({
-            class: student.class.name,
-            groupId: student.groupId
+          class: membership.class.name,
+          groupId: student.groupId,
         })
-    } catch (error) {
-        captureError(error, {
-            location: 'api/students/class',
-            type: 'fetch-student-class'
-        })
-        return NextResponse.json(
-            { error: 'Failed to fetch student class' },
-            { status: 500 }
-        )
+      }
     }
-} 
+
+    if (!student.class) {
+      return NextResponse.json({ error: 'Student has no class assigned' }, { status: 404 })
+    }
+
+    return NextResponse.json({
+      class: student.class.name,
+      groupId: student.groupId,
+    })
+  } catch (error) {
+    captureError(error, {
+      location: 'api/students/class',
+      type: 'fetch-student-class',
+    })
+    return NextResponse.json({ error: 'Failed to fetch student class' }, { status: 500 })
+  }
+}

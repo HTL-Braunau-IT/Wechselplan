@@ -35,7 +35,7 @@ function normalizeNamePart(v: string): string {
 
 async function getNotenmanagementAccessToken(
   username: string,
-  password: string
+  password: string,
 ): Promise<{ token: string; expiresIn: number }> {
   const tokenUrl = new URL('Token', env.NOTENMANAGEMENT_BASE_URL).toString()
   const body = new URLSearchParams({
@@ -60,7 +60,9 @@ async function getNotenmanagementAccessToken(
   }
 }
 
-async function fetchNotenmanagementStudents(accessToken: string): Promise<NotenmanagementStudent[]> {
+async function fetchNotenmanagementStudents(
+  accessToken: string,
+): Promise<NotenmanagementStudent[]> {
   const url = new URL('api/Schueler', env.NOTENMANAGEMENT_BASE_URL).toString()
   const res = await fetch(url, {
     headers: { Authorization: `bearer ${accessToken}` },
@@ -100,7 +102,8 @@ export async function POST(request: Request) {
     requestData = body
 
     const classId = typeof body.classId === 'number' ? body.classId : parseInt(String(body.classId))
-    const semester = body.semester === 'first' || body.semester === 'second' ? (body.semester as Semester) : null
+    const semester =
+      body.semester === 'first' || body.semester === 'second' ? (body.semester as Semester) : null
     const nmUsername = typeof body.username === 'string' ? body.username : null
     const password = typeof body.password === 'string' ? body.password : null
     const providedToken = typeof body.token === 'string' ? body.token : null
@@ -137,7 +140,7 @@ export async function POST(request: Request) {
       },
     })
 
-    const teacherIds = Array.from(new Set(assignments.map((a) => a.teacherId)))
+    const teacherIds = Array.from(new Set(assignments.map(a => a.teacherId)))
     if (teacherIds.length === 0) {
       return NextResponse.json({ error: 'No teachers assigned to class' }, { status: 400 })
     }
@@ -147,7 +150,8 @@ export async function POST(request: Request) {
     if (assignments.length > 0) {
       const subjectCounts = new Map<string, number>()
       for (const a of assignments) {
-        if (a.subject?.name) subjectCounts.set(a.subject.name, (subjectCounts.get(a.subject.name) ?? 0) + 1)
+        if (a.subject?.name)
+          subjectCounts.set(a.subject.name, (subjectCounts.get(a.subject.name) ?? 0) + 1)
       }
       let maxCount = 0
       for (const [s, c] of subjectCounts.entries()) {
@@ -158,7 +162,10 @@ export async function POST(request: Request) {
       }
     }
     if (!subjectName) {
-      return NextResponse.json({ error: 'Could not determine subject for this class' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Could not determine subject for this class' },
+        { status: 400 },
+      )
     }
     const subjectTruncated = truncateSubject(subjectName)
 
@@ -181,7 +188,10 @@ export async function POST(request: Request) {
       accessToken = providedToken
     } else {
       if (!password) {
-        return NextResponse.json({ error: 'Password required when token is not provided' }, { status: 400 })
+        return NextResponse.json(
+          { error: 'Password required when token is not provided' },
+          { status: 400 },
+        )
       }
       const tokenData = await getNotenmanagementAccessToken(nmUsername, password)
       accessToken = tokenData.token
@@ -218,7 +228,7 @@ export async function POST(request: Request) {
 
     // Students with all teacher grades and no 6/7 (numeric note)
     const completeStudents = classRecord.students
-      .filter((st) => st.groupId !== null && st.groupId !== undefined)
+      .filter(st => st.groupId !== null && st.groupId !== undefined)
       .map((st): PreviewStudent | null => {
         const teacherGrades: number[] = []
         for (const tid of teacherIds) {
@@ -228,7 +238,7 @@ export async function POST(request: Request) {
         }
         if (teacherGrades.length !== teacherIds.length) return null
 
-        if (teacherGrades.some((g) => g === 6 || g === 7)) return null
+        if (teacherGrades.some(g => g === 6 || g === 7)) return null
 
         const avg = teacherGrades.reduce((a, b) => a + b, 0) / teacherGrades.length
         const note = truncateAvgToNote(avg)
@@ -249,7 +259,7 @@ export async function POST(request: Request) {
 
     // Students with all teacher grades but at least one 6 or 7 (Keine Note by default)
     const studentsWithNbOrGestunden = classRecord.students
-      .filter((st) => st.groupId !== null && st.groupId !== undefined)
+      .filter(st => st.groupId !== null && st.groupId !== undefined)
       .map((st): PreviewStudent | null => {
         const teacherGrades: number[] = []
         for (const tid of teacherIds) {
@@ -259,9 +269,9 @@ export async function POST(request: Request) {
         }
         if (teacherGrades.length !== teacherIds.length) return null
 
-        if (!teacherGrades.some((g) => g === 6 || g === 7)) return null
+        if (!teacherGrades.some(g => g === 6 || g === 7)) return null
 
-        const hasGestundet = teacherGrades.some((g) => g === 7)
+        const hasGestundet = teacherGrades.some(g => g === 7)
         const nullNoteLabel = hasGestundet ? 'Gestundet' : ('Nicht beurteilt' as const)
 
         const key = `${classNorm}|${normalizeNamePart(st.lastName)}|${normalizeNamePart(st.firstName)}`
@@ -285,17 +295,17 @@ export async function POST(request: Request) {
 
     // Matrikelnummer of all matched students (will get an entry in transfer, numeric or Keine Note)
     const matchedMatrikelnummer = new Set(
-      students.filter((s) => s.matched && s.matrikelnummer != null).map((s) => s.matrikelnummer!)
+      students.filter(s => s.matched && s.matrikelnummer != null).map(s => s.matrikelnummer!),
     )
 
     const nmStudentsWithoutGradeOrMatch = nmStudents
-      .filter((s) => {
+      .filter(s => {
         const matr = s.Matrikelnummer
         const klasse = s.klasse ?? s.Klasse
         if (!matr || !klasse) return false
         return normalizeNamePart(klasse) === classNorm && !matchedMatrikelnummer.has(matr)
       })
-      .map((s) => ({
+      .map(s => ({
         Matrikelnummer: s.Matrikelnummer!,
         Student_ID: s.Student_ID,
         Nachname: s.Nachname ?? '',
@@ -313,12 +323,12 @@ export async function POST(request: Request) {
 
     const transferStatus = {
       first: {
-        transferred: transfers.some((t) => t.semester === 'first'),
-        lfId: transfers.find((t) => t.semester === 'first')?.lfId ?? null,
+        transferred: transfers.some(t => t.semester === 'first'),
+        lfId: transfers.find(t => t.semester === 'first')?.lfId ?? null,
       },
       second: {
-        transferred: transfers.some((t) => t.semester === 'second'),
-        lfId: transfers.find((t) => t.semester === 'second')?.lfId ?? null,
+        transferred: transfers.some(t => t.semester === 'second'),
+        lfId: transfers.find(t => t.semester === 'second')?.lfId ?? null,
       },
     }
 
@@ -334,8 +344,8 @@ export async function POST(request: Request) {
       counts: {
         totalStudents: classRecord.students.length,
         completeStudents: completeStudents.length,
-        matchedCompleteStudents: students.filter((s) => s.matched).length,
-        unmatchedCompleteStudents: students.filter((s) => !s.matched).length,
+        matchedCompleteStudents: students.filter(s => s.matched).length,
+        unmatchedCompleteStudents: students.filter(s => !s.matched).length,
       },
       nmStudentsWithoutGradeOrMatch,
       // Include token data if a new token was generated
@@ -347,8 +357,9 @@ export async function POST(request: Request) {
       type: 'preview',
       extra: { requestData },
     })
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to build preview' }, { status: 500 })
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to build preview' },
+      { status: 500 },
+    )
   }
 }
-
-

@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { useCachedData } from '@/hooks/use-cached-data';
-import { useScheduleOverview } from '@/hooks/use-schedule-overview';
+import { useState } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
+import { useCachedData } from '@/hooks/use-cached-data'
+import { useScheduleOverview } from '@/hooks/use-schedule-overview'
 import { captureFrontendError } from '@/lib/frontend-error'
 import { captureError } from '@/lib/sentry'
 import {
@@ -13,23 +13,22 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 import { ScheduleOverview } from '@/components/schedule-overview'
 import { Spinner } from '@/components/ui/spinner'
-import { generatePdf, generateSchedulePDF } from '@/lib/export-utils';
-
+import { generatePdf, generateSchedulePDF } from '@/lib/export-utils'
 
 /**
  * Renders a centered loading spinner with a localized loading message.
  */
 function LoadingScreen() {
-    return (
-        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-            <Spinner size="lg" />
-            <p className="text-lg text-muted-foreground">Lade Daten...</p>
-        </div>
-    )
+  return (
+    <div className="flex min-h-[400px] flex-col items-center justify-center gap-4">
+      <Spinner size="lg" />
+      <p className="text-muted-foreground text-lg">Lade Daten...</p>
+    </div>
+  )
 }
 
 /**
@@ -40,10 +39,10 @@ function LoadingScreen() {
  * @returns The React component for managing, viewing, and exporting the class schedule overview.
  */
 export default function OverviewPage() {
-  const searchParams = useSearchParams();
-  const classId = searchParams.get('class');
-  const { isLoading: isLoadingCachedData } = useCachedData();
-  const router = useRouter();
+  const searchParams = useSearchParams()
+  const classId = searchParams.get('class')
+  const { isLoading: isLoadingCachedData } = useCachedData()
+  const router = useRouter()
 
   const {
     groups,
@@ -57,15 +56,14 @@ export default function OverviewPage() {
     additionalInfo,
     weekday,
     loading: overviewLoading,
-    error: overviewError
-  } = useScheduleOverview(classId);
+    error: overviewError,
+  } = useScheduleOverview(classId)
 
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [showPdfDialog, setShowPdfDialog] = useState(false);
-  const [generatingPdf, setGeneratingPdf] = useState(false);
-  const [, setGeneratingSchedulePDF] = useState(false);
-
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [showPdfDialog, setShowPdfDialog] = useState(false)
+  const [generatingPdf, setGeneratingPdf] = useState(false)
+  const [, setGeneratingSchedulePDF] = useState(false)
 
   /**
    * Saves the round-robin teacher rotation schedule for AM and PM periods to the backend and, on success, displays the PDF generation dialog.
@@ -76,11 +74,11 @@ export default function OverviewPage() {
    * @throws {Error} If saving the teacher rotation to the backend fails.
    */
   async function handleSaveAndFinish() {
-    setSaving(true);
+    setSaving(true)
     try {
       // Build round-robin teacher rotation for AM and PM
-      const turnKeys = Object.keys(turns);
-      
+      const turnKeys = Object.keys(turns)
+
       // Helper function to create rotation for a period
       const createRotation = (teachers: typeof uniqueAmTeachers) => {
         return groups.map((group, groupIdx) => ({
@@ -88,25 +86,25 @@ export default function OverviewPage() {
           turns: turnKeys.map((_, turnIdx) => {
             // Calculate which teacher should be assigned to this group for this turn
             // For turns 1-4, 5-8, etc., we want the same pattern
-            const normalizedTurn = turnIdx % teachers.length;
+            const normalizedTurn = turnIdx % teachers.length
             // The teacher index is based on the group and turn offset
-            const teacherIndex = (groupIdx - normalizedTurn + teachers.length) % teachers.length;
-            const teacher = teachers[teacherIndex];
-            return teacher ? teacher.teacherId : null;
-          })
-        }));
-      };
+            const teacherIndex = (groupIdx - normalizedTurn + teachers.length) % teachers.length
+            const teacher = teachers[teacherIndex]
+            return teacher ? teacher.teacherId : null
+          }),
+        }))
+      }
 
-      const amRotation = createRotation(uniqueAmTeachers);
-      const pmRotation = createRotation(uniquePmTeachers);
+      const amRotation = createRotation(uniqueAmTeachers)
+      const pmRotation = createRotation(uniquePmTeachers)
 
-      console.log("classId", classId)  
+      console.log('classId', classId)
       // Resolve className to classId if needed
       let resolvedClassId: number
       if (typeof classId === 'string') {
         const classRes = await fetch(`/api/classes/get-by-name?name=${classId}`)
         if (!classRes.ok) throw new Error('Failed to fetch class ID')
-        const classData = await classRes.json() as { id: number }
+        const classData = (await classRes.json()) as { id: number }
         resolvedClassId = classData.id
       } else if (classId === null) {
         throw new Error('Class ID is required')
@@ -115,36 +113,36 @@ export default function OverviewPage() {
       }
 
       // Save to backend
-      const response = await fetch('/api/schedules/rotation', {        
+      const response = await fetch('/api/schedules/rotation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           classId: resolvedClassId,
           turns: turnKeys,
           amRotation,
-          pmRotation
-        })
-      });
+          pmRotation,
+        }),
+      })
 
       if (!response.ok) {
-        const error = new Error('Failed to save teacher rotation');
+        const error = new Error('Failed to save teacher rotation')
         captureError(error, {
           location: 'schedule/create/overview',
-          type: 'save-overview'
+          type: 'save-overview',
         })
-        throw new Error('Failed to save teacher rotation');
+        throw new Error('Failed to save teacher rotation')
       }
 
       // Send email notifications to all teachers (don't block on this)
       try {
         const allTeacherIds = [
           ...uniqueAmTeachers.map(t => t.teacherId),
-          ...uniquePmTeachers.map(t => t.teacherId)
-        ].filter((id, index, arr) => arr.indexOf(id) === index); // Remove duplicates
+          ...uniquePmTeachers.map(t => t.teacherId),
+        ].filter((id, index, arr) => arr.indexOf(id) === index) // Remove duplicates
 
-        const scheduleLink = `${window.location.origin}/schedules?class=${classId}`;
+        const scheduleLink = `${window.location.origin}/schedules?class=${classId}`
         const className = typeof classId === 'string' ? classId : ''
-        
+
         await fetch('/api/schedules/notify-teachers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -152,54 +150,52 @@ export default function OverviewPage() {
             classId: resolvedClassId,
             className: className ?? classId?.toString() ?? '',
             teacherIds: allTeacherIds,
-            scheduleLink
-          })
-        });
-        
-        console.log('Teacher notifications sent successfully');
+            scheduleLink,
+          }),
+        })
+
+        console.log('Teacher notifications sent successfully')
       } catch (emailError) {
-        console.error('Failed to send teacher notifications:', emailError);
+        console.error('Failed to send teacher notifications:', emailError)
         // Don't throw here, we still want to show the PDF dialog
         captureFrontendError(emailError, {
           location: 'schedule/create/overview',
           type: 'notify-teachers',
           extra: {
             classId,
-            teacherCount: uniqueAmTeachers.length + uniquePmTeachers.length
-          }
-        });
+            teacherCount: uniqueAmTeachers.length + uniquePmTeachers.length,
+          },
+        })
       }
 
       // Show PDF generation dialog
-      setShowPdfDialog(true);
+      setShowPdfDialog(true)
     } catch (err) {
-      console.error('Error saving teacher rotation:', err);
+      console.error('Error saving teacher rotation:', err)
       captureFrontendError(err, {
         location: 'schedule/create/overview',
         type: 'save-rotation',
         extra: {
           classId,
-          turns: Object.keys(turns)
-        }
-      });
-      setError('Failed to save.');
+          turns: Object.keys(turns),
+        },
+      })
+      setError('Failed to save.')
     } finally {
-      setSaving(false);
+      setSaving(false)
     }
   }
 
-  
-
   async function handleGenerateSchedulePDF() {
-    if (!classId) return;
-    setGeneratingSchedulePDF(true);
+    if (!classId) return
+    setGeneratingSchedulePDF(true)
     try {
-      await generateSchedulePDF(classId, weekday ?? 0);
+      await generateSchedulePDF(classId, weekday ?? 0)
     } catch (err) {
-      console.error('Error generating PDF:', err);
-      setError('Failed to generate PDF.');
+      console.error('Error generating PDF:', err)
+      setError('Failed to generate PDF.')
     } finally {
-      setGeneratingSchedulePDF(false);
+      setGeneratingSchedulePDF(false)
     }
   }
 
@@ -211,20 +207,20 @@ export default function OverviewPage() {
    * @remark Does nothing if the class ID is missing.
    */
   async function handleGeneratePdf() {
-    if (!classId) return;
-    setGeneratingPdf(true);
+    if (!classId) return
+    setGeneratingPdf(true)
     try {
-      await generatePdf(classId, weekday ?? 0);     
+      await generatePdf(classId, weekday ?? 0)
       // Only close the dialog after successful download
-      await handleGenerateSchedulePDF();
+      await handleGenerateSchedulePDF()
 
-      setShowPdfDialog(false);
-      router.push('/');
+      setShowPdfDialog(false)
+      router.push('/')
     } catch (err) {
-      console.error('Error generating PDF:', err);
-      setError('Failed to generate PDF.');
+      console.error('Error generating PDF:', err)
+      setError('Failed to generate PDF.')
     } finally {
-      setGeneratingPdf(false);
+      setGeneratingPdf(false)
     }
   }
 
@@ -232,22 +228,21 @@ export default function OverviewPage() {
    * Closes the PDF export dialog and navigates to the home page without generating a PDF.
    */
   function handleSkipPdf() {
-    setShowPdfDialog(false);
-    router.push('/');
+    setShowPdfDialog(false)
+    router.push('/')
   }
 
-  if (isLoadingCachedData || overviewLoading) return <LoadingScreen />;
-  if (error ?? overviewError) return <div className="p-8 text-center text-red-500">{error ?? overviewError}</div>;
-
+  if (isLoadingCachedData || overviewLoading) return <LoadingScreen />
+  if (error ?? overviewError)
+    return <div className="p-8 text-center text-red-500">{error ?? overviewError}</div>
 
   const uniqueAmTeachers = amAssignments
     .filter(a => a.teacherId !== 0)
-    .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx);
+    .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx)
 
   const uniquePmTeachers = pmAssignments
     .filter(a => a.teacherId !== 0)
-    .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx);
-
+    .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx)
 
   return (
     <>
@@ -268,7 +263,7 @@ export default function OverviewPage() {
 
       {/* Custom blurred overlay for modal */}
       {showPdfDialog && (
-        <div className="fixed inset-0 z-40 backdrop-blur-sm bg-background/80 transition-all" />
+        <div className="bg-background/80 fixed inset-0 z-40 backdrop-blur-sm transition-all" />
       )}
       <Dialog open={showPdfDialog} onOpenChange={setShowPdfDialog}>
         <DialogContent className="z-50">
@@ -278,27 +273,20 @@ export default function OverviewPage() {
               Möchten Sie eine PDF-Version des Stundenplans erstellen und herunterladen?
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="flex gap-2 justify-end">
-            <Button
-              variant="outline"
-              onClick={handleSkipPdf}
-              disabled={generatingPdf}
-            >
+          <DialogFooter className="flex justify-end gap-2">
+            <Button variant="outline" onClick={handleSkipPdf} disabled={generatingPdf}>
               Überspringen
             </Button>
-            <Button
-              onClick={handleGeneratePdf}
-              disabled={generatingPdf}
-            >
+            <Button onClick={handleGeneratePdf} disabled={generatingPdf}>
               {generatingPdf ? 'Generating...' : 'Generate PDF'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <div className="flex justify-end mt-8">
+      <div className="mt-8 flex justify-end">
         <button
-          className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 rounded px-6 py-2 disabled:opacity-50"
           onClick={handleSaveAndFinish}
           disabled={saving}
         >
@@ -306,5 +294,5 @@ export default function OverviewPage() {
         </button>
       </div>
     </>
-  );
+  )
 }

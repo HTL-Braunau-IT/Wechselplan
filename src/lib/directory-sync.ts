@@ -1,10 +1,7 @@
 import { captureError } from '@/lib/sentry'
 import { getDirectorySyncSettings, recordSyncRun } from '@/lib/directory-sync-settings'
 import { applyTeacherSync, type TeacherSyncSummary } from '@/lib/teacher-sync'
-import {
-  applyClassStudentSync,
-  type ClassStudentSyncSummary,
-} from '@/lib/class-student-sync'
+import { applyClassStudentSync, type ClassStudentSyncSummary } from '@/lib/class-student-sync'
 import { MassDeactivationError, resolveMaxDeactivationRatio } from '@/lib/sync-guard'
 
 export type DirectorySyncTrigger = 'scheduled' | 'manual'

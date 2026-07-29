@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils'
 
 interface SpinnerProps {
   className?: string
@@ -23,18 +23,18 @@ export function Spinner({ className, size = 'md' }: SpinnerProps) {
   const sizeClasses = {
     sm: 'h-4 w-4',
     md: 'h-8 w-8',
-    lg: 'h-12 w-12'
+    lg: 'h-12 w-12',
   }
 
   return (
     <div className="flex items-center justify-center">
       <div
         className={cn(
-          'animate-spin rounded-full border-4 border-gray-200 border-t-primary',
+          'border-t-primary animate-spin rounded-full border-4 border-gray-200',
           sizeClasses[size],
-          className
+          className,
         )}
       />
     </div>
   )
-} 
+}

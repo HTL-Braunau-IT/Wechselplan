@@ -7,20 +7,20 @@
  * - "NWWP-Naturwissenschaften" → "NWWP_4"
  */
 export function truncateSubject(subjectName: string): string {
-	const parts = subjectName.split('-')
-	const prefix = (parts[0] ?? subjectName).trim()
+  const parts = subjectName.split('-')
+  const prefix = (parts[0] ?? subjectName).trim()
 
-	const regex = /^(.+?)(\d+)$/
-	const match = regex.exec(prefix)
-	if (match?.[1] && match?.[2]) {
-		return `${match[1]}_${match[2]}`
-	}
+  const regex = /^(.+?)(\d+)$/
+  const match = regex.exec(prefix)
+  if (match?.[1] && match?.[2]) {
+    return `${match[1]}_${match[2]}`
+  }
 
-	if (prefix === 'ELWP' || prefix === 'NWWP') {
-		return `${prefix}_4`
-	}
+  if (prefix === 'ELWP' || prefix === 'NWWP') {
+    return `${prefix}_4`
+  }
 
-	return prefix
+  return prefix
 }
 
 /**
@@ -28,7 +28,7 @@ export function truncateSubject(subjectName: string): string {
  * Used to group AM/PM into same table when key matches (e.g. PBE_3 and PBE_4 → "PBE").
  */
 export function getSubjectKey(subjectName: string): string {
-	const truncated = truncateSubject(subjectName)
-	const key = truncated.split('_')[0]
-	return key ?? truncated
+  const truncated = truncateSubject(subjectName)
+  const key = truncated.split('_')[0]
+  return key ?? truncated
 }

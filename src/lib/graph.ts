@@ -18,9 +18,24 @@ interface CachedToken {
 let cachedToken: CachedToken | null = null
 
 function resolveCredentials(): GraphAppCredentials {
-  const tenantId = (process.env.ENTRA_TENANT_ID ?? process.env.AZURE_AD_TENANT_ID ?? process.env.GRAPH_TENANT_ID ?? '').trim()
-  const clientId = (process.env.ENTRA_CLIENT_ID ?? process.env.AZURE_AD_CLIENT_ID ?? process.env.GRAPH_CLIENT_ID ?? '').trim()
-  const clientSecret = (process.env.ENTRA_CLIENT_SECRET ?? process.env.AZURE_AD_CLIENT_SECRET ?? process.env.GRAPH_CLIENT_SECRET ?? '').trim()
+  const tenantId = (
+    process.env.ENTRA_TENANT_ID ??
+    process.env.AZURE_AD_TENANT_ID ??
+    process.env.GRAPH_TENANT_ID ??
+    ''
+  ).trim()
+  const clientId = (
+    process.env.ENTRA_CLIENT_ID ??
+    process.env.AZURE_AD_CLIENT_ID ??
+    process.env.GRAPH_CLIENT_ID ??
+    ''
+  ).trim()
+  const clientSecret = (
+    process.env.ENTRA_CLIENT_SECRET ??
+    process.env.AZURE_AD_CLIENT_SECRET ??
+    process.env.GRAPH_CLIENT_SECRET ??
+    ''
+  ).trim()
 
   if (!tenantId || !clientId || !clientSecret) {
     throw new Error(
@@ -64,7 +79,8 @@ export async function getGraphAppToken(): Promise<string> {
   }
 
   if (!response.ok || !data.access_token) {
-    const message = data.error_description ?? data.error ?? `Graph token request failed (${response.status})`
+    const message =
+      data.error_description ?? data.error ?? `Graph token request failed (${response.status})`
     const error = new Error(message)
     captureError(error, {
       location: 'lib/graph',
@@ -115,7 +131,9 @@ export async function graphFetch<T>(pathOrUrl: string, init?: RequestInit): Prom
     if (response.status === 429 && attempt < MAX_RETRIES) {
       const retryAfterRaw = response.headers.get('Retry-After')
       const retryAfterSeconds = retryAfterRaw ? parseInt(retryAfterRaw, 10) : NaN
-      const waitMs = Number.isFinite(retryAfterSeconds) ? retryAfterSeconds * 1000 : 2 ** attempt * 500
+      const waitMs = Number.isFinite(retryAfterSeconds)
+        ? retryAfterSeconds * 1000
+        : 2 ** attempt * 500
       attempt += 1
       await sleep(waitMs)
       continue
@@ -123,7 +141,9 @@ export async function graphFetch<T>(pathOrUrl: string, init?: RequestInit): Prom
 
     if (!response.ok) {
       const bodyText = await response.text().catch(() => '')
-      const error = new Error(`Graph request failed ${response.status} ${response.statusText}: ${bodyText.slice(0, 500)}`)
+      const error = new Error(
+        `Graph request failed ${response.status} ${response.statusText}: ${bodyText.slice(0, 500)}`,
+      )
       captureError(error, {
         location: 'lib/graph',
         type: 'graph_request_error',
@@ -195,7 +215,8 @@ export async function* listGroupMembers(
   }
 
   const memberPath = options.transitive ? 'transitiveMembers' : 'members'
-  let nextUrl: string | undefined = `/groups/${encodeURIComponent(groupId)}/${memberPath}/microsoft.graph.user?${params.toString()}`
+  let nextUrl: string | undefined =
+    `/groups/${encodeURIComponent(groupId)}/${memberPath}/microsoft.graph.user?${params.toString()}`
 
   while (nextUrl) {
     const page: GraphListResponse<EntraGroupMember> = await graphFetch(nextUrl)
@@ -395,7 +416,9 @@ export async function getUserPhoto(userId: string): Promise<GraphUserPhoto | nul
     if (response.status === 429 && attempt < MAX_RETRIES) {
       const retryAfterRaw = response.headers.get('Retry-After')
       const retryAfterSeconds = retryAfterRaw ? parseInt(retryAfterRaw, 10) : NaN
-      const waitMs = Number.isFinite(retryAfterSeconds) ? retryAfterSeconds * 1000 : 2 ** attempt * 500
+      const waitMs = Number.isFinite(retryAfterSeconds)
+        ? retryAfterSeconds * 1000
+        : 2 ** attempt * 500
       attempt += 1
       await sleep(waitMs)
       continue

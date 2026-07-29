@@ -43,11 +43,6 @@ export function ScheduleTab() {
   )
 
   return (
-    <ModelTab
-      model="schedule"
-      label="Stundenplan"
-      columns={columns}
-      schoolYearId={schoolYearId}
-    />
+    <ModelTab model="schedule" label="Stundenplan" columns={columns} schoolYearId={schoolYearId} />
   )
 }

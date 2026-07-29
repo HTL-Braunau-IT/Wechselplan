@@ -23,7 +23,7 @@ export async function GET() {
   return new NextResponse(csvContent, {
     headers: {
       'Content-Type': 'text/csv',
-      'Content-Disposition': 'attachment; filename="sample_students.csv"'
-    }
+      'Content-Disposition': 'attachment; filename="sample_students.csv"',
+    },
   })
-} 
+}

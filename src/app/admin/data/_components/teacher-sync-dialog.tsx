@@ -102,7 +102,6 @@ export function TeacherSyncDialog({ open, onOpenChange, onCompleted }: TeacherSy
     return 'unchanged'
   }, [diff])
 
-
   return (
     <SyncDialogShell
       open={open}
