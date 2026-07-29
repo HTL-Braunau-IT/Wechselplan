@@ -5,7 +5,7 @@ import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * GET /api/school-years
- * Returns list of school years (id, label, startDate, endDate, semesterChangeDate).
+ * Returns list of school years (id, label, startDate, endDate, semesterChangeDate, isCurrent).
  * Used by header dropdown and by semester/notensammler logic.
  */
 export async function GET() {
@@ -20,6 +20,7 @@ export async function GET() {
         startDate: true,
         endDate: true,
         semesterChangeDate: true,
+        isCurrent: true,
       },
       orderBy: { startDate: 'asc' },
     })

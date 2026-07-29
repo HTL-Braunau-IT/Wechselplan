@@ -8,6 +8,8 @@ export interface SchoolYearFromApi {
   startDate: string
   endDate: string
   semesterChangeDate: string
+  /** Admin-set flag marking the active year; authoritative over date derivation. At most one is true. */
+  isCurrent: boolean | null
 }
 
 export interface SchoolYearOption {
@@ -50,6 +52,16 @@ export function getCurrentSchoolYearFromList(years: SchoolYearFromApi[]): School
     if (now >= start && now <= end) return y
   }
   return null
+}
+
+/**
+ * Resolve the active school year. The admin-set `isCurrent` flag wins when
+ * present; otherwise fall back to date derivation. This matters over the summer
+ * break, when no year's [start, end] range contains "now" and date derivation
+ * alone returns null.
+ */
+export function resolveCurrentSchoolYear(years: SchoolYearFromApi[]): SchoolYearFromApi | null {
+  return years.find(y => y.isCurrent) ?? getCurrentSchoolYearFromList(years)
 }
 
 const STORAGE_KEY = 'schoolYearId'

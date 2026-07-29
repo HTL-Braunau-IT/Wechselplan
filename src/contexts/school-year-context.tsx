@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import type { ReactNode } from 'react'
 import type { SchoolYearFromApi } from '../types/school-year'
 import {
-  getCurrentSchoolYearFromList,
+  resolveCurrentSchoolYear,
   getCurrentSemesterFromSchoolYear,
   getStoredSchoolYearId,
   setStoredSchoolYearId,
@@ -43,7 +43,7 @@ export function SchoolYearProvider({ children }: { children: ReactNode }) {
         return
       }
       if (isInitialLoad) {
-        const currentFromDb = getCurrentSchoolYearFromList(data)
+        const currentFromDb = resolveCurrentSchoolYear(data)
         const storedId = getStoredSchoolYearId()
         const byStored = storedId ? data.find(y => y.id === storedId) : null
         const initial = byStored ?? currentFromDb ?? data[data.length - 1] ?? data[0]!

@@ -451,9 +451,15 @@ async function createRecord(model: string, data: Record<string, unknown>) {
       if (schoolYearData.isCurrent === '' || schoolYearData.isCurrent === undefined) {
         delete schoolYearData.isCurrent
       }
-      return await prisma.schoolYear.create({
-        data: schoolYearData as Parameters<typeof prisma.schoolYear.create>[0]['data'],
-      })
+      const data = schoolYearData as Parameters<typeof prisma.schoolYear.create>[0]['data']
+      // Only one year may be current; clear the flag elsewhere when this one claims it.
+      if (schoolYearData.isCurrent === true) {
+        return await prisma.$transaction(async tx => {
+          await tx.schoolYear.updateMany({ where: { isCurrent: true }, data: { isCurrent: false } })
+          return tx.schoolYear.create({ data })
+        })
+      }
+      return await prisma.schoolYear.create({ data })
     }
     case 'scheduleTime':
       return await prisma.scheduleTime.create({
@@ -549,10 +555,17 @@ async function updateRecord(model: string, id: number, data: Record<string, unkn
       if (schoolYearUpdate.isCurrent === '' || schoolYearUpdate.isCurrent === undefined) {
         delete schoolYearUpdate.isCurrent
       }
-      return await prisma.schoolYear.update({
-        where: { id },
-        data: schoolYearUpdate,
-      })
+      // Only one year may be current; clear the flag on the others when this one claims it.
+      if (schoolYearUpdate.isCurrent === true) {
+        return await prisma.$transaction(async tx => {
+          await tx.schoolYear.updateMany({
+            where: { isCurrent: true, NOT: { id } },
+            data: { isCurrent: false },
+          })
+          return tx.schoolYear.update({ where: { id }, data: schoolYearUpdate })
+        })
+      }
+      return await prisma.schoolYear.update({ where: { id }, data: schoolYearUpdate })
     }
     case 'scheduleTime':
       return await prisma.scheduleTime.update({
