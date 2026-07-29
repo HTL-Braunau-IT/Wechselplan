@@ -6,16 +6,6 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # LDAP (legacy; retired once the Entra migration completes)
-      LDAP_URL: ${LDAP_URL}
-      LDAP_BASE_DN: ${LDAP_BASE_DN}
-      LDAP_USERNAME: ${LDAP_USERNAME}
-      LDAP_PASSWORD: ${LDAP_PASSWORD}
-      LDAP_STUDENTS_OU: ${LDAP_STUDENTS_OU}
-      LDAP_TEACHERS_OU: ${LDAP_TEACHERS_OU}
-      LDAP_STUDENT_GROUPS: ${LDAP_STUDENT_GROUPS}
-      LDAP_TEACHER_GROUPS: ${LDAP_TEACHER_GROUPS}
-
       # Entra / Microsoft 365 identity
       ENTRA_TENANT_ID: ${ENTRA_TENANT_ID}
       ENTRA_CLIENT_ID: ${ENTRA_CLIENT_ID}

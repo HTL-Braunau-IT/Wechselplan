@@ -44,7 +44,6 @@ curl -X GET http://localhost:3000/api/admin/settings/schedule-times \
 - Logout procedures
 
 ### [Admin Configuration Examples](./admin-examples.md)
-- LDAP configuration setup
 - Environment variable management
 - System configuration
 

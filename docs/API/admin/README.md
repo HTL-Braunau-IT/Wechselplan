@@ -6,7 +6,6 @@ The Admin API provides administrative functions for system configuration and man
 
 The Admin API is organized into the following modules:
 
-- **LDAP Configuration** - Manage LDAP server settings for user authentication
 - **Settings Management** - Configure system settings including schedules, break times, and data import
 
 ## Base URL
@@ -22,10 +21,6 @@ Authorization: Bearer <admin-jwt-token>
 ```
 
 ## Available Endpoints
-
-### LDAP Configuration
-- `GET /api/admin/ldap-config` - Retrieve current LDAP configuration
-- `POST /api/admin/ldap-config` - Update LDAP configuration
 
 ### Settings Management
 
@@ -55,7 +50,6 @@ Admin API endpoints follow the standard error response format:
 ## Security Considerations
 
 - All admin endpoints require proper authentication and authorization
-- LDAP configuration updates modify environment variables and require server restart
 - Data import operations are validated to prevent malicious data injection
 - All operations are logged for audit purposes
 
@@ -65,7 +59,6 @@ Admin endpoints may have stricter rate limiting than regular API endpoints to pr
 
 ## Related Documentation
 
-- [LDAP Configuration](./ldap-config.md) - Detailed LDAP configuration endpoints
 - [Settings Management](./settings/README.md) - Settings management overview
 - [Break Times](./settings/break-times.md) - Break time management
 - [Data Import](./settings/import.md) - CSV data import functionality

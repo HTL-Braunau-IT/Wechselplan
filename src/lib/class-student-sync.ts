@@ -35,6 +35,8 @@ export interface StudentRowSummary {
   email: string | null
   classId: number | null
   className: string | null
+  /** Rotation group within the current class, or null when unassigned. */
+  groupId: number | null
   externalId: string | null
   externalSource: string | null
   isActive: boolean
@@ -82,15 +84,30 @@ export interface StudentSyncCreate {
   target: StudentTargetClass
 }
 
+/**
+ * The class a student is moving to, and what that move costs them.
+ *
+ * Shared by the update and reactivate rows: a returning student can come back
+ * into a different class than the one they left, and that clears their rotation
+ * group for the same reason a live move does.
+ */
+export interface StudentClassChange {
+  fromClassName: string | null
+  toGroupDisplayName: string
+  /**
+   * The rotation group the student loses by moving. Groups are numbered per
+   * class, so the number carries no meaning in the destination — see the
+   * `studentUpdates` loop in `applyClassStudentSync`.
+   */
+  clearedGroupId: number | null
+}
+
 export interface StudentSyncUpdate {
   existing: StudentRowSummary
   entra: EntraUser
   changes: StudentChange[]
   willAdopt: boolean
-  classChange: {
-    fromClassName: string | null
-    toGroupDisplayName: string
-  } | null
+  classChange: StudentClassChange | null
   target: StudentTargetClass
 }
 
@@ -103,6 +120,7 @@ export interface StudentSyncReactivate {
   entra: EntraUser
   target: StudentTargetClass
   changes: StudentChange[]
+  classChange: StudentClassChange | null
 }
 
 export interface StudentSyncUnchanged {
@@ -265,6 +283,7 @@ function toStudentRowSummary(row: Student & { class: { name: string } | null }):
     email: row.email ?? null,
     classId: row.classId ?? null,
     className: row.class?.name ?? null,
+    groupId: row.groupId ?? null,
     externalId: row.externalId ?? null,
     externalSource: row.externalSource ?? null,
     isActive: row.isActive,
@@ -553,11 +572,12 @@ export async function previewClassStudentSync(
         ? {
             fromClassName: summary.className,
             toGroupDisplayName: targetGroupDisplayName,
+            clearedGroupId: summary.groupId,
           }
         : null
 
     if (!existing.isActive) {
-      studentsToReactivate.push({ existing: summary, entra: user, target, changes })
+      studentsToReactivate.push({ existing: summary, entra: user, target, changes, classChange })
       continue
     }
 
@@ -785,6 +805,28 @@ export async function applyClassStudentSync(
     await prisma.$transaction(async tx => {
       /* --- Classes --- */
 
+      /**
+       * Moves the rotation groups of a renamed class onto its new name.
+       *
+       * `GroupAssignment` is keyed by the class *name*, not its id, so a class
+       * renamed in Entra would otherwise leave its groups behind under the old
+       * name: the class keeps its students and their group numbers, but the
+       * rotation editor reads no groups for it and the schedule pages render an
+       * empty rotation.
+       *
+       * Rows already sitting under the new name can only be orphans — `Class.name`
+       * is unique, so no live class holds that name at this point — and they would
+       * collide with the unique (class, groupId) index, so they are dropped.
+       */
+      const migrateGroupAssignments = async (fromName: string, toName: string) => {
+        if (fromName === toName) return
+        await tx.groupAssignment.deleteMany({ where: { class: toName } })
+        await tx.groupAssignment.updateMany({
+          where: { class: fromName },
+          data: { class: toName },
+        })
+      }
+
       // Map of Entra group id -> local class id after this transaction.
       const classIdByGroupId = new Map<string, number>()
 
@@ -824,11 +866,13 @@ export async function applyClassStudentSync(
           data.externalId = update.group.id
           data.externalSource = EXTERNAL_SOURCE_ENTRA
         }
+        await migrateGroupAssignments(update.existing.name, update.group.displayName)
         await tx.class.update({ where: { id: update.existing.id }, data })
         classIdByGroupId.set(update.group.id, update.existing.id)
       }
 
       for (const reactivate of classReactivations) {
+        await migrateGroupAssignments(reactivate.existing.name, reactivate.group.displayName)
         await tx.class.update({
           where: { id: reactivate.existing.id },
           data: {
@@ -910,6 +954,16 @@ export async function applyClassStudentSync(
         }
         if (classId != null) {
           data.class = { connect: { id: classId } }
+          // Rotation groups are numbered per class (GroupAssignment is keyed by
+          // class name + group number), so carrying a group number across a
+          // class move silently drops the student into an unrelated group — or
+          // conjures a group the destination class does not have, because
+          // GET /api/schedules/assignments back-fills GroupAssignment from
+          // whatever group numbers it finds on students. Clearing it puts them
+          // in the rotation editor's "unassigned" bucket, where a human decides.
+          if (update.existing.classId !== classId) {
+            data.groupId = null
+          }
         }
         if (update.willAdopt) {
           data.externalId = update.entra.oid
@@ -933,6 +987,11 @@ export async function applyClassStudentSync(
             externalId: reactivate.entra.oid,
             externalSource: EXTERNAL_SOURCE_ENTRA,
             classId: classId ?? undefined,
+            // Same reasoning as the update path: a group number from the class
+            // they left means nothing in the one they return to.
+            ...(classId != null && reactivate.existing.classId !== classId
+              ? { groupId: null }
+              : {}),
             isActive: true,
             deactivatedAt: null,
             lastSyncedAt: now,
