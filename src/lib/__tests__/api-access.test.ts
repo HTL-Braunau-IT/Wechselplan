@@ -41,6 +41,19 @@ describe('resolveAccessTier', () => {
     expect(resolveAccessTier('/api/students', 'GET')).toBe('staff')
   })
 
+  it('lets anyone read classes but only admins write one', () => {
+    // Writing a class means setting its Klassenleiter, and the class lead can
+    // lock every teacher's grades after the Sokrates transfer.
+    expect(resolveAccessTier('/api/classes', 'GET')).toBe('session')
+    expect(resolveAccessTier('/api/classes/get-by-name', 'GET')).toBe('session')
+    expect(resolveAccessTier('/api/classes/12', 'PATCH')).toBe('admin')
+    expect(resolveAccessTier('/api/classes', 'POST')).toBe('admin')
+  })
+
+  it('keeps combining classes at staff — it is part of schedule creation', () => {
+    expect(resolveAccessTier('/api/classes/combine', 'POST')).toBe('staff')
+  })
+
   it('treats role administration as admin-only', () => {
     expect(resolveAccessTier('/api/roles', 'GET')).toBe('admin')
     expect(resolveAccessTier('/api/user-roles', 'DELETE')).toBe('admin')

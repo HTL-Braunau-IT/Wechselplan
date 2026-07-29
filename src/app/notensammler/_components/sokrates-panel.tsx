@@ -55,8 +55,14 @@ function SemesterRow({
         <span className="text-muted-foreground text-sm font-medium">{semesterLabel}:</span>
         <Button size="sm" variant="outline" disabled={busy} onClick={() => onMark(semester)}>
           <ShieldCheck className="mr-1.5 h-4 w-4" />
-          {t('notensammler.sokratesMark', 'In Sokrates eingetragen')}
+          {t('notensammler.sokratesMark', 'In Sokrates eingetragen & sperren')}
         </Button>
+        <span className="text-muted-foreground text-xs">
+          {t(
+            'notensammler.sokratesMarkHint',
+            'Sperrt alle Noten dieses Semesters für alle Lehrer.',
+          )}
+        </span>
       </div>
     )
   }
@@ -119,8 +125,10 @@ function SemesterRow({
 
 /**
  * Sokrates transfer marker & lock. Wechselplan cannot push grades to Sokrates,
- * so the Klassenleiter records here that a semester has been entered; after
- * that, changes are reported (soft) or blocked (hard lock).
+ * so the Klassenleiter records here that a semester has been entered — which
+ * locks the whole semester for every teacher at once. Lifting that lock leaves
+ * the mark in place and drops back to reporting changes instead of blocking
+ * them, with individual columns still lockable.
  */
 export function SokratesPanel({ status, canManage, busy, onMark, onUnmark, onSetLockAll }: Props) {
   const { t } = useTranslation()

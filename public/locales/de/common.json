@@ -415,7 +415,7 @@
     "scheduleRotationChanged": "Lehrerrotation für {{className}} geändert",
     "gradesEntered_one": "1 Note in {{className}} eingetragen",
     "gradesEntered_other": "{{count}} Noten in {{className}} eingetragen",
-    "sokratesMarked": "{{className}} ({{semester}}) ist in Sokrates eingetragen",
+    "sokratesMarked": "{{className}} ({{semester}}) ist in Sokrates eingetragen — Noten gesperrt",
     "sokratesUnmarked": "Sokrates-Markierung für {{className}} ({{semester}}) aufgehoben",
     "sokratesLockedAll": "Alle Noten in {{className}} ({{semester}}) sind gesperrt",
     "sokratesLockedMine": "Deine Noten in {{className}} ({{semester}}) sind gesperrt",

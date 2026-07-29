@@ -123,7 +123,10 @@ Common error scenarios:
 ## Security Considerations
 
 - Class data is typically read-only for most users
-- Class assignment updates may require administrative privileges
+- `GET` is open to any signed-in user; `PATCH /api/classes/{id}` is **admin only**,
+  because `classLeadId` decides who may lock a class's grades after the Sokrates
+  transfer (see [`../notensammler/sokrates.md`](../notensammler/sokrates.md))
+- `POST /api/classes/combine` stays at the staff tier — it is part of schedule creation
 - All operations are logged for audit purposes
 - Input validation prevents invalid data entry
 

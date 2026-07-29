@@ -6,6 +6,13 @@ import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { normalizeUsername } from '@/lib/username'
 import { denyUnlessAccess } from '@/lib/api-guard'
+import {
+  canManageSokrates,
+  getSokratesStatus,
+  isEditBlocked,
+  isFinalGradeEditBlocked,
+  resolveCurrentTeacher,
+} from '@/lib/sokrates-lock'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -186,7 +193,35 @@ export async function POST(request: Request) {
       })
     }
 
-    const finalGradeOps = finalGrades.map(fg =>
+    // Sokrates lock: a locked semester freezes the Zeugnisnote for everyone but
+    // the class lead and admins. Locked entries are dropped from the write
+    // rather than failing the whole "Alle speichern", which is what the grade
+    // batch does — an untouched semester in the same request still saves.
+    //
+    // This endpoint also mirrors each Endnote into the caller's own grade column
+    // (`gradeOps` below), so that half has to clear the column-level check too —
+    // otherwise saving an Endnote would be a way around a locked column.
+    const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId)
+    let writable = finalGrades
+    let columnWritable = finalGrades
+    let skippedLocked = 0
+    if (sokratesStatus.first.marked || sokratesStatus.second.marked) {
+      const currentTeacher = await resolveCurrentTeacher(session)
+      const canOverride = await canManageSokrates({
+        classId: classIdNum,
+        role: session.user?.role,
+        teacherId: currentTeacher?.id ?? null,
+      })
+      writable = finalGrades.filter(
+        fg => !isFinalGradeEditBlocked(sokratesStatus, fg.semester, canOverride),
+      )
+      columnWritable = writable.filter(
+        fg => !isEditBlocked(sokratesStatus, fg.semester, teacher.id, canOverride),
+      )
+      skippedLocked = finalGrades.length - writable.length
+    }
+
+    const finalGradeOps = writable.map(fg =>
       prisma.finalGrade.upsert({
         where: {
           studentId_classId_semester_schoolYearId: {
@@ -210,7 +245,7 @@ export async function POST(request: Request) {
         },
       }),
     )
-    const gradeOps = finalGrades
+    const gradeOps = columnWritable
       .filter(fg => fg.grade != null)
       .map(fg =>
         prisma.grade.upsert({
@@ -236,7 +271,7 @@ export async function POST(request: Request) {
       )
     await prisma.$transaction([...finalGradeOps, ...gradeOps])
 
-    return NextResponse.json({ success: true, count: finalGrades.length })
+    return NextResponse.json({ success: true, count: writable.length, skippedLocked })
   } catch (error) {
     captureError(error as Error, {
       location: 'api/notensammler/final-grades/batch',

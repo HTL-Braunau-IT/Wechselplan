@@ -378,6 +378,7 @@ export default function NotensammlerPage() {
               onDeleteTeacher={setTeacherToDelete}
               canManageSokrates={sokrates.canManage}
               isSemesterMarked={semester => sokrates.status[semester].marked}
+              isSemesterLocked={sokrates.isSemesterLocked}
               isCellLocked={sokrates.isCellLocked}
               isCellDrifted={sokrates.isCellDrifted}
               onToggleColumnLock={(teacherId, semester, locked) =>

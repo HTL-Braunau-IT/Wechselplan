@@ -12,6 +12,16 @@ The Class Management API allows you to update class assignments for individual c
 
 Updates class assignments (class head and/or class lead) for a specific class by ID.
 
+#### Access
+
+**Admin only** (`denyUnlessAccess('admin')` plus the `/api/classes` admin rule in
+`src/lib/api-access.ts`). `classLeadId` decides who may mark a class as entered
+into Sokrates and thereby lock every teacher's grades, so it is not something a
+teacher may set for themselves — see
+[`../notensammler/sokrates.md`](../notensammler/sokrates.md). A non-admin gets
+**403 Forbidden**. The `/class-settings` page that drives this endpoint is
+likewise admin-only, in the nav and in `src/middleware.ts`.
+
 #### Request
 
 ```http

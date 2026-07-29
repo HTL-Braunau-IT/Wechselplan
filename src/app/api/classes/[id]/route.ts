@@ -19,6 +19,11 @@ const updateClassSchema = z
  *
  * Validates the class ID and request body, ensures referenced teachers exist if provided, and updates the class record with new data. Returns the updated class fields or an appropriate error response if validation or existence checks fail.
  *
+ * Admin-only: this endpoint sets `classLeadId`, and the class lead is the one
+ * person who may mark a class as entered into Sokrates and thereby lock every
+ * teacher's grades. While it was staff-writable, any teacher could appoint
+ * themselves lead of any class and freeze it.
+ *
  * @returns A JSON response containing the updated class data, or an error message with the corresponding HTTP status code.
  */
 export async function PATCH(
@@ -26,7 +31,7 @@ export async function PATCH(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   context: any,
 ) {
-  const denied = await denyUnlessAccess('staff')
+  const denied = await denyUnlessAccess('admin')
   if (denied) return denied
 
   try {

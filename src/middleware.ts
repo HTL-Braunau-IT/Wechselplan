@@ -23,6 +23,16 @@ const STAFF_PAGE_PREFIXES = [
 ]
 
 /**
+ * Page prefixes that require an admin.
+ *
+ * `/class-settings` assigns the Klassenvorstand/Klassenleiter, and the class
+ * lead is the only teacher who may lock a class's grades after the Sokrates
+ * transfer. Leaving the page open to every teacher meant any of them could
+ * appoint themselves and freeze the sheet.
+ */
+const ADMIN_PAGE_PREFIXES = ['/class-settings']
+
+/**
  * Middleware for authentication and locale redirection.
  *
  * Unlike the previous version, `/api` is covered here as well: every API
@@ -56,7 +66,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  if (STAFF_PAGE_PREFIXES.some(prefix => pathname.startsWith(prefix))) {
+  if (ADMIN_PAGE_PREFIXES.some(prefix => pathname.startsWith(prefix))) {
+    const token = await getToken({ req: request })
+
+    if (token?.role !== 'admin') {
+      return NextResponse.redirect(new URL('/', request.url))
+    }
+  } else if (STAFF_PAGE_PREFIXES.some(prefix => pathname.startsWith(prefix))) {
     const token = await getToken({ req: request })
 
     if (!token || !isStaffRole(token.role)) {

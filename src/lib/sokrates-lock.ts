@@ -14,13 +14,17 @@ export { resolveCurrentTeacher, type CurrentTeacher } from '@/lib/current-teache
  * Wechselplan cannot push grades into Sokrates (the government Zeugnis system
  * has no API — see the Sokrates research: grades are typed in by hand). So the
  * Klassenleiter marks, per class and semester, that the grades have been
- * entered into Sokrates. From that point a subject teacher who changes a grade
- * is either
- *   - hard-blocked (the class lead locked the whole class or that column), or
- *   - allowed, with the change recorded and the class lead notified (soft mark).
+ * entered into Sokrates. Marking closes the class: every teacher's column and
+ * the Zeugnisnoten are hard-locked at once, because once the numbers are in
+ * Sokrates a change in Wechselplan silently puts the two out of step.
+ *
+ * The class lead can lift that blanket lock ("Sperre aufheben"), which drops
+ * the semester back to a soft mark: edits go through, but each one is recorded
+ * and reported to the lead, and individual columns can still be re-locked.
  *
  * This module owns reading that state and recording + notifying on drift. The
- * grade-save routes call {@link isEditBlocked} before writing and
+ * grade-save routes call {@link isEditBlocked} (per teacher column) or
+ * {@link isFinalGradeEditBlocked} (class-wide Zeugnisnote) before writing and
  * {@link recordSokratesChanges} after.
  */
 
@@ -121,6 +125,23 @@ export function isEditBlocked(
   const semesterStatus = status[semester]
   if (!semesterStatus.marked) return false
   return semesterStatus.lockedAll || semesterStatus.lockedTeacherIds.includes(teacherId)
+}
+
+/**
+ * Whether the class-wide Zeugnisnote for this semester is hard-locked. There is
+ * no teacher column to scope it to, so only the blanket lock applies — a single
+ * locked subject column says nothing about the final grade. As with
+ * {@link isEditBlocked}, the class lead and admins pass `canOverride` and are
+ * never blocked.
+ */
+export function isFinalGradeEditBlocked(
+  status: SokratesStatus,
+  semester: Semester,
+  canOverride: boolean,
+): boolean {
+  if (canOverride) return false
+  const semesterStatus = status[semester]
+  return semesterStatus.marked && semesterStatus.lockedAll
 }
 
 const formatGrade = (grade: number | null): string =>
