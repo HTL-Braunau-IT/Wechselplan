@@ -30,7 +30,7 @@ import {
 import type { ClassData, FinalGradesData, Period, Student, Teacher } from '../_lib/types'
 import { TeacherColumnHeader } from './teacher-column-header'
 
-const MISSING_CELL_CLASS = 'bg-red-50 dark:bg-red-950/20'
+const MISSING_CELL_CLASS = 'bg-destructive/10'
 
 export type GradeTableProps = {
   classData: ClassData

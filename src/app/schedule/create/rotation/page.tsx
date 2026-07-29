@@ -1,9 +1,12 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
+import { RefreshCw } from 'lucide-react'
 import { RotationScheduleEditor } from '@/components/schedule/rotation-schedule-editor'
 import type { Schedule } from '@/components/schedule/rotation-schedule-editor'
 import { useSchoolYear } from '@/contexts/school-year-context'
+import { PageContainer } from '@/components/ui/page-container'
+import { PageHeader } from '@/components/ui/page-header'
 
 /**
  * Page component for creating and editing rotation schedules.
@@ -66,13 +69,18 @@ export default function RotationPage() {
   }
 
   return (
-    <div className="container mx-auto p-4">
+    <PageContainer size="wide" className="space-y-6">
+      <PageHeader
+        icon={RefreshCw}
+        title="Rotationsplan"
+        description="Turnusse, Rotationstag und individuelle Wochenlängen festlegen"
+      />
       <RotationScheduleEditor
         className={className}
         initialWeekday={weekdayParam ? parseInt(weekdayParam) : null}
         onSave={handleSave}
         onCancel={handleCancel}
       />
-    </div>
+    </PageContainer>
   )
 }

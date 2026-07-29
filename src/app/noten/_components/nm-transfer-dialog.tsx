@@ -2,13 +2,17 @@
 
 import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
+import { AlertCircle, Send } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Label } from '@/components/ui/label'
 import {
   Table,
   TableBody,
@@ -208,9 +212,14 @@ export function NmTransferDialog(props: NmTransferDialogProps) {
             </Table>
           </div>
 
-          {error && <p className="text-destructive text-sm">{error}</p>}
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-          <div className="flex justify-end gap-2 pt-2">
+          <DialogFooter className="pt-2">
             <Button variant="outline" size="sm" onClick={close}>
               {t('common.cancel')}
             </Button>
@@ -220,13 +229,14 @@ export function NmTransferDialog(props: NmTransferDialogProps) {
               disabled={saving || totalSelected === 0}
               onClick={() => void submit()}
             >
+              <Send className="h-4 w-4" />
               {saving
                 ? t('common.saving')
                 : t('noten.notenmanagementEintragSubmit', {
                     defaultValue: 'An Notenmanagement übertragen',
                   })}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -238,25 +248,42 @@ export function NmTransferDialog(props: NmTransferDialogProps) {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 pt-2">
-            <Input
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              placeholder={t('noten.username', { defaultValue: 'Benutzername' })}
-              autoComplete="username"
-            />
-            <Input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder={t('noten.password', { defaultValue: 'Passwort' })}
-              autoComplete="current-password"
-              onKeyDown={e => {
-                if (e.key === 'Enter' && username && password) void submit()
-              }}
-            />
-            {error && <p className="text-destructive text-sm">{error}</p>}
+            <div className="space-y-1.5">
+              <Label htmlFor="nm-username">
+                {t('noten.username', { defaultValue: 'Benutzername' })}
+              </Label>
+              <Input
+                id="nm-username"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+                placeholder={t('noten.username', { defaultValue: 'Benutzername' })}
+                autoComplete="username"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="nm-password">
+                {t('noten.password', { defaultValue: 'Passwort' })}
+              </Label>
+              <Input
+                id="nm-password"
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder={t('noten.password', { defaultValue: 'Passwort' })}
+                autoComplete="current-password"
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && username && password) void submit()
+                }}
+              />
+            </div>
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
           </div>
-          <div className="flex justify-end gap-2 pt-2">
+          <DialogFooter className="pt-2">
             <Button variant="outline" size="sm" onClick={() => setShowPasswordDialog(false)}>
               {t('common.cancel')}
             </Button>
@@ -267,7 +294,7 @@ export function NmTransferDialog(props: NmTransferDialogProps) {
             >
               {saving ? t('common.saving') : t('common.continue', { defaultValue: 'Weiter' })}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

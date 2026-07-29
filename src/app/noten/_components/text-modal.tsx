@@ -2,7 +2,14 @@
 
 import { forwardRef, useImperativeHandle, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Save } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 
@@ -80,11 +87,12 @@ export function TextModal({
             />
           </div>
         )}
-        <div className="flex shrink-0 justify-end gap-2 pt-2">
-          <Button variant="outline" size="sm" onClick={onClose}>
+        <DialogFooter className="shrink-0 pt-2">
+          <Button size="sm" onClick={onClose}>
+            <Save className="h-4 w-4" />
             {t('common.save', { defaultValue: 'Speichern' })}
           </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

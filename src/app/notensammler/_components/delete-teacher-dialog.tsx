@@ -1,6 +1,7 @@
 'use client'
 
 import { useTranslation } from 'react-i18next'
+import { Trash2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -73,7 +74,10 @@ export function DeleteTeacherDialog({
                 {t('notensammler.deleting', 'Lösche...')}
               </>
             ) : (
-              t('notensammler.delete', 'Löschen')
+              <>
+                <Trash2 className="mr-2 h-4 w-4" />
+                {t('notensammler.delete', 'Löschen')}
+              </>
             )}
           </AlertDialogAction>
         </AlertDialogFooter>

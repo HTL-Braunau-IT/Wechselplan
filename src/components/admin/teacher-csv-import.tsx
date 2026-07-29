@@ -4,8 +4,9 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Card, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { Download, Upload } from 'lucide-react'
+import { AlertCircle, Download, Upload } from 'lucide-react'
 import { captureFrontendError } from '@/lib/frontend-error'
 
 interface Teacher {
@@ -121,14 +122,10 @@ export function TeacherCSVImport({ onImport }: TeacherCSVImportProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center space-x-4">
-        <Button
-          onClick={handleDownloadSample}
-          variant="outline"
-          className="flex items-center space-x-2"
-        >
-          <Download className="h-4 w-4" />
-          <span>{t('admin.teachers.import.downloadSample')}</span>
+      <div className="flex flex-wrap items-center gap-4">
+        <Button onClick={handleDownloadSample} variant="outline">
+          <Download className="mr-2 h-4 w-4" />
+          {t('admin.teachers.import.downloadSample')}
         </Button>
         <div className="flex-1">
           <input
@@ -140,7 +137,7 @@ export function TeacherCSVImport({ onImport }: TeacherCSVImportProps) {
           />
           <Label
             htmlFor="csv-upload"
-            className="inline-flex cursor-pointer items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+            className="border-input bg-background hover:bg-accent hover:text-accent-foreground inline-flex cursor-pointer items-center justify-center rounded-md border px-4 py-2 text-sm font-medium shadow-sm"
           >
             <Upload className="mr-2 h-4 w-4" />
             {t('admin.teachers.import.uploadCSV')}
@@ -150,6 +147,7 @@ export function TeacherCSVImport({ onImport }: TeacherCSVImportProps) {
 
       {error && (
         <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
@@ -157,20 +155,22 @@ export function TeacherCSVImport({ onImport }: TeacherCSVImportProps) {
       {csvData && (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">{t('admin.teachers.import.previewTitle')}</h2>
-          <div className="space-y-2">
-            {csvData.map((teacher, index) => (
-              <div key={index} className="flex items-center space-x-2">
-                <span className="flex-1">
-                  {teacher.firstName} {teacher.lastName}
-                  {teacher.schedules && teacher.schedules.length > 0 && (
-                    <span className="ml-2 text-sm text-gray-500">
-                      ({teacher.schedules.join(', ')})
-                    </span>
-                  )}
-                </span>
-              </div>
-            ))}
-          </div>
+          <Card>
+            <CardContent className="divide-border divide-y p-0">
+              {csvData.map((teacher, index) => (
+                <div key={index} className="flex items-center px-4 py-2 text-sm">
+                  <span className="flex-1">
+                    {teacher.firstName} {teacher.lastName}
+                    {teacher.schedules && teacher.schedules.length > 0 && (
+                      <span className="text-muted-foreground ml-2">
+                        ({teacher.schedules.join(', ')})
+                      </span>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
           <Button onClick={handleImport} disabled={isLoading} className="w-full md:w-auto">
             {isLoading
               ? t('admin.teachers.import.loading')

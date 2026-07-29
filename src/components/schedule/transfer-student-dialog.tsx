@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Select,
   SelectContent,
@@ -18,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { CircleAlert } from 'lucide-react'
 
 interface Student {
   id: number
@@ -194,9 +196,10 @@ export function TransferStudentDialog({
               </Select>
             </div>
             {error && (
-              <div className="bg-destructive/10 text-destructive border-destructive/20 rounded-md border p-3 text-sm">
-                {error}
-              </div>
+              <Alert variant="destructive">
+                <CircleAlert />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
             )}
           </div>
           <DialogFooter className="flex flex-col gap-3 sm:flex-row sm:justify-end">

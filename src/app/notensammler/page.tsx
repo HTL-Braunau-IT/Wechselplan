@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { AlertCircle, ClipboardList } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
@@ -12,6 +13,10 @@ import {
 } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Label } from '@/components/ui/label'
+import { PageContainer } from '@/components/ui/page-container'
+import { PageHeader } from '@/components/ui/page-header'
 import { captureFrontendError } from '@/lib/frontend-error'
 import { truncateSubject } from '@/lib/subject-utils'
 import type { Semester } from '@/lib/grades'
@@ -216,19 +221,29 @@ export default function NotensammlerPage() {
     : ''
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="mb-8">
-        <h1 className="mb-4 text-3xl font-bold">{t('notensammler.title', 'Notensammler')}</h1>
+    <PageContainer size="wide" className="space-y-6">
+      <PageHeader
+        icon={ClipboardList}
+        title={t('notensammler.title', 'Notensammler')}
+        description={t(
+          'notensammler.subtitle',
+          'Noten je Lehrer erfassen und an das Notenmanagement übertragen.',
+        )}
+      />
 
-        {error && (
-          <div className="border-destructive/30 bg-destructive/10 text-destructive mb-4 flex items-start justify-between gap-4 rounded-md border p-3">
-            <div className="whitespace-pre-line">{error}</div>
-            <Button variant="outline" onClick={() => setError(null)}>
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="flex items-start justify-between gap-4">
+            <span className="whitespace-pre-line">{error}</span>
+            <Button variant="outline" size="sm" className="shrink-0" onClick={() => setError(null)}>
               {t('common.close', 'Schließen')}
             </Button>
-          </div>
-        )}
+          </AlertDescription>
+        </Alert>
+      )}
 
+      <div>
         <NotensammlerToolbar
           classes={classes}
           selectedClassId={selectedClassId}
@@ -275,10 +290,10 @@ export default function NotensammlerPage() {
                 </>
               )}
             </CardTitle>
-            <div className="mt-2 flex items-center gap-2">
-              <label className="text-sm font-medium">
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Label className="text-sm font-medium">
                 {t('notensammler.sortBy', 'Sortieren nach')}:
-              </label>
+              </Label>
               <Select value={sortField} onValueChange={value => setSortField(value as SortField)}>
                 <SelectTrigger className="w-[180px]">
                   <SelectValue />
@@ -378,6 +393,6 @@ export default function NotensammlerPage() {
         deleting={deleting}
         onConfirm={() => void deleteTeacherGrades()}
       />
-    </div>
+    </PageContainer>
   )
 }

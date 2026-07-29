@@ -1,10 +1,24 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { AlertCircle, Users } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { TableSkeleton } from '@/components/ui/skeleton'
+import { PageContainer } from '@/components/ui/page-container'
+import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 import { useSchoolYear } from '@/contexts/school-year-context'
 import { captureFrontendError } from '@/lib/frontend-error'
-import { Spinner } from '@/components/ui/spinner'
 import { StudentPhoto } from '@/components/student-photo'
 
 interface Student {
@@ -76,11 +90,35 @@ export default function StudentsPage() {
 
   if (loading)
     return (
-      <div className="flex min-h-[200px] items-center justify-center p-8">
-        <Spinner size="lg" />
-      </div>
+      <PageContainer>
+        <div className="space-y-6">
+          <PageHeader
+            icon={Users}
+            title="Students Overview"
+            description="All students grouped by class and rotation group."
+          />
+          <Card>
+            <CardContent className="pt-6">
+              <TableSkeleton rows={6} columns={2} />
+            </CardContent>
+          </Card>
+        </div>
+      </PageContainer>
     )
-  if (error) return <div className="p-8 text-center text-red-500">{error}</div>
+
+  if (error)
+    return (
+      <PageContainer>
+        <div className="space-y-6">
+          <PageHeader icon={Users} title="Students Overview" />
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        </div>
+      </PageContainer>
+    )
 
   // Group students by class and then by group
   const studentsByClass = students.reduce(
@@ -115,41 +153,67 @@ export default function StudentsPage() {
   })
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="mb-8">
-        <h1 className="mb-4 text-3xl font-bold">Students Overview</h1>
-      </div>
+    <PageContainer>
+      <div className="space-y-6">
+        <PageHeader
+          icon={Users}
+          title="Students Overview"
+          description="All students grouped by class and rotation group."
+        />
 
-      {sortedClassEntries.map(([className, classGroups]) => (
-        <Card key={className} className="mb-8">
-          <CardHeader>
-            <CardTitle>{className}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {Object.entries(classGroups).map(([groupId, groupStudents]) => (
-                <div key={groupId} className="space-y-2">
-                  <h3 className="text-lg font-semibold">
-                    {groupId === 'No Group' ? 'No Group Assigned' : `Group ${groupId}`}
-                  </h3>
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {groupStudents.map(student => (
-                      <Card key={student.id} className="p-4">
-                        <StudentPhoto
-                          studentId={student.id}
-                          firstName={student.firstName}
-                          lastName={student.lastName}
-                          nameFormat="lastFirst"
-                        />
-                      </Card>
-                    ))}
+        {sortedClassEntries.length === 0 ? (
+          <EmptyState
+            icon={Users}
+            title="No students"
+            description="No students were found for the selected school year."
+          />
+        ) : (
+          <div className="space-y-6">
+            {sortedClassEntries.map(([className, classGroups]) => (
+              <Card key={className}>
+                <CardHeader>
+                  <CardTitle>{className}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Student</TableHead>
+                          <TableHead>Group</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {Object.entries(classGroups).flatMap(([groupId, groupStudents]) =>
+                          groupStudents.map(student => (
+                            <TableRow key={student.id}>
+                              <TableCell>
+                                <StudentPhoto
+                                  studentId={student.id}
+                                  firstName={student.firstName}
+                                  lastName={student.lastName}
+                                  nameFormat="lastFirst"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                {groupId === 'No Group' ? (
+                                  <Badge variant="soft-muted">No Group Assigned</Badge>
+                                ) : (
+                                  <Badge variant="secondary">Group {groupId}</Badge>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          )),
+                        )}
+                      </TableBody>
+                    </Table>
                   </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </PageContainer>
   )
 }

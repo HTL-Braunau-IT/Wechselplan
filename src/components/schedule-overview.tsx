@@ -9,6 +9,8 @@ import type {
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { Spinner } from '@/components/ui/spinner'
+import { Button } from '@/components/ui/button'
+import { Download, FileSpreadsheet } from 'lucide-react'
 import { generateExcel, generatePdf, generateSchedulePDF } from '@/lib/export-utils'
 
 interface ScheduleOverviewProps {
@@ -257,56 +259,48 @@ export function ScheduleOverview({
     <div className="container mx-auto p-4">
       {/* Export Buttons */}
       {showExportButtons && className && (
-        <div className="mb-8 flex items-center gap-2">
-          <button
-            className="bg-primary text-primary-foreground hover:bg-primary/90 rounded px-6 py-2 disabled:opacity-50"
-            onClick={handlePDFExport}
-            disabled={savingPdf}
-          >
+        <div className="mb-8 flex flex-wrap items-center gap-2">
+          <Button onClick={handlePDFExport} disabled={savingPdf}>
+            <Download className="mr-2 h-4 w-4" />
             {savingPdf ? 'Exporting PDF...' : 'PDF Export'}
-          </button>
-          <button
-            className="bg-primary text-primary-foreground hover:bg-primary/90 rounded px-6 py-2 disabled:opacity-50"
-            onClick={handlePDFDatumExport}
-            disabled={savingPdfDatum}
-          >
+          </Button>
+          <Button onClick={handlePDFDatumExport} disabled={savingPdfDatum}>
+            <Download className="mr-2 h-4 w-4" />
             {savingPdfDatum ? 'Exporting PDF Datum ...' : 'PDF Datum Export'}
-          </button>
+          </Button>
 
           {/* AM Excel Export Button - only show if teacher is assigned to AM */}
           {isTeacherForAM && (
-            <button
-              className="flex items-center gap-2 rounded bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
-              onClick={handleExcelAMExport}
-              disabled={savingExcelAM}
-            >
+            <Button onClick={handleExcelAMExport} disabled={savingExcelAM}>
               {savingExcelAM ? (
                 <>
                   <Spinner size="sm" />
                   Exporting AM Excel ...
                 </>
               ) : (
-                'Export Notenliste Vormittag'
+                <>
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  Export Notenliste Vormittag
+                </>
               )}
-            </button>
+            </Button>
           )}
 
           {/* PM Excel Export Button - only show if teacher is assigned to PM */}
           {isTeacherForPM && (
-            <button
-              className="flex items-center gap-2 rounded bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
-              onClick={handleExcelPMExport}
-              disabled={savingExcelPM}
-            >
+            <Button onClick={handleExcelPMExport} disabled={savingExcelPM}>
               {savingExcelPM ? (
                 <>
                   <Spinner size="sm" />
                   Exporting PM Excel ...
                 </>
               ) : (
-                'Export Notenliste Nachmittag'
+                <>
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  Export Notenliste Nachmittag
+                </>
               )}
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -358,11 +352,11 @@ export function ScheduleOverview({
         <CardContent>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <p className="text-sm text-gray-500">Klassenvorstand</p>
+              <p className="text-muted-foreground text-sm">Klassenvorstand</p>
               <p className="text-lg font-semibold">{classHead}</p>
             </div>
             <div className="space-y-2">
-              <p className="text-sm text-gray-500">Klassenleitung</p>
+              <p className="text-muted-foreground text-sm">Klassenleitung</p>
               <p className="text-lg font-semibold">{classLead}</p>
             </div>
           </div>
@@ -378,15 +372,15 @@ export function ScheduleOverview({
             <div className="space-y-2">
               <div className="border-b pb-2">
                 <p className="text-sm font-medium">Vormittag</p>
-                <p className="text-sm text-gray-500">
+                <p className="text-muted-foreground text-sm">
                   {scheduleTimes.find((time: ScheduleTime) => time.period === 'AM')?.startTime} -{' '}
                   {scheduleTimes.find((time: ScheduleTime) => time.period === 'AM')?.endTime}
                 </p>
               </div>
               {breakTimes.filter((time: BreakTime) => time.period === 'AM').length > 0 && (
                 <div>
-                  <p className="mb-1 text-xs font-medium text-gray-500">Pausen:</p>
-                  <ul className="space-y-1 text-xs text-gray-400">
+                  <p className="text-muted-foreground mb-1 text-xs font-medium">Pausen:</p>
+                  <ul className="text-muted-foreground space-y-1 text-xs">
                     {breakTimes
                       .filter((time: BreakTime) => time.period === 'AM')
                       .map((time: BreakTime) => (
@@ -401,15 +395,15 @@ export function ScheduleOverview({
             <div className="space-y-2">
               <div className="border-b pb-2">
                 <p className="text-sm font-medium">Nachmittag</p>
-                <p className="text-sm text-gray-500">
+                <p className="text-muted-foreground text-sm">
                   {scheduleTimes.find((time: ScheduleTime) => time.period === 'PM')?.startTime} -{' '}
                   {scheduleTimes.find((time: ScheduleTime) => time.period === 'PM')?.endTime}
                 </p>
               </div>
               {breakTimes.filter((time: BreakTime) => time.period === 'PM').length > 0 && (
                 <div>
-                  <p className="mb-1 text-xs font-medium text-gray-500">Pausen:</p>
-                  <ul className="space-y-1 text-xs text-gray-400">
+                  <p className="text-muted-foreground mb-1 text-xs font-medium">Pausen:</p>
+                  <ul className="text-muted-foreground space-y-1 text-xs">
                     {breakTimes
                       .filter((time: BreakTime) => time.period === 'PM')
                       .map((time: BreakTime) => (
@@ -423,8 +417,8 @@ export function ScheduleOverview({
             </div>
             {breakTimes.filter((time: BreakTime) => time.period === 'LUNCH').length > 0 && (
               <div className="col-span-2 border-t pt-4">
-                <p className="mb-1 text-xs font-medium text-gray-500">Mittagspause:</p>
-                <ul className="space-y-1 text-xs text-gray-400">
+                <p className="text-muted-foreground mb-1 text-xs font-medium">Mittagspause:</p>
+                <ul className="text-muted-foreground space-y-1 text-xs">
                   {breakTimes
                     .filter((time: BreakTime) => time.period === 'LUNCH')
                     .map((time: BreakTime) => (
@@ -464,7 +458,7 @@ export function ScheduleOverview({
                       {Object.keys(turns).map((turn, turnIdx) => (
                         <th key={turn} className="border p-2">
                           <div>Turnus {turnIdx + 1}</div>
-                          <div className="text-xs text-gray-600">
+                          <div className="text-muted-foreground text-xs">
                             {getTurnusInfo(turn, turns).start} - {getTurnusInfo(turn, turns).end}
                           </div>
                         </th>

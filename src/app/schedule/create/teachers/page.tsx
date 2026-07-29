@@ -15,6 +15,30 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { PageContainer } from '@/components/ui/page-container'
+import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Spinner } from '@/components/ui/spinner'
+import {
+  ArrowLeft,
+  ArrowRight,
+  CircleAlert,
+  Copy,
+  Sunrise,
+  Sunset,
+  TriangleAlert,
+  Users,
+  X,
+} from 'lucide-react'
 import { captureFrontendError } from '@/lib/frontend-error'
 import { TeacherSelect } from '@/components/schedule/teacher-select'
 import { SubjectSelect } from '@/components/schedule/subject-select'
@@ -645,326 +669,354 @@ export default function TeacherAssignmentPage() {
     setPmAssignments(amAssignments.map(assignment => ({ ...assignment })))
   }
 
-  if (isLoadingCachedData ?? loading) return <div className="p-4">{t('loading')}</div>
-  if (error) return <div className="p-4 text-red-500">{error}</div>
-  if (!selectedClass) return <div className="p-4">{t('noClassSelected')}</div>
+  if (isLoadingCachedData ?? loading)
+    return (
+      <PageContainer size="wide">
+        <div className="flex min-h-[40vh] items-center justify-center">
+          <Spinner size="lg" />
+        </div>
+      </PageContainer>
+    )
+  if (error)
+    return (
+      <PageContainer size="wide">
+        <Alert variant="destructive">
+          <CircleAlert className="h-4 w-4" />
+          <AlertTitle>{error}</AlertTitle>
+        </Alert>
+      </PageContainer>
+    )
+  if (!selectedClass)
+    return (
+      <PageContainer size="wide">
+        <EmptyState icon={Users} title={t('noClassSelected')} />
+      </PageContainer>
+    )
 
   return (
-    <div className="container mx-auto p-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {t('teacherAssignment')} - {selectedClass}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {error && <div className="mb-4 rounded-md bg-red-50 p-4 text-red-500">{error}</div>}
+    <PageContainer size="wide">
+      <div className="space-y-6">
+        <PageHeader icon={Users} title={`${t('teacherAssignment')} - ${selectedClass}`} />
 
-          {hasExistingAssignments && (
-            <div className="bg-muted text-muted-foreground mb-4 rounded-lg p-4">
-              {t('existingAssignmentsWarning')}
+        {error && (
+          <Alert variant="destructive">
+            <CircleAlert className="h-4 w-4" />
+            <AlertTitle>{error}</AlertTitle>
+          </Alert>
+        )}
+
+        {hasExistingAssignments && (
+          <Alert variant="warning">
+            <TriangleAlert className="h-4 w-4" />
+            <AlertDescription>{t('existingAssignmentsWarning')}</AlertDescription>
+          </Alert>
+        )}
+
+        <div className="max-w-xs space-y-2">
+          <Label htmlFor="weekday">{t('rotationDay')}</Label>
+          <Select
+            value={selectedWeekday?.toString() ?? ''}
+            onValueChange={value => setSelectedWeekday(parseInt(value))}
+          >
+            <SelectTrigger id="weekday" className="w-full">
+              <SelectValue placeholder={t('selectWeekday')} />
+            </SelectTrigger>
+            <SelectContent>
+              {WEEKDAYS.map(day => (
+                <SelectItem key={day.value} value={day.value.toString()}>
+                  {day.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* AM Assignments */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <Sunrise className="text-muted-foreground h-5 w-5" />
+              {t('morningAssignments')}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {groups.map(group => (
+                <div key={group.id} className="rounded-lg border p-4">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="font-semibold">
+                      {t('group')} {group.id}
+                    </h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleClearRow('am', group.id)}
+                      className="text-destructive hover:text-destructive/90"
+                    >
+                      <X className="h-4 w-4" />
+                      {t('clearRow')}
+                    </Button>
+                  </div>
+                  <div className="grid [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))] gap-4">
+                    <div>
+                      <Label className="mb-1 block text-sm font-medium">{t('teacher')}</Label>
+                      <TeacherSelect
+                        value={amAssignments.find(a => a.groupId === group.id)?.teacherId}
+                        onChange={value =>
+                          handleAssignmentChange('am', group.id, 'teacherId', value)
+                        }
+                        teachers={teachers}
+                      />
+                    </div>
+                    <div>
+                      <Label className="mb-1 block text-sm font-medium">{t('subject')}</Label>
+                      <SubjectSelect
+                        value={getDisplayValue(
+                          amAssignments.find(a => a.groupId === group.id) ?? {
+                            groupId: group.id,
+                            teacherId: 0,
+                            subjectId: 0,
+                            learningContentId: 0,
+                            roomId: 0,
+                          },
+                          'subject',
+                        )}
+                        onChange={value =>
+                          handleStringFieldChange('am', group.id, 'subject', value)
+                        }
+                        subjects={subjects}
+                      />
+                    </div>
+                    <div>
+                      <Label className="mb-1 block text-sm font-medium">
+                        {t('learningContent')}
+                      </Label>
+                      <LearningContentSelect
+                        value={getDisplayValue(
+                          amAssignments.find(a => a.groupId === group.id) ?? {
+                            groupId: group.id,
+                            teacherId: 0,
+                            subjectId: 0,
+                            learningContentId: 0,
+                            roomId: 0,
+                          },
+                          'learningContent',
+                        )}
+                        onChange={value =>
+                          handleStringFieldChange('am', group.id, 'learningContent', value)
+                        }
+                        learningContents={learningContents}
+                      />
+                    </div>
+                    <div>
+                      <Label className="mb-1 block text-sm font-medium">{t('room')}</Label>
+                      <RoomSelect
+                        value={getDisplayValue(
+                          amAssignments.find(a => a.groupId === group.id) ?? {
+                            groupId: group.id,
+                            teacherId: 0,
+                            subjectId: 0,
+                            learningContentId: 0,
+                            roomId: 0,
+                          },
+                          'room',
+                        )}
+                        onChange={value => handleStringFieldChange('am', group.id, 'room', value)}
+                        rooms={rooms}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-          )}
+          </CardContent>
+        </Card>
 
-          <div className="mb-4">
-            <Label htmlFor="weekday">{t('rotationDay')}</Label>
-            <Select
-              value={selectedWeekday?.toString() ?? ''}
-              onValueChange={value => setSelectedWeekday(parseInt(value))}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder={t('selectWeekday')} />
-              </SelectTrigger>
-              <SelectContent>
-                {WEEKDAYS.map(day => (
-                  <SelectItem key={day.value} value={day.value.toString()}>
-                    {day.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* AM Assignments */}
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle>{t('morningAssignments')}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {groups.map(group => (
-                  <div key={group.id} className="rounded-lg border p-4">
-                    <div className="mb-4 flex items-center justify-between">
-                      <h3 className="font-semibold">
-                        {t('group')} {group.id}
-                      </h3>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleClearRow('am', group.id)}
-                        className="text-destructive hover:text-destructive/90"
-                      >
-                        {t('clearRow')}
-                      </Button>
+        {/* PM Assignments */}
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Sunset className="text-muted-foreground h-5 w-5" />
+                {t('afternoonAssignments')}
+              </CardTitle>
+              <Button variant="outline" size="sm" onClick={handleCopyAmToPm}>
+                <Copy className="h-4 w-4" />
+                {t('copyFromAm')}
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {groups.map(group => (
+                <div key={group.id} className="rounded-lg border p-4">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="font-semibold">
+                      {t('group')} {group.id}
+                    </h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleClearRow('pm', group.id)}
+                      className="text-destructive hover:text-destructive/90"
+                    >
+                      <X className="h-4 w-4" />
+                      {t('clearRow')}
+                    </Button>
+                  </div>
+                  <div className="grid [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))] gap-4">
+                    <div>
+                      <Label className="mb-1 block text-sm font-medium">{t('teacher')}</Label>
+                      <TeacherSelect
+                        value={pmAssignments.find(a => a.groupId === group.id)?.teacherId}
+                        onChange={value =>
+                          handleAssignmentChange('pm', group.id, 'teacherId', value)
+                        }
+                        teachers={teachers}
+                      />
                     </div>
-                    <div className="grid [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))] gap-4">
-                      <div>
-                        <Label className="mb-1 block text-sm font-medium">{t('teacher')}</Label>
-                        <TeacherSelect
-                          value={amAssignments.find(a => a.groupId === group.id)?.teacherId}
-                          onChange={value =>
-                            handleAssignmentChange('am', group.id, 'teacherId', value)
-                          }
-                          teachers={teachers}
-                        />
-                      </div>
-                      <div>
-                        <Label className="mb-1 block text-sm font-medium">{t('subject')}</Label>
-                        <SubjectSelect
-                          value={getDisplayValue(
-                            amAssignments.find(a => a.groupId === group.id) ?? {
-                              groupId: group.id,
-                              teacherId: 0,
-                              subjectId: 0,
-                              learningContentId: 0,
-                              roomId: 0,
-                            },
-                            'subject',
-                          )}
-                          onChange={value =>
-                            handleStringFieldChange('am', group.id, 'subject', value)
-                          }
-                          subjects={subjects}
-                        />
-                      </div>
-                      <div>
-                        <Label className="mb-1 block text-sm font-medium">
-                          {t('learningContent')}
-                        </Label>
-                        <LearningContentSelect
-                          value={getDisplayValue(
-                            amAssignments.find(a => a.groupId === group.id) ?? {
-                              groupId: group.id,
-                              teacherId: 0,
-                              subjectId: 0,
-                              learningContentId: 0,
-                              roomId: 0,
-                            },
-                            'learningContent',
-                          )}
-                          onChange={value =>
-                            handleStringFieldChange('am', group.id, 'learningContent', value)
-                          }
-                          learningContents={learningContents}
-                        />
-                      </div>
-                      <div>
-                        <Label className="mb-1 block text-sm font-medium">{t('room')}</Label>
-                        <RoomSelect
-                          value={getDisplayValue(
-                            amAssignments.find(a => a.groupId === group.id) ?? {
-                              groupId: group.id,
-                              teacherId: 0,
-                              subjectId: 0,
-                              learningContentId: 0,
-                              roomId: 0,
-                            },
-                            'room',
-                          )}
-                          onChange={value => handleStringFieldChange('am', group.id, 'room', value)}
-                          rooms={rooms}
-                        />
-                      </div>
+                    <div>
+                      <Label className="mb-1 block text-sm font-medium">{t('subject')}</Label>
+                      <SubjectSelect
+                        value={getDisplayValue(
+                          pmAssignments.find(a => a.groupId === group.id) ?? {
+                            groupId: group.id,
+                            teacherId: 0,
+                            subjectId: 0,
+                            learningContentId: 0,
+                            roomId: 0,
+                          },
+                          'subject',
+                        )}
+                        onChange={value =>
+                          handleStringFieldChange('pm', group.id, 'subject', value)
+                        }
+                        subjects={subjects}
+                      />
+                    </div>
+                    <div>
+                      <Label className="mb-1 block text-sm font-medium">
+                        {t('learningContent')}
+                      </Label>
+                      <LearningContentSelect
+                        value={getDisplayValue(
+                          pmAssignments.find(a => a.groupId === group.id) ?? {
+                            groupId: group.id,
+                            teacherId: 0,
+                            subjectId: 0,
+                            learningContentId: 0,
+                            roomId: 0,
+                          },
+                          'learningContent',
+                        )}
+                        onChange={value =>
+                          handleStringFieldChange('pm', group.id, 'learningContent', value)
+                        }
+                        learningContents={learningContents}
+                      />
+                    </div>
+                    <div>
+                      <Label className="mb-1 block text-sm font-medium">{t('room')}</Label>
+                      <RoomSelect
+                        value={getDisplayValue(
+                          pmAssignments.find(a => a.groupId === group.id) ?? {
+                            groupId: group.id,
+                            teacherId: 0,
+                            subjectId: 0,
+                            learningContentId: 0,
+                            roomId: 0,
+                          },
+                          'room',
+                        )}
+                        onChange={value => handleStringFieldChange('pm', group.id, 'room', value)}
+                        rooms={rooms}
+                      />
                     </div>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
-          {/* PM Assignments */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>{t('afternoonAssignments')}</CardTitle>
-                <Button variant="outline" size="sm" onClick={handleCopyAmToPm} className="ml-4">
-                  {t('copyFromAm')}
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {groups.map(group => (
-                  <div key={group.id} className="rounded-lg border p-4">
-                    <div className="mb-4 flex items-center justify-between">
-                      <h3 className="font-semibold">
-                        {t('group')} {group.id}
-                      </h3>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleClearRow('pm', group.id)}
-                        className="text-destructive hover:text-destructive/90"
-                      >
-                        {t('clearRow')}
-                      </Button>
-                    </div>
-                    <div className="grid [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))] gap-4">
-                      <div>
-                        <Label className="mb-1 block text-sm font-medium">{t('teacher')}</Label>
-                        <TeacherSelect
-                          value={pmAssignments.find(a => a.groupId === group.id)?.teacherId}
-                          onChange={value =>
-                            handleAssignmentChange('pm', group.id, 'teacherId', value)
-                          }
-                          teachers={teachers}
-                        />
-                      </div>
-                      <div>
-                        <Label className="mb-1 block text-sm font-medium">{t('subject')}</Label>
-                        <SubjectSelect
-                          value={getDisplayValue(
-                            pmAssignments.find(a => a.groupId === group.id) ?? {
-                              groupId: group.id,
-                              teacherId: 0,
-                              subjectId: 0,
-                              learningContentId: 0,
-                              roomId: 0,
-                            },
-                            'subject',
-                          )}
-                          onChange={value =>
-                            handleStringFieldChange('pm', group.id, 'subject', value)
-                          }
-                          subjects={subjects}
-                        />
-                      </div>
-                      <div>
-                        <Label className="mb-1 block text-sm font-medium">
-                          {t('learningContent')}
-                        </Label>
-                        <LearningContentSelect
-                          value={getDisplayValue(
-                            pmAssignments.find(a => a.groupId === group.id) ?? {
-                              groupId: group.id,
-                              teacherId: 0,
-                              subjectId: 0,
-                              learningContentId: 0,
-                              roomId: 0,
-                            },
-                            'learningContent',
-                          )}
-                          onChange={value =>
-                            handleStringFieldChange('pm', group.id, 'learningContent', value)
-                          }
-                          learningContents={learningContents}
-                        />
-                      </div>
-                      <div>
-                        <Label className="mb-1 block text-sm font-medium">{t('room')}</Label>
-                        <RoomSelect
-                          value={getDisplayValue(
-                            pmAssignments.find(a => a.groupId === group.id) ?? {
-                              groupId: group.id,
-                              teacherId: 0,
-                              subjectId: 0,
-                              learningContentId: 0,
-                              roomId: 0,
-                            },
-                            'room',
-                          )}
-                          onChange={value => handleStringFieldChange('pm', group.id, 'room', value)}
-                          rooms={rooms}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="mt-8 flex justify-end gap-4">
-            <Button variant="outline" onClick={() => router.back()}>
-              {t('back')}
-            </Button>
-            <Button onClick={handleNext} disabled={loading}>
-              {loading ? t('saving') : t('next')}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        <div className="flex flex-wrap justify-end gap-3">
+          <Button variant="outline" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4" />
+            {t('back')}
+          </Button>
+          <Button onClick={handleNext} disabled={loading}>
+            {loading ? t('saving') : t('next')}
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
 
       {/* Confirmation Dialog */}
-      {showConfirmDialog && (
-        <div className="fixed inset-0 flex items-center justify-center backdrop-blur-sm">
-          <div className="bg-card max-w-md rounded-lg p-6 shadow-xl">
-            <h2 className="mb-4 text-xl font-bold">{t('updateAssignmentsTitle')}</h2>
-            <p className="mb-6">{t('existingAssignmentsWarning')}</p>
-            <div className="flex justify-end space-x-4">
-              <button
-                onClick={handleCancelUpdate}
-                className="text-muted-foreground hover:text-foreground px-4 py-2"
-              >
-                {t('cancel')}
-              </button>
-              <button
-                onClick={handleConfirmUpdate}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 rounded px-4 py-2"
-              >
-                {t('update')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Dialog
+        open={showConfirmDialog}
+        onOpenChange={open => {
+          if (!open) handleCancelUpdate()
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('updateAssignmentsTitle')}</DialogTitle>
+            <DialogDescription>{t('existingAssignmentsWarning')}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancelUpdate}>
+              {t('cancel')}
+            </Button>
+            <Button onClick={handleConfirmUpdate}>{t('update')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Error Dialog */}
-      {showErrorDialog && (
-        <div className="fixed inset-0 flex items-center justify-center backdrop-blur-sm">
-          <div className="bg-card max-w-2xl rounded-lg p-6 shadow-xl">
-            <h2 className="text-foreground mb-4 text-xl font-bold">{t('validationErrorsTitle')}</h2>
-            <div className="mb-6 space-y-4">
-              {validationErrors.am.length > 0 && (
-                <div>
-                  <h3 className="text-foreground mb-2 font-semibold">{t('morningAssignments')}</h3>
-                  <ul className="text-foreground list-disc space-y-1 pl-5">
-                    {validationErrors.am.map(error => (
-                      <li key={error.groupId}>
-                        {t('group')} {error.groupId}:{' '}
-                        {error.missingFields.map(field => t(field)).join(', ')}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {validationErrors.pm.length > 0 && (
-                <div>
-                  <h3 className="text-foreground mb-2 font-semibold">
-                    {t('afternoonAssignments')}
-                  </h3>
-                  <ul className="text-foreground list-disc space-y-1 pl-5">
-                    {validationErrors.pm.map(error => (
-                      <li key={error.groupId}>
-                        {t('group')} {error.groupId}:{' '}
-                        {error.missingFields.map(field => t(field)).join(', ')}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-            <div className="flex justify-end">
-              <button
-                onClick={() => setShowErrorDialog(false)}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 rounded px-4 py-2"
-              >
-                {t('ok')}
-              </button>
-            </div>
+      <Dialog open={showErrorDialog} onOpenChange={setShowErrorDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{t('validationErrorsTitle')}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {validationErrors.am.length > 0 && (
+              <div>
+                <h3 className="mb-2 flex items-center gap-2 font-semibold">
+                  <Sunrise className="text-muted-foreground h-4 w-4" />
+                  {t('morningAssignments')}
+                </h3>
+                <ul className="list-disc space-y-1 pl-5 text-sm">
+                  {validationErrors.am.map(error => (
+                    <li key={error.groupId}>
+                      {t('group')} {error.groupId}:{' '}
+                      {error.missingFields.map(field => t(field)).join(', ')}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {validationErrors.pm.length > 0 && (
+              <div>
+                <h3 className="mb-2 flex items-center gap-2 font-semibold">
+                  <Sunset className="text-muted-foreground h-4 w-4" />
+                  {t('afternoonAssignments')}
+                </h3>
+                <ul className="list-disc space-y-1 pl-5 text-sm">
+                  {validationErrors.pm.map(error => (
+                    <li key={error.groupId}>
+                      {t('group')} {error.groupId}:{' '}
+                      {error.missingFields.map(field => t(field)).join(', ')}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
-        </div>
-      )}
-    </div>
+          <DialogFooter>
+            <Button onClick={() => setShowErrorDialog(false)}>{t('ok')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </PageContainer>
   )
 }

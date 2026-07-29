@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Database, Menu, Settings, X } from 'lucide-react'
+import { Database, Menu, Settings } from 'lucide-react'
 import {
   adminDataSectionGroups,
   adminDataSections,
@@ -11,6 +11,7 @@ import {
 import { useEntitlements } from '@/contexts/entitlements-context'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
 
 const SETTINGS_LINKS = [{ href: '/admin/settings/entra-sync', label: 'Entra Sync', icon: Settings }]
@@ -96,35 +97,26 @@ export function AdminMenu() {
 
   return (
     <>
-      <div className="bg-background sticky top-16 z-30 flex items-center gap-2 border-b px-4 py-2 lg:hidden">
-        <Button variant="ghost" size="sm" onClick={() => setIsOpen(true)}>
-          <Menu className="mr-2 h-4 w-4" />
-          Menü
-        </Button>
-      </div>
-
-      {isOpen ? (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <button
-            type="button"
-            aria-label="Menü schließen"
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setIsOpen(false)}
-          />
-          <div className="bg-background absolute inset-y-0 left-0 w-72 max-w-[85vw] overflow-y-auto border-r p-4 shadow-lg">
-            <div className="mb-4 flex items-center justify-between px-2">
-              <span className="flex items-center gap-2 text-sm font-semibold">
-                <Database className="h-5 w-5" />
-                Admin
-              </span>
-              <Button variant="ghost" size="sm" onClick={() => setIsOpen(false)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <AdminNav onNavigate={() => setIsOpen(false)} />
-          </div>
+      <Sheet open={isOpen} onOpenChange={setIsOpen}>
+        <div className="bg-background sticky top-16 z-30 flex items-center gap-2 border-b px-4 py-2 lg:hidden">
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="sm">
+              <Menu className="mr-2 h-4 w-4" />
+              Menü
+            </Button>
+          </SheetTrigger>
         </div>
-      ) : null}
+
+        <SheetContent side="left" className="w-72 max-w-[85vw] overflow-y-auto p-4">
+          <SheetHeader className="mb-4 px-2">
+            <SheetTitle className="flex items-center gap-2 text-sm font-semibold">
+              <Database className="h-5 w-5" />
+              Admin
+            </SheetTitle>
+          </SheetHeader>
+          <AdminNav onNavigate={() => setIsOpen(false)} />
+        </SheetContent>
+      </Sheet>
 
       <aside className="bg-background hidden w-64 shrink-0 border-r p-4 lg:block xl:w-72">
         <div className="sticky top-20">

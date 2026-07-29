@@ -17,6 +17,9 @@ import {
 import { Button } from '@/components/ui/button'
 import { ScheduleOverview } from '@/components/schedule-overview'
 import { Spinner } from '@/components/ui/spinner'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { PageContainer } from '@/components/ui/page-container'
+import { AlertCircle, Check, FileDown } from 'lucide-react'
 import { generatePdf, generateSchedulePDF } from '@/lib/export-utils'
 
 /**
@@ -234,7 +237,14 @@ export default function OverviewPage() {
 
   if (isLoadingCachedData || overviewLoading) return <LoadingScreen />
   if (error ?? overviewError)
-    return <div className="p-8 text-center text-red-500">{error ?? overviewError}</div>
+    return (
+      <PageContainer size="wide">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error ?? overviewError}</AlertDescription>
+        </Alert>
+      </PageContainer>
+    )
 
   const uniqueAmTeachers = amAssignments
     .filter(a => a.teacherId !== 0)
@@ -245,7 +255,7 @@ export default function OverviewPage() {
     .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx)
 
   return (
-    <>
+    <PageContainer size="wide" className="space-y-6">
       <ScheduleOverview
         groups={groups}
         amAssignments={amAssignments}
@@ -278,21 +288,19 @@ export default function OverviewPage() {
               Überspringen
             </Button>
             <Button onClick={handleGeneratePdf} disabled={generatingPdf}>
+              <FileDown className="h-4 w-4" />
               {generatingPdf ? 'Generating...' : 'Generate PDF'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <div className="mt-8 flex justify-end">
-        <button
-          className="bg-primary text-primary-foreground hover:bg-primary/90 rounded px-6 py-2 disabled:opacity-50"
-          onClick={handleSaveAndFinish}
-          disabled={saving}
-        >
+      <div className="flex justify-end">
+        <Button onClick={handleSaveAndFinish} disabled={saving}>
+          <Check className="h-4 w-4" />
           {saving ? 'Saving...' : 'Save & Finish'}
-        </button>
+        </Button>
       </div>
-    </>
+    </PageContainer>
   )
 }

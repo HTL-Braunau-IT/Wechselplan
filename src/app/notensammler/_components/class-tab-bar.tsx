@@ -19,10 +19,7 @@ function CompletionBadge({
     <span className={className}>
       {label}
       {complete ? (
-        <CheckCircle2
-          className="h-3.5 w-3.5 shrink-0 text-green-600 dark:text-green-400"
-          aria-hidden
-        />
+        <CheckCircle2 className="text-success h-3.5 w-3.5 shrink-0" aria-hidden />
       ) : (
         <X className="text-destructive h-3.5 w-3.5 shrink-0" aria-hidden />
       )}

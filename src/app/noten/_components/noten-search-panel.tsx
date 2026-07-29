@@ -1,8 +1,10 @@
 'use client'
 
 import { useTranslation } from 'react-i18next'
+import { CalendarSearch, ChevronDown, ChevronUp, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import type { SearchByDateMatch, Student } from '../_lib/types'
 
 export type NotenSearchPanelProps = {
@@ -46,99 +48,112 @@ export function NotenSearchPanel(props: NotenSearchPanelProps) {
 
   return (
     <>
-      <div className="mb-4 space-y-2 rounded-md border p-3">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-medium">{t('noten.searchTitle', { defaultValue: 'Suche' })}</p>
-          <Button variant="outline" size="sm" onClick={() => setOpen(!open)}>
-            {open
-              ? t('noten.searchCollapse', { defaultValue: 'Suche ausblenden' })
-              : t('noten.searchExpand', { defaultValue: 'Suche einblenden' })}
-          </Button>
-        </div>
-
-        {open && (
-          <>
-            <p className="text-muted-foreground text-xs">
-              {t('noten.searchHelp', {
-                defaultValue:
-                  'Suche nach Name (wechselt zur Klasse/Gruppe) oder nach Datum (zeigt alle Klassen/Gruppen dieses Tages).',
-              })}
+      <Card className="mb-4">
+        <CardContent className="space-y-2 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="flex items-center gap-2 text-sm font-medium">
+              <Search className="h-4 w-4" />
+              {t('noten.searchTitle', { defaultValue: 'Suche' })}
             </p>
-            <div className="flex flex-wrap gap-2">
-              <Input
-                value={searchText}
-                onChange={e => setSearchText(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') onNameSearch()
-                }}
-                placeholder={t('noten.searchNamePlaceholder', { defaultValue: 'Name suchen …' })}
-                className="w-full max-w-xs"
-              />
-              <Button variant="outline" size="sm" onClick={onNameSearch}>
-                {t('noten.searchNameAction', { defaultValue: 'Name suchen' })}
-              </Button>
-              {nameMatchCount > 1 && (
-                <Button variant="outline" size="sm" onClick={onNextNameMatch}>
-                  {t('noten.searchNextMatch', { defaultValue: 'Nächster Treffer' })} (
-                  {activeNameMatchIndex + 1}/{nameMatchCount})
-                </Button>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Input
-                type="date"
-                value={searchDate}
-                onChange={e => setSearchDate(e.target.value)}
-                className="w-full max-w-xs"
-              />
-              <Button variant="outline" size="sm" onClick={onDateSearch}>
-                {t('noten.searchDateAction', { defaultValue: 'Datum suchen' })}
-              </Button>
-            </div>
-            {message && <p className="text-muted-foreground text-sm">{message}</p>}
-          </>
-        )}
-      </div>
+            <Button variant="outline" size="sm" onClick={() => setOpen(!open)}>
+              {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              {open
+                ? t('noten.searchCollapse', { defaultValue: 'Suche ausblenden' })
+                : t('noten.searchExpand', { defaultValue: 'Suche einblenden' })}
+            </Button>
+          </div>
 
-      {dateMatches.length > 0 && (
-        <div className="mb-4 space-y-3 rounded-md border p-3">
-          <p className="text-sm font-medium">
-            {t('noten.searchDateSectionsTitle', {
-              defaultValue: 'Klassen/Gruppen am gewählten Datum',
-            })}
-          </p>
-          {dateMatches.map(match => {
-            const key = `${match.classId}-${match.groupId}`
-            const sectionStudents = studentsByGroup[key] ?? []
-            return (
-              <div key={`${key}-${match.period}`} className="rounded border p-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-medium">
-                    {match.className} - {t('noten.gruppe')} {match.groupId} ({match.period})
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onOpenGroup(match.classId, match.groupId)}
-                  >
-                    {t('noten.searchOpenGroup', { defaultValue: 'In Tabelle öffnen' })}
+          {open && (
+            <>
+              <p className="text-muted-foreground text-xs">
+                {t('noten.searchHelp', {
+                  defaultValue:
+                    'Suche nach Name (wechselt zur Klasse/Gruppe) oder nach Datum (zeigt alle Klassen/Gruppen dieses Tages).',
+                })}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Input
+                  value={searchText}
+                  onChange={e => setSearchText(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') onNameSearch()
+                  }}
+                  placeholder={t('noten.searchNamePlaceholder', { defaultValue: 'Name suchen …' })}
+                  aria-label={t('noten.searchNameAction', { defaultValue: 'Name suchen' })}
+                  className="w-full max-w-xs"
+                />
+                <Button variant="outline" size="sm" onClick={onNameSearch}>
+                  <Search className="h-4 w-4" />
+                  {t('noten.searchNameAction', { defaultValue: 'Name suchen' })}
+                </Button>
+                {nameMatchCount > 1 && (
+                  <Button variant="outline" size="sm" onClick={onNextNameMatch}>
+                    {t('noten.searchNextMatch', { defaultValue: 'Nächster Treffer' })} (
+                    {activeNameMatchIndex + 1}/{nameMatchCount})
                   </Button>
-                </div>
-                {sectionStudents.length === 0 ? (
-                  <p className="text-muted-foreground mt-2 text-xs">
-                    {t('noten.searchNoStudentsInGroup', {
-                      defaultValue: 'Keine Schülerdaten für diese Gruppe gefunden.',
-                    })}
-                  </p>
-                ) : (
-                  <div className="text-muted-foreground mt-2 text-xs">
-                    {sectionStudents.map(s => `${s.lastName} ${s.firstName}`).join(', ')}
-                  </div>
                 )}
               </div>
-            )
-          })}
-        </div>
+              <div className="flex flex-wrap gap-2">
+                <Input
+                  type="date"
+                  value={searchDate}
+                  onChange={e => setSearchDate(e.target.value)}
+                  aria-label={t('noten.searchDateAction', { defaultValue: 'Datum suchen' })}
+                  className="w-full max-w-xs"
+                />
+                <Button variant="outline" size="sm" onClick={onDateSearch}>
+                  <CalendarSearch className="h-4 w-4" />
+                  {t('noten.searchDateAction', { defaultValue: 'Datum suchen' })}
+                </Button>
+              </div>
+              {message && <p className="text-muted-foreground text-sm">{message}</p>}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {dateMatches.length > 0 && (
+        <Card className="mb-4">
+          <CardContent className="space-y-3 p-3">
+            <p className="flex items-center gap-2 text-sm font-medium">
+              <CalendarSearch className="h-4 w-4" />
+              {t('noten.searchDateSectionsTitle', {
+                defaultValue: 'Klassen/Gruppen am gewählten Datum',
+              })}
+            </p>
+            {dateMatches.map(match => {
+              const key = `${match.classId}-${match.groupId}`
+              const sectionStudents = studentsByGroup[key] ?? []
+              return (
+                <div key={`${key}-${match.period}`} className="rounded-md border p-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium">
+                      {match.className} - {t('noten.gruppe')} {match.groupId} ({match.period})
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onOpenGroup(match.classId, match.groupId)}
+                    >
+                      {t('noten.searchOpenGroup', { defaultValue: 'In Tabelle öffnen' })}
+                    </Button>
+                  </div>
+                  {sectionStudents.length === 0 ? (
+                    <p className="text-muted-foreground mt-2 text-xs">
+                      {t('noten.searchNoStudentsInGroup', {
+                        defaultValue: 'Keine Schülerdaten für diese Gruppe gefunden.',
+                      })}
+                    </p>
+                  ) : (
+                    <div className="text-muted-foreground mt-2 text-xs">
+                      {sectionStudents.map(s => `${s.lastName} ${s.firstName}`).join(', ')}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </CardContent>
+        </Card>
       )}
     </>
   )

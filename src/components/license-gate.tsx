@@ -2,7 +2,9 @@
 
 import type { ReactNode } from 'react'
 import { useSession } from 'next-auth/react'
+import { ShieldAlert } from 'lucide-react'
 import { useEntitlements } from '@/contexts/entitlements-context'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 
 interface LicenseGateProps {
   children: ReactNode
@@ -26,17 +28,11 @@ export function LicenseGate({ children }: LicenseGateProps) {
   if (!hasValidLicense) {
     return (
       <div className="bg-background flex min-h-screen flex-col items-center justify-center px-4">
-        <div
-          role="alert"
-          className="border-destructive/30 bg-destructive/10 max-w-md rounded-lg border p-8 text-center"
-        >
-          <h1 className="text-destructive text-xl font-semibold">
-            Es ist keine gültige Lizenz vorhanden.
-          </h1>
-          <p className="text-muted-foreground mt-3">
-            Bitte wenden Sie sich an Ihren Administrator.
-          </p>
-        </div>
+        <Alert variant="destructive" className="max-w-md">
+          <ShieldAlert className="h-4 w-4" />
+          <AlertTitle>Es ist keine gültige Lizenz vorhanden.</AlertTitle>
+          <AlertDescription>Bitte wenden Sie sich an Ihren Administrator.</AlertDescription>
+        </Alert>
       </div>
     )
   }

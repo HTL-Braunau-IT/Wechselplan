@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { AlertCircle } from 'lucide-react'
+import { Separator } from '@/components/ui/separator'
+import { AlertCircle, LogIn, Lock, User } from 'lucide-react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { captureFrontendError } from '@/lib/frontend-error'
@@ -72,9 +73,12 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="container flex h-screen w-screen flex-col items-center justify-center">
-      <Card className="w-full max-w-md">
-        <CardHeader>
+    <div className="bg-background flex min-h-screen w-full flex-col items-center justify-center p-4">
+      <Card className="w-full max-w-md shadow-sm">
+        <CardHeader className="items-center text-center">
+          <div className="bg-primary/10 text-primary mb-2 flex h-12 w-12 items-center justify-center rounded-lg">
+            <LogIn className="h-6 w-6" />
+          </div>
           <CardTitle>{t('auth.title')}</CardTitle>
           <CardDescription>{t('auth.description')}</CardDescription>
         </CardHeader>
@@ -92,36 +96,46 @@ export default function LoginPage() {
             disabled={isLoading}
             onClick={handleMicrosoftLogin}
           >
+            <LogIn className="h-4 w-4" />
             {isLoading ? t('auth.button.signingIn') : t('auth.button.signInMicrosoft')}
           </Button>
 
-          <div className="mb-4 border-t" />
+          <Separator className="mb-4" />
 
           <form onSubmit={handleLDAPLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="username">{t('auth.username.label')}</Label>
-              <Input
-                id="username"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                placeholder={t('auth.username.placeholder')}
-                required
-              />
+              <div className="relative">
+                <User className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+                <Input
+                  id="username"
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
+                  placeholder={t('auth.username.placeholder')}
+                  className="pl-9"
+                  required
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="password">{t('auth.password.label')}</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder={t('auth.password.placeholder')}
-                required
-              />
+              <div className="relative">
+                <Lock className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder={t('auth.password.placeholder')}
+                  className="pl-9"
+                  required
+                />
+              </div>
             </div>
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" variant="secondary" className="w-full" disabled={isLoading}>
+              <LogIn className="h-4 w-4" />
               {isLoading ? t('auth.button.signingIn') : t('auth.button.signInLDAP')}
             </Button>
           </form>

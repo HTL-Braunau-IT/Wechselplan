@@ -9,9 +9,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
+import { PageContainer } from '@/components/ui/page-container'
+import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 import { toast } from 'sonner'
 import type { Teacher, Class } from '@/types/types.ts'
-import { Loader2 } from 'lucide-react'
+import { Loader2, School } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Spinner } from '@/components/ui/spinner'
 import { useSchoolYear } from '@/contexts/school-year-context'
@@ -136,91 +140,93 @@ export default function ClassSettingsPage() {
   }
 
   return (
-    <div className="container mx-auto size-1/2 py-8">
-      <h1 className="mb-6 text-2xl font-bold">{t('classSettings.title')}</h1>
-      <div className="grid gap-6">
-        {classes.map(cls => (
-          <Card key={cls.id}>
-            <CardHeader>
-              <CardTitle>{cls.name}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="mb-2 block text-sm font-medium">
-                    {t('classSettings.classHead')}
-                  </label>
-                  <div className="relative">
-                    <Select
-                      value={cls.classHeadId ? cls.classHeadId.toString() : NONE_VALUE}
-                      onValueChange={value =>
-                        handleTeacherChange(
-                          cls.id,
-                          value === NONE_VALUE ? null : parseInt(value),
-                          'head',
-                        )
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={t('classSettings.selectClassHead')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={NONE_VALUE}>{t('classSettings.none')}</SelectItem>
-                        {teachers.map(teacher => (
-                          <SelectItem key={teacher.id} value={teacher.id.toString()}>
-                            {teacher.firstName} {teacher.lastName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {updatingClassId === cls.id && updatingField === 'head' && (
-                      <div className="text-muted-foreground absolute top-1/2 right-2 flex -translate-y-1/2 items-center gap-2 text-sm">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>{t('classSettings.updating')}</span>
+    <PageContainer>
+      <div className="space-y-6">
+        <PageHeader icon={School} title={t('classSettings.title')} />
+        {classes.length === 0 ? (
+          <EmptyState icon={School} title={t('classSettings.title')} />
+        ) : (
+          <div className="grid gap-6 xl:grid-cols-2">
+            {classes.map(cls => (
+              <Card key={cls.id}>
+                <CardHeader>
+                  <CardTitle>{cls.name}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor={`class-head-${cls.id}`}>{t('classSettings.classHead')}</Label>
+                      <div className="relative">
+                        <Select
+                          value={cls.classHeadId ? cls.classHeadId.toString() : NONE_VALUE}
+                          onValueChange={value =>
+                            handleTeacherChange(
+                              cls.id,
+                              value === NONE_VALUE ? null : parseInt(value),
+                              'head',
+                            )
+                          }
+                        >
+                          <SelectTrigger id={`class-head-${cls.id}`}>
+                            <SelectValue placeholder={t('classSettings.selectClassHead')} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={NONE_VALUE}>{t('classSettings.none')}</SelectItem>
+                            {teachers.map(teacher => (
+                              <SelectItem key={teacher.id} value={teacher.id.toString()}>
+                                {teacher.firstName} {teacher.lastName}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {updatingClassId === cls.id && updatingField === 'head' && (
+                          <div className="text-muted-foreground absolute top-1/2 right-8 flex -translate-y-1/2 items-center gap-2 text-sm">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>{t('classSettings.updating')}</span>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-medium">
-                    {t('classSettings.classLead')}
-                  </label>
-                  <div className="relative">
-                    <Select
-                      value={cls.classLeadId ? cls.classLeadId.toString() : NONE_VALUE}
-                      onValueChange={value =>
-                        handleTeacherChange(
-                          cls.id,
-                          value === NONE_VALUE ? null : parseInt(value),
-                          'lead',
-                        )
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={t('classSettings.selectClassLead')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={NONE_VALUE}>{t('classSettings.none')}</SelectItem>
-                        {teachers.map(teacher => (
-                          <SelectItem key={teacher.id} value={teacher.id.toString()}>
-                            {teacher.firstName} {teacher.lastName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {updatingClassId === cls.id && updatingField === 'lead' && (
-                      <div className="text-muted-foreground absolute top-1/2 right-2 flex -translate-y-1/2 items-center gap-2 text-sm">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>{t('classSettings.updating')}</span>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`class-lead-${cls.id}`}>{t('classSettings.classLead')}</Label>
+                      <div className="relative">
+                        <Select
+                          value={cls.classLeadId ? cls.classLeadId.toString() : NONE_VALUE}
+                          onValueChange={value =>
+                            handleTeacherChange(
+                              cls.id,
+                              value === NONE_VALUE ? null : parseInt(value),
+                              'lead',
+                            )
+                          }
+                        >
+                          <SelectTrigger id={`class-lead-${cls.id}`}>
+                            <SelectValue placeholder={t('classSettings.selectClassLead')} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={NONE_VALUE}>{t('classSettings.none')}</SelectItem>
+                            {teachers.map(teacher => (
+                              <SelectItem key={teacher.id} value={teacher.id.toString()}>
+                                {teacher.firstName} {teacher.lastName}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {updatingClassId === cls.id && updatingField === 'lead' && (
+                          <div className="text-muted-foreground absolute top-1/2 right-8 flex -translate-y-1/2 items-center gap-2 text-sm">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>{t('classSettings.updating')}</span>
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
-    </div>
+    </PageContainer>
   )
 }

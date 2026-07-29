@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 
@@ -58,23 +59,31 @@ export function NmCredentialsDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <Input
-            type="text"
-            value={username}
-            onChange={e => onUsernameChange(e.target.value)}
-            placeholder={t('notensammler.username', 'Benutzername')}
-            autoComplete="username"
-          />
-          <Input
-            type="password"
-            value={password}
-            onChange={e => onPasswordChange(e.target.value)}
-            placeholder={t('notensammler.password', 'Passwort')}
-            autoComplete="current-password"
-            onKeyDown={e => {
-              if (e.key === 'Enter' && canSubmit) onSubmit()
-            }}
-          />
+          <div className="space-y-2">
+            <Label htmlFor="nm-username">{t('notensammler.username', 'Benutzername')}</Label>
+            <Input
+              id="nm-username"
+              type="text"
+              value={username}
+              onChange={e => onUsernameChange(e.target.value)}
+              placeholder={t('notensammler.username', 'Benutzername')}
+              autoComplete="username"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="nm-password">{t('notensammler.password', 'Passwort')}</Label>
+            <Input
+              id="nm-password"
+              type="password"
+              value={password}
+              onChange={e => onPasswordChange(e.target.value)}
+              placeholder={t('notensammler.password', 'Passwort')}
+              autoComplete="current-password"
+              onKeyDown={e => {
+                if (e.key === 'Enter' && canSubmit) onSubmit()
+              }}
+            />
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

@@ -4,9 +4,10 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { Download, Upload } from 'lucide-react'
+import { AlertCircle, Download, Upload } from 'lucide-react'
 
 interface CSVStudent {
   firstName: string
@@ -136,14 +137,10 @@ export function CSVImport({ onImport }: CSVImportProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center space-x-4">
-        <Button
-          onClick={handleDownloadSample}
-          variant="outline"
-          className="flex items-center space-x-2"
-        >
-          <Download className="h-4 w-4" />
-          <span>{t('admin.students.import.downloadSample')}</span>
+      <div className="flex flex-wrap items-center gap-4">
+        <Button onClick={handleDownloadSample} variant="outline">
+          <Download className="mr-2 h-4 w-4" />
+          {t('admin.students.import.downloadSample')}
         </Button>
         <div className="flex-1">
           <input
@@ -165,37 +162,40 @@ export function CSVImport({ onImport }: CSVImportProps) {
 
       {error && (
         <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
       {csvData && (
         <div className="space-y-4">
-          <div className="flex justify-end space-x-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <h2 className="text-xl font-semibold">{t('admin.students.import.previewTitle')}</h2>
             <Button onClick={handleImport} disabled={isLoading}>
               {t('admin.students.import.importSelected')}
             </Button>
           </div>
 
-          <h2 className="text-xl font-semibold">{t('admin.students.import.previewTitle')}</h2>
-          <div className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
             {Object.entries(csvData).map(([className, data]) => (
-              <div key={className} className="bg-muted rounded-lg border p-4">
-                <div className="mb-2 flex items-center space-x-2">
-                  <Checkbox
-                    id={`class-${className}`}
-                    checked={selectedClasses[className] ?? false}
-                    onCheckedChange={checked => handleClassSelection(className, checked as boolean)}
-                  />
-                  <Label htmlFor={`class-${className}`} className="font-medium">
-                    {t('admin.students.import.classLabel', {
-                      name: className,
-                      count: data.students.length,
-                    })}
-                  </Label>
-                </div>
-                <div className="ml-6">
-                  <ul className="text-muted-foreground space-y-1">
+              <Card key={className}>
+                <CardContent className="p-4">
+                  <div className="mb-2 flex items-center gap-2">
+                    <Checkbox
+                      id={`class-${className}`}
+                      checked={selectedClasses[className] ?? false}
+                      onCheckedChange={checked =>
+                        handleClassSelection(className, checked as boolean)
+                      }
+                    />
+                    <Label htmlFor={`class-${className}`} className="font-medium">
+                      {t('admin.students.import.classLabel', {
+                        name: className,
+                        count: data.students.length,
+                      })}
+                    </Label>
+                  </div>
+                  <ul className="text-muted-foreground ml-6 space-y-1">
                     {data.students.map((student, index) => (
                       <li
                         key={index}
@@ -205,8 +205,8 @@ export function CSVImport({ onImport }: CSVImportProps) {
                       </li>
                     ))}
                   </ul>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
         </div>

@@ -3,6 +3,7 @@
 import { useTranslation } from 'next-i18next'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { Check } from 'lucide-react'
 
 interface Step {
   id: string
@@ -54,35 +55,20 @@ export function CreationProgress() {
             <div
               className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
                 isCompleted
-                  ? 'border-green-600 bg-green-600 text-white'
+                  ? 'border-success bg-success text-success-foreground'
                   : isCurrent
                     ? 'border-primary text-primary bg-primary/10'
                     : 'border-muted text-muted-foreground'
               }`}
             >
-              {isCompleted ? (
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              ) : (
-                <span>{index + 1}</span>
-              )}
+              {isCompleted ? <Check className="h-5 w-5" /> : <span>{index + 1}</span>}
             </div>
 
             {/* Label */}
             <div
               className={`ml-3 text-sm font-medium whitespace-nowrap transition-colors ${
                 isCompleted
-                  ? 'text-green-600'
+                  ? 'text-success'
                   : isCurrent
                     ? 'text-primary font-semibold'
                     : 'text-muted-foreground'
@@ -95,7 +81,7 @@ export function CreationProgress() {
             {index < steps.length - 1 && (
               <div
                 className={`absolute top-[32px] left-4 h-8 w-0.5 ${
-                  isCompleted ? 'bg-green-600' : 'bg-muted'
+                  isCompleted ? 'bg-success' : 'bg-muted'
                 }`}
               />
             )}
