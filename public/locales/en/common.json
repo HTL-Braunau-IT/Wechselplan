@@ -149,27 +149,16 @@
     "login": "Login",
     "register": "Register",
     "email": "Email",
-    "password": {
-      "label": "Password",
-      "placeholder": "Enter your password"
-    },
     "forgotPassword": "Forgot Password?",
     "rememberMe": "Remember Me",
     "title": "Login",
-    "description": "Sign in to your account using your credentials",
+    "description": "Sign in with your Microsoft account",
     "pleaseLogin": "Please log in to continue",
-    "username": {
-      "label": "Username",
-      "placeholder": "Enter your username"
-    },
     "button": {
       "signingIn": "Signing in...",
-      "signInLDAP": "Sign in with LDAP",
       "signInMicrosoft": "Sign in with Microsoft"
     },
-    "orContinueWith": "Or continue with",
     "error": {
-      "invalidCredentials": "Invalid username or password",
       "generic": "An error occurred during login"
     }
   },

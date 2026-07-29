@@ -17,25 +17,20 @@ interface CachedToken {
 
 let cachedToken: CachedToken | null = null
 
+/**
+ * Directory reads use the `ENTRA_*` app registration and only that one.
+ *
+ * This used to fall back to `AZURE_AD_*` and then `GRAPH_*`. `AZURE_AD_*` was
+ * the pre-migration name for the same registration and is gone; `GRAPH_*` is a
+ * *different* registration — it belongs to support-mail sending
+ * (`src/server/send-support-email-graph.ts`) and carries `Mail.Send`, not
+ * `User.Read.All`. Silently borrowing it meant a tenant missing `ENTRA_*` got a
+ * token that authenticated fine and then 403'd deep inside a nightly sync.
+ */
 function resolveCredentials(): GraphAppCredentials {
-  const tenantId = (
-    process.env.ENTRA_TENANT_ID ??
-    process.env.AZURE_AD_TENANT_ID ??
-    process.env.GRAPH_TENANT_ID ??
-    ''
-  ).trim()
-  const clientId = (
-    process.env.ENTRA_CLIENT_ID ??
-    process.env.AZURE_AD_CLIENT_ID ??
-    process.env.GRAPH_CLIENT_ID ??
-    ''
-  ).trim()
-  const clientSecret = (
-    process.env.ENTRA_CLIENT_SECRET ??
-    process.env.AZURE_AD_CLIENT_SECRET ??
-    process.env.GRAPH_CLIENT_SECRET ??
-    ''
-  ).trim()
+  const tenantId = (process.env.ENTRA_TENANT_ID ?? '').trim()
+  const clientId = (process.env.ENTRA_CLIENT_ID ?? '').trim()
+  const clientSecret = (process.env.ENTRA_CLIENT_SECRET ?? '').trim()
 
   if (!tenantId || !clientId || !clientSecret) {
     throw new Error(

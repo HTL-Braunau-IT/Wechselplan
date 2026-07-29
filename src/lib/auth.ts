@@ -1,7 +1,5 @@
 import { type NextAuthOptions } from 'next-auth'
-import CredentialsProvider from 'next-auth/providers/credentials'
 import AzureADProvider from 'next-auth/providers/azure-ad'
-import { LDAPClient } from '@/lib/ldap'
 import { prisma } from '@/lib/prisma'
 import type { User } from 'next-auth'
 import { captureError } from '@/lib/sentry'
@@ -10,19 +8,6 @@ import { checkMemberGroups } from '@/lib/graph'
 import { getSyncedClassGroupIdsCached } from '@/lib/directory-sync-settings'
 
 type AppRole = 'admin' | 'teacher' | 'student' | 'user'
-
-function parseCsvEnv(value: string | undefined): string[] {
-  return (value ?? '')
-    .split(',')
-    .map(entry => entry.trim())
-    .filter(Boolean)
-}
-
-function isEnabled(value: string | undefined, defaultValue = true): boolean {
-  if (value === undefined) return defaultValue
-  const normalized = value.trim().toLowerCase()
-  return !['0', 'false', 'off', 'no'].includes(normalized)
-}
 
 export interface MicrosoftAccess {
   allowed: boolean
@@ -52,6 +37,12 @@ const accessCache = new Map<string, { value: MicrosoftAccess; expiresAt: number 
  * The synced class group list comes from the database, which is what the admin
  * settings UI writes; the `ENTRA_SYNC_CLASS_GROUP_IDS` env var is only a
  * first-run bootstrap and is applied inside `getDirectorySyncSettings`.
+ *
+ * With neither a teacher group nor any class group configured there is nothing
+ * to ask Graph about, and this denies rather than falling open. That is the
+ * safe direction, but note it locks out *everyone*, super admin included:
+ * ENTRA_SUPER_ADMIN_OBJECT_ID is applied in the `jwt` callback, which never
+ * runs once `signIn` has refused. Set ENTRA_TEACHER_GROUP_ID before first boot.
  */
 export async function resolveMicrosoftAccess(objectId: string): Promise<MicrosoftAccess> {
   const oid = objectId?.trim()
@@ -67,13 +58,9 @@ export async function resolveMicrosoftAccess(objectId: string): Promise<Microsof
 
   const teacherGroupId = process.env.ENTRA_TEACHER_GROUP_ID?.trim()
   const syncedClassGroupIds = await getSyncedClassGroupIdsCached()
-  const legacyStudentGroups = parseCsvEnv(process.env.MS_STUDENT_GROUPS)
-  const legacyTeacherGroups = parseCsvEnv(process.env.MS_TEACHER_GROUPS)
 
-  const teacherGroups = [teacherGroupId, ...legacyTeacherGroups].filter((id): id is string =>
-    Boolean(id),
-  )
-  const studentGroups = [...syncedClassGroupIds, ...legacyStudentGroups]
+  const teacherGroups = [teacherGroupId].filter((id): id is string => Boolean(id))
+  const studentGroups = syncedClassGroupIds
 
   const candidates = [...teacherGroups, ...studentGroups]
   if (candidates.length === 0) {
@@ -222,157 +209,69 @@ async function saveUserRole(username: string, role: AppRole) {
   }
 }
 
-interface LDAPUser extends User {
-  role: 'admin' | 'teacher' | 'student' | 'user'
-  firstName?: string | null
-  lastName?: string | null
-}
-
 export const authOptions: NextAuthOptions = {
   providers: [
-    ...(isEnabled(process.env.AUTH_LDAP_ENABLED)
-      ? [
-          CredentialsProvider({
-            id: 'ldap',
-            name: 'LDAP',
-            credentials: {
-              username: { label: 'Username', type: 'text' },
-              password: { label: 'Password', type: 'password' },
-            },
-            async authorize(credentials) {
-              if (!credentials?.username || !credentials?.password) {
-                return null
-              }
+    AzureADProvider({
+      clientId: process.env.ENTRA_CLIENT_ID!,
+      clientSecret: process.env.ENTRA_CLIENT_SECRET!,
+      tenantId: process.env.ENTRA_TENANT_ID,
+      authorization: {
+        params: {
+          scope: 'openid profile email',
+        },
+      },
+      // Use Entra Object ID (oid) as the stable user identifier so it matches
+      // ENTRA_SUPER_ADMIN_OBJECT_ID and the external key used for sync.
+      profile(profile) {
+        const entraProfile = profile as {
+          oid?: string
+          sub?: string
+          name?: string
+          email?: string
+          preferred_username?: string
+          given_name?: string
+          family_name?: string
+        }
 
-              try {
-                const client = new LDAPClient({
-                  url: process.env.LDAP_URL!,
-                  baseDN: process.env.LDAP_BASE_DN!,
-                  bindDN: process.env.LDAP_USERNAME!,
-                  bindPassword: process.env.LDAP_PASSWORD!,
-                  timeout: 3000, // 3 seconds timeout for initial auth
-                })
+        const displayName = entraProfile.name?.trim() ?? ''
+        let firstName = entraProfile.given_name?.trim() ?? null
+        let lastName = entraProfile.family_name?.trim() ?? null
 
-                const user = await client.authenticate(credentials.username, credentials.password)
+        // Entra sometimes omits given_name/family_name from the id_token even
+        // with the `profile` scope (depends on tenant config and user profile
+        // population). Fall back to splitting the display name so the UI still
+        // shows something meaningful.
+        if (!firstName && !lastName && displayName) {
+          const parts = displayName.split(/\s+/).filter(Boolean)
+          if (parts.length === 1) {
+            firstName = parts[0] ?? null
+          } else if (parts.length > 1) {
+            firstName = parts[0] ?? null
+            lastName = parts.slice(1).join(' ') || null
+          }
+        } else if (!firstName && displayName) {
+          // Only `given_name` is missing, so `displayName` still contains the
+          // surname we already have. Assigning it wholesale produced
+          // "Anna Müller Müller"; strip the known surname off the end instead.
+          firstName =
+            lastName && displayName.endsWith(lastName)
+              ? displayName.slice(0, -lastName.length).trim() || displayName
+              : displayName
+        }
 
-                if (!user) {
-                  return null
-                }
-
-                // Check if user is in student or teacher groups
-                const studentGroups = process.env.LDAP_STUDENT_GROUPS?.split(',') ?? []
-                const teacherGroups = process.env.LDAP_TEACHER_GROUPS?.split(',') ?? []
-
-                // Create a new client instance for group search to avoid connection issues
-                const groupClient = new LDAPClient({
-                  url: process.env.LDAP_URL!,
-                  baseDN: process.env.LDAP_BASE_DN!,
-                  bindDN: process.env.LDAP_USERNAME!,
-                  bindPassword: process.env.LDAP_PASSWORD!,
-                  timeout: 3000, // 3 seconds timeout for group search
-                })
-
-                const userGroups = await groupClient.getUserGroups(user.dn)
-
-                const isStudent = userGroups.some(group => studentGroups.includes(group))
-                const isTeacher = userGroups.some(group => teacherGroups.includes(group))
-
-                const role = isTeacher ? 'teacher' : isStudent ? 'student' : 'user'
-                const normalizedName = normalizeUsername(credentials.username)
-                // Save the role to the database asynchronously (use normalized username)
-                saveUserRole(normalizedName, role).catch(error => {
-                  console.error('Error saving user role:', error)
-                  captureError(error, {
-                    location: 'auth',
-                    type: 'async_save_user_role_error',
-                    extra: { username: normalizedName, role },
-                  })
-                })
-
-                return {
-                  id: normalizedName,
-                  name: normalizedName,
-                  firstName: user.givenName,
-                  lastName: user.sn,
-                  email: user.mail,
-                  role,
-                } as LDAPUser
-              } catch (error) {
-                console.error('LDAP authentication error:', error)
-                captureError(error, {
-                  location: 'auth',
-                  type: 'ldap_authentication_error',
-                  extra: { username: credentials.username },
-                })
-                return null
-              }
-            },
-          }),
-        ]
-      : []),
-    ...(isEnabled(process.env.AUTH_MS_ENABLED)
-      ? [
-          AzureADProvider({
-            clientId: process.env.ENTRA_CLIENT_ID ?? process.env.AZURE_AD_CLIENT_ID!,
-            clientSecret: process.env.ENTRA_CLIENT_SECRET ?? process.env.AZURE_AD_CLIENT_SECRET!,
-            tenantId: process.env.ENTRA_TENANT_ID ?? process.env.AZURE_AD_TENANT_ID,
-            authorization: {
-              params: {
-                scope: 'openid profile email',
-              },
-            },
-            // Use Entra Object ID (oid) as the stable user identifier so it matches
-            // ENTRA_SUPER_ADMIN_OBJECT_ID and the external key we'll use for sync.
-            profile(profile) {
-              const entraProfile = profile as {
-                oid?: string
-                sub?: string
-                name?: string
-                email?: string
-                preferred_username?: string
-                given_name?: string
-                family_name?: string
-              }
-
-              const displayName = entraProfile.name?.trim() ?? ''
-              let firstName = entraProfile.given_name?.trim() ?? null
-              let lastName = entraProfile.family_name?.trim() ?? null
-
-              // Entra sometimes omits given_name/family_name from the id_token even
-              // with the `profile` scope (depends on tenant config and user profile
-              // population). Fall back to splitting the display name so the UI still
-              // shows something meaningful.
-              if (!firstName && !lastName && displayName) {
-                const parts = displayName.split(/\s+/).filter(Boolean)
-                if (parts.length === 1) {
-                  firstName = parts[0] ?? null
-                } else if (parts.length > 1) {
-                  firstName = parts[0] ?? null
-                  lastName = parts.slice(1).join(' ') || null
-                }
-              } else if (!firstName && displayName) {
-                firstName = displayName
-              }
-
-              return {
-                id: entraProfile.oid ?? entraProfile.sub ?? '',
-                name: displayName || null,
-                email: entraProfile.email ?? entraProfile.preferred_username ?? null,
-                image: null,
-                firstName,
-                lastName,
-              } as User & { firstName: string | null; lastName: string | null }
-            },
-          }),
-        ]
-      : []),
+        return {
+          id: entraProfile.oid ?? entraProfile.sub ?? '',
+          name: displayName || null,
+          email: entraProfile.email ?? entraProfile.preferred_username ?? null,
+          image: null,
+          firstName,
+          lastName,
+        } as User & { firstName: string | null; lastName: string | null }
+      },
+    }),
   ],
   callbacks: {
-    async signIn({ account, user }) {
-      if (account?.provider !== 'azure-ad') {
-        return true
-      }
-
+    async signIn({ user }) {
       // `profile()` maps the Entra object id onto user.id, which is also what
       // the app stores as externalId, so it is the identifier Graph is queried
       // with. The result is memoised, so the jwt callback that runs next reuses
@@ -395,9 +294,9 @@ export const authOptions: NextAuthOptions = {
       }
     },
     async jwt({ token, user, account }) {
-      const isAzureAd = account?.provider === 'azure-ad'
+      const isSignIn = account?.provider === 'azure-ad'
 
-      if (isAzureAd) {
+      if (isSignIn) {
         if (user) {
           const msUser = user as User & { firstName?: string | null; lastName?: string | null }
           if (msUser.firstName !== undefined) {
@@ -410,6 +309,16 @@ export const authOptions: NextAuthOptions = {
         token.provider = 'azure-ad'
       }
 
+      // A token minted by the retired LDAP provider carries no `provider` and a
+      // username rather than an Entra object id in `sub`, so its role cannot be
+      // re-resolved against Graph. Strip it to the powerless `user` role instead
+      // of leaving a 30-day session running on a role nothing can revoke.
+      // Rotating NEXTAUTH_SECRET at cutover is the belt to this braces.
+      if (token.provider !== 'azure-ad') {
+        token.role = 'user'
+        return token
+      }
+
       // Roles used to be resolved only when `account` was present, i.e. only at
       // sign-in. With a 30-day JWT that meant a teacher removed from the Entra
       // group kept their access for a month. Re-resolve on a timer instead;
@@ -417,7 +326,7 @@ export const authOptions: NextAuthOptions = {
       const objectId = typeof token.sub === 'string' ? token.sub.trim() : ''
       const lastChecked = typeof token.accessCheckedAt === 'number' ? token.accessCheckedAt : 0
       const isStale = Date.now() - lastChecked > ACCESS_CACHE_TTL_MS
-      const shouldResolve = token.provider === 'azure-ad' && objectId && (isAzureAd || isStale)
+      const shouldResolve = Boolean(objectId) && (isSignIn || isStale)
 
       if (shouldResolve) {
         try {
@@ -450,19 +359,6 @@ export const authOptions: NextAuthOptions = {
             type: 'azure_ad_groups_error',
             extra: { userId: token.sub },
           })
-        }
-      }
-
-      if (user && !isAzureAd) {
-        const ldapUser = user as LDAPUser
-        if (ldapUser.role) {
-          token.role = ldapUser.role
-        }
-        if (ldapUser.firstName !== undefined) {
-          token.firstName = ldapUser.firstName
-        }
-        if (ldapUser.lastName !== undefined) {
-          token.lastName = ldapUser.lastName
         }
       }
 
