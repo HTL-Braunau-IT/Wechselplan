@@ -10,6 +10,38 @@ on:
     branches: [ "main", "develop" ]
 
 jobs:
+  # Fast feedback: types, unit tests and lint. Runs on the standard runner so it
+  # reports in well under a minute; the Alpine job below still covers the real
+  # production build.
+  verify:
+    runs-on: ubuntu-latest
+
+    env:
+      SKIP_ENV_VALIDATION: true
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm install --legacy-peer-deps
+
+    - name: Generate Prisma client
+      run: npx prisma generate
+
+    - name: Typecheck
+      run: npm run typecheck
+
+    - name: Test
+      run: npx vitest run
+
+    - name: Lint
+      run: npm run lint
+
   build-alpine:
     runs-on: ubuntu-latest
 

@@ -7,6 +7,9 @@ const mockFindMany = vi.hoisted(() => vi.fn())
 const mockFindUnique = vi.hoisted(() => vi.fn())
 const mockCreate = vi.hoisted(() => vi.fn())
 const mockDelete = vi.hoisted(() => vi.fn())
+const mockCaptureError = vi.hoisted(() => vi.fn())
+const mockConsoleError = vi.hoisted(() => vi.fn())
+const mockGetServerSession = vi.hoisted(() => vi.fn())
 
 // Mock PrismaClient
 // `$extends` has to be present because lib/prisma applies the
@@ -34,12 +37,40 @@ vi.mock('@prisma/client', () => ({
   }),
 }))
 
+// Mock sentry
+vi.mock('@/lib/sentry', () => ({
+  captureError: mockCaptureError,
+}))
+
+// Every handler also calls requireSuperAdmin(), which reads the NextAuth
+// session directly rather than going through api-guard. Without these mocks
+// getServerSession() throws and every assertion collapses into a 500.
+vi.mock('next-auth', () => ({
+  getServerSession: mockGetServerSession,
+}))
+
+vi.mock('@/lib/auth', () => ({
+  authOptions: {},
+}))
+
+const SUPER_ADMIN_OBJECT_ID = 'super-admin-object-id'
+
+// Keep expected error paths out of the test output
+const originalConsoleError = console.error
+console.error = mockConsoleError
+
 describe('User Roles API', () => {
   let prisma: PrismaClient
 
   beforeEach(() => {
     vi.clearAllMocks()
     prisma = new PrismaClient()
+    process.env.ENTRA_SUPER_ADMIN_OBJECT_ID = SUPER_ADMIN_OBJECT_ID
+    mockGetServerSession.mockResolvedValue({ user: { id: SUPER_ADMIN_OBJECT_ID } })
+  })
+
+  afterAll(() => {
+    console.error = originalConsoleError
   })
 
   describe('GET /api/user-roles', () => {

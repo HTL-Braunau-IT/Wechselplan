@@ -443,7 +443,10 @@ export async function POST(request: Request) {
               : Number.NaN
         if (!Number.isNaN(n) && [1, 2, 3, 4, 5].includes(n)) note = n as 1 | 2 | 3 | 4 | 5
       }
-      const klasse = klasseByMatr.get(matr) ?? nmClassName
+      // A blank class on the Notenmanagement side is as good as missing — `??`
+      // would keep it and group the notes under an empty key.
+      const mappedKlasse = klasseByMatr.get(matr)
+      const klasse = mappedKlasse != null && mappedKlasse.length > 0 ? mappedKlasse : nmClassName
       pushNote(klasse, { Matrikelnummer: matr, Note: note, Punkte: 0.0, Kommentar: '' })
       notenCount++
     }

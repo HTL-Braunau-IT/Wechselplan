@@ -1,6 +1,5 @@
-import { describe, expect, it, beforeEach, afterAll, vi } from 'vitest'
+import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { GET, POST } from '../route'
-import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { makeClass, makeSchedule } from '@/test/fixtures'
@@ -15,6 +14,15 @@ vi.mock('@/lib/prisma', () => ({
       findMany: vi.fn(),
       deleteMany: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
+    },
+    // Both handlers resolve the active school year first, and POST replaces
+    // normalised turns before writing. Missing either mock 500s every request.
+    schoolYear: {
+      findFirst: vi.fn(),
+    },
+    scheduleTurn: {
+      deleteMany: vi.fn(),
     },
   },
 }))
@@ -22,6 +30,8 @@ vi.mock('@/lib/prisma', () => ({
 describe('Schedules API', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(prisma.schoolYear.findFirst).mockResolvedValue({ id: 1 } as never)
+    vi.mocked(prisma.scheduleTurn.deleteMany).mockResolvedValue({ count: 0 })
   })
 
   describe('GET /api/schedules', () => {
@@ -82,6 +92,7 @@ describe('Schedules API', () => {
         where: {
           classId: 1,
           selectedWeekday: 1,
+          schoolYearId: 1,
         },
         include: {
           turns: {
@@ -188,6 +199,7 @@ describe('Schedules API', () => {
         where: {
           classId: 1,
           selectedWeekday: 1,
+          schoolYearId: 1,
         },
         include: {
           scheduleTimes: true,
@@ -203,6 +215,7 @@ describe('Schedules API', () => {
           endDate: expect.any(Date),
           selectedWeekday: 1,
           classId: 1,
+          schoolYearId: 1,
           scheduleData: expect.anything(), // JsonNull after migration
           additionalInfo: null,
           semesterPlanning: null,
@@ -356,6 +369,7 @@ describe('Schedules API', () => {
           endDate: expect.any(Date),
           selectedWeekday: 1,
           classId: 1,
+          schoolYearId: 1,
           scheduleData: expect.anything(), // JsonNull after migration
           additionalInfo: null,
           semesterPlanning: 'first',

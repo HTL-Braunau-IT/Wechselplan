@@ -275,7 +275,7 @@ async function migrateCustomValues() {
   let customRoomsCount = 0
   for (const room of allRooms) {
     if (!seededRoomSet.has(room.name)) {
-      await (prisma as any).room.update({
+      await prisma.room.update({
         where: { id: room.id },
         data: { isCustom: true },
       })
@@ -291,7 +291,7 @@ async function migrateCustomValues() {
   let customSubjectsCount = 0
   for (const subject of allSubjects) {
     if (!seededSubjectSet.has(subject.name)) {
-      await (prisma as any).subject.update({
+      await prisma.subject.update({
         where: { id: subject.id },
         data: { isCustom: true },
       })
@@ -307,7 +307,7 @@ async function migrateCustomValues() {
   let customLearningContentsCount = 0
   for (const learningContent of allLearningContents) {
     if (!seededLearningContentSet.has(learningContent.name)) {
-      await (prisma as any).learningContent.update({
+      await prisma.learningContent.update({
         where: { id: learningContent.id },
         data: { isCustom: true },
       })

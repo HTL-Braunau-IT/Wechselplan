@@ -25,6 +25,15 @@ vi.mock('@/lib/prisma', () => ({
     schedule: {
       findFirst: vi.fn(),
     },
+    // Added by the school-year migration: the route resolves the active school
+    // year and scopes students through ClassMembership before anything else,
+    // so both must be mocked or every request 500s.
+    schoolYear: {
+      findFirst: vi.fn(),
+    },
+    classMembership: {
+      findMany: vi.fn(),
+    },
   },
 }))
 
@@ -43,6 +52,11 @@ vi.mock('@/lib/sentry', () => ({
 describe('Export API', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // resolveSchoolYearId() runs before every other branch in the handler, so
+    // without a school year each test short-circuits on "No school year found"
+    // instead of reaching the behaviour it means to assert.
+    vi.mocked(prisma.schoolYear.findFirst).mockResolvedValue({ id: 1 } as never)
+    vi.mocked(prisma.classMembership.findMany).mockResolvedValue([])
   })
 
   describe('POST /api/export', () => {
