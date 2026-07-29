@@ -25,6 +25,11 @@ export async function POST(request: Request) {
     }
     const summary = await applyClassStudentSync(body.selection, {
       schoolYearId: typeof body.schoolYearId === 'number' ? body.schoolYearId : undefined,
+      // The mass-deactivation guard exists for the unattended nightly run,
+      // where nobody sees the diff. Here an admin has just reviewed the
+      // preview and ticked the rows, so enforcing it would only leave them
+      // unable to apply a legitimately large change (end of school year).
+      maxDeactivationRatio: null,
     })
     return NextResponse.json(summary)
   } catch (error) {
