@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '~/lib/prisma'
-import { sendSupportEmail } from '~/server/send-support-email-graph'
+import { prisma } from '@/lib/prisma'
+import { sendSupportEmail } from '@/server/send-support-email-graph'
 import { captureError } from '@/lib/sentry'
 import { denyUnlessAccess } from '@/lib/api-guard'
 

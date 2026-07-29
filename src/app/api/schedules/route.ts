@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
-import { captureError } from '~/lib/sentry'
+import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { parseJsonToNormalized, createScheduleTurnData, normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
 import { denyUnlessAccess } from '@/lib/api-guard'

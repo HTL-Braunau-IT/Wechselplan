@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
-import { captureError } from '~/lib/sentry'
+import { captureError } from '@/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
 import { denyUnlessAccess } from '@/lib/api-guard'
 

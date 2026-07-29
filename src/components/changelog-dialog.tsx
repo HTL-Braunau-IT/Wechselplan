@@ -1,14 +1,14 @@
 'use client'
 
 import { ExternalLink, Calendar } from 'lucide-react'
-import { Button } from '~/components/ui/button'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from '~/components/ui/dialog'
+} from '@/components/ui/dialog'
 
 interface GitHubRelease {
   tag_name: string

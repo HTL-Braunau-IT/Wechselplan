@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { env } from '~/env'
+import { env } from '@/env'
 import { captureError } from '@/lib/sentry'
 
 interface GitHubRelease {

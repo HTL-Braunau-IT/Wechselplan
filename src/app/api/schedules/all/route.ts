@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { captureError } from '~/lib/sentry'
+import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { denyUnlessAccess } from '@/lib/api-guard'
 

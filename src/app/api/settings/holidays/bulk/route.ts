@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/server/db'
-import { captureError } from '~/lib/sentry'
+import { captureError } from '@/lib/sentry'
 import { denyUnlessAccess } from '@/lib/api-guard'
 /**
  * Handles bulk creation of school holidays from a POST request.

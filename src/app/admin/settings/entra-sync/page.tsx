@@ -25,6 +25,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { AlertCircle, CheckCircle2, RefreshCw, Save, Search, Image as ImageIcon } from 'lucide-react'
+import { PageHeader } from '@/components/ui/page-header'
+import { LastSyncCard } from './_components/last-sync-card'
 import { toast } from 'sonner'
 
 interface EntraGroup {
@@ -349,16 +351,22 @@ export default function EntraSyncSettingsPage() {
   }, [studentPhotoSourcePriority, settings, selectedIds, teacherPhotoSourcePriority])
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <h1 className="text-3xl font-bold">Entra-Synchronisierung</h1>
-          <p className="text-muted-foreground">
-            Wähle aus, welche Entra-Sicherheitsgruppen als Klassen gelten. Die Lehrkräfte-Gruppe
-            wird über die Umgebungsvariable konfiguriert.
-          </p>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        icon={RefreshCw}
+        title="Entra-Synchronisierung"
+        description="Wähle aus, welche Entra-Sicherheitsgruppen als Klassen gelten. Die Lehrkräfte-Gruppe wird über die Umgebungsvariable konfiguriert."
+        actions={
+          settings ? (
+            <>
+              <Badge variant="outline">Modus: {settings.syncMode}</Badge>
+              <Badge variant={settings.syncEnabled ? 'default' : 'outline'}>
+                {settings.syncEnabled ? 'Auto-Sync aktiv' : 'Auto-Sync aus'}
+              </Badge>
+            </>
+          ) : null
+        }
+      />
 
       {error && (
         <Alert variant="destructive">
@@ -368,59 +376,28 @@ export default function EntraSyncSettingsPage() {
         </Alert>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Aktueller Synchronisierungsstatus</CardTitle>
-          <CardDescription>Metadaten des letzten Laufs aus dem Verzeichnis-Sync.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          {isLoadingSettings ? (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Spinner className="h-4 w-4" />
-              Lädt...
-            </div>
-          ) : settings ? (
-            <>
-              <div>
-                <span className="text-muted-foreground">Modus: </span>
-                <Badge variant="outline">{settings.syncMode}</Badge>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Auto-Sync: </span>
-                <Badge variant={settings.syncEnabled ? 'default' : 'outline'}>
-                  {settings.syncEnabled ? 'aktiv' : 'deaktiviert'}
-                </Badge>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Letzter Lauf: </span>
-                {settings.lastSyncAt ? new Date(settings.lastSyncAt).toLocaleString() : 'nie'}
-                {settings.lastSyncStatus ? (
-                  <Badge
-                    className="ml-2"
-                    variant={
-                      settings.lastSyncStatus === 'success'
-                        ? 'default'
-                        : settings.lastSyncStatus === 'partial'
-                          ? 'secondary'
-                          : 'destructive'
-                    }
-                  >
-                    {settings.lastSyncStatus}
-                  </Badge>
-                ) : null}
-              </div>
-              {teacherGroupId && (
-                <div>
-                  <span className="text-muted-foreground">Lehrkräfte-Gruppen-ID (aus Env): </span>
-                  <code className="font-mono text-xs">{teacherGroupId}</code>
-                </div>
-              )}
-            </>
-          ) : (
-            <p className="text-muted-foreground">Keine Einstellungen geladen.</p>
-          )}
-        </CardContent>
-      </Card>
+      {isLoadingSettings ? (
+        <Card>
+          <CardContent className="text-muted-foreground flex items-center gap-2 py-6">
+            <Spinner className="h-4 w-4" />
+            Einstellungen werden geladen …
+          </CardContent>
+        </Card>
+      ) : settings ? (
+        <LastSyncCard
+          lastSyncAt={settings.lastSyncAt}
+          lastSyncStatus={settings.lastSyncStatus}
+          lastSyncSummary={settings.lastSyncSummary}
+          syncEnabled={settings.syncEnabled}
+        />
+      ) : null}
+
+      {teacherGroupId ? (
+        <p className="text-muted-foreground text-xs">
+          Lehrkräfte-Gruppen-ID (aus Umgebungsvariable):{' '}
+          <code className="font-mono">{teacherGroupId}</code>
+        </p>
+      ) : null}
 
       <Card>
         <CardHeader>

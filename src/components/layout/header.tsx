@@ -5,14 +5,14 @@ import Link from 'next/link'
 import { Menu, LogIn, LogOut, User } from 'lucide-react'
 import { LanguageSwitcher } from '../language-switcher'
 import { useTranslation } from 'react-i18next'
-import { ThemeToggle } from '~/components/theme-toggle'
-import { SchoolYearSelector } from '~/components/school-year-selector'
+import { ThemeToggle } from '@/components/theme-toggle'
+import { SchoolYearSelector } from '@/components/school-year-selector'
 import { useSession, signIn, signOut } from 'next-auth/react'
-import { Button } from '~/components/ui/button'
-import { SupportDialog } from '~/components/support-dialog'
-import { ChangelogDialog } from '~/components/changelog-dialog'
-import { useGitHubVersion } from '~/hooks/use-github-version'
-import { useEntitlements } from '~/contexts/entitlements-context'
+import { Button } from '@/components/ui/button'
+import { SupportDialog } from '@/components/support-dialog'
+import { ChangelogDialog } from '@/components/changelog-dialog'
+import { useGitHubVersion } from '@/hooks/use-github-version'
+import { useEntitlements } from '@/contexts/entitlements-context'
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -20,7 +20,7 @@ import {
 	DropdownMenuLabel,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from '~/components/ui/dropdown-menu'
+} from '@/components/ui/dropdown-menu'
 
 /**
  * Renders the application's top navigation header with dynamic content based on user authentication and role.

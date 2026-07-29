@@ -16,6 +16,7 @@ import {
   AlertDialogTitle
 } from '@/components/ui/alert-dialog'
 import { Plus, Edit, Trash2, Search, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { TableSkeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 
 export interface Column {
@@ -378,9 +379,16 @@ export function DataTable({
         </div>
       </div>
 
-      <div className="rounded-md border">
+      {/* Bounded height with a sticky header: a 500-row class list used to
+          scroll the search box and action buttons off the top of the page. */}
+      <div className="max-h-[65vh] overflow-auto rounded-md border">
+        {isLoading && data.length === 0 ? (
+          <div className="p-4">
+            <TableSkeleton columns={Math.min(columns.length + 1, 7)} />
+          </div>
+        ) : (
         <Table>
-          <TableHeader>
+          <TableHeader className="bg-background sticky top-0 z-10">
             <TableRow>
               {columns.map(column => (
                 <TableHead 
@@ -427,7 +435,14 @@ export function DataTable({
             ))}
           </TableBody>
         </Table>
+        )}
       </div>
+
+      {!isLoading && filteredAndSortedData.length === 0 ? (
+        <p className="text-muted-foreground py-8 text-center text-sm">
+          {searchTerm ? 'Keine Treffer für die Suche.' : 'Keine Einträge vorhanden.'}
+        </p>
+      ) : null}
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">

@@ -2,17 +2,11 @@
 
 import { AdminMenu } from '@/components/admin/admin-menu'
 
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="bg-background flex min-h-screen flex-col lg:flex-row">
       <AdminMenu />
-      <div className="flex-1 p-6 space-y-8">
-        {children}
-      </div>
+      <main className="min-w-0 flex-1 space-y-8 p-4 sm:p-6">{children}</main>
     </div>
   )
-} 
+}

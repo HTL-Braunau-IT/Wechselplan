@@ -1,13 +1,13 @@
 import { describe, test, expect, vi, beforeEach, afterAll } from 'vitest';
 import { POST } from '../route';
-import { prisma } from '~/lib/prisma';
-import { sendSupportEmail } from '~/server/send-support-email-graph';
+import { prisma } from '@/lib/prisma';
+import { sendSupportEmail } from '@/server/send-support-email-graph';
 import { captureError } from '@/lib/sentry';
 
 
 
 // Mock prisma
-vi.mock('~/lib/prisma', () => ({
+vi.mock('@/lib/prisma', () => ({
   prisma: {
     supportMessage: {
       create: vi.fn(),
@@ -16,7 +16,7 @@ vi.mock('~/lib/prisma', () => ({
 }));
 
 // Mock sendSupportEmail
-vi.mock('~/server/send-support-email-graph', () => ({
+vi.mock('@/server/send-support-email-graph', () => ({
   sendSupportEmail: vi.fn(),
 }));
 

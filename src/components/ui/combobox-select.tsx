@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { CheckIcon, ChevronDownIcon, PlusIcon } from "lucide-react"
-import { cn } from "~/lib/utils"
+import { cn } from "@/lib/utils"
 import { Input } from "./input"
 import { Button } from "./button"
 

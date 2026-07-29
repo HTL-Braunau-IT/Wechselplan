@@ -14,7 +14,7 @@ vi.mock('@/lib/prisma', () => ({
 }));
 
 // Mock sentry
-vi.mock('~/lib/sentry', () => ({
+vi.mock('@/lib/sentry', () => ({
   captureError: vi.fn(),
 }));
 
