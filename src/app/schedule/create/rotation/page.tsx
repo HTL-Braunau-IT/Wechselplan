@@ -21,6 +21,12 @@ export default function RotationPage() {
   const className = searchParams.get('class')
   const weekdayParam = searchParams.get('weekday')
 
+  // The rotation dates must be computed within the *selected* school year, not a
+  // hardcoded one — otherwise a plan created for a future year lands on wrong weeks.
+  const schoolYearStart = selectedYear ? new Date(selectedYear.startDate) : null
+  const schoolYearEnd = selectedYear ? new Date(selectedYear.endDate) : null
+  const schoolYearMiddle = selectedYear ? new Date(selectedYear.semesterChangeDate) : null
+
   const handleSave = async (
     schedule: Schedule,
     selectedWeekday: number,
@@ -78,6 +84,9 @@ export default function RotationPage() {
       <RotationScheduleEditor
         className={className}
         initialWeekday={weekdayParam ? parseInt(weekdayParam) : null}
+        schoolYearStart={schoolYearStart}
+        schoolYearEnd={schoolYearEnd}
+        schoolYearMiddle={schoolYearMiddle}
         onSave={handleSave}
         onCancel={handleCancel}
       />

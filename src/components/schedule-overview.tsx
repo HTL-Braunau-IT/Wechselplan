@@ -12,6 +12,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
 import { Download, FileSpreadsheet } from 'lucide-react'
 import { generateExcel, generatePdf, generateSchedulePDF } from '@/lib/export-utils'
+import { rotatedGroupIndex } from '@/lib/rotation'
 
 interface ScheduleOverviewProps {
   groups: Group[]
@@ -43,30 +44,12 @@ const DARK_GROUP_COLORS = [
 ]
 
 /**
- * Returns a new array with elements shifted left by a given number of positions, wrapping items from the front to the end.
- *
- * @param arr - The array to rotate.
- * @param n - The number of positions to rotate the array to the left.
- * @returns A new array with elements rotated left by {@link n} positions.
- */
-function rotateArray<T>(arr: T[], n: number): T[] {
-  const rotated = [...arr]
-  for (let i = 0; i < n; i++) {
-    const temp = rotated.shift()
-    if (temp !== undefined) {
-      rotated.push(temp)
-    }
-  }
-  return rotated
-}
-
-/**
- * Determines the group assigned to a teacher for a given turn and period by rotating the group list.
+ * Determines the group assigned to a teacher for a given turn, using the shared
+ * round-robin formula so this preview always matches the persisted rotation.
  *
  * @param groups - List of groups to assign.
  * @param teacherIdx - Index of the teacher in the unique teachers list.
  * @param turnIdx - Index of the current turn.
- * @param period - The period ('AM' or 'PM') for which the assignment is made.
  * @param uniqueTeachers - List of unique teacher assignments.
  * @returns The assigned group for the teacher and turn, or null if inputs are invalid.
  */
@@ -74,13 +57,10 @@ function getGroupForTeacherAndTurn(
   groups: Group[],
   teacherIdx: number,
   turnIdx: number,
-  period: 'AM' | 'PM',
   uniqueTeachers: TeacherAssignmentResponse[],
 ) {
   if (!groups[0] || !uniqueTeachers[teacherIdx]) return null
-  const rotatedGroups = rotateArray(groups, turnIdx)
-  const group = rotatedGroups[teacherIdx]
-  return group
+  return groups[rotatedGroupIndex(teacherIdx, turnIdx, groups.length)]
 }
 
 /**
@@ -479,7 +459,6 @@ export function ScheduleOverview({
                             groups,
                             teacherIdx,
                             turnIdx,
-                            period as 'AM' | 'PM',
                             teachers,
                           )
                           return (

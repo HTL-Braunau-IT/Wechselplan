@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   DndContext,
@@ -47,6 +47,16 @@ import { PageContainer } from '@/components/ui/page-container'
 import { PageHeader } from '@/components/ui/page-header'
 import { AlertCircle, ArrowRight, Combine, RotateCcw, UserPlus, Users } from 'lucide-react'
 import { captureFrontendError } from '@/lib/frontend-error'
+import { useUnsavedWarning } from '@/hooks/use-unsaved-warning'
+import { WizardFooter } from '@/components/schedule/wizard-footer'
+import {
+  UNASSIGNED_GROUP_ID,
+  distributeStudentsEvenly,
+  checkGroupSizes,
+  ensureUnassignedGroup,
+  adjustGroupCount,
+  renumberGroups,
+} from '@/lib/group-distribution'
 import { StudentItem } from '@/components/schedule/student-item'
 import { GroupContainer } from '@/components/schedule/group-container'
 import { AddStudentDialog } from '@/components/schedule/add-student-dialog'
@@ -85,50 +95,10 @@ interface AssignmentsResponse {
   unassignedStudents: Student[]
 }
 
-// Add constant for unassigned group ID
-const UNASSIGNED_GROUP_ID = 0
-
-// Add constant for maximum group size
+// Maximum size of a single (non-unassigned) group
 const MAX_GROUP_SIZE = 12
-// Add constant for maximum supported students (4 groups × 12 students)
+// Maximum supported students (4 groups × 12 students)
 const MAX_SUPPORTED_STUDENTS = 48
-
-/**
- * Distributes students evenly across groups, ensuring the difference between the largest and smallest group is at most 1.
- *
- * @param students - Array of students to distribute
- * @param numGroups - Number of groups to distribute students into
- * @returns Array of groups with evenly distributed students
- */
-function distributeStudentsEvenly(students: Student[], numGroups: number): Group[] {
-  const sortedStudents = [...students].sort((a, b) => a.lastName.localeCompare(b.lastName))
-
-  // Calculate base students per group and remainder
-  const baseStudentsPerGroup = Math.floor(sortedStudents.length / numGroups)
-  const remainder = sortedStudents.length % numGroups
-
-  const groups: Group[] = [
-    // Always include unassigned group first
-    {
-      id: UNASSIGNED_GROUP_ID,
-      students: [],
-    },
-    // Add regular groups
-    ...Array.from({ length: numGroups }, (_, i) => {
-      // First 'remainder' groups get one extra student
-      const studentsInThisGroup = baseStudentsPerGroup + (i < remainder ? 1 : 0)
-      const startIndex = i * baseStudentsPerGroup + Math.min(i, remainder)
-      const endIndex = startIndex + studentsInThisGroup
-
-      return {
-        id: i + 1,
-        students: sortedStudents.slice(startIndex, endIndex),
-      }
-    }),
-  ]
-
-  return groups
-}
 
 /**
  * Provides an interactive interface for assigning students to groups within a selected class using drag-and-drop.
@@ -150,7 +120,13 @@ export default function ScheduleClassSelectPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState<boolean>(false)
   const [loadingClasses, setLoadingClasses] = useState<boolean>(true)
+  // Fatal errors (class/student load failed, class too large) — these replace the
+  // whole editor. `sizeError` is a live validation flag shown inline that blocks
+  // "Next"; `actionError` holds non-fatal action failures shown inline. Keeping
+  // them separate stops a transient validation message from wiping the editor.
   const [error, setError] = useState<string | null>(null)
+  const [sizeError, setSizeError] = useState<boolean>(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [numberOfGroups, setNumberOfGroups] = useState<number>(2)
   const [groups, setGroups] = useState<Group[]>([
     {
@@ -165,7 +141,6 @@ export default function ScheduleClassSelectPage() {
     assignments: Assignment[]
     removedStudentIds: number[]
   } | null>(null)
-  const hasExistingAssignmentsRef = useRef(false)
   const [showAddStudentDialog, setShowAddStudentDialog] = useState(false)
   const [newStudent, setNewStudent] = useState({
     firstName: '',
@@ -183,19 +158,11 @@ export default function ScheduleClassSelectPage() {
   const [showTransferDialog, setShowTransferDialog] = useState(false)
   const [transferTargetStudent, setTransferTargetStudent] = useState<Student | null>(null)
   const [transferring, setTransferring] = useState(false)
+  // Unsaved in-step edits (group drag/reset/remove) — lost on reload before "Next".
+  const [dirty, setDirty] = useState(false)
   const queryClient = useQueryClient()
 
-  /**
-   * Determines whether all groups, except the unassigned group, do not exceed the maximum allowed size.
-   *
-   * @param groups - Array of groups to validate.
-   * @returns True if every group (excluding the unassigned group) has a size less than or equal to {@link MAX_GROUP_SIZE}; otherwise, false.
-   */
-  function checkGroupSizes(groups: Group[]): boolean {
-    return groups.every(
-      group => group.id === UNASSIGNED_GROUP_ID || group.students.length <= MAX_GROUP_SIZE,
-    )
-  }
+  useUnsavedWarning(dirty)
 
   /**
    * Resets the group assignments to two groups, evenly distributing students by last name.
@@ -217,6 +184,7 @@ export default function ScheduleClassSelectPage() {
 
     const newGroups = distributeStudentsEvenly(students, resetGroups)
     setGroups(newGroups)
+    setDirty(true)
   }
 
   // Add effect to automatically generate username
@@ -316,6 +284,8 @@ export default function ScheduleClassSelectPage() {
 
     setLoading(true)
     setIsManualGroupChange(false) // Reset manual change flag when loading new class
+    setError(null) // Clear any fatal/action error from a previously selected class
+    setActionError(null)
 
     try {
       // Calculate initial number of groups based on student count
@@ -355,12 +325,10 @@ export default function ScheduleClassSelectPage() {
         ]
         setGroups(existingGroups)
         setNumberOfGroups(regularAssignments.length)
-        hasExistingAssignmentsRef.current = true
       } else {
         // Otherwise, create default groups with even distribution
         const newGroups = distributeStudentsEvenly(studentsData, initialGroups)
         setGroups(newGroups)
-        hasExistingAssignmentsRef.current = false
       }
     } catch (err) {
       console.error('Error processing students and assignments:', err)
@@ -385,135 +353,29 @@ export default function ScheduleClassSelectPage() {
     t,
   ])
 
+  // Apply a manual change to the number of groups in a single pass: grow/shrink
+  // (redistributing students) and then renumber to 1..n. Consolidates what used to
+  // be two separate, order-sensitive effects. Both steps are pure + unit-tested in
+  // src/lib/__tests__/group-distribution.test.ts.
   useEffect(() => {
     if (students.length === 0) return
+    if (!isManualGroupChange) return
 
-    // Only handle manual group changes, not initial load
-    if (isManualGroupChange) {
-      setGroups(currentGroups => {
-        const unassignedGroup = currentGroups.find(g => g.id === UNASSIGNED_GROUP_ID) ?? {
-          id: UNASSIGNED_GROUP_ID,
-          students: [],
-        }
-
-        const regularGroups = currentGroups.filter(g => g.id !== UNASSIGNED_GROUP_ID)
-        const currentGroupCount = regularGroups.length
-
-        if (numberOfGroups > currentGroupCount) {
-          // Increasing groups: keep existing assignments, add empty groups
-          const newGroups = [...regularGroups]
-          for (let i = currentGroupCount; i < numberOfGroups; i++) {
-            newGroups.push({
-              id: i + 1,
-              students: [],
-            })
-          }
-          return [unassignedGroup, ...newGroups]
-        } else if (numberOfGroups < currentGroupCount) {
-          // Decreasing groups: redistribute students from removed groups
-          const groupsToKeep = regularGroups.slice(0, numberOfGroups)
-          const groupsToRemove = regularGroups.slice(numberOfGroups)
-
-          // Collect students from groups being removed
-          const studentsToRedistribute = groupsToRemove.flatMap(group => group.students)
-
-          // Try to redistribute students to remaining groups
-          const newGroups = [...groupsToKeep]
-          const studentsToUnassign: Student[] = []
-
-          for (const student of studentsToRedistribute) {
-            // Find a group with space
-            const targetGroup = newGroups.find(group => group.students.length < MAX_GROUP_SIZE)
-            if (targetGroup) {
-              targetGroup.students.push(student)
-              // Keep groups sorted by last name
-              targetGroup.students.sort((a, b) => a.lastName.localeCompare(b.lastName))
-            } else {
-              // No space in any group, move to unassigned
-              studentsToUnassign.push(student)
-            }
-          }
-
-          // Add students that couldn't fit to unassigned group
-          const updatedUnassignedGroup = {
-            ...unassignedGroup,
-            students: [...unassignedGroup.students, ...studentsToUnassign].sort((a, b) =>
-              a.lastName.localeCompare(b.lastName),
-            ),
-          }
-
-          return [updatedUnassignedGroup, ...newGroups]
-        }
-
-        // No change in group count
-        return currentGroups
-      })
-
-      // Reset the manual change flag after handling
-      setIsManualGroupChange(false)
-    }
+    setGroups(current =>
+      renumberGroups(adjustGroupCount(current, numberOfGroups, MAX_GROUP_SIZE), numberOfGroups),
+    )
+    setIsManualGroupChange(false)
   }, [numberOfGroups, students, isManualGroupChange])
 
-  // Add a new effect to handle group ID updates - only for new assignments or manual changes
+  // Ensure the unassigned group is always present.
   useEffect(() => {
-    // Only renumber group IDs if we don't have existing assignments OR if it's a manual group change
-    if (!hasExistingAssignmentsRef.current || isManualGroupChange) {
-      setGroups(currentGroups => {
-        const unassignedGroup = currentGroups.find(g => g.id === UNASSIGNED_GROUP_ID) ?? {
-          id: UNASSIGNED_GROUP_ID,
-          students: [],
-        }
-        const regularGroups = currentGroups
-          .filter(g => g.id !== UNASSIGNED_GROUP_ID)
-          .sort((a, b) => a.id - b.id) // keep deterministic order
-
-        // Only renumber if we have groups that need renumbering
-        // (i.e., if we have more groups than expected or gaps in numbering)
-        const needsRenumbering =
-          regularGroups.some((group, index) => group.id !== index + 1) ||
-          regularGroups.length !== numberOfGroups
-
-        if (needsRenumbering) {
-          return [
-            unassignedGroup!,
-            ...regularGroups.slice(0, numberOfGroups).map((group, index) => ({
-              ...group,
-              id: index + 1,
-            })),
-          ]
-        }
-
-        return currentGroups
-      })
-    }
-    // If we have existing assignments and it's not a manual change, preserve the original group IDs from the database
-  }, [numberOfGroups, isManualGroupChange])
-
-  // Add effect to ensure unassigned group is always present
-  useEffect(() => {
-    setGroups(currentGroups => {
-      // If unassigned group doesn't exist, add it
-      if (!currentGroups.some(g => g.id === UNASSIGNED_GROUP_ID)) {
-        return [
-          {
-            id: UNASSIGNED_GROUP_ID,
-            students: [],
-          },
-          ...currentGroups,
-        ]
-      }
-      return currentGroups
-    })
+    setGroups(ensureUnassignedGroup)
   }, [])
 
-  // Add effect to check group sizes when groups change
+  // Track group-size validity (shown inline, blocks "Next" — see sizeError).
   useEffect(() => {
-    if (!checkGroupSizes(groups)) {
-      setError(t('maxGroupSizeError'))
-    } else {
-      setError(null)
-    }
-  }, [groups, t])
+    setSizeError(!checkGroupSizes(groups, MAX_GROUP_SIZE))
+  }, [groups])
 
   /**
    * Updates the number of groups based on the selected value from the group size dropdown.
@@ -523,6 +385,7 @@ export default function ScheduleClassSelectPage() {
   function handleGroupSizeChange(value: string) {
     setNumberOfGroups(Number(value))
     setIsManualGroupChange(true)
+    setDirty(true)
   }
 
   async function handleNext() {
@@ -606,6 +469,7 @@ export default function ScheduleClassSelectPage() {
       }
 
       // Navigate to the teachers page
+      setDirty(false)
       router.push(`/schedule/create/teachers?class=${selectedClass}`)
     } catch (err) {
       console.error('Error saving assignments:', err)
@@ -618,7 +482,7 @@ export default function ScheduleClassSelectPage() {
           assignments: pendingAssignments,
         },
       })
-      setError('Fehler beim Speichern der Zuweisungen.')
+      setActionError('Fehler beim Speichern der Zuweisungen.')
     }
   }
 
@@ -643,6 +507,7 @@ export default function ScheduleClassSelectPage() {
       }
 
       // Navigate to the teachers page
+      setDirty(false)
       router.push(`/schedule/create/teachers?class=${selectedClass}`)
     } catch (err) {
       console.error('Error updating assignments:', err)
@@ -654,7 +519,7 @@ export default function ScheduleClassSelectPage() {
           assignments: pendingAssignments,
         },
       })
-      setError('Fehler beim Aktualisieren der Zuweisungen.')
+      setActionError('Fehler beim Aktualisieren der Zuweisungen.')
     } finally {
       setShowConfirmDialog(false)
       setPendingAssignments(null)
@@ -708,6 +573,7 @@ export default function ScheduleClassSelectPage() {
 
       return newGroups
     })
+    setDirty(true)
   }
 
   /**
@@ -789,6 +655,7 @@ export default function ScheduleClassSelectPage() {
     })
 
     setActiveStudent(null)
+    setDirty(true)
   }
 
   async function handleAddStudent(e: React.FormEvent) {
@@ -833,7 +700,7 @@ export default function ScheduleClassSelectPage() {
           newStudent,
         },
       })
-      setError('Fehler beim Hinzufügen des Schülers.')
+      setActionError('Fehler beim Hinzufügen des Schülers.')
     }
   }
 
@@ -842,22 +709,22 @@ export default function ScheduleClassSelectPage() {
 
     // Validate form
     if (!combineClasses.class1Id || !combineClasses.class2Id) {
-      setError(t('bothClassesRequired'))
+      setActionError(t('bothClassesRequired'))
       return
     }
 
     if (combineClasses.class1Id === combineClasses.class2Id) {
-      setError(t('selectDifferentClasses'))
+      setActionError(t('selectDifferentClasses'))
       return
     }
 
     if (!combineClasses.combinedClassName.trim()) {
-      setError(t('combinedClassNameRequired'))
+      setActionError(t('combinedClassNameRequired'))
       return
     }
 
     setCombiningClasses(true)
-    setError(null)
+    setActionError(null)
 
     try {
       const response = await fetch('/api/classes/combine', {
@@ -908,9 +775,9 @@ export default function ScheduleClassSelectPage() {
       // Check if it's a "too many students" error
       const errorMessage = err instanceof Error ? err.message : String(err)
       if (errorMessage.includes('Cannot combine classes') && errorMessage.includes('students')) {
-        setError(errorMessage)
+        setActionError(errorMessage)
       } else {
-        setError(t('classesCombinedError'))
+        setActionError(t('classesCombinedError'))
       }
     } finally {
       setCombiningClasses(false)
@@ -925,7 +792,7 @@ export default function ScheduleClassSelectPage() {
   async function handleTransferStudent(targetClassId: number, targetGroupId: number | null) {
     if (!transferTargetStudent) return
     if (!schoolYearId) {
-      setError(t('transferError'))
+      setActionError(t('transferError'))
       throw new Error('School year not selected')
     }
 
@@ -976,7 +843,7 @@ export default function ScheduleClassSelectPage() {
           schoolYearId,
         },
       })
-      setError(err instanceof Error ? err.message : t('transferError'))
+      setActionError(err instanceof Error ? err.message : t('transferError'))
       throw err
     } finally {
       setTransferring(false)
@@ -1020,36 +887,23 @@ export default function ScheduleClassSelectPage() {
                 <CardTitle>{t('class')}</CardTitle>
               </CardHeader>
               <CardContent>
-                <form
-                  onSubmit={async e => {
-                    e.preventDefault()
-                    await handleNext()
-                  }}
-                >
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="class-select">{t('class')}</Label>
-                      <Select value={selectedClass} onValueChange={setSelectedClass} required>
-                        <SelectTrigger id="class-select" className="w-full">
-                          <SelectValue placeholder={t('pleaseSelect')} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {classes.map(cls => (
-                            <SelectItem key={cls.id} value={cls.name}>
-                              {cls.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button type="submit" disabled={!selectedClass}>
-                        {t('next')}
-                        <ArrowRight className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </form>
+                {/* The primary "next" action lives in the wizard footer below for
+                    consistent button placement across all creation steps. */}
+                <div className="space-y-2">
+                  <Label htmlFor="class-select">{t('class')}</Label>
+                  <Select value={selectedClass} onValueChange={setSelectedClass} required>
+                    <SelectTrigger id="class-select" className="w-full">
+                      <SelectValue placeholder={t('pleaseSelect')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {classes.map(cls => (
+                        <SelectItem key={cls.id} value={cls.name}>
+                          {cls.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </CardContent>
             </Card>
 
@@ -1081,10 +935,18 @@ export default function ScheduleClassSelectPage() {
                     </Button>
                   </div>
                 </div>
-                {error && (
+                {sizeError && (
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
-                    <AlertDescription className="break-words">{error}</AlertDescription>
+                    <AlertDescription className="break-words">
+                      {t('maxGroupSizeError')}
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {actionError && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription className="break-words">{actionError}</AlertDescription>
                   </Alert>
                 )}
                 {loading ? (
@@ -1166,6 +1028,16 @@ export default function ScheduleClassSelectPage() {
                 )}
               </div>
             )}
+
+            <WizardFooter>
+              <Button
+                disabled={!selectedClass || sizeError}
+                onClick={() => void handleNext()}
+              >
+                {t('next')}
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </WizardFooter>
           </div>
         )}
       </div>

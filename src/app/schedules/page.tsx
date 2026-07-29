@@ -247,30 +247,12 @@ export default function SchedulesPage() {
 
         const data = (await response.json()) as TeacherAssignmentsResponse
 
-        console.log('Teacher assignments data:', {
-          teacherId: teacher.id,
-          amAssignments: data.amAssignments.map(a => ({
-            teacherId: a.teacherId,
-            name: `${a.teacherFirstName} ${a.teacherLastName}`,
-          })),
-          pmAssignments: data.pmAssignments.map(a => ({
-            teacherId: a.teacherId,
-            name: `${a.teacherFirstName} ${a.teacherLastName}`,
-          })),
-        })
-
         // Check if user is assigned as a teacher in AM assignments
         const isAssignedAM = data.amAssignments.some(a => a.teacherId === teacher.id)
         // Check if user is assigned as a teacher in PM assignments
         const isAssignedPM = data.pmAssignments.some(a => a.teacherId === teacher.id)
         // Check if user is assigned to either period
         const isAssigned = isAssignedAM || isAssignedPM
-
-        console.log('Is user assigned as teacher:', isAssigned, {
-          teacherId: teacher.id,
-          amMatch: isAssignedAM,
-          pmMatch: isAssignedPM,
-        })
 
         setIsTeacherForClass(isAssigned)
         setIsTeacherForAM(isAssignedAM)

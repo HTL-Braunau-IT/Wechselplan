@@ -100,5 +100,30 @@
   "transferError": "Failed to transfer student.",
   "transferLoadGroupsError": "Failed to load groups for the target class.",
   "transferSelectClassError": "Please select a target class.",
-  "removeStudent": "Remove student"
+  "removeStudent": "Remove student",
+  "settings.times.optional": "Optional",
+  "weekdays": {
+    "1": "Monday",
+    "2": "Tuesday",
+    "3": "Wednesday",
+    "4": "Thursday",
+    "5": "Friday"
+  },
+  "semesterPlanningTitle": "Plan by semester",
+  "planFirstSemester": "Plan first semester",
+  "planSecondSemester": "Plan second semester",
+  "rotationWholeYear": "Rotation is calculated for the entire school year",
+  "rotationUntil": "Rotation is calculated only until {{date}}",
+  "rotationFromUntil": "Rotation is calculated from {{start}} until {{end}}",
+  "saveAndFinish": "Save & Finish",
+  "finishing": "Finishing...",
+  "loadingData": "Loading data...",
+  "createPdfTitle": "Download schedule as PDF?",
+  "createPdfDescription": "Two PDFs are created: the rotation plan and the dated overview. Both remain available anytime via the export buttons.",
+  "skip": "Skip",
+  "generatePdf": "Download PDFs",
+  "generatingPdf": "Generating...",
+  "saveFailed": "Failed to save.",
+  "pdfFailed": "Failed to generate PDF.",
+  "loadDataFailed": "Failed to load data. Please try again."
 }
