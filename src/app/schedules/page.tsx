@@ -110,9 +110,9 @@ function ClassScheduleOverview({
         <AlertTitle>Kein Wechselplan für Klasse {className} gefunden!</AlertTitle>
         <AlertDescription>
           {overviewError === 'Class ID is required'
-            ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
+            ? 'Keine Daten gefunden, bitte den Klassenleiter auffordern einen Wechselplan zu erstellen.'
             : overviewError === 'Failed to fetch schedule times'
-              ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
+              ? 'Keine Daten gefunden, bitte den Klassenleiter auffordern einen Wechselplan zu erstellen.'
               : overviewError}
         </AlertDescription>
       </Alert>
@@ -489,9 +489,9 @@ export default function SchedulesPage() {
               <AlertTitle>Kein Wechselplan für Klasse {selectedClass} gefunden!</AlertTitle>
               <AlertDescription>
                 {overviewError === 'Class ID is required'
-                  ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
+                  ? 'Keine Daten gefunden, bitte den Klassenleiter auffordern einen Wechselplan zu erstellen.'
                   : overviewError === 'Failed to fetch schedule times'
-                    ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
+                    ? 'Keine Daten gefunden, bitte den Klassenleiter auffordern einen Wechselplan zu erstellen.'
                     : overviewError}
               </AlertDescription>
             </Alert>
@@ -541,7 +541,7 @@ export default function SchedulesPage() {
                           <AlertCircle className="h-4 w-4" />
                           <AlertTitle>Kein Wechselplan für Klasse {cls.name} gefunden!</AlertTitle>
                           <AlertDescription>
-                            Keine Daten gefunden, bitte den Klassenleiter auffordner einen
+                            Keine Daten gefunden, bitte den Klassenleiter auffordern einen
                             Wechselplan zu erstellen.
                           </AlertDescription>
                         </Alert>

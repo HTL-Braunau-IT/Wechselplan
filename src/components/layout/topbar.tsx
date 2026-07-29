@@ -81,7 +81,7 @@ export function Topbar({
         <button
           onClick={() => setIsChangelogOpen(true)}
           className="text-muted-foreground hover:text-foreground hidden cursor-pointer text-xs transition-colors sm:block"
-          title="Changelog anzeigen"
+          title={t('navigation.changelog')}
           disabled={loading || !release}
         >
           v{version.startsWith('v') ? version.slice(1) : version}

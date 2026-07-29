@@ -669,7 +669,7 @@ export default function TeacherAssignmentPage() {
     setPmAssignments(amAssignments.map(assignment => ({ ...assignment })))
   }
 
-  if (isLoadingCachedData ?? loading)
+  if (isLoadingCachedData || loading)
     return (
       <PageContainer size="wide">
         <div className="flex min-h-[40vh] items-center justify-center">

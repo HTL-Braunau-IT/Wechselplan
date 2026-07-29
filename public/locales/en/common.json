@@ -114,7 +114,8 @@
     "notensammler": "Grade Collector",
     "noten": "Noten",
     "notenliste": "Notenliste",
-    "support": "Help & Support"
+    "support": "Help & Support",
+    "changelog": "View changelog"
   },
   "overview": {
     "studentTitle": "Student Overview",
@@ -148,7 +149,10 @@
     "login": "Login",
     "register": "Register",
     "email": "Email",
-    "password": "Password",
+    "password": {
+      "label": "Password",
+      "placeholder": "Enter your password"
+    },
     "forgotPassword": "Forgot Password?",
     "rememberMe": "Remember Me",
     "title": "Login",
@@ -157,10 +161,6 @@
     "username": {
       "label": "Username",
       "placeholder": "Enter your username"
-    },
-    "password": {
-      "label": "Password",
-      "placeholder": "Enter your password"
     },
     "button": {
       "signingIn": "Signing in...",
@@ -407,4 +407,4 @@
     "downloadAllClassesPdf": "Download all classes as PDF",
     "downloadingAllClassesPdf": "Generating PDF..."
   }
-} 
+}

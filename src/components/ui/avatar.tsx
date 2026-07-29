@@ -71,7 +71,13 @@ export function initialsFrom(first?: string | null, last?: string | null, fallba
     .join('')
     .toUpperCase()
   if (fromParts) return fromParts.slice(0, 2)
-  const trimmed = fallbackName?.trim()
-  if (trimmed) return trimmed.charAt(0).toUpperCase()
+  const words = fallbackName?.trim().split(/\s+/).filter(Boolean) ?? []
+  if (words.length > 0) {
+    return words
+      .slice(0, 2)
+      .map(w => w.charAt(0))
+      .join('')
+      .toUpperCase()
+  }
   return '?'
 }

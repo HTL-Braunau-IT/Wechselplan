@@ -414,7 +414,9 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
                   <div>
                     <h3 className="mb-3 text-lg font-medium">
                       {t('settings.times.labels.amBreak')}{' '}
-                      <span className="text-muted-foreground text-sm font-normal"></span>
+                      <span className="text-muted-foreground text-sm font-normal">
+                        ({t('settings.times.optional')})
+                      </span>
                     </h3>
                     <select
                       value={selectedAMBreakTime ?? ''}
@@ -439,7 +441,9 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
                   <div>
                     <h3 className="mb-3 text-lg font-medium">
                       {t('settings.times.labels.lunchBreak')}{' '}
-                      <span className="text-muted-foreground text-sm font-normal"></span>
+                      <span className="text-muted-foreground text-sm font-normal">
+                        ({t('settings.times.optional')})
+                      </span>
                     </h3>
                     <select
                       value={selectedLunchBreakTime ?? ''}

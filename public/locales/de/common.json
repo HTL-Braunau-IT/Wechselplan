@@ -114,7 +114,8 @@
     "notensammler": "Notensammler",
     "noten": "Noten - In Testphase",
     "notenliste": "Notenliste",
-    "support": "Hilfe & Support"
+    "support": "Hilfe & Support",
+    "changelog": "Changelog anzeigen"
   },
   "overview": {
     "studentTitle": "Schülerübersicht",
@@ -414,4 +415,4 @@
     "downloadAllClassesPdf": "Notenliste alle Klassen als PDF",
     "downloadingAllClassesPdf": "PDF wird erstellt..."
   }
-} 
+}

@@ -221,12 +221,14 @@ export function TransferDialogs(props: TransferDialogsProps) {
                           {student.matched ? (
                             <Check
                               className="text-success h-4 w-4"
+                              role="img"
                               aria-label={t('notensammler.match', 'Match')}
                             />
                           ) : (
                             <X
                               className="text-destructive h-4 w-4"
-                              aria-label={t('notensammler.match', 'Match')}
+                              role="img"
+                              aria-label={t('notensammler.noMatch', 'Kein Match')}
                             />
                           )}
                         </TableCell>

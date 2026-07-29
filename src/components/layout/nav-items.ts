@@ -75,9 +75,25 @@ export function useNavItems(): NavItem[] {
   return items
 }
 
-/** Whether a nav item is active for the current pathname. */
-export function isNavItemActive(item: NavItem, pathname: string): boolean {
-  if (item.href === '/') return pathname === '/'
-  if (pathname === item.href || pathname.startsWith(item.href + '/')) return true
-  return (item.matchPrefixes ?? []).some(p => pathname === p || pathname.startsWith(p))
+/**
+ * Resolves the single active nav item for a pathname. The most specific
+ * (longest) matching href/prefix wins, so e.g. `/schedule/create/rotation`
+ * activates "Create Schedule" rather than also lighting up "Schedules".
+ */
+export function resolveActiveHref(items: NavItem[], pathname: string): string | null {
+  let best: { href: string; len: number } | null = null
+  for (const item of items) {
+    if (item.href === '/') {
+      if (pathname === '/') return '/'
+      continue
+    }
+    const candidates = [item.href, ...(item.matchPrefixes ?? [])]
+    for (const candidate of candidates) {
+      const boundary = candidate.endsWith('/') ? candidate : candidate + '/'
+      if (pathname === candidate || pathname.startsWith(boundary)) {
+        if (!best || candidate.length > best.len) best = { href: item.href, len: candidate.length }
+      }
+    }
+  }
+  return best?.href ?? null
 }

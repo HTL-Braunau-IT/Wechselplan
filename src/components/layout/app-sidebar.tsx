@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useNavItems, isNavItemActive, type NavItem } from './nav-items'
+import { useNavItems, resolveActiveHref, type NavItem } from './nav-items'
 
 function BrandMark({ collapsed }: { collapsed?: boolean }) {
   const { t } = useTranslation()
@@ -69,13 +69,14 @@ function NavLink({
 function SidebarNav({ collapsed, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
   const items = useNavItems()
   const pathname = usePathname()
+  const activeHref = resolveActiveHref(items, pathname)
   return (
     <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
       {items.map(item => (
         <NavLink
           key={item.href}
           item={item}
-          active={isNavItemActive(item, pathname)}
+          active={item.href === activeHref}
           collapsed={collapsed}
           onNavigate={onNavigate}
         />

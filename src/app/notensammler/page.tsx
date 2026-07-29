@@ -291,11 +291,15 @@ export default function NotensammlerPage() {
               )}
             </CardTitle>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <Label className="text-sm font-medium">
+              <Label htmlFor="notensammler-sort-field" className="text-sm font-medium">
                 {t('notensammler.sortBy', 'Sortieren nach')}:
               </Label>
               <Select value={sortField} onValueChange={value => setSortField(value as SortField)}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger
+                  id="notensammler-sort-field"
+                  className="w-[180px]"
+                  aria-label={t('notensammler.sortBy', 'Sortieren nach')}
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -311,7 +315,10 @@ export default function NotensammlerPage() {
                 value={sortDirection}
                 onValueChange={value => setSortDirection(value as SortDirection)}
               >
-                <SelectTrigger className="w-[150px]">
+                <SelectTrigger
+                  className="w-[150px]"
+                  aria-label={t('notensammler.sortDirection', 'Sortierrichtung')}
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
