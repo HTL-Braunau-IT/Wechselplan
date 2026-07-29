@@ -213,7 +213,6 @@ export async function POST(req: Request) {
         schoolYearId,
         actor: author,
         session,
-        dedupeKey: `schedule:${newSchedule.classId}:${schoolYearId}:${selectedWeekday}`,
       })
     }
 

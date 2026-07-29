@@ -609,5 +609,5 @@ model Notification {
   recipient Teacher @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
 
   @@index([recipientId, readAt, createdAt])
-  @@index([type, dedupeKey, readAt])
+  @@index([dedupeKey, readAt])
 }

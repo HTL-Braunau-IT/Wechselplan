@@ -113,7 +113,6 @@ export async function POST(request: Request) {
         actor: await resolveCurrentTeacher(session),
         session,
         alsoNotify: previousTeachers.map(rotation => rotation.teacherId),
-        dedupeKey: `schedule-rotation:${classData.id}`,
       })
     }
 

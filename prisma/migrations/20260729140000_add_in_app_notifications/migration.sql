@@ -19,7 +19,7 @@ CREATE TABLE "Notification" (
 CREATE INDEX "Notification_recipientId_readAt_createdAt_idx" ON "Notification"("recipientId", "readAt", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "Notification_type_dedupeKey_readAt_idx" ON "Notification"("type", "dedupeKey", "readAt");
+CREATE INDEX "Notification_dedupeKey_readAt_idx" ON "Notification"("dedupeKey", "readAt");
 
 -- AddForeignKey
 ALTER TABLE "Notification" ADD CONSTRAINT "Notification_recipientId_fkey" FOREIGN KEY ("recipientId") REFERENCES "Teacher"("id") ON DELETE CASCADE ON UPDATE CASCADE;

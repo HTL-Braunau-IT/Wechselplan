@@ -32,9 +32,14 @@ export interface NotifyInput<T extends NotificationType> {
   /** In-app path opened when the row is clicked. */
   link?: string
   /**
-   * Collapse key. An unread row with the same recipient, type and key is
-   * refreshed instead of duplicated — without it, a teacher who hits save
-   * fifty times buries the class lead's bell.
+   * Collapse key. An unread row with the same recipient and key is refreshed
+   * instead of duplicated — without it, a teacher who hits save fifty times
+   * buries the class lead's bell.
+   *
+   * Deliberately matched without the type, so several kinds of edit to the same
+   * thing fold together: running the schedule wizard once posts to three
+   * endpoints, and colleagues want one line about that class, not three.
+   * The key's prefix is what keeps unrelated concerns apart.
    */
   dedupeKey?: string
 }
@@ -86,7 +91,7 @@ export async function notify<T extends NotificationType>(input: NotifyInput<T>):
   // stay a single, up-to-date entry rather than a stack of near-identical ones.
   const existing = dedupeKey
     ? await prisma.notification.findMany({
-        where: { recipientId: { in: recipients }, type, dedupeKey, readAt: null },
+        where: { recipientId: { in: recipients }, dedupeKey, readAt: null },
         select: { id: true, recipientId: true },
       })
     : []
@@ -94,8 +99,8 @@ export async function notify<T extends NotificationType>(input: NotifyInput<T>):
   if (existing.length > 0) {
     await prisma.notification.updateMany({
       where: { id: { in: existing.map(row => row.id) } },
-      // createdAt moves too: the bell sorts newest first, and a collapsed row
-      // describes the most recent occurrence, not the first one.
+      // Type and createdAt move too: the bell sorts newest first, and a
+      // collapsed row describes the most recent occurrence, not the first one.
       data: { ...payload, createdAt: now },
     })
   }

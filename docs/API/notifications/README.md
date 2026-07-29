@@ -36,10 +36,17 @@ record of what happened. This table is only the delivery channel.
 ### Collapsing
 
 Writers pass a `dedupeKey`. If the recipient already has an **unread** row with
-the same `type` and key, that row is refreshed — new params, new timestamp —
-instead of a second one being added. Without it, a teacher saving a grade sheet
-cell by cell would bury the class lead's bell. A row that has been read is never
-collapsed onto, so a fresh event after acknowledgement shows up as new.
+that key, it is refreshed — new type, new params, new timestamp — instead of a
+second one being added. Without it, a teacher saving a grade sheet cell by cell
+would bury the class lead's bell. A row that has been read is never collapsed
+onto, so a fresh event after acknowledgement shows up as new.
+
+The match deliberately ignores `type`, so different kinds of edit to the same
+thing fold together: all four schedule types share the key
+`schedule:<classId>:<schoolYearId>`, because walking the create wizard once
+posts to three separate endpoints and a colleague wants one line about that
+class rather than three, a minute apart. Keeping concerns apart is the key
+prefix's job, not the type's.
 
 Because a collapsed row is overwritten, its `params` describe the **most recent**
 occurrence, which is why the timestamp moves with it. `sokrates-change` is the

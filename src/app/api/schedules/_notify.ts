@@ -28,8 +28,6 @@ export async function notifyScheduleChange(params: {
   session: Session | null
   /** Teachers attached to the class *before* the change, if the caller has them. */
   alsoNotify?: readonly number[]
-  /** Collapse key suffix, so the different kinds of edit do not overwrite each other. */
-  dedupeKey: string
 }): Promise<void> {
   try {
     const classRecord = await prisma.class.findUnique({
@@ -49,7 +47,10 @@ export async function notifyScheduleChange(params: {
       actorName: actorName(params.actor, params.session),
       params: { className: classRecord.name },
       link: scheduleLink(classRecord.name),
-      dedupeKey: params.dedupeKey,
+      // One key for every kind of schedule edit. Building a plan walks the
+      // wizard through three separate endpoints, and a colleague wants one line
+      // saying that class's plan moved — not three, a minute apart.
+      dedupeKey: `schedule:${params.classId}:${params.schoolYearId}`,
     })
   } catch (error) {
     captureError(error as Error, {

@@ -343,7 +343,6 @@ export async function POST(request: Request) {
       actor: await resolveCurrentTeacher(session),
       session,
       alsoNotify: existingAssignments.map(assignment => assignment.teacherId),
-      dedupeKey: `schedule-assignments:${classRecord.id}:${schoolYearId}`,
     })
 
     return NextResponse.json({ success: true })

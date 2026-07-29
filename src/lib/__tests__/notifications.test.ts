@@ -155,6 +155,31 @@ describe('notify', () => {
       })
     })
 
+    it('folds a different type onto the same key', async () => {
+      // Walking the schedule wizard posts to three endpoints under one key; the
+      // recipient should end up with one row describing the latest of them.
+      vi.mocked(prisma.notification.findMany).mockResolvedValue([
+        { id: 7, recipientId: 1 },
+      ] as never)
+
+      await notify({
+        type: 'schedule-rotation-changed',
+        recipientIds: [1],
+        actorId: 9,
+        actorName: 'A B',
+        params: { className: '1AHIT' },
+        dedupeKey: 'schedule:1:1',
+      })
+
+      const [lookup] = vi.mocked(prisma.notification.findMany).mock.calls
+      expect(lookup?.[0]?.where).not.toHaveProperty('type')
+      expect(prisma.notification.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: [7] } },
+        data: expect.objectContaining({ type: 'schedule-rotation-changed' }),
+      })
+      expect(prisma.notification.createMany).not.toHaveBeenCalled()
+    })
+
     it('does not look for anything to collapse without a key', async () => {
       await scheduleCreated([1])
       expect(prisma.notification.findMany).not.toHaveBeenCalled()
