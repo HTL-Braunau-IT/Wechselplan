@@ -2,6 +2,7 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { POST } from '../route';
 import { captureError } from '@/lib/sentry';
 import { prisma } from '@/lib/prisma';
+import { makeClass, makeSchedule } from '@/test/fixtures';
 import type { Student, TeacherAssignment, Schedule } from '@prisma/client';
 
 // Mock PDFLayout component
@@ -83,15 +84,7 @@ describe('Export API', () => {
     test('should generate PDF successfully', async () => {
       // Mock class data
       const findUniqueMock = vi.mocked(prisma.class.findUnique);
-      findUniqueMock.mockResolvedValue({
-        id: 1,
-        name: '1A',
-        description: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        classHeadId: null,
-        classLeadId: null,
-      });
+      findUniqueMock.mockResolvedValue(makeClass({ id: 1, name: '1A' }));
 
       // Mock students data
       const findManyStudentsMock = vi.mocked(prisma.student.findMany);
@@ -127,27 +120,20 @@ describe('Export API', () => {
 
       // Mock schedule data
       const findFirstScheduleMock = vi.mocked(prisma.schedule.findFirst);
-      findFirstScheduleMock.mockResolvedValue({
-        id: 1,
-        name: 'Schedule 1',
-        classId: 1,
-        description: null,
-        startDate: new Date('2024-01-01'),
-        endDate: new Date('2024-01-31'),
-        selectedWeekday: 1,
-        scheduleData: {
-          turn1: {
-            weeks: [
-              { date: '2024-01-01' },
-              { date: '2024-01-08' },
-            ],
+      findFirstScheduleMock.mockResolvedValue(
+        makeSchedule({
+          id: 1,
+          name: 'Schedule 1',
+          classId: 1,
+          startDate: new Date('2024-01-01'),
+          endDate: new Date('2024-01-31'),
+          scheduleData: {
+            turn1: {
+              weeks: [{ date: '2024-01-01' }, { date: '2024-01-08' }],
+            },
           },
-        },
-        additionalInfo: null,
-        semesterPlanning: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
+        })
+      );
 
       const request = new Request('http://localhost/api/export?className=1A');
       const response = await POST(request);

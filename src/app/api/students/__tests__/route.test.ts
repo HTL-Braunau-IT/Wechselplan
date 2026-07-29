@@ -1,6 +1,7 @@
 import { describe, test, expect, vi, beforeEach, afterAll } from 'vitest';
 import { GET, POST } from '../route';
 import { prisma } from '@/lib/prisma';
+import { makeClass, makeStudent } from '@/test/fixtures';
 import { captureError } from '@/lib/sentry';
 
 
@@ -48,16 +49,7 @@ describe('Students API', () => {
         name: 'should return 200 with students if found',
         setup: () => {
           const mockStudents = [
-            {
-              id: 1,
-              firstName: 'John',
-              lastName: 'Doe',
-              username: 'john.doe',
-              classId: 1,
-              groupId: 1,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            },
+            makeStudent({ id: 1, firstName: 'John', lastName: 'Doe', username: 'john.doe', classId: 1, groupId: 1 }),
           ];
           vi.mocked(prisma.student.findMany).mockResolvedValue(mockStudents);
         },
@@ -115,16 +107,9 @@ describe('Students API', () => {
       {
         name: 'should return 400 if username already exists',
         setup: () => {
-          vi.mocked(prisma.student.findUnique).mockResolvedValue({
-            id: 1,
-            firstName: 'Jane',
-            lastName: 'Doe',
-            username: 'john.doe',
-            classId: 1,
-            groupId: 1,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
+          vi.mocked(prisma.student.findUnique).mockResolvedValue(
+            makeStudent({ id: 1, firstName: 'Jane', lastName: 'Doe', username: 'john.doe', classId: 1, groupId: 1 })
+          );
         },
         request: () => new Request('http://localhost/api/students', {
           method: 'POST',
@@ -160,25 +145,10 @@ describe('Students API', () => {
         name: 'should return 200 with created student if successful',
         setup: () => {
           vi.mocked(prisma.student.findUnique).mockResolvedValue(null);
-          vi.mocked(prisma.class.findUnique).mockResolvedValue({
-            id: 1,
-            name: '1A',
-            description: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            classHeadId: null,
-            classLeadId: null,
-          });
-          vi.mocked(prisma.student.create).mockResolvedValue({
-            id: 1,
-            firstName: 'John',
-            lastName: 'Doe',
-            username: 'john.doe',
-            classId: 1,
-            groupId: 1,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
+          vi.mocked(prisma.class.findUnique).mockResolvedValue(makeClass({ id: 1, name: '1A' }));
+          vi.mocked(prisma.student.create).mockResolvedValue(
+            makeStudent({ id: 1, firstName: 'John', lastName: 'Doe', username: 'john.doe', classId: 1, groupId: 1 })
+          );
         },
         request: () => new Request('http://localhost/api/students', {
           method: 'POST',

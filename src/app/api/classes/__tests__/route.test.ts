@@ -48,7 +48,7 @@ describe('Classes API', () => {
 
       mockFindMany.mockResolvedValue(mockClasses);
 
-      const response = await GET();
+      const response = await GET(new Request('http://localhost/api/classes'));
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -69,7 +69,7 @@ describe('Classes API', () => {
       const error = new Error('Database error');
       mockFindMany.mockRejectedValue(error);
 
-      const response = await GET();
+      const response = await GET(new Request('http://localhost/api/classes'));
       const data = await response.json();
 
       expect(response.status).toBe(500);

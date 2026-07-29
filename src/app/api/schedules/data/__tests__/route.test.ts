@@ -2,6 +2,16 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { GET } from '../route';
 import { prisma } from '@/lib/prisma';
 import { captureError } from '@/lib/sentry';
+import {
+  makeClass,
+  makeClassMembership,
+  makeSchedule,
+  makeSchoolYear,
+  makeStudent,
+  makeTeacher,
+  makeTeacherAssignment,
+  makeTeacherRotation,
+} from '@/test/fixtures';
 
 
 
@@ -22,7 +32,7 @@ vi.mock('@/lib/sentry', () => ({ captureError: vi.fn() }));
 describe('Schedule Data API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(prisma.schoolYear.findFirst).mockResolvedValue({ id: 1 });
+    vi.mocked(prisma.schoolYear.findFirst).mockResolvedValue(makeSchoolYear({ id: 1 }));
     vi.mocked(prisma.classMembership.findMany).mockResolvedValue([]);
   });
 
@@ -44,15 +54,7 @@ describe('Schedule Data API', () => {
   });
 
   test('should return 200 if no assignments for teacher', async () => {
-    vi.mocked(prisma.teacher.findUnique).mockResolvedValue({
-      id: 1,
-      firstName: 'T',
-      lastName: 'E',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      username: 'foo',
-      email: null,
-    });
+    vi.mocked(prisma.teacher.findUnique).mockResolvedValue(makeTeacher({ id: 1, firstName: 'T', lastName: 'E', username: 'foo' }));
     vi.mocked(prisma.teacherAssignment.findMany).mockResolvedValue([]);
     const req = new Request('http://localhost/api/schedules/data?teacher=foo');
     const res = await GET(req);
@@ -62,29 +64,9 @@ describe('Schedule Data API', () => {
   });
 
   test('should return 200 if no teacher rotation found', async () => {
-    vi.mocked(prisma.teacher.findUnique).mockResolvedValue({
-      id: 1,
-      firstName: 'T',
-      lastName: 'E',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      username: 'foo',
-      email: null,
-    });
+    vi.mocked(prisma.teacher.findUnique).mockResolvedValue(makeTeacher({ id: 1, firstName: 'T', lastName: 'E', username: 'foo' }));
     vi.mocked(prisma.teacherAssignment.findMany).mockResolvedValue([
-      {
-        id: 1,
-        classId: 1,
-        groupId: 1,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        period: '1',
-        teacherId: 1,
-        subjectId: 1,
-        learningContentId: 1,
-        roomId: 1,
-        selectedWeekday: 1,
-      },
+      makeTeacherAssignment(),
     ]);
     vi.mocked(prisma.teacherRotation.findMany).mockResolvedValue([]);
     const req = new Request('http://localhost/api/schedules/data?teacher=foo');
@@ -95,68 +77,22 @@ describe('Schedule Data API', () => {
   });
 
   test('should return 200 if no students found', async () => {
-    vi.mocked(prisma.teacher.findUnique).mockResolvedValue({
-      id: 1,
-      firstName: 'T',
-      lastName: 'E',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      username: 'foo',
-      email: null,
-    });
+    vi.mocked(prisma.teacher.findUnique).mockResolvedValue(makeTeacher({ id: 1, firstName: 'T', lastName: 'E', username: 'foo' }));
     vi.mocked(prisma.teacherAssignment.findMany).mockResolvedValue([
-      {
-        id: 1,
-        classId: 1,
-        groupId: 1,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        period: '1',
-        teacherId: 1,
-        subjectId: 1,
-        learningContentId: 1,
-        roomId: 1,
-        selectedWeekday: 1,
-      },
+      makeTeacherAssignment(),
     ]);
     vi.mocked(prisma.teacherRotation.findMany).mockResolvedValue([
-      {
-        id: 1,
-        classId: 1,
-        groupId: 1,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        period: '1',
-        teacherId: 1,
-        turnId: 'turn1',
-      },
+      makeTeacherRotation(),
     ]);
-    vi.mocked(prisma.class.findUnique).mockResolvedValue({
-      id: 1,
-      name: '1A',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      description: null,
-      classHeadId: null,
-      classLeadId: null,
-    });
+    vi.mocked(prisma.class.findUnique).mockResolvedValue(makeClass({ id: 1, name: '1A' }));
+    // The route selects relations alongside the row, which the generated
+    // findFirst type does not describe, hence the cast.
     vi.mocked(prisma.schedule.findFirst).mockResolvedValue({
-      id: 1,
-      name: 'Schedule',
-      classId: 1,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      description: null,
-      startDate: new Date(),
-      endDate: new Date(),
-      selectedWeekday: 0,
-      scheduleData: {},
-      additionalInfo: null,
-      semesterPlanning: null,
+      ...makeSchedule({ id: 1, name: 'Schedule', classId: 1, selectedWeekday: 0, scheduleData: {} }),
       breakTimes: [],
       scheduleTimes: [],
       turns: [],
-    } as Awaited<ReturnType<typeof prisma.schedule.findFirst>>);
+    } as unknown as Awaited<ReturnType<typeof prisma.schedule.findFirst>>);
     vi.mocked(prisma.student.findMany).mockResolvedValue([]);
     const req = new Request('http://localhost/api/schedules/data?teacher=foo');
     const res = await GET(req);
@@ -166,82 +102,27 @@ describe('Schedule Data API', () => {
   });
 
   test('should return 200 and correct structure if all data is present', async () => {
-    vi.mocked(prisma.teacher.findUnique).mockResolvedValue({
-      id: 1,
-      firstName: 'T',
-      lastName: 'E',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      username: 'foo',
-      email: null,
-    });
+    vi.mocked(prisma.teacher.findUnique).mockResolvedValue(makeTeacher({ id: 1, firstName: 'T', lastName: 'E', username: 'foo' }));
     vi.mocked(prisma.teacherAssignment.findMany).mockResolvedValue([
-      {
-        id: 1,
-        classId: 1,
-        groupId: 1,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        period: '1',
-        teacherId: 1,
-        subjectId: 1,
-        learningContentId: 1,
-        roomId: 1,
-        selectedWeekday: 1,
-      },
+      makeTeacherAssignment(),
     ]);
     vi.mocked(prisma.teacherRotation.findMany).mockResolvedValue([
-      {
-        id: 1,
-        classId: 1,
-        groupId: 1,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        period: '1',
-        teacherId: 1,
-        turnId: 'turn1',
-      },
+      makeTeacherRotation(),
     ]);
-    vi.mocked(prisma.class.findUnique).mockResolvedValue({
-      id: 1,
-      name: '1A',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      description: null,
-      classHeadId: null,
-      classLeadId: null,
-    });
+    vi.mocked(prisma.class.findUnique).mockResolvedValue(makeClass({ id: 1, name: '1A' }));
+    // The route selects relations alongside the row, which the generated
+    // findFirst type does not describe, hence the cast.
     vi.mocked(prisma.schedule.findFirst).mockResolvedValue({
-      id: 1,
-      name: 'Schedule',
-      classId: 1,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      description: null,
-      startDate: new Date(),
-      endDate: new Date(),
-      selectedWeekday: 0,
-      scheduleData: {},
-      additionalInfo: null,
-      semesterPlanning: null,
+      ...makeSchedule({ id: 1, name: 'Schedule', classId: 1, selectedWeekday: 0, scheduleData: {} }),
       breakTimes: [],
       scheduleTimes: [],
       turns: [],
-    } as Awaited<ReturnType<typeof prisma.schedule.findFirst>>);
+    } as unknown as Awaited<ReturnType<typeof prisma.schedule.findFirst>>);
     vi.mocked(prisma.classMembership.findMany).mockResolvedValue([
-      { studentId: 1 },
+      makeClassMembership({ studentId: 1 }),
     ]);
     vi.mocked(prisma.student.findMany).mockResolvedValue([
-      {
-        id: 1,
-        firstName: 'S',
-        lastName: 'T',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        username: 'student',
-        classId: 1,
-        groupId: 1,
-      },
+      makeStudent({ id: 1, firstName: 'S', lastName: 'T', username: 'student', classId: 1, groupId: 1 }),
     ]);
     const req = new Request('http://localhost/api/schedules/data?teacher=foo');
     const res = await GET(req);

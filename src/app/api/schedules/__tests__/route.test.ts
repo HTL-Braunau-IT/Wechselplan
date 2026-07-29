@@ -3,6 +3,7 @@ import { GET, POST } from '../route'
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { makeClass, makeSchedule } from '@/test/fixtures'
 
 
 
@@ -31,33 +32,23 @@ describe('Schedules API', () => {
   describe('GET /api/schedules', () => {
     it('should return schedules for a class and weekday', async () => {
       // Mock data
-      const mockClass = {
-        id: 1,
-        name: '1A',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        description: null,
-        classHeadId: null,
-        classLeadId: null
-      }
+      const mockClass = makeClass({ id: 1, name: '1A' })
 
+      // The route selects `turns` alongside the row, which the generated
+      // findMany type does not describe, hence the cast.
       const mockSchedules = [
         {
-          id: 1,
-          name: 'Schedule 1',
-          description: 'Test schedule',
-          startDate: new Date('2024-01-01T00:00:00.000Z'),
-          endDate: new Date('2024-01-31T00:00:00.000Z'),
-          selectedWeekday: 1,
-          classId: 1,
-          scheduleData: null,
-          additionalInfo: null,
-          semesterPlanning: null,
-          createdAt: new Date('2025-06-11T11:56:57.353Z'),
-          updatedAt: new Date('2025-06-11T11:56:57.353Z'),
+          ...makeSchedule({
+            id: 1,
+            name: 'Schedule 1',
+            description: 'Test schedule',
+            startDate: new Date('2024-01-01T00:00:00.000Z'),
+            endDate: new Date('2024-01-31T00:00:00.000Z'),
+            classId: 1,
+          }),
           turns: []
         }
-      ]
+      ] as unknown as Awaited<ReturnType<typeof prisma.schedule.findMany>>
 
       // Mock the database responses
       vi.mocked(prisma.class.findFirst).mockResolvedValue(mockClass)
@@ -139,20 +130,16 @@ describe('Schedules API', () => {
   describe('POST /api/schedules', () => {
     it('should create a new schedule', async () => {
       // Mock data
-      const mockSchedule = {
+      const mockSchedule = makeSchedule({
         id: 1,
         name: 'New Schedule',
         description: 'Test schedule',
         startDate: new Date('2024-01-01T00:00:00.000Z'),
         endDate: new Date('2024-01-31T00:00:00.000Z'),
-        selectedWeekday: 1,
         classId: 1,
         scheduleData: {},
-        additionalInfo: null,
         semesterPlanning: null,
-        createdAt: new Date('2025-06-11T11:56:57.353Z'),
-        updatedAt: new Date('2025-06-11T11:56:57.353Z')
-      }
+      })
 
       // Mock the database responses
       vi.mocked(prisma.schedule.findFirst).mockResolvedValue(null) // No existing schedule
@@ -311,20 +298,16 @@ describe('Schedules API', () => {
 
     it('should create a schedule with first semester planning', async () => {
       // Mock data
-      const mockSchedule = {
+      const mockSchedule = makeSchedule({
         id: 1,
         name: 'First Semester Schedule',
         description: 'Test first semester schedule',
         startDate: new Date('2024-01-01T00:00:00.000Z'),
         endDate: new Date('2024-01-31T00:00:00.000Z'),
-        selectedWeekday: 1,
         classId: 1,
         scheduleData: {},
-        additionalInfo: null,
         semesterPlanning: 'first',
-        createdAt: new Date('2025-06-11T11:56:57.353Z'),
-        updatedAt: new Date('2025-06-11T11:56:57.353Z')
-      }
+      })
 
       // Mock the database responses
       vi.mocked(prisma.schedule.findFirst).mockResolvedValue(null) // No existing schedule

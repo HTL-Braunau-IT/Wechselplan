@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GET } from '../route';
 import { prisma } from '@/lib/prisma';
+import { makeClass } from '@/test/fixtures';
 import { captureError } from '@/lib/sentry';
 
 // Mock prisma
@@ -24,25 +25,23 @@ describe('Classes Get By Name API', () => {
 
   describe('GET /api/classes/get-by-name', () => {
     it('should return class by name', async () => {
+      // The route selects classHead/classLead alongside the row, which the
+      // generated findUnique type does not describe, hence the cast.
       const mockClass = {
-        id: 1,
-        name: 'Class A',
-        description: 'Description A',
-        createdAt: new Date('2024-03-20T09:30:00Z'),
-        updatedAt: new Date('2024-03-20T09:30:00Z'),
-        classHeadId: 1,
-        classLeadId: 2,
-        classHead: {
-          firstName: 'John',
-          lastName: 'Doe'
-        },
-        classLead: {
-          firstName: 'Jane',
-          lastName: 'Smith'
-        }
+        ...makeClass({
+          id: 1,
+          name: 'Class A',
+          description: 'Description A',
+          classHeadId: 1,
+          classLeadId: 2,
+        }),
+        classHead: { firstName: 'John', lastName: 'Doe' },
+        classLead: { firstName: 'Jane', lastName: 'Smith' },
       };
 
-      vi.mocked(prisma.class.findUnique).mockResolvedValue(mockClass);
+      vi.mocked(prisma.class.findUnique).mockResolvedValue(
+        mockClass as unknown as Awaited<ReturnType<typeof prisma.class.findUnique>>
+      );
 
       const request = new Request('http://localhost/api/classes/get-by-name?name=Class%20A');
       const response = await GET(request);
