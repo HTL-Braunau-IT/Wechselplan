@@ -5,6 +5,10 @@ export default tseslint.config(
   {
     ignores: [
       '.next',
+      // Agent worktrees are separate checkouts of this repo that happen to live
+      // inside it (gitignored). They carry no node_modules, so type-aware rules
+      // resolve this tree's generated Prisma client against their stale source.
+      '.claude/worktrees/**',
       '**/*.test.ts',
       '**/*.test.tsx',
       '**/*.spec.ts',

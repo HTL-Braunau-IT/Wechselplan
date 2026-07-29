@@ -362,7 +362,6 @@ model SupportMessage {
 model DirectorySyncSettings {
   id                  Int       @id @default(1)
   syncedClassGroupIds String[]  @default([])
-  syncMode            String    @default("hybrid")
   syncEnabled         Boolean   @default(false)
   studentPhotoSourcePriority String @default("manual_first")
   teacherPhotoSourcePriority String @default("manual_first")

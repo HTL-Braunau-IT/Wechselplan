@@ -46,7 +46,6 @@ interface EntraGroup {
 
 interface DirectorySyncSettings {
   syncedClassGroupIds: string[]
-  syncMode: 'hybrid' | 'nightly_only'
   syncEnabled: boolean
   studentPhotoSourcePriority: 'manual_first' | 'o365_first'
   teacherPhotoSourcePriority: 'manual_first' | 'o365_first'
@@ -373,12 +372,9 @@ export default function EntraSyncSettingsPage() {
         description="Wähle aus, welche Entra-Sicherheitsgruppen als Klassen gelten. Die Lehrkräfte-Gruppe wird über die Umgebungsvariable konfiguriert."
         actions={
           settings ? (
-            <>
-              <Badge variant="outline">Modus: {settings.syncMode}</Badge>
-              <Badge variant={settings.syncEnabled ? 'default' : 'outline'}>
-                {settings.syncEnabled ? 'Auto-Sync aktiv' : 'Auto-Sync aus'}
-              </Badge>
-            </>
+            <Badge variant={settings.syncEnabled ? 'default' : 'outline'}>
+              {settings.syncEnabled ? 'Auto-Sync aktiv' : 'Auto-Sync aus'}
+            </Badge>
           ) : null
         }
       />

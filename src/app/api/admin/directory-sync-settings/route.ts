@@ -7,7 +7,6 @@ import {
   getDirectorySyncSettings,
   updateDirectorySyncSettings,
   type DirectorySyncSettingsUpdate,
-  type SyncMode,
   type StudentPhotoSourcePriority,
 } from '@/lib/directory-sync-settings'
 
@@ -30,10 +29,6 @@ export async function GET() {
   }
 }
 
-function isSyncMode(value: unknown): value is SyncMode {
-  return value === 'hybrid' || value === 'nightly_only'
-}
-
 function isStudentPhotoSourcePriority(value: unknown): value is StudentPhotoSourcePriority {
   return value === 'manual_first' || value === 'o365_first'
 }
@@ -47,7 +42,6 @@ export async function PUT(request: Request) {
   try {
     const body = (await request.json().catch(() => ({}))) as {
       syncedClassGroupIds?: unknown
-      syncMode?: unknown
       syncEnabled?: unknown
       studentPhotoSourcePriority?: unknown
       teacherPhotoSourcePriority?: unknown
@@ -66,16 +60,6 @@ export async function PUT(request: Request) {
         )
       }
       update.syncedClassGroupIds = body.syncedClassGroupIds as string[]
-    }
-
-    if (body.syncMode !== undefined) {
-      if (!isSyncMode(body.syncMode)) {
-        return NextResponse.json(
-          { error: "syncMode must be 'hybrid' or 'nightly_only'" },
-          { status: 400 },
-        )
-      }
-      update.syncMode = body.syncMode
     }
 
     if (body.syncEnabled !== undefined) {

@@ -1,12 +1,10 @@
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 
-export type SyncMode = 'hybrid' | 'nightly_only'
 export type StudentPhotoSourcePriority = 'manual_first' | 'o365_first'
 
 export interface DirectorySyncSettings {
   syncedClassGroupIds: string[]
-  syncMode: SyncMode
   syncEnabled: boolean
   studentPhotoSourcePriority: StudentPhotoSourcePriority
   teacherPhotoSourcePriority: StudentPhotoSourcePriority
@@ -24,10 +22,6 @@ function parseCsvEnv(value: string | undefined): string[] {
     .filter(Boolean)
 }
 
-function parseSyncMode(value: string | undefined | null): SyncMode {
-  return value === 'nightly_only' ? 'nightly_only' : 'hybrid'
-}
-
 function parseSyncEnabled(value: string | undefined): boolean {
   if (value === undefined) return false
   const normalized = value.trim().toLowerCase()
@@ -43,7 +37,6 @@ function parseStudentPhotoSourcePriority(
 function envFallbackSettings(): DirectorySyncSettings {
   return {
     syncedClassGroupIds: parseCsvEnv(process.env.ENTRA_SYNC_CLASS_GROUP_IDS),
-    syncMode: parseSyncMode(process.env.ENTRA_SYNC_MODE),
     syncEnabled: parseSyncEnabled(process.env.ENTRA_SYNC_ENABLED),
     studentPhotoSourcePriority: parseStudentPhotoSourcePriority(
       process.env.ENTRA_STUDENT_PHOTO_SOURCE_PRIORITY,
@@ -81,7 +74,6 @@ export async function getDirectorySyncSettings(): Promise<DirectorySyncSettings>
 
     return {
       syncedClassGroupIds: row.syncedClassGroupIds ?? [],
-      syncMode: parseSyncMode(row.syncMode),
       syncEnabled: row.syncEnabled,
       studentPhotoSourcePriority: parseStudentPhotoSourcePriority(
         rowWithPhotoSettings.studentPhotoSourcePriority,
@@ -140,7 +132,6 @@ export function invalidateSyncedClassGroupIdsCache(): void {
 
 export interface DirectorySyncSettingsUpdate {
   syncedClassGroupIds?: string[]
-  syncMode?: SyncMode
   syncEnabled?: boolean
   studentPhotoSourcePriority?: StudentPhotoSourcePriority
   teacherPhotoSourcePriority?: StudentPhotoSourcePriority
@@ -161,7 +152,6 @@ export async function updateDirectorySyncSettings(
     where: { id: SETTINGS_ROW_ID },
     update: {
       ...(cleanedGroupIds !== undefined ? { syncedClassGroupIds: cleanedGroupIds } : {}),
-      ...(update.syncMode !== undefined ? { syncMode: update.syncMode } : {}),
       ...(update.syncEnabled !== undefined ? { syncEnabled: update.syncEnabled } : {}),
       ...(update.studentPhotoSourcePriority !== undefined
         ? { studentPhotoSourcePriority: update.studentPhotoSourcePriority }
@@ -173,7 +163,6 @@ export async function updateDirectorySyncSettings(
     create: {
       id: SETTINGS_ROW_ID,
       syncedClassGroupIds: cleanedGroupIds ?? parseCsvEnv(process.env.ENTRA_SYNC_CLASS_GROUP_IDS),
-      syncMode: update.syncMode ?? parseSyncMode(process.env.ENTRA_SYNC_MODE),
       syncEnabled: update.syncEnabled ?? parseSyncEnabled(process.env.ENTRA_SYNC_ENABLED),
       studentPhotoSourcePriority:
         update.studentPhotoSourcePriority ??
@@ -190,7 +179,6 @@ export async function updateDirectorySyncSettings(
 
   return {
     syncedClassGroupIds: row.syncedClassGroupIds ?? [],
-    syncMode: parseSyncMode(row.syncMode),
     syncEnabled: row.syncEnabled,
     studentPhotoSourcePriority: parseStudentPhotoSourcePriority(
       rowWithPhotoSettings.studentPhotoSourcePriority,
@@ -222,7 +210,6 @@ export async function recordSyncRun(result: {
       create: {
         id: SETTINGS_ROW_ID,
         syncedClassGroupIds: parseCsvEnv(process.env.ENTRA_SYNC_CLASS_GROUP_IDS),
-        syncMode: parseSyncMode(process.env.ENTRA_SYNC_MODE),
         syncEnabled: parseSyncEnabled(process.env.ENTRA_SYNC_ENABLED),
         studentPhotoSourcePriority: parseStudentPhotoSourcePriority(
           process.env.ENTRA_STUDENT_PHOTO_SOURCE_PRIORITY,
