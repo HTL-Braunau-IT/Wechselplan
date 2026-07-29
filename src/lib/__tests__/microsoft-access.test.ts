@@ -149,3 +149,63 @@ describe('resolveMicrosoftAccess', () => {
     expect(checkMemberGroups).not.toHaveBeenCalled()
   })
 })
+
+describe('Entra profile mapping', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    process.env.ENTRA_CLIENT_ID = 'client'
+    process.env.ENTRA_CLIENT_SECRET = 'secret'
+    process.env.ENTRA_TENANT_ID = 'tenant'
+  })
+
+  afterEach(() => {
+    delete process.env.ENTRA_CLIENT_ID
+    delete process.env.ENTRA_CLIENT_SECRET
+    delete process.env.ENTRA_TENANT_ID
+  })
+
+  /**
+   * `AzureADProvider` returns its defaults with the caller's options parked on
+   * `.options`, and next-auth merges the two when it builds the provider. So the
+   * override we care about lives there, not on the top-level `profile` — which
+   * is still next-auth's default, and would try to fetch a profile photo.
+   */
+  async function mapProfile(profile: Record<string, unknown>) {
+    const { authOptions } = await import('@/lib/auth')
+    const provider = authOptions.providers[0] as unknown as {
+      options: {
+        profile: (p: Record<string, unknown>) => {
+          id: string
+          firstName: string | null
+          lastName: string | null
+        }
+      }
+    }
+    return provider.options.profile(profile)
+  }
+
+  it('uses the Entra object id, not sub, as the identifier', () => {
+    return expect(
+      mapProfile({ oid: 'oid-1', sub: 'sub-1', name: 'Anna Müller' }),
+    ).resolves.toMatchObject({ id: 'oid-1' })
+  })
+
+  it('splits the display name when Entra omits both name parts', () => {
+    return expect(mapProfile({ oid: 'o', name: 'Anna Müller' })).resolves.toMatchObject({
+      firstName: 'Anna',
+      lastName: 'Müller',
+    })
+  })
+
+  it('does not repeat the surname when only given_name is missing', () => {
+    return expect(
+      mapProfile({ oid: 'o', name: 'Anna Müller', family_name: 'Müller' }),
+    ).resolves.toMatchObject({ firstName: 'Anna', lastName: 'Müller' })
+  })
+
+  it('falls back to the whole display name when it does not end in the surname', () => {
+    return expect(
+      mapProfile({ oid: 'o', name: 'Anna', family_name: 'Müller' }),
+    ).resolves.toMatchObject({ firstName: 'Anna', lastName: 'Müller' })
+  })
+})

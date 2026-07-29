@@ -131,6 +131,16 @@ rows so the damage is at least visible in the meantime.
 
 ## Tests
 
-`src/lib/__tests__/class-student-sync-move.test.ts` covers: the move is reported with the
-group it costs, the group is cleared on apply, `ClassMembership` is repointed, a
-profile-only change keeps the group, and a rename carries `GroupAssignment` across.
+`src/lib/__tests__/class-student-sync-move.test.ts` covers:
+
+- a live move is reported with the group it costs, and clears it on apply
+- `ClassMembership` is repointed to the new class for the school year
+- a profile-only change keeps the group
+- a deactivated student returning into a *different* class reports and clears the group too
+- a deactivated student returning into the *same* class keeps it
+- a rename carries `GroupAssignment` across to the new class name
+
+`src/lib/__tests__/microsoft-access.test.ts` additionally pins the Entra profile mapping —
+that the object id rather than `sub` becomes the identifier sync keys on, which matters
+because `AzureADProvider` parks the caller's overrides on `.options` and merges them later,
+so it is easy to believe an override is live when it is not.

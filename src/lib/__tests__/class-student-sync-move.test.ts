@@ -215,6 +215,90 @@ describe('a student whose profile changed but whose class did not', () => {
   })
 })
 
+describe('a deactivated student reappearing in a different class', () => {
+  beforeEach(() => {
+    classRows = [localClass(1, '1AHIT', GROUP_A.id), localClass(2, '1BHIT', GROUP_B.id)]
+    studentRows = [
+      {
+        id: 52,
+        firstName: 'Anna',
+        lastName: 'Huber',
+        username: 'anna.huber',
+        email: 'anna.huber@school.at',
+        classId: 1,
+        groupId: 2,
+        externalId: 'anna-oid',
+        externalSource: 'entra',
+        isActive: false,
+        syncStatus: 'active',
+        class: { name: '1AHIT' },
+      },
+    ]
+    collectGroupMembers.mockImplementation(async (groupId: string) =>
+      groupId === GROUP_B.id ? [entraMember('anna-oid', 'Anna', 'Huber')] : [],
+    )
+  })
+
+  it('shows the class move and the group it costs before applying', async () => {
+    const { previewClassStudentSync } = await loadSync()
+    const diff = await previewClassStudentSync()
+
+    expect(diff.students.toReactivate).toHaveLength(1)
+    expect(diff.students.toReactivate[0]!.classChange).toEqual({
+      fromClassName: '1AHIT',
+      toGroupDisplayName: '1BHIT',
+      clearedGroupId: 2,
+    })
+  })
+
+  it('clears the rotation group on apply', async () => {
+    const { applyClassStudentSync } = await loadSync()
+    await applyClassStudentSync()
+
+    expect(studentUpdates).toHaveLength(1)
+    expect(studentUpdates[0]!.data).toMatchObject({
+      classId: 2,
+      groupId: null,
+      isActive: true,
+      deactivatedAt: null,
+    })
+  })
+})
+
+describe('a deactivated student reappearing in the same class', () => {
+  beforeEach(() => {
+    classRows = [localClass(1, '1AHIT', GROUP_A.id), localClass(2, '1BHIT', GROUP_B.id)]
+    studentRows = [
+      {
+        id: 53,
+        firstName: 'Anna',
+        lastName: 'Huber',
+        username: 'anna.huber',
+        email: 'anna.huber@school.at',
+        classId: 1,
+        groupId: 2,
+        externalId: 'anna-oid',
+        externalSource: 'entra',
+        isActive: false,
+        syncStatus: 'active',
+        class: { name: '1AHIT' },
+      },
+    ]
+    collectGroupMembers.mockImplementation(async (groupId: string) =>
+      groupId === GROUP_A.id ? [entraMember('anna-oid', 'Anna', 'Huber')] : [],
+    )
+  })
+
+  it('keeps the rotation group they left with', async () => {
+    const { applyClassStudentSync } = await loadSync()
+    await applyClassStudentSync()
+
+    expect(studentUpdates).toHaveLength(1)
+    expect(studentUpdates[0]!.data.isActive).toBe(true)
+    expect(studentUpdates[0]!.data).not.toHaveProperty('groupId')
+  })
+})
+
 describe('a class renamed in Entra', () => {
   beforeEach(() => {
     classRows = [localClass(1, '1AHIT', GROUP_A.id)]

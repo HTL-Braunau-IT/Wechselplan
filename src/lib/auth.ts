@@ -38,9 +38,11 @@ const accessCache = new Map<string, { value: MicrosoftAccess; expiresAt: number 
  * settings UI writes; the `ENTRA_SYNC_CLASS_GROUP_IDS` env var is only a
  * first-run bootstrap and is applied inside `getDirectorySyncSettings`.
  *
- * With nothing configured this denies rather than falling open. That is the
- * safe direction, but it does mean a tenant that has not yet picked class
- * groups locks everyone except the super admin out.
+ * With neither a teacher group nor any class group configured there is nothing
+ * to ask Graph about, and this denies rather than falling open. That is the
+ * safe direction, but note it locks out *everyone*, super admin included:
+ * ENTRA_SUPER_ADMIN_OBJECT_ID is applied in the `jwt` callback, which never
+ * runs once `signIn` has refused. Set ENTRA_TEACHER_GROUP_ID before first boot.
  */
 export async function resolveMicrosoftAccess(objectId: string): Promise<MicrosoftAccess> {
   const oid = objectId?.trim()
@@ -248,7 +250,13 @@ export const authOptions: NextAuthOptions = {
             lastName = parts.slice(1).join(' ') || null
           }
         } else if (!firstName && displayName) {
-          firstName = displayName
+          // Only `given_name` is missing, so `displayName` still contains the
+          // surname we already have. Assigning it wholesale produced
+          // "Anna Müller Müller"; strip the known surname off the end instead.
+          firstName =
+            lastName && displayName.endsWith(lastName)
+              ? displayName.slice(0, -lastName.length).trim() || displayName
+              : displayName
         }
 
         return {

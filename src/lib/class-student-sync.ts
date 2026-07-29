@@ -84,21 +84,30 @@ export interface StudentSyncCreate {
   target: StudentTargetClass
 }
 
+/**
+ * The class a student is moving to, and what that move costs them.
+ *
+ * Shared by the update and reactivate rows: a returning student can come back
+ * into a different class than the one they left, and that clears their rotation
+ * group for the same reason a live move does.
+ */
+export interface StudentClassChange {
+  fromClassName: string | null
+  toGroupDisplayName: string
+  /**
+   * The rotation group the student loses by moving. Groups are numbered per
+   * class, so the number carries no meaning in the destination — see the
+   * `studentUpdates` loop in `applyClassStudentSync`.
+   */
+  clearedGroupId: number | null
+}
+
 export interface StudentSyncUpdate {
   existing: StudentRowSummary
   entra: EntraUser
   changes: StudentChange[]
   willAdopt: boolean
-  classChange: {
-    fromClassName: string | null
-    toGroupDisplayName: string
-    /**
-     * The rotation group the student loses by moving. Groups are numbered per
-     * class, so the number carries no meaning in the destination — see
-     * {@link StudentSyncUpdate} handling in `applyClassStudentSync`.
-     */
-    clearedGroupId: number | null
-  } | null
+  classChange: StudentClassChange | null
   target: StudentTargetClass
 }
 
@@ -111,6 +120,7 @@ export interface StudentSyncReactivate {
   entra: EntraUser
   target: StudentTargetClass
   changes: StudentChange[]
+  classChange: StudentClassChange | null
 }
 
 export interface StudentSyncUnchanged {
@@ -567,7 +577,7 @@ export async function previewClassStudentSync(
         : null
 
     if (!existing.isActive) {
-      studentsToReactivate.push({ existing: summary, entra: user, target, changes })
+      studentsToReactivate.push({ existing: summary, entra: user, target, changes, classChange })
       continue
     }
 

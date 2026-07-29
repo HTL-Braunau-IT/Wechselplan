@@ -155,9 +155,10 @@ The code is ready; the rollout is not something code can do.
 
    It reports every active Student/Teacher/Class row whose `externalSource` is not `entra`,
    with the dependent-record counts each one would strand, plus any `GroupAssignment` rows
-   pointing at a class name no active class holds. Exit code 0 means safe to cut over, 1 means
-   there is work left. An unadopted row is not merely stale after cutover — sync only ever
-   deactivates rows it owns, so it will never even be reported.
+   pointing at a class name no active class holds. Exit code 0 means the audit found none of
+   those; it says nothing about steps 2 and 3, which it cannot see. An unadopted row is not
+   merely stale after cutover — sync only ever deactivates rows it owns, so it will never even
+   be reported.
 
 2. **Rotate `NEXTAUTH_SECRET`.** Sessions minted by the LDAP provider are valid for 30 days and
    their `sub` is a username, not an Entra object id, so their role cannot be re-resolved against
@@ -165,10 +166,16 @@ The code is ready; the rollout is not something code can do.
    powerless `user` role, but rotating the secret is what actually ends those sessions.
 
 3. **Confirm every human has an Entra path in.** With LDAP gone there is no fallback: a teacher
-   missing from `ENTRA_TEACHER_GROUP_ID` cannot log in at all. Note that
-   `resolveMicrosoftAccess` denies rather than falling open when nothing is configured, so a
-   tenant that has not picked class groups in `/admin/settings/entra-sync` locks out everyone
-   except the super admin.
+   who is in neither `ENTRA_TEACHER_GROUP_ID` nor a synced class group cannot log in at all.
+
+   The two paths are independent. Configuring the teacher group but no class groups admits
+   teachers and locks out students; configuring class groups but no teacher group admits
+   everyone as a `student`. Only when **neither** is configured does `resolveMicrosoftAccess`
+   have nothing to ask Graph about, and it then denies rather than falling open — which locks
+   out *everyone, including the super admin*, because `ENTRA_SUPER_ADMIN_OBJECT_ID` is applied
+   in the `jwt` callback and never runs if `signIn` has already refused. Set
+   `ENTRA_TEACHER_GROUP_ID` before first boot; it is the bootstrap path into
+   `/admin/settings/entra-sync`, where the class groups are picked.
 
 ---
 

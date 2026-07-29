@@ -22,7 +22,31 @@ import {
   useSyncPreview,
 } from '@/components/sync/use-sync-preview'
 import { useSchoolYear } from '@/contexts/school-year-context'
-import type { ClassStudentSyncDiff, ClassStudentSyncSummary } from '@/lib/class-student-sync'
+import type {
+  ClassStudentSyncDiff,
+  ClassStudentSyncSummary,
+  StudentClassChange,
+} from '@/lib/class-student-sync'
+
+/**
+ * Shows where a student is moving and, when the move costs them their rotation
+ * group, says so. Shared by the update and reactivate tables — a returning
+ * student can come back into a different class than the one they left, and
+ * apply clears the group in that case too.
+ */
+function ClassChangeCell({ change }: { change: StudentClassChange | null }) {
+  if (!change) return <span className="text-muted-foreground text-xs">–</span>
+  return (
+    <span className="text-xs">
+      {change.fromClassName ?? '–'} → {change.toGroupDisplayName}
+      {change.clearedGroupId != null && (
+        <span className="text-muted-foreground block">
+          Gruppe {change.clearedGroupId} wird aufgehoben
+        </span>
+      )}
+    </span>
+  )
+}
 
 type Bucket =
   | 'classCreate'
@@ -464,20 +488,7 @@ export function ClassStudentSyncDialog({
                         { header: 'Benutzername', cell: r => <Mono>{r.entra.username}</Mono> },
                         {
                           header: 'Klassenwechsel',
-                          cell: r =>
-                            r.classChange ? (
-                              <span className="text-xs">
-                                {r.classChange.fromClassName ?? '–'} →{' '}
-                                {r.classChange.toGroupDisplayName}
-                                {r.classChange.clearedGroupId != null && (
-                                  <span className="text-muted-foreground block">
-                                    Gruppe {r.classChange.clearedGroupId} wird aufgehoben
-                                  </span>
-                                )}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground text-xs">–</span>
-                            ),
+                          cell: r => <ClassChangeCell change={r.classChange} />,
                         },
                         { header: 'Änderungen', cell: r => <ChangeBadges changes={r.changes} /> },
                         { header: 'Modus', cell: r => <AdoptBadge willAdopt={r.willAdopt} /> },
@@ -542,6 +553,10 @@ export function ClassStudentSyncDialog({
                         { header: 'Klasse', cell: r => r.target.groupDisplayName },
                         { header: 'Name', cell: r => `${r.entra.firstName} ${r.entra.lastName}` },
                         { header: 'Benutzername', cell: r => <Mono>{r.entra.username}</Mono> },
+                        {
+                          header: 'Klassenwechsel',
+                          cell: r => <ClassChangeCell change={r.classChange} />,
+                        },
                       ]}
                     />
                   )}
