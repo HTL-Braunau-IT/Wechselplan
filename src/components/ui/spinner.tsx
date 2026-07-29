@@ -13,24 +13,24 @@ interface SpinnerProps {
  * <Spinner />
  *
  * @example
- * // Large blue spinner
- * <Spinner size="lg" className="text-blue-500" />
+ * // Large spinner
+ * <Spinner size="lg" />
  *
  * @param size - Spinner size; one of 'sm', 'md', or 'lg'. Defaults to 'md'.
  * @param className - Additional CSS classes to apply to the spinner.
  */
 export function Spinner({ className, size = 'md' }: SpinnerProps) {
   const sizeClasses = {
-    sm: 'h-4 w-4',
-    md: 'h-8 w-8',
-    lg: 'h-12 w-12',
+    sm: 'h-4 w-4 border-2',
+    md: 'h-8 w-8 border-[3px]',
+    lg: 'h-12 w-12 border-4',
   }
 
   return (
-    <div className="flex items-center justify-center">
+    <div className="flex items-center justify-center" role="status" aria-label="Wird geladen">
       <div
         className={cn(
-          'border-t-primary animate-spin rounded-full border-4 border-gray-200',
+          'border-muted border-t-primary animate-spin rounded-full',
           sizeClasses[size],
           className,
         )}

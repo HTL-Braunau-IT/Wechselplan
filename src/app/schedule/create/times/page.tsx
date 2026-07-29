@@ -1,7 +1,10 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
+import { Clock } from 'lucide-react'
 import { ScheduleTimesSelector } from '@/components/schedule/schedule-times-selector'
+import { PageContainer } from '@/components/ui/page-container'
+import { PageHeader } from '@/components/ui/page-header'
 
 /**
  * Page component for managing schedule and break times.
@@ -22,8 +25,13 @@ export default function TimesPage() {
   }
 
   return (
-    <div className="container mx-auto p-4">
+    <PageContainer size="wide" className="space-y-6">
+      <PageHeader
+        icon={Clock}
+        title="Zeiten festlegen"
+        description="Unterrichts- und Pausenzeiten für den Stundenplan auswählen"
+      />
       <ScheduleTimesSelector className={className} onSave={handleSave} onCancel={handleCancel} />
-    </div>
+    </PageContainer>
   )
 }

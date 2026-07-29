@@ -47,7 +47,9 @@ export function ModelTab({
 
   return (
     <div className="space-y-4">
-      {toolbar ? <div className="flex items-center justify-end gap-2">{toolbar}</div> : null}
+      {toolbar ? (
+        <div className="flex flex-wrap items-center justify-end gap-2">{toolbar}</div>
+      ) : null}
       <DataTable
         model={label}
         columns={columns}

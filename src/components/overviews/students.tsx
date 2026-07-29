@@ -6,6 +6,8 @@ import { AlertTriangle } from 'lucide-react'
 import { useScheduleOverview } from '@/hooks/use-schedule-overview'
 import { ScheduleOverview } from '@/components/schedule-overview'
 import { Spinner } from '@/components/ui/spinner'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { parse, isValid, isWithinInterval, addWeeks } from 'date-fns'
 import type {
   ScheduleResponse,
@@ -126,12 +128,10 @@ export function StudentOverview() {
 
   if (error) {
     return (
-      <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 shadow-sm dark:border-yellow-800 dark:bg-yellow-900/20">
-        <div className="flex items-center gap-2">
-          <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-500" />
-          <p className="text-yellow-800 dark:text-yellow-200">{error}</p>
-        </div>
-      </div>
+      <Alert variant="warning">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
     )
   }
 
@@ -149,15 +149,11 @@ export function StudentOverview() {
     ) : (
       <Tabs defaultValue={`${selectedWeekday}`} className="w-full" onValueChange={handleTabChange}>
         <TabsList
-          className="grid w-full bg-gray-100 dark:bg-gray-800"
+          className="grid w-full"
           style={{ gridTemplateColumns: `repeat(${availableWeekdays.length}, 1fr)` }}
         >
           {availableWeekdays.map(weekday => (
-            <TabsTrigger
-              key={weekday}
-              value={`${weekday}`}
-              className="data-[state=active]:bg-white dark:text-gray-300 dark:data-[state=active]:bg-gray-700"
-            >
+            <TabsTrigger key={weekday} value={`${weekday}`}>
               {getWeekdayName(weekday)}
             </TabsTrigger>
           ))}
@@ -261,101 +257,50 @@ function StudentCurrentAssignments({
     return null
   }
 
-  return (
-    <div className="mb-8 rounded-lg border border-gray-200 bg-white shadow-md dark:border-gray-700 dark:bg-gray-800">
-      <div className="p-4">
-        <h3 className="mb-4 text-lg font-semibold dark:text-white">
-          {t('overview.student.currentAssignments')}
-        </h3>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {/* AM Period */}
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-700/50">
-            <p className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
-              {t('overview.teacher.amGroup')}
+  const renderPeriod = (label: string, assignment: TeacherAssignmentResponse | null) => (
+    <div className="bg-muted/50 rounded-lg border p-3">
+      <p className="text-foreground mb-2 text-sm font-semibold">{label}</p>
+      {assignment ? (
+        <div className="space-y-2">
+          <div>
+            <p className="text-muted-foreground mb-1 text-xs">{t('overview.student.teacher')}</p>
+            <p className="text-foreground font-semibold">
+              {assignment.teacherFirstName} {assignment.teacherLastName}
             </p>
-            {amAssignment ? (
-              <div className="space-y-2">
-                <div>
-                  <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
-                    {t('overview.student.teacher')}
-                  </p>
-                  <p className="font-semibold text-gray-900 dark:text-white">
-                    {amAssignment.teacherFirstName} {amAssignment.teacherLastName}
-                  </p>
-                </div>
-                <div>
-                  <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
-                    {t('overview.student.subject')}
-                  </p>
-                  <p className="text-sm text-gray-700 dark:text-gray-300">{amAssignment.subject}</p>
-                </div>
-                <div>
-                  <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
-                    {t('overview.student.learningContent')}
-                  </p>
-                  <p className="text-sm text-gray-700 dark:text-gray-300">
-                    {amAssignment.learningContent}
-                  </p>
-                </div>
-                <div>
-                  <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
-                    {t('overview.student.room')}
-                  </p>
-                  <p className="text-sm text-gray-700 dark:text-gray-300">{amAssignment.room}</p>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500 italic dark:text-gray-400">
-                {t('overview.student.noAssignment')}
-              </p>
-            )}
           </div>
-
-          {/* PM Period */}
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-700/50">
-            <p className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
-              {t('overview.teacher.pmGroup')}
+          <div>
+            <p className="text-muted-foreground mb-1 text-xs">{t('overview.student.subject')}</p>
+            <p className="text-sm">{assignment.subject}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground mb-1 text-xs">
+              {t('overview.student.learningContent')}
             </p>
-            {pmAssignment ? (
-              <div className="space-y-2">
-                <div>
-                  <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
-                    {t('overview.student.teacher')}
-                  </p>
-                  <p className="font-semibold text-gray-900 dark:text-white">
-                    {pmAssignment.teacherFirstName} {pmAssignment.teacherLastName}
-                  </p>
-                </div>
-                <div>
-                  <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
-                    {t('overview.student.subject')}
-                  </p>
-                  <p className="text-sm text-gray-700 dark:text-gray-300">{pmAssignment.subject}</p>
-                </div>
-                <div>
-                  <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
-                    {t('overview.student.learningContent')}
-                  </p>
-                  <p className="text-sm text-gray-700 dark:text-gray-300">
-                    {pmAssignment.learningContent}
-                  </p>
-                </div>
-                <div>
-                  <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
-                    {t('overview.student.room')}
-                  </p>
-                  <p className="text-sm text-gray-700 dark:text-gray-300">{pmAssignment.room}</p>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500 italic dark:text-gray-400">
-                {t('overview.student.noAssignment')}
-              </p>
-            )}
+            <p className="text-sm">{assignment.learningContent}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground mb-1 text-xs">{t('overview.student.room')}</p>
+            <p className="text-sm">{assignment.room}</p>
           </div>
         </div>
-      </div>
+      ) : (
+        <p className="text-muted-foreground text-sm italic">{t('overview.student.noAssignment')}</p>
+      )}
     </div>
+  )
+
+  return (
+    <Card className="mb-8">
+      <CardHeader>
+        <CardTitle className="text-lg">{t('overview.student.currentAssignments')}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {renderPeriod(t('overview.teacher.amGroup'), amAssignment)}
+          {renderPeriod(t('overview.teacher.pmGroup'), pmAssignment)}
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -432,12 +377,10 @@ function ScheduleOverviewWrapper({
 
   if (hookError || scheduleError) {
     return (
-      <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 shadow-sm dark:border-yellow-800 dark:bg-yellow-900/20">
-        <div className="flex items-center gap-2">
-          <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-500" />
-          <p className="text-yellow-800 dark:text-yellow-200">{hookError ?? scheduleError ?? ''}</p>
-        </div>
-      </div>
+      <Alert variant="warning">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription>{hookError ?? scheduleError ?? ''}</AlertDescription>
+      </Alert>
     )
   }
 

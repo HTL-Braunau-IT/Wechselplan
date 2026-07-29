@@ -2,10 +2,14 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { CalendarX, Eye, EyeOff, GraduationCap, Save } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { PageContainer } from '@/components/ui/page-container'
+import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
 import { useSchoolYear } from '@/contexts/school-year-context'
 import { useEntitlements } from '@/contexts/entitlements-context'
 import { entryKey, isSemester2 } from '@/lib/grades'
@@ -229,9 +233,9 @@ export default function NotenPage() {
 
   if (!schoolYearId) {
     return (
-      <div className="container mx-auto p-4">
-        <p className="text-muted-foreground">{t('noten.noSchoolYear')}</p>
-      </div>
+      <PageContainer>
+        <EmptyState icon={CalendarX} title={t('noten.noSchoolYear')} />
+      </PageContainer>
     )
   }
 
@@ -240,13 +244,13 @@ export default function NotenPage() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="container mx-auto space-y-4 p-4">
-        <h1 className="text-2xl font-bold">{t('navigation.noten')}</h1>
+      <PageContainer size="wide" className="space-y-6">
+        <PageHeader icon={GraduationCap} title={t('navigation.noten')} />
 
         {loadingClasses ? (
           <Spinner />
         ) : classes.length === 0 ? (
-          <p className="text-muted-foreground">{t('noten.noClasses')}</p>
+          <EmptyState icon={GraduationCap} title={t('noten.noClasses')} />
         ) : (
           <>
             <Tabs
@@ -340,6 +344,7 @@ export default function NotenPage() {
                         onClick={() => void data.saveAll()}
                         disabled={data.saving || selectedGroupId == null}
                       >
+                        <Save className="h-4 w-4" />
                         {t('common.save')}
                       </Button>
                       <Button
@@ -364,6 +369,11 @@ export default function NotenPage() {
                         onClick={() => setAllRowsVisible(!allRowsVisible)}
                         disabled={data.students.length === 0}
                       >
+                        {allRowsVisible ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
                         {allRowsVisible
                           ? t('noten.hideAllGrades', { defaultValue: 'Verstecke alle Noten' })
                           : t('noten.showAllGrades', { defaultValue: 'Zeige alle Noten' })}
@@ -459,7 +469,7 @@ export default function NotenPage() {
         />
 
         <NmTransferDialog {...transfer} />
-      </div>
+      </PageContainer>
     </TooltipProvider>
   )
 }

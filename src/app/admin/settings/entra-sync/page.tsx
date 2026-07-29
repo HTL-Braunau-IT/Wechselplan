@@ -33,6 +33,7 @@ import {
   Image as ImageIcon,
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
+import { PageContainer } from '@/components/ui/page-container'
 import { LastSyncCard } from './_components/last-sync-card'
 import { toast } from 'sonner'
 
@@ -365,7 +366,7 @@ export default function EntraSyncSettingsPage() {
   }, [studentPhotoSourcePriority, settings, selectedIds, teacherPhotoSourcePriority])
 
   return (
-    <div className="space-y-6">
+    <PageContainer size="wide" className="space-y-6">
       <PageHeader
         icon={RefreshCw}
         title="Entra-Synchronisierung"
@@ -538,7 +539,7 @@ export default function EntraSyncSettingsPage() {
               <AlertTitle>Aktuell ausgewählte Gruppen</AlertTitle>
               <AlertDescription className="space-y-1">
                 {unavailableSelectedIds.length > 0 ? (
-                  <div className="mb-2 flex items-center justify-between gap-2 rounded border border-amber-300/60 bg-amber-50/40 p-2 text-xs">
+                  <div className="border-warning/40 bg-warning/10 text-warning-foreground mb-2 flex items-center justify-between gap-2 rounded p-2 text-xs">
                     <span>
                       {unavailableSelectedIds.length} ausgewählte Gruppe(n) sind nicht in der
                       aktuellen Liste zulässiger Gruppen (Windows Server AD + mail-enabled
@@ -660,6 +661,6 @@ export default function EntraSyncSettingsPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   )
 }

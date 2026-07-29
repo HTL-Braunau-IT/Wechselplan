@@ -1,6 +1,7 @@
 'use client'
 
 import { useTranslation } from 'react-i18next'
+import { Check, X } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -218,9 +219,17 @@ export function TransferDialogs(props: TransferDialogsProps) {
                         <TableCell>{student.matrikelnummer ?? '-'}</TableCell>
                         <TableCell>
                           {student.matched ? (
-                            <span className="font-medium text-green-600">✓</span>
+                            <Check
+                              className="text-success h-4 w-4"
+                              role="img"
+                              aria-label={t('notensammler.match', 'Match')}
+                            />
                           ) : (
-                            <span className="font-medium text-red-600">✗</span>
+                            <X
+                              className="text-destructive h-4 w-4"
+                              role="img"
+                              aria-label={t('notensammler.noMatch', 'Kein Match')}
+                            />
                           )}
                         </TableCell>
                       </TableRow>

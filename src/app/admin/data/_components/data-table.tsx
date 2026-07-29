@@ -3,6 +3,9 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Table,
   TableBody,
@@ -243,16 +246,16 @@ export function DataTable({
     }
   }
 
-  const renderFormField = (column: Column) => {
+  const renderFormField = (column: Column, id: string) => {
     const value = formData[column.key] ?? ''
 
     switch (column.type) {
       case 'textarea':
         return (
-          <textarea
+          <Textarea
+            id={id}
             value={safeStringify(value)}
             onChange={e => setFormData(prev => ({ ...prev, [column.key]: e.target.value }))}
-            className="w-full rounded border p-2"
             rows={3}
             required={column.required}
             readOnly={column.readonly}
@@ -261,9 +264,10 @@ export function DataTable({
       case 'select':
         return (
           <select
+            id={id}
             value={safeStringify(value)}
             onChange={e => setFormData(prev => ({ ...prev, [column.key]: e.target.value }))}
-            className="w-full rounded border p-2"
+            className="border-input focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50"
             required={column.required}
             disabled={column.readonly}
           >
@@ -278,6 +282,7 @@ export function DataTable({
       case 'number':
         return (
           <Input
+            id={id}
             type="number"
             value={safeStringify(value)}
             onChange={e => setFormData(prev => ({ ...prev, [column.key]: Number(e.target.value) }))}
@@ -288,6 +293,7 @@ export function DataTable({
       case 'date':
         return (
           <Input
+            id={id}
             type="datetime-local"
             value={
               value ? new Date(value as string | number | Date).toISOString().slice(0, 16) : ''
@@ -301,16 +307,19 @@ export function DataTable({
         )
       case 'boolean':
         return (
-          <input
-            type="checkbox"
+          <Checkbox
+            id={id}
             checked={Boolean(value)}
-            onChange={e => setFormData(prev => ({ ...prev, [column.key]: e.target.checked }))}
+            onCheckedChange={checked =>
+              setFormData(prev => ({ ...prev, [column.key]: checked === true }))
+            }
             disabled={column.readonly}
           />
         )
       default:
         return (
           <Input
+            id={id}
             value={safeStringify(value)}
             onChange={e => setFormData(prev => ({ ...prev, [column.key]: e.target.value }))}
             required={column.required}
@@ -322,8 +331,8 @@ export function DataTable({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
             <Input
@@ -333,7 +342,14 @@ export function DataTable({
               className="w-64 pl-8"
             />
           </div>
-          <Button variant="outline" size="sm" onClick={onRefresh} disabled={isLoading}>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={onRefresh}
+            disabled={isLoading}
+            aria-label="Aktualisieren"
+            title="Aktualisieren"
+          >
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
         </div>
@@ -387,11 +403,11 @@ export function DataTable({
                   .filter(c => !c.render)
                   .map(column => (
                     <div key={column.key} className="space-y-2">
-                      <label className="text-sm font-medium">
+                      <Label htmlFor={`create-${column.key}`}>
                         {column.label}
-                        {column.required && <span className="ml-1 text-red-500">*</span>}
-                      </label>
-                      {renderFormField(column)}
+                        {column.required && <span className="text-destructive ml-1">*</span>}
+                      </Label>
+                      {renderFormField(column, `create-${column.key}`)}
                     </div>
                   ))}
                 <div className="flex justify-end space-x-2">
@@ -446,13 +462,21 @@ export function DataTable({
                   ))}
                   <TableCell>
                     <div className="flex items-center space-x-2">
-                      <Button variant="ghost" size="sm" onClick={() => handleEdit(item)}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEdit(item)}
+                        aria-label="Bearbeiten"
+                        title="Bearbeiten"
+                      >
                         <Edit className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="icon"
                         onClick={() => handleDelete((item.id as number) ?? 0)}
+                        aria-label="Löschen"
+                        title="Löschen"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -481,11 +505,11 @@ export function DataTable({
               .filter(c => !c.render)
               .map(column => (
                 <div key={column.key} className="space-y-2">
-                  <label className="text-sm font-medium">
+                  <Label htmlFor={`edit-${column.key}`}>
                     {column.label}
-                    {column.required && <span className="ml-1 text-red-500">*</span>}
-                  </label>
-                  {renderFormField(column)}
+                    {column.required && <span className="text-destructive ml-1">*</span>}
+                  </Label>
+                  {renderFormField(column, `edit-${column.key}`)}
                 </div>
               ))}
             <div className="flex justify-end space-x-2">

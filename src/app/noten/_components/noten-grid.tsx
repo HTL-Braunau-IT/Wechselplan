@@ -34,7 +34,7 @@ import {
 } from '../_lib/types'
 import type { StudentSummary } from '../_lib/summary'
 
-const TODAY_BG = 'bg-blue-50 dark:bg-blue-950/30'
+const TODAY_BG = 'bg-accent'
 const HIDDEN_PLACEHOLDER = '•••'
 /** Marks Notenmanagement treats as labels rather than numbers. */
 const FINAL_GRADE_OPTIONS = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7]
@@ -341,7 +341,7 @@ export function NotenGrid(props: NotenGridProps) {
                         </span>
                         <Button
                           size="sm"
-                          className="h-7 bg-green-600 px-2 text-xs text-white hover:bg-green-700"
+                          className="bg-success text-success-foreground hover:bg-success/90 h-7 px-2 text-xs"
                           onClick={() => onSetAllAnwesend(day.date, day.period)}
                           disabled={saving}
                         >
@@ -448,11 +448,7 @@ export function NotenGrid(props: NotenGridProps) {
                 ref={el => {
                   studentRowRefs.current[student.id] = el
                 }}
-                className={
-                  highlightedStudentId === student.id
-                    ? 'bg-yellow-100/60 dark:bg-yellow-900/20'
-                    : ''
-                }
+                className={highlightedStudentId === student.id ? 'bg-warning/15' : ''}
               >
                 <TableCell className="bg-background sticky left-0 z-30 p-1 align-top">
                   <div className="flex items-center justify-center pt-1">
@@ -510,8 +506,8 @@ export function NotenGrid(props: NotenGridProps) {
                     entry.attendance == null || entry.attendance === ''
                       ? ''
                       : entry.attendance === 'Anwesend'
-                        ? 'bg-green-100/50 dark:bg-green-900/20'
-                        : 'bg-red-100/50 dark:bg-red-900/20'
+                        ? 'bg-success/10'
+                        : 'bg-destructive/10'
 
                   const categories: Array<{
                     first: keyof NotenEntryRow
@@ -594,9 +590,9 @@ export function NotenGrid(props: NotenGridProps) {
                     'border-border w-8 min-w-[2rem] border-r p-1 text-center',
                     totals != null &&
                       (totals.pct < 50
-                        ? 'font-medium text-red-600'
+                        ? 'text-destructive font-medium'
                         : totals.pct < 75
-                          ? 'font-medium text-amber-600'
+                          ? 'text-warning-foreground font-medium'
                           : ''),
                   )}
                 >

@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { AlertCircle, CheckCircle2, Loader2, RefreshCw } from 'lucide-react'
+import { AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -104,7 +104,7 @@ export function SyncDialogShell({
           )}
           {stage === 'applying' && (
             <Button disabled>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Spinner className="mr-2 h-4 w-4" />
               Wird angewendet …
             </Button>
           )}
@@ -118,7 +118,7 @@ export function SyncDialogShell({
 /** Success banner shown after a sync has been applied. */
 export function SyncSummaryAlert({ lines, issueCount }: { lines: string[]; issueCount: number }) {
   return (
-    <Alert>
+    <Alert variant="success">
       <CheckCircle2 className="h-4 w-4" />
       <AlertTitle>Synchronisierung angewendet</AlertTitle>
       <AlertDescription>

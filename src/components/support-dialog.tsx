@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 
 /**
@@ -67,7 +68,7 @@ export function SupportDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="hover:bg-muted/50 flex items-center gap-2">
+        <Button variant="ghost" size="sm" className="flex items-center gap-2">
           <HelpCircle className="h-4 w-4" />
           {t('navigation.support', 'Help & Support')}
         </Button>
@@ -78,9 +79,7 @@ export function SupportDialog() {
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label htmlFor="name" className="text-sm font-medium">
-              {t('support.name')}
-            </label>
+            <Label htmlFor="name">{t('support.name')}</Label>
             <Input
               id="name"
               value={name}
@@ -90,9 +89,7 @@ export function SupportDialog() {
             />
           </div>
           <div className="space-y-2">
-            <label htmlFor="message" className="text-sm font-medium">
-              {t('support.message')}
-            </label>
+            <Label htmlFor="message">{t('support.message')}</Label>
             <Textarea
               id="message"
               value={message}

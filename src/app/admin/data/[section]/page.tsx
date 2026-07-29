@@ -1,8 +1,10 @@
 'use client'
 
 import { notFound, useParams } from 'next/navigation'
+import { CalendarDays } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
+import { PageContainer } from '@/components/ui/page-container'
 import { PageHeader } from '@/components/ui/page-header'
 import { useSchoolYear } from '@/contexts/school-year-context'
 import { useEntitlements } from '@/contexts/entitlements-context'
@@ -28,7 +30,7 @@ export default function AdminDataSectionPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <PageContainer size="wide" className="space-y-6">
       {/* The title and description used to be repeated immediately below in a
           card header; one heading is enough. */}
       <PageHeader
@@ -37,7 +39,8 @@ export default function AdminDataSectionPage() {
         description={section.description}
         actions={
           selectedYear != null ? (
-            <Badge variant="outline" className="font-normal">
+            <Badge variant="outline" className="gap-1.5 font-normal">
+              <CalendarDays className="h-3.5 w-3.5" />
               Schuljahr {selectedYear.label}
             </Badge>
           ) : null
@@ -47,6 +50,6 @@ export default function AdminDataSectionPage() {
       <Card>
         <CardContent className="pt-6">{content}</CardContent>
       </Card>
-    </div>
+    </PageContainer>
   )
 }

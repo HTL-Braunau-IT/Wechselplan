@@ -1,5 +1,8 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
+import { AlertTriangle, RefreshCw } from 'lucide-react'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 
 interface ErrorBoundaryProps {
   children: React.ReactNode
@@ -43,20 +46,17 @@ class ErrorBoundaryBase extends React.Component<ErrorBoundaryProps, State> {
       }
 
       return (
-        <div className="flex min-h-screen items-center justify-center bg-gray-50">
-          <div className="w-full max-w-md space-y-8 rounded-lg bg-white p-8 shadow-lg">
-            <div>
-              <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">{title}</h2>
-              <p className="mt-2 text-center text-sm text-gray-600">{message}</p>
-            </div>
-            <div className="mt-8">
-              <button
-                onClick={() => window.location.reload()}
-                className="flex w-full justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:outline-none"
-              >
-                {reloadButton}
-              </button>
-            </div>
+        <div className="bg-background flex min-h-screen items-center justify-center p-4">
+          <div className="w-full max-w-md space-y-6">
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>{title}</AlertTitle>
+              <AlertDescription>{message}</AlertDescription>
+            </Alert>
+            <Button className="w-full" onClick={() => window.location.reload()}>
+              <RefreshCw className="h-4 w-4" />
+              {reloadButton}
+            </Button>
           </div>
         </div>
       )

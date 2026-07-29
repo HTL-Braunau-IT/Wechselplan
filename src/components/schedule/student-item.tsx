@@ -1,7 +1,9 @@
 'use client'
 
 import { useDraggable } from '@dnd-kit/core'
+import { ArrowRightLeft, X } from 'lucide-react'
 import { StudentPhoto } from '@/components/student-photo'
+import { Button } from '@/components/ui/button'
 
 interface Student {
   id: number
@@ -63,55 +65,39 @@ export function StudentItem({ student, index, onRemove, onTransfer, t }: Student
           </div>
         )}
       </div>
-      <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
         {onTransfer && (
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-foreground h-7 w-7"
             onClick={e => {
               e.stopPropagation()
               onTransfer(student)
             }}
             onPointerDown={e => e.stopPropagation()}
-            className="text-muted-foreground hover:text-foreground"
             title={t('transferStudent')}
+            aria-label={t('transferStudent')}
             type="button"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                fillRule="evenodd"
-                d="M10.293 3.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 9H3a1 1 0 110-2h9.586l-2.293-2.293a1 1 0 010-1.414zM9.707 16.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 1.414L7.414 11H17a1 1 0 110 2H7.414l2.293 2.293a1 1 0 010 1.414z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </button>
+            <ArrowRightLeft className="h-4 w-4" />
+          </Button>
         )}
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-destructive hover:text-destructive h-7 w-7"
           onClick={e => {
             e.stopPropagation()
             onRemove(student.id)
           }}
           onPointerDown={e => e.stopPropagation()}
-          className="text-destructive hover:text-destructive/80"
           title={t('removeStudent')}
+          aria-label={t('removeStudent')}
           type="button"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-4 w-4"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-          >
-            <path
-              fillRule="evenodd"
-              d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-              clipRule="evenodd"
-            />
-          </svg>
-        </button>
+          <X className="h-4 w-4" />
+        </Button>
       </div>
     </div>
   )

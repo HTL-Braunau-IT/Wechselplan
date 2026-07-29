@@ -567,7 +567,7 @@ export function ClassStudentSyncDialog({
                     <EmptyState text="Alle Schüler lassen sich eindeutig einer Klasse zuordnen." />
                   ) : (
                     <>
-                      <Alert className="mb-3">
+                      <Alert variant="warning" className="mb-3">
                         <AlertCircle className="h-4 w-4" />
                         <AlertTitle>Mehrdeutige Klassenzugehörigkeit</AlertTitle>
                         <AlertDescription>

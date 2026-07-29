@@ -11,7 +11,9 @@ import { Badge } from '@/components/ui/badge'
  */
 export function ActiveBadge({ isActive }: { isActive: unknown }) {
   const active = isActive !== false
-  return <Badge variant={active ? 'default' : 'outline'}>{active ? 'aktiv' : 'inaktiv'}</Badge>
+  return (
+    <Badge variant={active ? 'soft-success' : 'soft-muted'}>{active ? 'aktiv' : 'inaktiv'}</Badge>
+  )
 }
 
 /**
@@ -25,11 +27,11 @@ export function SyncStatusBadge({ syncStatus }: { syncStatus: unknown }) {
 
   if (syncStatus === 'unassigned') {
     return (
-      <Badge variant="destructive" title="In mehreren synchronisierten Klassengruppen">
+      <Badge variant="soft-destructive" title="In mehreren synchronisierten Klassengruppen">
         keine Klasse
       </Badge>
     )
   }
 
-  return <Badge variant="outline">{syncStatus}</Badge>
+  return <Badge variant="soft-muted">{syncStatus}</Badge>
 }

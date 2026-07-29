@@ -146,11 +146,11 @@ export function NotensammlerToolbar(props: NotensammlerToolbarProps) {
       <div className="mb-4">
         <div className="flex flex-wrap items-center gap-3">
           <div>
-            <label className="mb-2 block text-sm font-medium">
+            <Label htmlFor="notensammler-class-select" className="mb-2 block text-sm font-medium">
               {t('notensammler.selectClass', 'Klasse auswählen')}
-            </label>
+            </Label>
             <Select value={selectedClassId} onValueChange={onClassChange}>
-              <SelectTrigger className="w-[300px]">
+              <SelectTrigger id="notensammler-class-select" className="w-[300px]">
                 <SelectValue
                   placeholder={t(
                     'notensammler.selectClassPlaceholder',
@@ -191,7 +191,7 @@ export function NotensammlerToolbar(props: NotensammlerToolbarProps) {
       </div>
 
       {classData && (
-        <div className="mb-4 flex items-center gap-6">
+        <div className="mb-4 flex flex-wrap items-center gap-4">
           {currentSemester != null && (
             <span className="text-muted-foreground text-sm">
               {t('notensammler.currentSemester', 'Aktuell')}:{' '}

@@ -14,6 +14,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useTranslation } from 'next-i18next'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Spinner } from '@/components/ui/spinner'
+import { AlertCircle, ArrowLeft, Save } from 'lucide-react'
 import { captureFrontendError } from '@/lib/frontend-error'
 
 interface WeekInfo {
@@ -505,7 +508,12 @@ export function RotationScheduleEditor({
     }
   }
 
-  if (isLoading) return <div>{t('loading')}</div>
+  if (isLoading)
+    return (
+      <div className="flex min-h-[200px] items-center justify-center p-8">
+        <Spinner size="lg" />
+      </div>
+    )
 
   return (
     <Card>
@@ -514,12 +522,18 @@ export function RotationScheduleEditor({
       </CardHeader>
       <CardContent>
         {fetchError && (
-          <div className="mb-4 rounded-md bg-red-50 p-4 text-red-500">
-            {t('failedToLoadHolidays')}
-          </div>
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{t('failedToLoadHolidays')}</AlertDescription>
+          </Alert>
         )}
-        {weekError && <div className="mb-4 rounded-md bg-red-50 p-4 text-red-500">{weekError}</div>}
-        <div className="mb-4 flex gap-8">
+        {weekError && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{weekError}</AlertDescription>
+          </Alert>
+        )}
+        <div className="mb-4 flex flex-wrap gap-8">
           <div>
             <Label htmlFor="numberOfTerms">{t('numberOfTerms')}</Label>
             <Input
@@ -607,7 +621,7 @@ export function RotationScheduleEditor({
 
         <div className="mb-4">
           <Label>{t('customLengths')}</Label>
-          <div className="mt-2 flex gap-4">
+          <div className="mt-2 flex flex-wrap gap-4">
             {Array.from({ length: numberOfTerms }).map((_, index) => {
               const turnusKey = `TURNUS ${index + 1}`
               const currentWeeks = schedule[turnusKey]?.weeks.length ?? 0
@@ -714,15 +728,22 @@ export function RotationScheduleEditor({
         <div className="mt-4 flex justify-end gap-4">
           {onCancel && (
             <Button variant="outline" onClick={onCancel}>
+              <ArrowLeft className="h-4 w-4" />
               {t('back')}
             </Button>
           )}
           <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? <Spinner size="sm" /> : <Save className="h-4 w-4" />}
             {isSaving ? t('saving') : t('saveSchedule')}
           </Button>
         </div>
 
-        {saveError && <div className="mt-4 text-red-500">{t('failedToSaveSchedule')}</div>}
+        {saveError && (
+          <Alert variant="destructive" className="mt-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{t('failedToSaveSchedule')}</AlertDescription>
+          </Alert>
+        )}
       </CardContent>
     </Card>
   )

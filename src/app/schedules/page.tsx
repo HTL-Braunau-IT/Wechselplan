@@ -14,10 +14,23 @@ import {
 import { useCachedData } from '@/hooks/use-cached-data'
 import { useScheduleOverview } from '@/hooks/use-schedule-overview'
 import { ScheduleOverview } from '@/components/schedule-overview'
-import { CheckCircle2, XCircle, AlertCircle, ChevronDown } from 'lucide-react'
+import {
+  CalendarDays,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  ChevronDown,
+  FileDown,
+  FileSpreadsheet,
+} from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
 import { generateExcel, generatePdf, generateSchedulePDF } from '@/lib/export-utils'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { EmptyState } from '@/components/ui/empty-state'
+import { PageContainer } from '@/components/ui/page-container'
+import { PageHeader } from '@/components/ui/page-header'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 
 interface Schedule {
@@ -92,23 +105,17 @@ function ClassScheduleOverview({
 
   if (overviewError) {
     return (
-      <Card className="border-destructive m-4">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-destructive flex items-center gap-2">
-            <AlertCircle className="h-5 w-5" />
-            Kein Wechselplan für Klasse {className} gefunden!
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">
-            {overviewError === 'Class ID is required'
-              ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
-              : overviewError === 'Failed to fetch schedule times'
-                ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
-                : overviewError}
-          </p>
-        </CardContent>
-      </Card>
+      <Alert variant="destructive" className="m-4 w-auto">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Kein Wechselplan für Klasse {className} gefunden!</AlertTitle>
+        <AlertDescription>
+          {overviewError === 'Class ID is required'
+            ? 'Keine Daten gefunden, bitte den Klassenleiter auffordern einen Wechselplan zu erstellen.'
+            : overviewError === 'Failed to fetch schedule times'
+              ? 'Keine Daten gefunden, bitte den Klassenleiter auffordern einen Wechselplan zu erstellen.'
+              : overviewError}
+        </AlertDescription>
+      </Alert>
     )
   }
 
@@ -326,7 +333,16 @@ export default function SchedulesPage() {
         <Spinner size="lg" />
       </div>
     )
-  if (error) return <div className="p-8 text-center text-red-500">{error}</div>
+  if (error)
+    return (
+      <PageContainer size="wide">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Fehler beim Laden</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </PageContainer>
+    )
 
   const handlePDFExport = async () => {
     setSavingPdf(true)
@@ -377,52 +393,55 @@ export default function SchedulesPage() {
   }
 
   return (
-    <div className="container mx-auto p-4">
-      <div className="mb-8">
-        <h1 className="mb-4 text-3xl font-bold">Schedules Overview</h1>
-        <div className="mb-6">
-          <Select value={selectedClass} onValueChange={handleClassChange}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Select a class" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Classes</SelectItem>
-              {classes.map(cls => (
-                <SelectItem key={cls.id} value={cls.name} className="flex items-center">
-                  <span className="inline-block w-32 truncate">{cls.name}</span>
-                  <div className="flex w-8 justify-center">
-                    {hasSchedule(cls.name) ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-red-500" />
-                    )}
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <PageContainer size="wide">
+      <div className="space-y-6">
+        <PageHeader
+          icon={CalendarDays}
+          title="Schedules Overview"
+          description="Wechselpläne aller Klassen einsehen und exportieren."
+        />
+
+        <div className="space-y-4">
+          <div className="grid gap-1.5">
+            <Label htmlFor="class-select">Klasse</Label>
+            <Select value={selectedClass} onValueChange={handleClassChange}>
+              <SelectTrigger id="class-select" className="w-[220px]">
+                <SelectValue placeholder="Select a class" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Classes</SelectItem>
+                {classes.map(cls => (
+                  <SelectItem key={cls.id} value={cls.name} className="flex items-center">
+                    <span className="inline-block w-32 truncate">{cls.name}</span>
+                    <div className="flex w-8 justify-center">
+                      {hasSchedule(cls.name) ? (
+                        <CheckCircle2 className="text-success h-4 w-4" />
+                      ) : (
+                        <XCircle className="text-destructive h-4 w-4" />
+                      )}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           {selectedClass !== 'all' && hasSchedule(selectedClass) && (
-            <div className="mt-4 flex items-center gap-2">
-              <button
-                className="bg-primary text-primary-foreground hover:bg-primary/90 rounded px-6 py-2 disabled:opacity-50"
-                onClick={handlePDFExport}
-                disabled={savingPdf}
-              >
+            <div className="flex flex-wrap items-center gap-2">
+              <Button className="gap-2" onClick={handlePDFExport} disabled={savingPdf}>
+                {savingPdf ? <Spinner size="sm" /> : <FileDown className="h-4 w-4" />}
                 {savingPdf ? 'Exporting PDF...' : 'PDF Export'}
-              </button>
-              <button
-                className="bg-primary text-primary-foreground hover:bg-primary/90 rounded px-6 py-2 disabled:opacity-50"
-                onClick={handlePDFDatumExport}
-                disabled={savingPdfDatum}
-              >
+              </Button>
+              <Button className="gap-2" onClick={handlePDFDatumExport} disabled={savingPdfDatum}>
+                {savingPdfDatum ? <Spinner size="sm" /> : <FileDown className="h-4 w-4" />}
                 {savingPdfDatum ? 'Exporting PDF Datum ...' : 'PDF Datum Export'}
-              </button>
+              </Button>
 
               {/* AM Excel Export Button - only show if teacher is assigned to AM */}
               {isTeacherForAM && (
-                <button
-                  className="flex items-center gap-2 rounded bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
+                <Button
+                  variant="secondary"
+                  className="gap-2"
                   onClick={handleExcelAMExport}
                   disabled={savingExcelAM}
                 >
@@ -432,15 +451,19 @@ export default function SchedulesPage() {
                       Exporting AM Excel ...
                     </>
                   ) : (
-                    'Export Notenliste Vormittag'
+                    <>
+                      <FileSpreadsheet className="h-4 w-4" />
+                      Export Notenliste Vormittag
+                    </>
                   )}
-                </button>
+                </Button>
               )}
 
               {/* PM Excel Export Button - only show if teacher is assigned to PM */}
               {isTeacherForPM && (
-                <button
-                  className="flex items-center gap-2 rounded bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
+                <Button
+                  variant="secondary"
+                  className="gap-2"
                   onClick={handleExcelPMExport}
                   disabled={savingExcelPM}
                 >
@@ -450,93 +473,91 @@ export default function SchedulesPage() {
                       Exporting PM Excel ...
                     </>
                   ) : (
-                    'Export Notenliste Nachmittag'
+                    <>
+                      <FileSpreadsheet className="h-4 w-4" />
+                      Export Notenliste Nachmittag
+                    </>
                   )}
-                </button>
+                </Button>
               )}
             </div>
           )}
 
           {selectedClass !== 'all' && overviewError && (
-            <Card className="border-destructive mt-4">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-destructive flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5" />
-                  Kein Wechselplan für Klasse {selectedClass} gefunden!
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  {overviewError === 'Class ID is required'
-                    ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
-                    : overviewError === 'Failed to fetch schedule times'
-                      ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
-                      : overviewError}
-                </p>
-              </CardContent>
-            </Card>
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Kein Wechselplan für Klasse {selectedClass} gefunden!</AlertTitle>
+              <AlertDescription>
+                {overviewError === 'Class ID is required'
+                  ? 'Keine Daten gefunden, bitte den Klassenleiter auffordern einen Wechselplan zu erstellen.'
+                  : overviewError === 'Failed to fetch schedule times'
+                    ? 'Keine Daten gefunden, bitte den Klassenleiter auffordern einen Wechselplan zu erstellen.'
+                    : overviewError}
+              </AlertDescription>
+            </Alert>
           )}
         </div>
 
         {/* Show all schedules when "All Classes" is selected */}
-        {selectedClass === 'all' && (
-          <div className="mt-6 space-y-6">
-            {classes.map(cls => {
-              const hasScheduleForClass = hasSchedule(cls.name)
-              const isExpanded = expandedClass === cls.name
-              return (
-                <Collapsible
-                  key={cls.id}
-                  className="rounded-lg border"
-                  open={isExpanded}
-                  onOpenChange={open => setExpandedClass(open ? cls.name : null)}
-                >
-                  <CollapsibleTrigger className="hover:bg-muted/50 flex w-full items-center justify-between p-4 transition-colors">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-xl font-semibold">{cls.name}</h3>
-                      {hasScheduleForClass ? (
-                        <CheckCircle2 className="h-5 w-5 text-green-500" />
-                      ) : (
-                        <XCircle className="h-5 w-5 text-red-500" />
-                      )}
-                    </div>
-                    <ChevronDown
-                      className={`text-muted-foreground h-5 w-5 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
-                    />
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    {hasScheduleForClass ? (
-                      <div className="p-4 pt-0">
-                        <ClassScheduleOverview className={cls.name} schoolYearId={schoolYearId} />
+        {selectedClass === 'all' &&
+          (classes.length === 0 ? (
+            <EmptyState
+              icon={CalendarDays}
+              title="Keine Klassen gefunden"
+              description="Für das ausgewählte Schuljahr sind keine Klassen vorhanden."
+            />
+          ) : (
+            <div className="space-y-6">
+              {classes.map(cls => {
+                const hasScheduleForClass = hasSchedule(cls.name)
+                const isExpanded = expandedClass === cls.name
+                return (
+                  <Collapsible
+                    key={cls.id}
+                    className="rounded-lg border"
+                    open={isExpanded}
+                    onOpenChange={open => setExpandedClass(open ? cls.name : null)}
+                  >
+                    <CollapsibleTrigger className="hover:bg-muted/50 flex w-full items-center justify-between p-4 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-semibold">{cls.name}</h3>
+                        {hasScheduleForClass ? (
+                          <CheckCircle2 className="text-success h-5 w-5" />
+                        ) : (
+                          <XCircle className="text-destructive h-5 w-5" />
+                        )}
                       </div>
-                    ) : (
-                      <Card className="border-destructive m-4">
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-destructive flex items-center gap-2">
-                            <AlertCircle className="h-5 w-5" />
-                            Kein Wechselplan für Klasse {cls.name} gefunden!
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <p className="text-muted-foreground">
-                            Keine Daten gefunden, bitte den Klassenleiter auffordner einen
+                      <ChevronDown
+                        className={`text-muted-foreground h-5 w-5 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                      />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      {hasScheduleForClass ? (
+                        <div className="p-4 pt-0">
+                          <ClassScheduleOverview className={cls.name} schoolYearId={schoolYearId} />
+                        </div>
+                      ) : (
+                        <Alert variant="destructive" className="m-4 w-auto">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertTitle>Kein Wechselplan für Klasse {cls.name} gefunden!</AlertTitle>
+                          <AlertDescription>
+                            Keine Daten gefunden, bitte den Klassenleiter auffordern einen
                             Wechselplan zu erstellen.
-                          </p>
-                        </CardContent>
-                      </Card>
-                    )}
-                  </CollapsibleContent>
-                </Collapsible>
-              )
-            })}
-          </div>
-        )}
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                    </CollapsibleContent>
+                  </Collapsible>
+                )
+              })}
+            </div>
+          ))}
 
         {/* Show single schedule when a specific class is selected */}
         {selectedClass !== 'all' && hasSchedule(selectedClass) && !overviewError && (
           <ClassScheduleOverview className={selectedClass} schoolYearId={schoolYearId} />
         )}
       </div>
-    </div>
+    </PageContainer>
   )
 }

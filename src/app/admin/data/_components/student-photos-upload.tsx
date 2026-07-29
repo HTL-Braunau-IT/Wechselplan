@@ -18,7 +18,9 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { Upload, CheckCircle, XCircle, FolderOpen, Loader2 } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Spinner } from '@/components/ui/spinner'
+import { Upload, CheckCircle, XCircle, FolderOpen, AlertCircle } from 'lucide-react'
 
 type UploadResultItem = {
   filename: string
@@ -264,9 +266,10 @@ export function StudentPhotosUpload() {
         )}
       </div>
       {error && (
-        <p className="text-destructive text-sm" role="alert">
-          {error}
-        </p>
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
       {results.length > 0 && !progressOpen && (
         <div className="space-y-2">
@@ -275,7 +278,7 @@ export function StudentPhotosUpload() {
             {results.map((r, i) => (
               <li key={i} className="flex items-center gap-2 py-1">
                 {r.success ? (
-                  <CheckCircle className="h-4 w-4 shrink-0 text-green-600" />
+                  <CheckCircle className="text-success h-4 w-4 shrink-0" />
                 ) : (
                   <XCircle className="text-destructive h-4 w-4 shrink-0" />
                 )}
@@ -323,7 +326,7 @@ export function StudentPhotosUpload() {
                   </>
                 )}
                 <div className="flex justify-center py-2">
-                  <Loader2 className="text-primary h-8 w-8 animate-spin" />
+                  <Spinner className="text-primary h-8 w-8" />
                 </div>
               </>
             ) : (

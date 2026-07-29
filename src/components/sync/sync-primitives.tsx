@@ -70,7 +70,7 @@ export function ChangeBadges({ changes }: { changes: string[] }) {
   return (
     <div className="flex flex-wrap gap-1">
       {changes.map(change => (
-        <Badge key={change} variant="outline">
+        <Badge key={change} variant="soft-warning">
           {CHANGE_LABELS[change] ?? change}
         </Badge>
       ))}

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, LogIn } from 'lucide-react'
 import { signIn } from 'next-auth/react'
 import { captureFrontendError } from '@/lib/frontend-error'
 import { useTranslation } from 'react-i18next'
@@ -39,9 +39,12 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="container flex h-screen w-screen flex-col items-center justify-center">
-      <Card className="w-full max-w-md">
-        <CardHeader>
+    <div className="bg-background flex min-h-screen w-full flex-col items-center justify-center p-4">
+      <Card className="w-full max-w-md shadow-sm">
+        <CardHeader className="items-center text-center">
+          <div className="bg-primary/10 text-primary mb-2 flex h-12 w-12 items-center justify-center rounded-lg">
+            <LogIn className="h-6 w-6" />
+          </div>
           <CardTitle>{t('auth.title')}</CardTitle>
           <CardDescription>{t('auth.description')}</CardDescription>
         </CardHeader>
@@ -59,6 +62,7 @@ export default function LoginPage() {
             disabled={isLoading}
             onClick={handleMicrosoftLogin}
           >
+            <LogIn className="h-4 w-4" />
             {isLoading ? t('auth.button.signingIn') : t('auth.button.signInMicrosoft')}
           </Button>
         </CardContent>
