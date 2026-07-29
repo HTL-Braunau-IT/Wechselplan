@@ -21,6 +21,7 @@ import { TeacherTab } from './teacher-tab'
 import { ClassTab } from './class-tab'
 import { ScheduleTab } from './schedule-tab'
 import { TeacherAssignmentTab } from './teacher-assignment-tab'
+import { SchoolYearTab } from './school-year-tab'
 import { UserRoleTab } from './user-role-tab'
 import { StudentPhotosUpload } from './student-photos-upload'
 import { ModelTab } from './model-tab'
@@ -196,6 +197,8 @@ export function getAdminDataSectionContent(slug: string): ReactElement | null {
       return <ScheduleTab />
     case 'teacher-assignments':
       return <TeacherAssignmentTab />
+    case 'school-years':
+      return <SchoolYearTab />
     case 'user-roles':
       return <UserRoleTab />
     case 'student-photos':
