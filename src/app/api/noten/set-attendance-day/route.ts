@@ -42,11 +42,17 @@ export async function POST(request: Request) {
     if (period !== 'AM' && period !== 'PM') {
       return NextResponse.json({ error: 'period must be AM or PM' }, { status: 400 })
     }
+    // Require a strict YYYY-MM-DD string and round-trip it so overflow dates
+    // like 2025-02-31 (which Date silently rolls into March) are rejected
+    // rather than persisted under the wrong @db.Date.
+    if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return NextResponse.json({ error: 'Invalid date' }, { status: 400 })
+    }
     // Anchor at UTC midnight, exactly as the per-cell entries route does. Using
     // local midnight here shifted the @db.Date to the previous day on servers
     // ahead of UTC (e.g. Austria), so "Alle anwesend" landed on the wrong day.
-    const dateOnly = new Date(date.slice(0, 10) + 'T00:00:00.000Z')
-    if (Number.isNaN(dateOnly.getTime())) {
+    const dateOnly = new Date(date + 'T00:00:00.000Z')
+    if (Number.isNaN(dateOnly.getTime()) || dateOnly.toISOString().slice(0, 10) !== date) {
       return NextResponse.json({ error: 'Invalid date' }, { status: 400 })
     }
 

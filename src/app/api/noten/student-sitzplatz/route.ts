@@ -37,33 +37,43 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'studentId required' }, { status: 400 })
     }
 
-    // Verify the teacher has access to update this student
-    const username = normalizeUsername(session.user.name)
-    const teacher = await prisma.teacher.findUnique({ where: { username } })
-    if (!teacher) {
-      return NextResponse.json({ error: 'Teacher not found' }, { status: 403 })
-    }
-
     // Verify the student exists
     const student = await prisma.student.findUnique({ where: { id: studentId } })
     if (!student) {
       return NextResponse.json({ error: 'Student not found' }, { status: 404 })
     }
 
-    // A teacher may only edit the seat of a student in a class they are
-    // assigned to. Admins may edit any student. Without this, any staff user
-    // could overwrite any student's Sitzplatz by id.
+    // A teacher may only edit the seat of a student they currently teach —
+    // i.e. a student in a class the teacher is assigned to in the active school
+    // year. Admins may edit any student. Without this, any staff user could
+    // overwrite any student's Sitzplatz by id. The teacher lookup lives inside
+    // this branch so an admin without a Teacher row isn't wrongly rejected.
     if (session.user.role !== 'admin') {
+      const username = normalizeUsername(session.user.name)
+      const teacher = await prisma.teacher.findUnique({ where: { username } })
+      if (!teacher) {
+        return NextResponse.json({ error: 'Teacher not found' }, { status: 403 })
+      }
+
+      const currentYear = await prisma.schoolYear.findFirst({
+        where: { isCurrent: true },
+        select: { id: true },
+      })
+      if (!currentYear) {
+        return NextResponse.json({ error: 'No active school year' }, { status: 403 })
+      }
+
       const memberships = await prisma.classMembership.findMany({
-        where: { studentId },
-        select: { classId: true, schoolYearId: true },
+        where: { studentId, schoolYearId: currentYear.id },
+        select: { classId: true },
       })
       const isAssigned =
         memberships.length > 0 &&
         (await prisma.teacherAssignment.findFirst({
           where: {
             teacherId: teacher.id,
-            OR: memberships.map(m => ({ classId: m.classId, schoolYearId: m.schoolYearId })),
+            schoolYearId: currentYear.id,
+            classId: { in: memberships.map(m => m.classId) },
           },
           select: { id: true },
         })) != null
