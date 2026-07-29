@@ -154,6 +154,27 @@ describe('computeStudentSummary', () => {
     expect(result[1]?.calculatedGrade).toBeNull()
   })
 
+  it('does not count future teaching days as absences', () => {
+    const spanningDays: TeachingDay[] = [
+      { date: '2026-02-02', period: 'AM' }, // past, present
+      { date: '2026-02-09', period: 'AM' }, // past, no entry -> absent
+      { date: '2026-12-01', period: 'AM' }, // future -> ignored
+      { date: '2026-12-08', period: 'AM' }, // future -> ignored
+    ]
+    const entries = index([entry('2026-02-02', { attendance: 'Anwesend' })])
+
+    const result = computeStudentSummary(
+      [student],
+      spanningDays,
+      entries,
+      DEFAULT_WEIGHTS,
+      '2026-07-29',
+    )
+
+    // Only the two elapsed days count: 1 present, 1 absent, 50%.
+    expect(result[1]).toMatchObject({ anwesend: 1, nichtAnwesend: 1, alle: 2, pct: 50 })
+  })
+
   it('reports zero percent when there are no teaching days at all', () => {
     const result = computeStudentSummary([student], [], {}, DEFAULT_WEIGHTS)
 

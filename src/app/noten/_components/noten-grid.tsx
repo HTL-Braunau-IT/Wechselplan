@@ -17,9 +17,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { StudentPhoto } from '@/components/student-photo'
 import { cn } from '@/lib/utils'
 import {
+  ALLOWED_FINAL_GRADES,
   ATTENDANCE_OPTIONS,
+  CONDUCT_NOTE_WISH_OPTIONS,
+  GESTUNDEN,
   GRADE_CLEAR_VALUE,
   GRADE_OPTIONS,
+  NICHT_BEURTEILT,
   entryKey,
   getGradeBoxClass,
   isSemester2,
@@ -36,14 +40,6 @@ import type { StudentSummary } from '../_lib/summary'
 
 const TODAY_BG = 'bg-accent'
 const HIDDEN_PLACEHOLDER = '•••'
-/** Marks Notenmanagement treats as labels rather than numbers. */
-const FINAL_GRADE_OPTIONS = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7]
-const BETRAGEN_OPTIONS = [
-  'Sehr zufriedenstellend',
-  'Zufriedenstellend',
-  'Wenig Zufriedenstellend',
-  'Nicht zufriedenstellend',
-] as const
 
 const VERTICAL_HEAD =
   'p-0.5 text-[10px] font-medium min-w-[4.5rem] w-[4.5rem] h-24 align-bottom [writing-mode:vertical-rl] [text-orientation:mixed] border-r border-border'
@@ -218,10 +214,10 @@ export function NotenGrid(props: NotenGridProps) {
   const firstTodayIndex = teachingDays.findIndex(day => day.date === todayYmd)
 
   const endGradeLabel = (grade: number) =>
-    grade === 6
-      ? t('noten.gradeGestundet', { defaultValue: 'Gestundet' })
-      : grade === 7
-        ? t('noten.gradeNichtBeurteilt', { defaultValue: 'Nicht beurteilt' })
+    grade === NICHT_BEURTEILT
+      ? t('noten.gradeNichtBeurteilt', { defaultValue: 'Nicht beurteilt' })
+      : grade === GESTUNDEN
+        ? t('noten.gradeGestundet', { defaultValue: 'Gestundet' })
         : String(grade)
 
   const summaryHeadings = [
@@ -267,12 +263,12 @@ export function NotenGrid(props: NotenGridProps) {
         <SelectContent>
           {isGrade && <SelectItem value={GRADE_CLEAR_VALUE}>–</SelectItem>}
           {isGrade
-            ? FINAL_GRADE_OPTIONS.map(grade => (
+            ? ALLOWED_FINAL_GRADES.map(grade => (
                 <SelectItem key={grade} value={String(grade)}>
                   {endGradeLabel(grade)}
                 </SelectItem>
               ))
-            : BETRAGEN_OPTIONS.map(option => (
+            : CONDUCT_NOTE_WISH_OPTIONS.map(option => (
                 <SelectItem key={option} value={option}>
                   {option}
                 </SelectItem>

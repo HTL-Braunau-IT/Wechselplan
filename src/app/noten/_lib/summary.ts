@@ -31,16 +31,24 @@ export function computeStudentSummary(
   teachingDays: TeachingDay[],
   entries: Record<string, NotenEntryRow>,
   weights: WeightConfig,
+  /**
+   * Today as YYYY-MM-DD. Attendance is only counted for days on or before it,
+   * so future teaching days don't get scored as absences and drag the rate
+   * down. Omit to count every day (used by unit tests over past-only data).
+   */
+  todayYmd?: string,
 ): Record<number, StudentSummary> {
   const out: Record<number, StudentSummary> = {}
-  const totalDays = teachingDays.length
+  // Attendance is only meaningful for days that have already happened.
+  const elapsedDays = todayYmd ? teachingDays.filter(day => day.date <= todayYmd) : teachingDays
+  const totalDays = elapsedDays.length
 
   for (const student of students) {
     let anwesend = 0
     let nichtAnwesend = 0
     const dayGrades: number[] = []
 
-    for (const day of teachingDays) {
+    for (const day of elapsedDays) {
       const entry = entries[entryKey(student.id, day.date, day.period)]
 
       // Anything that is not an explicit "Anwesend" — including a day with
