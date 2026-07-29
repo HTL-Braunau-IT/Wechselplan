@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 export async function GET() {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   // Create a sample CSV with realistic class names and student data
   const csvContent = `class,firstName,lastName
 1A,Max,Mustermann
@@ -19,7 +23,7 @@ export async function GET() {
   return new NextResponse(csvContent, {
     headers: {
       'Content-Type': 'text/csv',
-      'Content-Disposition': 'attachment; filename="sample_students.csv"'
-    }
+      'Content-Disposition': 'attachment; filename="sample_students.csv"',
+    },
   })
-} 
+}

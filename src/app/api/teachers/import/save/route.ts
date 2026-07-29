@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
-import { captureError } from '~/lib/sentry'
+import { captureError } from '@/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 const prisma = new PrismaClient()
 
@@ -14,8 +15,6 @@ interface ImportRequest {
   }[]
 }
 
-
-
 /**
  * Handles a POST request to import and upsert teacher records from a JSON payload.
  *
@@ -26,42 +25,43 @@ interface ImportRequest {
  * @throws {Error} If parsing the request body or database operations fail, returns a 500 response with an error message.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
-    const data = await request.json() as ImportRequest
+    const data = (await request.json()) as ImportRequest
     let importedCount = 0
 
     // First deduplicate the input data
-    const uniqueTeachers = Array.from(new Map(
-      data.teachers.map(t => [`${t.firstName}_${t.lastName}`, t])
-    ).values())
-
+    const uniqueTeachers = Array.from(
+      new Map(data.teachers.map(t => [`${t.firstName}_${t.lastName}`, t])).values(),
+    )
 
     // Process all unique teachers (normalize username for storage)
     await Promise.all(
       uniqueTeachers.map(t => {
         const username = normalizeUsername(t.username) || t.username
         const data = { ...t, username }
-        return prisma.teacher.upsert({
-          where: { username },
-          create: data,
-          update: data,
-        }).then(() => importedCount++)
-      })
+        return prisma.teacher
+          .upsert({
+            where: { username },
+            create: data,
+            update: data,
+          })
+          .then(() => importedCount++)
+      }),
     )
     return NextResponse.json({
       message: 'Import completed successfully',
       teachers: importedCount,
       total: uniqueTeachers.length,
-      skipped: uniqueTeachers.length - importedCount
+      skipped: uniqueTeachers.length - importedCount,
     })
   } catch (error) {
     captureError(error, {
       location: 'api/teachers/import/save',
-      type: 'import-teachers'
-    })  
-    return NextResponse.json(
-      { error: 'Failed to import teachers' },
-      { status: 500 }
-    )
+      type: 'import-teachers',
+    })
+    return NextResponse.json({ error: 'Failed to import teachers' }, { status: 500 })
   }
-} 
+}

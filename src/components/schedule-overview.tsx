@@ -1,5 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { Group, TeacherAssignmentResponse, ScheduleTime, BreakTime, TurnSchedule } from '@/types/types'
+import type {
+  Group,
+  TeacherAssignmentResponse,
+  ScheduleTime,
+  BreakTime,
+  TurnSchedule,
+} from '@/types/types'
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { Spinner } from '@/components/ui/spinner'
@@ -22,17 +28,17 @@ interface ScheduleOverviewProps {
 
 const GROUP_COLORS = [
   'bg-yellow-200', // Gruppe 1
-  'bg-green-200',  // Gruppe 2
-  'bg-blue-200',   // Gruppe 3
-  'bg-red-200',    // Gruppe 4
-];
+  'bg-green-200', // Gruppe 2
+  'bg-blue-200', // Gruppe 3
+  'bg-red-200', // Gruppe 4
+]
 
 const DARK_GROUP_COLORS = [
   'dark:bg-yellow-900/60',
   'dark:bg-green-900/60',
   'dark:bg-blue-900/60',
   'dark:bg-red-900/60',
-];
+]
 
 /**
  * Returns a new array with elements shifted left by a given number of positions, wrapping items from the front to the end.
@@ -42,14 +48,14 @@ const DARK_GROUP_COLORS = [
  * @returns A new array with elements rotated left by {@link n} positions.
  */
 function rotateArray<T>(arr: T[], n: number): T[] {
-  const rotated = [...arr];
+  const rotated = [...arr]
   for (let i = 0; i < n; i++) {
-    const temp = rotated.shift();
+    const temp = rotated.shift()
     if (temp !== undefined) {
-      rotated.push(temp);
+      rotated.push(temp)
     }
   }
-  return rotated;
+  return rotated
 }
 
 /**
@@ -67,12 +73,12 @@ function getGroupForTeacherAndTurn(
   teacherIdx: number,
   turnIdx: number,
   period: 'AM' | 'PM',
-  uniqueTeachers: TeacherAssignmentResponse[]
+  uniqueTeachers: TeacherAssignmentResponse[],
 ) {
-  if (!groups[0] || !uniqueTeachers[teacherIdx]) return null;
-  const rotatedGroups = rotateArray(groups, turnIdx);
-  const group = rotatedGroups[teacherIdx];
-  return group;
+  if (!groups[0] || !uniqueTeachers[teacherIdx]) return null
+  const rotatedGroups = rotateArray(groups, turnIdx)
+  const group = rotatedGroups[teacherIdx]
+  return group
 }
 
 /**
@@ -83,12 +89,12 @@ function getGroupForTeacherAndTurn(
  * @returns An object with the start date, end date, and total number of days for the specified turn. Returns empty strings and zero if no weeks are found.
  */
 function getTurnusInfo(turnKey: string, turns: TurnSchedule) {
-  const entry = turns[turnKey] as { weeks?: { date: string }[] };
-  if (!entry?.weeks?.length) return { start: '', end: '', days: 0 };
-  const start = entry.weeks[0]?.date ?? '';
-  const end = entry.weeks[entry.weeks.length - 1]?.date ?? '';
-  const days = entry.weeks.length;
-  return { start, end, days };
+  const entry = turns[turnKey] as { weeks?: { date: string }[] }
+  if (!entry?.weeks?.length) return { start: '', end: '', days: 0 }
+  const start = entry.weeks[0]?.date ?? ''
+  const end = entry.weeks[entry.weeks.length - 1]?.date ?? ''
+  const days = entry.weeks.length
+  return { start, end, days }
 }
 
 /**
@@ -98,8 +104,8 @@ function getTurnusInfo(turnKey: string, turns: TurnSchedule) {
  * @returns The German name of the weekday, or an empty string if {@link weekday} is undefined.
  */
 function getWeekday(weekday: number) {
-  const days = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
-  return weekday === undefined ? '' : days[weekday];
+  const days = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag']
+  return weekday === undefined ? '' : days[weekday]
 }
 
 /**
@@ -132,7 +138,7 @@ export function ScheduleOverview({
   additionalInfo,
   weekday,
   className,
-  showExportButtons = false
+  showExportButtons = false,
 }: ScheduleOverviewProps) {
   const { data: session } = useSession()
   const [isTeacherForAM, setIsTeacherForAM] = useState(false)
@@ -143,16 +149,16 @@ export function ScheduleOverview({
   const [savingExcelPM, setSavingExcelPM] = useState(false)
 
   // Find the max number of students in any group for row rendering
-  const maxStudents = Math.max(...groups.map(g => g.students.length), 0);
+  const maxStudents = Math.max(...groups.map(g => g.students.length), 0)
 
   // Get unique teachers for AM and PM
   const uniqueAmTeachers = amAssignments
     .filter(a => a.teacherId !== 0)
-    .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx);
+    .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx)
 
   const uniquePmTeachers = pmAssignments
     .filter(a => a.teacherId !== 0)
-    .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx);
+    .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx)
 
   // Check if user is a teacher for the class
   useEffect(() => {
@@ -165,7 +171,9 @@ export function ScheduleOverview({
 
       try {
         // First, get the teacher record for the current user
-        const teacherResponse = await fetch(`/api/teachers/by-username?username=${session.user.name}`)
+        const teacherResponse = await fetch(
+          `/api/teachers/by-username?username=${session.user.name}`,
+        )
         if (!teacherResponse.ok) {
           console.log('Failed to fetch teacher record:', teacherResponse.status)
           setIsTeacherForAM(false)
@@ -184,7 +192,7 @@ export function ScheduleOverview({
         const isAssignedAM = amAssignments.some(a => a.teacherId === teacher.id)
         // Check if user is assigned as a teacher in PM assignments
         const isAssignedPM = pmAssignments.some(a => a.teacherId === teacher.id)
-        
+
         setIsTeacherForAM(isAssignedAM)
         setIsTeacherForPM(isAssignedPM)
       } catch {
@@ -249,16 +257,16 @@ export function ScheduleOverview({
     <div className="container mx-auto p-4">
       {/* Export Buttons */}
       {showExportButtons && className && (
-        <div className="flex items-center gap-2 mb-8">
+        <div className="mb-8 flex items-center gap-2">
           <button
-            className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 rounded px-6 py-2 disabled:opacity-50"
             onClick={handlePDFExport}
             disabled={savingPdf}
           >
             {savingPdf ? 'Exporting PDF...' : 'PDF Export'}
           </button>
           <button
-            className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 rounded px-6 py-2 disabled:opacity-50"
             onClick={handlePDFDatumExport}
             disabled={savingPdfDatum}
           >
@@ -268,7 +276,7 @@ export function ScheduleOverview({
           {/* AM Excel Export Button - only show if teacher is assigned to AM */}
           {isTeacherForAM && (
             <button
-              className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+              className="flex items-center gap-2 rounded bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
               onClick={handleExcelAMExport}
               disabled={savingExcelAM}
             >
@@ -286,7 +294,7 @@ export function ScheduleOverview({
           {/* PM Excel Export Button - only show if teacher is assigned to PM */}
           {isTeacherForPM && (
             <button
-              className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+              className="flex items-center gap-2 rounded bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
               onClick={handleExcelPMExport}
               disabled={savingExcelPM}
             >
@@ -313,7 +321,7 @@ export function ScheduleOverview({
             <table className="min-w-full border text-sm">
               <thead>
                 <tr>
-                  <th className="border p-1 text-center font-bold w-8">Nr.</th>
+                  <th className="w-8 border p-1 text-center font-bold">Nr.</th>
                   {groups.map((group, idx) => (
                     <th
                       key={group.id}
@@ -327,8 +335,8 @@ export function ScheduleOverview({
               <tbody>
                 {[...Array(maxStudents)].map((_, rowIdx) => (
                   <tr key={rowIdx}>
-                    <td className="border p-1 text-center font-bold w-8">{rowIdx + 1}</td>
-                    {groups.map((group) => (
+                    <td className="w-8 border p-1 text-center font-bold">{rowIdx + 1}</td>
+                    {groups.map(group => (
                       <td key={group.id} className="border p-2 text-center">
                         {group.students[rowIdx]
                           ? `${group.students[rowIdx].lastName} ${group.students[rowIdx].firstName}`
@@ -351,11 +359,11 @@ export function ScheduleOverview({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <p className="text-sm text-gray-500">Klassenvorstand</p>
-              <p className="font-semibold text-lg">{classHead}</p>
+              <p className="text-lg font-semibold">{classHead}</p>
             </div>
             <div className="space-y-2">
               <p className="text-sm text-gray-500">Klassenleitung</p>
-              <p className="font-semibold text-lg">{classLead}</p>
+              <p className="text-lg font-semibold">{classLead}</p>
             </div>
           </div>
         </CardContent>
@@ -370,16 +378,21 @@ export function ScheduleOverview({
             <div className="space-y-2">
               <div className="border-b pb-2">
                 <p className="text-sm font-medium">Vormittag</p>
-                <p className="text-sm text-gray-500">{scheduleTimes.find((time: ScheduleTime) => time.period === 'AM')?.startTime} - {scheduleTimes.find((time: ScheduleTime) => time.period === 'AM')?.endTime}</p>
+                <p className="text-sm text-gray-500">
+                  {scheduleTimes.find((time: ScheduleTime) => time.period === 'AM')?.startTime} -{' '}
+                  {scheduleTimes.find((time: ScheduleTime) => time.period === 'AM')?.endTime}
+                </p>
               </div>
               {breakTimes.filter((time: BreakTime) => time.period === 'AM').length > 0 && (
                 <div>
-                  <p className="text-xs font-medium text-gray-500 mb-1">Pausen:</p>
-                  <ul className="text-xs text-gray-400 space-y-1">
+                  <p className="mb-1 text-xs font-medium text-gray-500">Pausen:</p>
+                  <ul className="space-y-1 text-xs text-gray-400">
                     {breakTimes
                       .filter((time: BreakTime) => time.period === 'AM')
                       .map((time: BreakTime) => (
-                        <li key={time.id}>{time.name}: {time.startTime} - {time.endTime}</li>
+                        <li key={time.id}>
+                          {time.name}: {time.startTime} - {time.endTime}
+                        </li>
                       ))}
                   </ul>
                 </div>
@@ -388,16 +401,21 @@ export function ScheduleOverview({
             <div className="space-y-2">
               <div className="border-b pb-2">
                 <p className="text-sm font-medium">Nachmittag</p>
-                <p className="text-sm text-gray-500">{scheduleTimes.find((time: ScheduleTime) => time.period === 'PM')?.startTime} - {scheduleTimes.find((time: ScheduleTime) => time.period === 'PM')?.endTime}</p>
+                <p className="text-sm text-gray-500">
+                  {scheduleTimes.find((time: ScheduleTime) => time.period === 'PM')?.startTime} -{' '}
+                  {scheduleTimes.find((time: ScheduleTime) => time.period === 'PM')?.endTime}
+                </p>
               </div>
               {breakTimes.filter((time: BreakTime) => time.period === 'PM').length > 0 && (
                 <div>
-                  <p className="text-xs font-medium text-gray-500 mb-1">Pausen:</p>
-                  <ul className="text-xs text-gray-400 space-y-1">
+                  <p className="mb-1 text-xs font-medium text-gray-500">Pausen:</p>
+                  <ul className="space-y-1 text-xs text-gray-400">
                     {breakTimes
                       .filter((time: BreakTime) => time.period === 'PM')
                       .map((time: BreakTime) => (
-                        <li key={time.id}>{time.name}: {time.startTime} - {time.endTime}</li>
+                        <li key={time.id}>
+                          {time.name}: {time.startTime} - {time.endTime}
+                        </li>
                       ))}
                   </ul>
                 </div>
@@ -405,12 +423,14 @@ export function ScheduleOverview({
             </div>
             {breakTimes.filter((time: BreakTime) => time.period === 'LUNCH').length > 0 && (
               <div className="col-span-2 border-t pt-4">
-                <p className="text-xs font-medium text-gray-500 mb-1">Mittagspause:</p>
-                <ul className="text-xs text-gray-400 space-y-1">
+                <p className="mb-1 text-xs font-medium text-gray-500">Mittagspause:</p>
+                <ul className="space-y-1 text-xs text-gray-400">
                   {breakTimes
                     .filter((time: BreakTime) => time.period === 'LUNCH')
                     .map((time: BreakTime) => (
-                      <li key={time.id}>{time.name}: {time.startTime} - {time.endTime}</li>
+                      <li key={time.id}>
+                        {time.name}: {time.startTime} - {time.endTime}
+                      </li>
                     ))}
                 </ul>
               </div>
@@ -420,56 +440,71 @@ export function ScheduleOverview({
       </Card>
 
       {/* AM and PM Schedule Tables */}
-      {[{ period: 'AM', teachers: uniqueAmTeachers }, { period: 'PM', teachers: uniquePmTeachers }]
+      {[
+        { period: 'AM', teachers: uniqueAmTeachers },
+        { period: 'PM', teachers: uniquePmTeachers },
+      ]
         .filter(({ teachers }) => teachers.length > 0)
         .map(({ period, teachers }) => (
-        <Card className="mb-8" key={period}>
-          <CardHeader>
-            <CardTitle>{getWeekday(weekday)} ({period === 'AM' ? 'Vormittag' : 'Nachmittag'})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="min-w-full border text-sm">
-                <thead>
-                  <tr>
-                    <th className="border p-2">Lehrer/in</th>
-                    <th className="border p-2">Werkstätte</th>
-                    <th className="border p-2">Lehrinhalt</th>
-                    <th className="border p-2">Raum</th>
-                    {Object.keys(turns).map((turn, turnIdx) => (
-                      <th key={turn} className="border p-2">
-                        <div>Turnus {turnIdx + 1}</div>
-                        <div className="text-xs text-gray-600">{getTurnusInfo(turn, turns).start} - {getTurnusInfo(turn, turns).end}</div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {teachers.map((assignment, teacherIdx) => (
-                    <tr key={assignment.teacherId}>
-                      <td className="border p-2 font-medium">{assignment.teacherLastName}, {assignment.teacherFirstName}</td>
-                      <td className="border p-2">{assignment.subject ?? ''}</td>
-                      <td className="border p-2">{assignment.learningContent ?? ''}</td>
-                      <td className="border p-2">{assignment.room ?? ''}</td>
-                      {Object.keys(turns).map((turn, turnIdx) => {
-                        const group = getGroupForTeacherAndTurn(groups, teacherIdx, turnIdx, period as 'AM' | 'PM', teachers);
-                        return (
-                          <td
-                            key={turn}
-                            className={`border p-2 text-center font-bold text-black ${group ? GROUP_COLORS[groups.findIndex(g => g.id === group.id) % GROUP_COLORS.length] : ''} ${group ? DARK_GROUP_COLORS[groups.findIndex(g => g.id === group.id) % DARK_GROUP_COLORS.length] : ''}`}
-                          >
-                            {group ? group.id : ''}
-                          </td>
-                        );
-                      })}
+          <Card className="mb-8" key={period}>
+            <CardHeader>
+              <CardTitle>
+                {getWeekday(weekday)} ({period === 'AM' ? 'Vormittag' : 'Nachmittag'})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="min-w-full border text-sm">
+                  <thead>
+                    <tr>
+                      <th className="border p-2">Lehrer/in</th>
+                      <th className="border p-2">Werkstätte</th>
+                      <th className="border p-2">Lehrinhalt</th>
+                      <th className="border p-2">Raum</th>
+                      {Object.keys(turns).map((turn, turnIdx) => (
+                        <th key={turn} className="border p-2">
+                          <div>Turnus {turnIdx + 1}</div>
+                          <div className="text-xs text-gray-600">
+                            {getTurnusInfo(turn, turns).start} - {getTurnusInfo(turn, turns).end}
+                          </div>
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+                  </thead>
+                  <tbody>
+                    {teachers.map((assignment, teacherIdx) => (
+                      <tr key={assignment.teacherId}>
+                        <td className="border p-2 font-medium">
+                          {assignment.teacherLastName}, {assignment.teacherFirstName}
+                        </td>
+                        <td className="border p-2">{assignment.subject ?? ''}</td>
+                        <td className="border p-2">{assignment.learningContent ?? ''}</td>
+                        <td className="border p-2">{assignment.room ?? ''}</td>
+                        {Object.keys(turns).map((turn, turnIdx) => {
+                          const group = getGroupForTeacherAndTurn(
+                            groups,
+                            teacherIdx,
+                            turnIdx,
+                            period as 'AM' | 'PM',
+                            teachers,
+                          )
+                          return (
+                            <td
+                              key={turn}
+                              className={`border p-2 text-center font-bold text-black ${group ? GROUP_COLORS[groups.findIndex(g => g.id === group.id) % GROUP_COLORS.length] : ''} ${group ? DARK_GROUP_COLORS[groups.findIndex(g => g.id === group.id) % DARK_GROUP_COLORS.length] : ''}`}
+                            >
+                              {group ? group.id : ''}
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
 
       <Card className="mb-8">
         <CardHeader>
@@ -486,19 +521,24 @@ export function ScheduleOverview({
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(turns).map(([turnusKey, turnus], index) => (
-                  (turnus as { weeks: { date: string; week: string; isHoliday: boolean }[] }).weeks.map((week, weekIndex) => (
+                {Object.entries(turns).map(([turnusKey, turnus], index) =>
+                  (
+                    turnus as { weeks: { date: string; week: string; isHoliday: boolean }[] }
+                  ).weeks.map((week, weekIndex) => (
                     <tr key={`${turnusKey}-${weekIndex}`}>
                       {weekIndex === 0 && (
-                        <td className="border p-2" rowSpan={(turnus as { weeks: { date: string }[] }).weeks.length}>
+                        <td
+                          className="border p-2"
+                          rowSpan={(turnus as { weeks: { date: string }[] }).weeks.length}
+                        >
                           Turnus {index + 1}
                         </td>
                       )}
                       <td className="border p-2">{week.date}</td>
                       <td className="border p-2">{week.week}</td>
                     </tr>
-                  ))
-                ))}
+                  )),
+                )}
               </tbody>
             </table>
           </div>
@@ -516,5 +556,5 @@ export function ScheduleOverview({
         </Card>
       )}
     </div>
-  );
-} 
+  )
+}

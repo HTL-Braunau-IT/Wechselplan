@@ -27,7 +27,9 @@ async function main() {
     }
     const existing = await prisma.teacher.findUnique({ where: { username: normalized } })
     if (existing && existing.id !== t.id) {
-      console.warn(`Teacher id=${t.id}: "${t.username}" -> "${normalized}" conflicts with id=${existing.id}; skipping`)
+      console.warn(
+        `Teacher id=${t.id}: "${t.username}" -> "${normalized}" conflicts with id=${existing.id}; skipping`,
+      )
       teachersSkipped++
       continue
     }
@@ -46,7 +48,9 @@ async function main() {
     }
     const existing = await prisma.student.findUnique({ where: { username: normalized } })
     if (existing && existing.id !== s.id) {
-      console.warn(`Student id=${s.id}: "${s.username}" -> "${normalized}" conflicts with id=${existing.id}; skipping`)
+      console.warn(
+        `Student id=${s.id}: "${s.username}" -> "${normalized}" conflicts with id=${existing.id}; skipping`,
+      )
       studentsSkipped++
       continue
     }
@@ -60,7 +64,7 @@ async function main() {
 }
 
 main()
-  .catch((e) => {
+  .catch(e => {
     console.error(e)
     process.exit(1)
   })

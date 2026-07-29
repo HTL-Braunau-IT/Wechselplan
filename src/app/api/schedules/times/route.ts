@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * Handles HTTP OPTIONS requests for the schedule times API route.
@@ -11,7 +12,7 @@ export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
     headers: {
-      'Allow': 'GET, POST, OPTIONS',
+      Allow: 'GET, POST, OPTIONS',
     },
   })
 }
@@ -24,6 +25,9 @@ export async function OPTIONS() {
  * @returns A JSON response containing the latest schedule and break times for the class.
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('session')
+  if (denied) return denied
+
   const { searchParams } = new URL(request.url)
   const classIdParam = searchParams.get('classId')
 
@@ -39,27 +43,23 @@ export async function GET(request: Request) {
   // Get the latest schedule for this class
   const times = await prisma.schedule.findFirst({
     where: {
-      classId: classId
+      classId: classId,
     },
     orderBy: {
-      createdAt: 'desc'
+      createdAt: 'desc',
     },
     include: {
       scheduleTimes: true,
-      breakTimes: true
-    }
+      breakTimes: true,
+    },
   })
 
   if (!times) {
-    return NextResponse.json(
-      { error: 'No schedule times found for this class' },
-      { status: 404 }
-    )
+    return NextResponse.json({ error: 'No schedule times found for this class' }, { status: 404 })
   }
 
   return NextResponse.json({ times })
 }
-
 
 /**
  * Updates the latest schedule for a class with new schedule and break times.
@@ -67,67 +67,59 @@ export async function GET(request: Request) {
  * Expects a JSON body containing `scheduleTimes`, `breakTimes`, and `classId`. Validates the presence of `classId`, retrieves the latest schedule for the specified class, and updates its associated times. Returns the updated schedule in JSON format, or an error response if validation fails, the class or schedule is not found, or an internal error occurs.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     const { scheduleTimes, breakTimes, classId } = await request.json()
 
     if (!classId || typeof classId !== 'number') {
-      return NextResponse.json(
-        { error: 'Class ID is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Class ID is required' }, { status: 400 })
     }
 
     // Get the latest schedule for this class
     const latestSchedule = await prisma.schedule.findFirst({
       where: {
-        classId: classId
+        classId: classId,
       },
       orderBy: {
-        createdAt: 'desc'
+        createdAt: 'desc',
       },
       include: {
         scheduleTimes: true,
-        breakTimes: true
-      }
+        breakTimes: true,
+      },
     })
 
     if (!latestSchedule) {
-      return NextResponse.json(
-        { error: 'No schedule found for this class' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'No schedule found for this class' }, { status: 404 })
     }
 
     // Update the schedule with the selected times
     const updatedSchedule = await prisma.schedule.update({
       where: {
-        id: latestSchedule.id
+        id: latestSchedule.id,
       },
       data: {
         scheduleTimes: {
-          set: scheduleTimes.map((time: { id: number }) => ({ id: time.id }))
+          set: scheduleTimes.map((time: { id: number }) => ({ id: time.id })),
         },
         breakTimes: {
-          set: breakTimes.map((time: { id: number }) => ({ id: time.id }))
-        }
+          set: breakTimes.map((time: { id: number }) => ({ id: time.id })),
+        },
       },
       include: {
         scheduleTimes: true,
-        breakTimes: true
-      }
+        breakTimes: true,
+      },
     })
 
     return NextResponse.json(updatedSchedule)
   } catch (error) {
-    
     captureError(error, {
       location: 'api/schedules/times',
-      type: 'save-times'
+      type: 'save-times',
     })
-    return NextResponse.json(
-      { error: 'Failed to save times' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to save times' }, { status: 500 })
   }
 }
-

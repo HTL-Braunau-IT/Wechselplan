@@ -4,16 +4,16 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { HelpCircle } from 'lucide-react'
-import { Button } from '~/components/ui/button'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '~/components/ui/dialog'
-import { Input } from '~/components/ui/input'
-import { Textarea } from '~/components/ui/textarea'
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 
 /**
@@ -46,7 +46,9 @@ export function SupportDialog() {
       })
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Failed to submit support message' })) as { message?: string }
+        const errorData = (await response
+          .json()
+          .catch(() => ({ message: 'Failed to submit support message' }))) as { message?: string }
         throw new Error(errorData.message ?? 'Failed to submit support message')
       }
 
@@ -65,7 +67,7 @@ export function SupportDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="flex items-center gap-2 hover:bg-muted/50">
+        <Button variant="ghost" size="sm" className="hover:bg-muted/50 flex items-center gap-2">
           <HelpCircle className="h-4 w-4" />
           {t('navigation.support', 'Help & Support')}
         </Button>
@@ -91,15 +93,15 @@ export function SupportDialog() {
             <label htmlFor="message" className="text-sm font-medium">
               {t('support.message')}
             </label>
-<Textarea
-   id="message"
-   value={message}
-   onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setMessage(e.target.value)}
-   required
-  maxLength={1000}
-   placeholder={t('support.messagePlaceholder')}
-   rows={4}
- />
+            <Textarea
+              id="message"
+              value={message}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setMessage(e.target.value)}
+              required
+              maxLength={1000}
+              placeholder={t('support.messagePlaceholder')}
+              rows={4}
+            />
           </div>
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? t('common.submitting') : t('support.submit')}
@@ -108,4 +110,4 @@ export function SupportDialog() {
       </DialogContent>
     </Dialog>
   )
-} 
+}

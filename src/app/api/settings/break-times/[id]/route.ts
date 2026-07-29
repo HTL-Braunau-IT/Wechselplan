@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { captureError } from '~/lib/sentry'
+import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 /**
  * Handles DELETE requests to remove a break time entry by its ID.
  *
@@ -10,33 +11,27 @@ import { captureError } from '~/lib/sentry'
  * @param params - An object containing a promise that resolves to an object with an `id` string.
  * @returns A JSON response indicating the result of the deletion operation.
  */
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     const resolvedParams = await params
     const id = parseInt(resolvedParams.id)
     if (isNaN(id)) {
-      return NextResponse.json(
-        { error: 'Invalid ID' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Invalid ID' }, { status: 400 })
     }
 
     await prisma.breakTime.delete({
-      where: { id }
+      where: { id },
     })
 
     return NextResponse.json({ success: true })
   } catch (error) {
     captureError(error, {
       location: 'api/settings/break-times/[id]',
-      type: 'delete-break-time'
+      type: 'delete-break-time',
     })
-    return NextResponse.json(
-      { error: 'Failed to delete break time' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to delete break time' }, { status: 500 })
   }
-} 
+}

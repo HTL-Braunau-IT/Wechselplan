@@ -1,11 +1,10 @@
-import { describe, test, expect, vi, beforeEach, afterAll } from 'vitest';
-import { POST } from '../route';
-import { captureError } from '@/lib/sentry';
-import ldap from 'ldapjs';
-
+import { describe, test, expect, vi, beforeEach, afterAll } from 'vitest'
+import { POST } from '../route'
+import { captureError } from '@/lib/sentry'
+import ldap from 'ldapjs'
 
 // Mock environment variables
-const originalEnv = process.env;
+const originalEnv = process.env
 process.env = {
   ...originalEnv,
   LDAP_URL: 'ldap://example.com',
@@ -14,7 +13,7 @@ process.env = {
   LDAP_PASSWORD: 'password',
   LDAP_TEACHERS_OU: 'ou=teachers,dc=example,dc=com',
   NEXT_RUNTIME: 'nodejs',
-};
+}
 
 // Mock ldapjs
 vi.mock('ldapjs', () => ({
@@ -25,22 +24,21 @@ vi.mock('ldapjs', () => ({
       unbind: vi.fn(),
     })),
   },
-}));
+}))
 
 // Mock sentry
 vi.mock('@/lib/sentry', () => ({
   captureError: vi.fn(),
-}));
+}))
 
 describe('Teachers Import API', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-  });
+    vi.clearAllMocks()
+  })
 
   afterAll(() => {
-
-    process.env = originalEnv;
-  });
+    process.env = originalEnv
+  })
 
   test('should successfully import teachers from LDAP', async () => {
     const mockTeachers = [
@@ -56,7 +54,7 @@ describe('Teachers Import API', () => {
         sAMAccountName: 'janesmith',
         mail: 'jane.smith@example.com',
       },
-    ];
+    ]
 
     const mockClient = {
       bind: vi.fn((username, password, callback) => callback(null)),
@@ -72,24 +70,24 @@ describe('Teachers Import API', () => {
                     { type: 'sAMAccountName', values: [teacher.sAMAccountName] },
                     { type: 'mail', values: [teacher.mail] },
                   ],
-                });
-              });
+                })
+              })
             } else if (event === 'end') {
-              handler();
+              handler()
             }
           }),
-        };
-        callback(null, res);
+        }
+        callback(null, res)
       }),
       unbind: vi.fn(),
-    };
+    }
 
-    vi.mocked(ldap.createClient).mockReturnValue(mockClient as any);
+    vi.mocked(ldap.createClient).mockReturnValue(mockClient as any)
 
-    const response = await POST();
-    const data = await response.json();
+    const response = await POST()
+    const data = await response.json()
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(200)
     expect(data).toEqual({
       teachers: mockTeachers.map(teacher => ({
         firstName: teacher.givenName,
@@ -97,7 +95,7 @@ describe('Teachers Import API', () => {
         username: teacher.sAMAccountName,
         email: teacher.mail,
       })),
-    });
+    })
 
     // Verify LDAP client configuration
     expect(ldap.createClient).toHaveBeenCalledWith({
@@ -110,14 +108,14 @@ describe('Teachers Import API', () => {
       tlsOptions: {
         rejectUnauthorized: false,
       },
-    });
+    })
 
     // Verify LDAP bind
     expect(mockClient.bind).toHaveBeenCalledWith(
       process.env.LDAP_USERNAME,
       process.env.LDAP_PASSWORD,
-      expect.any(Function)
-    );
+      expect.any(Function),
+    )
 
     // Verify LDAP search
     expect(mockClient.search).toHaveBeenCalledWith(
@@ -129,117 +127,104 @@ describe('Teachers Import API', () => {
         paged: true,
         sizeLimit: 1000,
       },
-      expect.any(Function)
-    );
+      expect.any(Function),
+    )
 
     // Verify client cleanup
-    expect(mockClient.unbind).toHaveBeenCalled();
-  });
+    expect(mockClient.unbind).toHaveBeenCalled()
+  })
 
   test('should handle LDAP bind errors', async () => {
     const mockClient = {
-      bind: vi.fn((username, password, callback) => 
-        callback(new Error('Invalid credentials'))
-      ),
+      bind: vi.fn((username, password, callback) => callback(new Error('Invalid credentials'))),
       unbind: vi.fn(),
-    };
+    }
 
-    vi.mocked(ldap.createClient).mockReturnValue(mockClient as any);
+    vi.mocked(ldap.createClient).mockReturnValue(mockClient as any)
 
-    const response = await POST();
-    const data = await response.json();
+    const response = await POST()
+    const data = await response.json()
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(500)
     expect(data).toEqual({
       error: 'LDAP bind failed',
-    });
+    })
 
     // Verify error was logged and captured
 
-    expect(captureError).toHaveBeenCalledWith(
-      expect.any(Error),
-      {
-        location: 'api/teachers/import',
-        type: 'ldap-bind',
-        extra: {
-          config: {
-            url: process.env.LDAP_URL,
-            baseDN: process.env.LDAP_BASE_DN,
-            teachersOU: process.env.LDAP_TEACHERS_OU,
-          },
+    expect(captureError).toHaveBeenCalledWith(expect.any(Error), {
+      location: 'api/teachers/import',
+      type: 'ldap-bind',
+      extra: {
+        config: {
+          url: process.env.LDAP_URL,
+          baseDN: process.env.LDAP_BASE_DN,
+          teachersOU: process.env.LDAP_TEACHERS_OU,
         },
-      }
-    );
+      },
+    })
 
     // Verify client cleanup
-    expect(mockClient.unbind).toHaveBeenCalled();
-  });
+    expect(mockClient.unbind).toHaveBeenCalled()
+  })
 
   test('should handle LDAP search errors', async () => {
     const mockClient = {
       bind: vi.fn((username, password, callback) => callback(null)),
-      search: vi.fn((base, options, callback) => 
-        callback(new Error('Search failed'))
-      ),
+      search: vi.fn((base, options, callback) => callback(new Error('Search failed'))),
       unbind: vi.fn(),
-    };
+    }
 
-    vi.mocked(ldap.createClient).mockReturnValue(mockClient as any);
+    vi.mocked(ldap.createClient).mockReturnValue(mockClient as any)
 
-    const response = await POST();
-    const data = await response.json();
+    const response = await POST()
+    const data = await response.json()
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(500)
     expect(data).toEqual({
       error: 'LDAP search failed',
-    });
+    })
 
     // Verify error was logged and captured
 
-    expect(captureError).toHaveBeenCalledWith(
-      expect.any(Error),
-      {
-        location: 'api/teachers/import',
-        type: 'ldap-search',
-        extra: {
-          config: {
-            url: process.env.LDAP_URL,
-            baseDN: process.env.LDAP_BASE_DN,
-            teachersOU: process.env.LDAP_TEACHERS_OU,
-          },
+    expect(captureError).toHaveBeenCalledWith(expect.any(Error), {
+      location: 'api/teachers/import',
+      type: 'ldap-search',
+      extra: {
+        config: {
+          url: process.env.LDAP_URL,
+          baseDN: process.env.LDAP_BASE_DN,
+          teachersOU: process.env.LDAP_TEACHERS_OU,
         },
-      }
-    );
+      },
+    })
 
     // Verify client cleanup
-    expect(mockClient.unbind).toHaveBeenCalled();
-  });
+    expect(mockClient.unbind).toHaveBeenCalled()
+  })
 
   test('should handle missing environment variables', async () => {
     // Remove required environment variables
-    delete process.env.LDAP_URL;
-    delete process.env.LDAP_BASE_DN;
+    delete process.env.LDAP_URL
+    delete process.env.LDAP_BASE_DN
 
-    const response = await POST();
-    const data = await response.json();
+    const response = await POST()
+    const data = await response.json()
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(500)
     expect(data).toEqual({
       error: 'Failed to import teachers',
-    });
+    })
 
     // Verify error was logged and captured
 
-    expect(captureError).toHaveBeenCalledWith(
-      expect.any(Error),
-      {
-        location: 'api/teachers/import',
-        type: 'import-teachers',
-        extra: {
-          runtime: process.env.NEXT_RUNTIME,
-          nodeEnv: process.env.NODE_ENV,
-        },
-      }
-    );
-  });
-}); 
+    expect(captureError).toHaveBeenCalledWith(expect.any(Error), {
+      location: 'api/teachers/import',
+      type: 'import-teachers',
+      extra: {
+        runtime: process.env.NEXT_RUNTIME,
+        nodeEnv: process.env.NODE_ENV,
+      },
+    })
+  })
+})

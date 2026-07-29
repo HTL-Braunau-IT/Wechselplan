@@ -3,7 +3,7 @@ export const runtime = 'nodejs'
 import { NextResponse } from 'next/server'
 import ldap from 'ldapjs'
 import { captureError } from '@/lib/sentry'
-
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 interface LDAPConfig {
   url: string
@@ -20,7 +20,7 @@ const getLDAPConfig = (): LDAPConfig => {
     baseDN: process.env.LDAP_BASE_DN,
     username: process.env.LDAP_USERNAME,
     password: process.env.LDAP_PASSWORD,
-    teachersOU: process.env.LDAP_TEACHERS_OU
+    teachersOU: process.env.LDAP_TEACHERS_OU,
   }
 
   // Validate required environment variables
@@ -34,7 +34,6 @@ const getLDAPConfig = (): LDAPConfig => {
 
   return config as LDAPConfig
 }
-
 
 interface LDAPAttribute {
   type: string
@@ -52,7 +51,6 @@ interface LDAPTeacher {
   mail?: string
 }
 
-
 /**
  * Handles a POST request to import teacher data from an LDAP server.
  *
@@ -61,6 +59,8 @@ interface LDAPTeacher {
  * @returns A JSON response with an array of imported teachers or an error message on failure.
  */
 export async function POST(): Promise<Response> {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
 
   try {
     const config = getLDAPConfig()
@@ -72,16 +72,15 @@ export async function POST(): Promise<Response> {
       reconnect: true,
       strictDN: false,
       tlsOptions: {
-        rejectUnauthorized: false
-      }
+        rejectUnauthorized: false,
+      },
     })
 
     const teachers: LDAPTeacher[] = []
 
-    return new Promise<Response>((resolve) => {
-      client.bind(config.username, config.password, (err) => {
+    return new Promise<Response>(resolve => {
+      client.bind(config.username, config.password, err => {
         if (err) {
-
           captureError(err, {
             location: 'api/teachers/import',
             type: 'ldap-bind',
@@ -89,9 +88,9 @@ export async function POST(): Promise<Response> {
               config: {
                 url: config.url,
                 baseDN: config.baseDN,
-                teachersOU: config.teachersOU
-              }
-            }
+                teachersOU: config.teachersOU,
+              },
+            },
           })
           client.unbind()
           resolve(NextResponse.json({ error: 'LDAP bind failed' }, { status: 500 }))
@@ -103,12 +102,11 @@ export async function POST(): Promise<Response> {
           scope: 'sub' as const,
           attributes: ['givenName', 'sn', 'sAMAccountName', 'mail'],
           paged: true,
-          sizeLimit: 1000
+          sizeLimit: 1000,
         }
 
         client.search(config.teachersOU, searchOptions, (err, res) => {
           if (err) {
-
             captureError(err, {
               location: 'api/teachers/import',
               type: 'ldap-search',
@@ -116,9 +114,9 @@ export async function POST(): Promise<Response> {
                 config: {
                   url: config.url,
                   baseDN: config.baseDN,
-                  teachersOU: config.teachersOU
-                }
-              }
+                  teachersOU: config.teachersOU,
+                },
+              },
             })
             client.unbind()
             resolve(NextResponse.json({ error: 'LDAP search failed' }, { status: 500 }))
@@ -126,17 +124,21 @@ export async function POST(): Promise<Response> {
           }
 
           res.on('searchEntry', (entry: LDAPEntry) => {
-            const givenName = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'givenName')?.values[0]
+            const givenName = entry.attributes.find(
+              (attr: LDAPAttribute) => attr.type === 'givenName',
+            )?.values[0]
             const sn = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'sn')?.values[0]
-            const username = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'sAMAccountName')?.values[0]
-            const email = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'mail')?.values[0]
+            const username = entry.attributes.find(
+              (attr: LDAPAttribute) => attr.type === 'sAMAccountName',
+            )?.values[0]
+            const email = entry.attributes.find((attr: LDAPAttribute) => attr.type === 'mail')
+              ?.values[0]
             if (givenName && sn && username) {
               teachers.push({ givenName, sn, sAMAccountName: username, mail: email })
             }
           })
 
           res.on('error', (err: Error) => {
-
             captureError(err, {
               location: 'api/teachers/import',
               type: 'ldap-search-event',
@@ -144,9 +146,9 @@ export async function POST(): Promise<Response> {
                 config: {
                   url: config.url,
                   baseDN: config.baseDN,
-                  teachersOU: config.teachersOU
-                }
-              }
+                  teachersOU: config.teachersOU,
+                },
+              },
             })
             client.unbind()
             resolve(NextResponse.json({ error: 'LDAP search failed' }, { status: 500 }))
@@ -154,28 +156,29 @@ export async function POST(): Promise<Response> {
 
           res.on('end', () => {
             client.unbind()
-            resolve(NextResponse.json({
-              teachers: teachers.map(teacher => ({
-                firstName: teacher.givenName,
-                lastName: teacher.sn,
-                username: teacher.sAMAccountName,
-                email: teacher.mail
-              }))
-            }))
+            resolve(
+              NextResponse.json({
+                teachers: teachers.map(teacher => ({
+                  firstName: teacher.givenName,
+                  lastName: teacher.sn,
+                  username: teacher.sAMAccountName,
+                  email: teacher.mail,
+                })),
+              }),
+            )
           })
         })
       })
     })
   } catch (error) {
-
     captureError(error, {
       location: 'api/teachers/import',
       type: 'import-teachers',
       extra: {
         runtime: process.env.NEXT_RUNTIME,
-        nodeEnv: process.env.NODE_ENV
-      }
+        nodeEnv: process.env.NODE_ENV,
+      },
     })
     return NextResponse.json({ error: 'Failed to import teachers' }, { status: 500 })
   }
-} 
+}

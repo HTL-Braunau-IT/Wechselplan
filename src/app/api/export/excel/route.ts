@@ -3,24 +3,25 @@ import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import * as XLSX from 'xlsx'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 interface Week {
-    date: string
-    week: string
-    isHoliday: boolean
+  date: string
+  week: string
+  isHoliday: boolean
 }
 
 interface Turnus {
+  name: string
+  weeks: Week[]
+  holidays: Array<{
+    id: number
     name: string
-    weeks: Week[]
-    holidays: Array<{
-        id: number
-        name: string
-        startDate: string
-        endDate: string
-        createdAt: string
-        updatedAt: string
-    }>
+    startDate: string
+    endDate: string
+    createdAt: string
+    updatedAt: string
+  }>
 }
 
 type ScheduleData = Record<string, Turnus>
@@ -35,350 +36,414 @@ type ScheduleData = Record<string, Turnus>
  * @throws {Error} If an unexpected error occurs during Excel file generation or data retrieval, a 500 error response is returned.
  */
 export async function POST(request: Request) {
-    try {
-        const { searchParams } = new URL(request.url)
-        const className = searchParams.get('className')
-        const selectedWeekday = searchParams.get('selectedWeekday')
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
 
-        if (!selectedWeekday) {
-            return NextResponse.json({ error: 'Selected Weekday is required' }, { status: 400 })
-        }
+  try {
+    const { searchParams } = new URL(request.url)
+    const className = searchParams.get('className')
+    const selectedWeekday = searchParams.get('selectedWeekday')
 
-        const weekday = Number(selectedWeekday)
-        if (isNaN(weekday) || weekday < 1 || weekday > 5) {
-            return NextResponse.json({ error: 'Selected Weekday is invalid' }, { status: 400 })
-        }
-
-        if (!className) {
-            return NextResponse.json({ error: 'Class Name is required' }, { status: 400 })
-        }
-
-        const schoolYearIdParam = searchParams.get('schoolYearId')
-        let schoolYearId: number | null = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : null
-        if (schoolYearId == null || Number.isNaN(schoolYearId)) {
-            const now = new Date()
-            const current = await prisma.schoolYear.findFirst({
-                where: { startDate: { lte: now }, endDate: { gte: now } },
-                select: { id: true }
-            })
-            schoolYearId = current?.id ?? (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))?.id ?? null
-        }
-        if (schoolYearId == null) {
-            return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
-        }
-
-        const class_response = await prisma.class.findUnique({
-            where: { name: className },
-            include: { classHead: true, classLead: true }
-        })
-
-        if (!class_response) {
-            return NextResponse.json({ error: 'Class not found' }, { status: 404 })
-        }
-
-        const membershipIds = await prisma.classMembership.findMany({
-            where: { classId: class_response.id, schoolYearId },
-            select: { studentId: true }
-        })
-        const studentIds = membershipIds.map((m) => m.studentId)
-        const studentsList =
-            studentIds.length > 0
-                ? await prisma.student.findMany({
-                      where: { id: { in: studentIds } },
-                      orderBy: [{ groupId: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }]
-                  })
-                : []
-        const classWithStudents = { ...class_response, students: studentsList }
-
-        const schedule = await prisma.schedule.findFirst({
-            where: {
-                classId: class_response.id,
-                selectedWeekday: weekday,
-                schoolYearId
-            },
-            orderBy: [{ createdAt: 'desc' }],
-            include: {
-                turns: {
-                    include: {
-                        weeks: true,
-                        holidays: {
-                            include: {
-                                holiday: true
-                            }
-                        }
-                    },
-                    orderBy: {
-                        order: 'asc'
-                    }
-                }
-            }
-        })
-
-        if (!schedule) {
-            return NextResponse.json({ error: 'Schedule not found' }, { status: 404 })
-        }
-
-        // Fetch teacher assignments for this year
-        const teacherAssignments = await prisma.teacherAssignment.findMany({
-            where: { classId: class_response.id, schoolYearId },
-            include: {
-                teacher: true
-            }
-        })
-
-        // Create a new workbook
-        const workbook = XLSX.utils.book_new()
-        
-        // Create empty worksheet with proper dimensions
-        const worksheet = XLSX.utils.aoa_to_sheet([[]])
-        
-        // Track maximum row and column indices
-        let maxRow = 0
-        let maxCol = 0
-
-        // Get students grouped by their group ID
-        const studentsByGroup = classWithStudents.students.reduce<Record<number, { name: string }[]>>((acc, student) => {
-            const groupId = student.groupId ?? 0
-            acc[groupId] ??= []
-            acc[groupId].push({
-                name: `${student.lastName} ${student.firstName}`
-            })
-            return acc
-        }, {})
-
-        // Fill in the student groups (columns B-E)
-        Object.entries(studentsByGroup).forEach(([, students], index) => {
-            students.forEach((student, studentIndex) => {
-                const cell = XLSX.utils.encode_cell({ r: studentIndex, c: index + 1 }) // Start from column B (index 1)
-                worksheet[cell] = { v: student.name, t: 's' } // Explicitly set type as string
-                maxRow = Math.max(maxRow, studentIndex)
-                maxCol = Math.max(maxCol, index + 1)
-            })
-        })
-
-        // Add class information
-        worksheet.F1 = { v: class_response.name, t: 's' } // Class name
-        const teacherName = class_response.classHead 
-            ? `${class_response.classHead.firstName} ${class_response.classHead.lastName}`
-            : ''
-        const leadName = class_response.classLead
-            ? `${class_response.classLead.firstName} ${class_response.classLead.lastName}`
-            : ''
-        worksheet.G1 = { v: teacherName, t: 's' } // Class teacher
-        worksheet.H1 = { v: leadName, t: 's' } // Class lead
-        maxCol = Math.max(maxCol, 7) // Column H is index 7
-
-        // Add Turnustage headers (columns I-R)
-        const turnustageHeaders = [
-            'Turnustage Gruppe 1',
-            'Turnustage Gruppe 2',
-            'Turnustage Gruppe 3',
-            'Turnustage Gruppe 4',
-            'Turnustage Gruppe 5',
-            'Turnustage Gruppe 6',
-            'Turnustage Gruppe 7',
-            'Turnustage Gruppe 8',
-            'Lehrer Vormittag',
-            'Lehrer Nachmittag'
-        ]
-
-        // Add turn combination headers starting from column S
-        const turnCombinationHeaders = [
-            'Turnus 1+2', 'Turnus 1+3', 'Turnus 1+4', 'Turnus 1+5', 'Turnus 1+7', 'Turnus 1+8',
-            'Turnus 2+4', 'Turnus 2+6', 'Turnus 2+7', 'Turnus 2+8',
-            'Turnus 3+4', 'Turnus 3+5', 'Turnus 3+6', 'Turnus 3+7', 'Turnus 3+8',
-            'Turnus 4+5', 'Turnus 4+6', 'Turnus 4+7', 'Turnus 4+8',
-            'Turnus 5+6', 'Turnus 5+7', 'Turnus 5+8',
-            'Turnus 6+7', 'Turnus 6+8',
-            'Turnus 7+8'
-        ]
-
-        turnustageHeaders.forEach((header, index) => {
-            const cell = XLSX.utils.encode_cell({ r: 0, c: index + 8 }) // Start from column I (index 8)
-            worksheet[cell] = { v: header, t: 's' }
-            maxCol = Math.max(maxCol, index + 8)
-        })
-
-        // Add turn combination headers
-        turnCombinationHeaders.forEach((header, index) => {
-            const cell = XLSX.utils.encode_cell({ r: 0, c: index + 18 }) // Start from column S (index 18)
-            worksheet[cell] = { v: header, t: 's' }
-            maxCol = Math.max(maxCol, index + 18)
-        })
-
-        // Use normalized turns if available, otherwise fall back to scheduleData
-        let scheduleData: ScheduleData = {};
-        if (schedule?.turns && schedule.turns.length > 0) {
-            scheduleData = normalizeToJsonFormat(schedule.turns) as ScheduleData;
-        } else if (schedule?.scheduleData && typeof schedule.scheduleData === 'object' && !Array.isArray(schedule.scheduleData)) {
-            scheduleData = schedule.scheduleData as unknown as ScheduleData;
-        }
-        
-        // Process schedule data for turns
-        if (Object.keys(scheduleData).length > 0) {
-            
-            // Debug log to see the structure of scheduleData
-            console.log('Schedule Data Structure:', JSON.stringify(scheduleData, null, 2))
-            
-            // Process each turnus
-            Object.entries(scheduleData).forEach(([, turnus], turnusIndex) => {
-                if (turnus.weeks) {
-                    // Filter out holidays and sort dates
-                    const validDates = turnus.weeks
-                        .filter(week => !week.isHoliday)
-                        .sort((a, b) => {
-                            const [dayA, monthA, yearA] = a.date.split('.').map(Number)
-                            const [dayB, monthB, yearB] = b.date.split('.').map(Number)
-                            if (!dayA || !monthA || !yearA || !dayB || !monthB || !yearB) return 0
-                            return new Date(yearA, monthA - 1, dayA).getTime() - new Date(yearB, monthB - 1, dayB).getTime()
-                        })
-
-                    // Write dates to the worksheet starting from row 3
-                    validDates.forEach((week, dateIndex) => {
-                        const cell = XLSX.utils.encode_cell({ r: dateIndex + 2, c: turnusIndex + 8 }) // Start from column I (index 8), row 3 (index 2)
-                        const [day, month, year] = week.date.split('.')
-                        const formattedDate = `${day}.${month}.20${year}`
-                        worksheet[cell] = { 
-                            v: formattedDate
-                        }
-                        maxRow = Math.max(maxRow, dateIndex + 2)
-                    })
-                }
-            })
-
-            // Process turnus combinations
-            const turnusCombinations = [
-                [1, 2], [1, 3], [1, 4], [1, 5], [1, 7], [1, 8],
-                [2, 4], [2, 6], [2, 7], [2, 8],
-                [3, 4], [3, 5], [3, 6], [3, 7], [3, 8],
-                [4, 5], [4, 6], [4, 7], [4, 8],
-                [5, 6], [5, 7], [5, 8],
-                [6, 7], [6, 8],
-                [7, 8]
-            ]
-
-            // For each combination, combine dates from both turnus groups
-            turnusCombinations.forEach(([turnus1, turnus2], combinationIndex) => {
-                // Get the turnus data using the correct key format
-                const turnus1Key = `TURNUS ${turnus1}`
-                const turnus2Key = `TURNUS ${turnus2}`
-                
-                const turnus1Data = scheduleData[turnus1Key]
-                const turnus2Data = scheduleData[turnus2Key]
-
-                console.log(`Processing combination ${turnus1}+${turnus2}:`, {
-                    turnus1Exists: !!turnus1Data,
-                    turnus2Exists: !!turnus2Data,
-                    turnus1Dates: turnus1Data?.weeks?.length,
-                    turnus2Dates: turnus2Data?.weeks?.length
-                })
-
-                if (turnus1Data?.weeks && turnus2Data?.weeks) {
-                    // Get valid dates for both turnus groups
-                    const turnus1Dates = turnus1Data.weeks
-                        .filter(week => !week.isHoliday)
-                        .map(week => ({
-                            ...week,
-                            date: week.date
-                        }))
-                        .sort((a, b) => {
-                            const [dayA, monthA, yearA] = a.date.split('.').map(Number)
-                            const [dayB, monthB, yearB] = b.date.split('.').map(Number)
-                            if (!dayA || !monthA || !yearA || !dayB || !monthB || !yearB) return 0
-                            return new Date(yearA, monthA - 1, dayA).getTime() - new Date(yearB, monthB - 1, dayB).getTime()
-                        })
-
-                    const turnus2Dates = turnus2Data.weeks
-                        .filter(week => !week.isHoliday)
-                        .map(week => ({
-                            ...week,
-                            date: week.date
-                        }))
-                        .sort((a, b) => {
-                            const [dayA, monthA, yearA] = a.date.split('.').map(Number)
-                            const [dayB, monthB, yearB] = b.date.split('.').map(Number)
-                            if (!dayA || !monthA || !yearA || !dayB || !monthB || !yearB) return 0
-                            return new Date(yearA, monthA - 1, dayA).getTime() - new Date(yearB, monthB - 1, dayB).getTime()
-                        })
-
-                    // Combine dates from both turnus groups
-                    const allDates = [...turnus1Dates, ...turnus2Dates]
-                        .sort((a, b) => {
-                            const [dayA, monthA, yearA] = a.date.split('.').map(Number)
-                            const [dayB, monthB, yearB] = b.date.split('.').map(Number)
-                            if (!dayA || !monthA || !yearA || !dayB || !monthB || !yearB) return 0
-                            return new Date(yearA, monthA - 1, dayA).getTime() - new Date(yearB, monthB - 1, dayB).getTime()
-                        })
-
-                    console.log(`Writing ${allDates.length} dates for combination ${turnus1}+${turnus2}`)
-
-                    // Write combined dates to the worksheet
-                    allDates.forEach((week, dateIndex) => {
-                        const cell = XLSX.utils.encode_cell({ r: dateIndex + 2, c: combinationIndex + 18 }) // Start from column S (index 18)
-                        const [day, month, year] = week.date.split('.')
-                        const formattedDate = `${day}.${month}.20${year}`
-                        worksheet[cell] = { 
-                            v: formattedDate,
-                            t: 's'  // Explicitly set type as string
-                        }
-                        maxRow = Math.max(maxRow, dateIndex + 2)
-                    })
-                }
-            })
-        }
-
-        // Add teacher assignments
-        const amAssignments = teacherAssignments.filter(a => a.period === 'AM')
-        const pmAssignments = teacherAssignments.filter(a => a.period === 'PM')
-
-        // Write AM teachers (column Q)
-        amAssignments.forEach((assignment, index) => {
-            const cell = XLSX.utils.encode_cell({ r: index + 2, c: 16 }) // Column Q (index 16)
-            worksheet[cell] = { 
-                v: `${assignment.teacher.lastName.toUpperCase()} ${assignment.teacher.firstName}`,
-                t: 's'
-            }
-            maxRow = Math.max(maxRow, index + 2)
-        })
-
-        // Write PM teachers (column R)
-        pmAssignments.forEach((assignment, index) => {
-            const cell = XLSX.utils.encode_cell({ r: index + 2, c: 17 }) // Column R (index 17)
-            worksheet[cell] = { 
-                v: `${assignment.teacher.lastName.toUpperCase()} ${assignment.teacher.firstName}`,
-                t: 's'
-            }
-            maxRow = Math.max(maxRow, index + 2)
-        })
-
-        // Set worksheet dimensions based on actual data
-        worksheet['!ref'] = `A1:${XLSX.utils.encode_col(maxCol)}${maxRow + 1}`
-
-        // Add the worksheet to the workbook
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Gruppenliste')
-
-        // Generate the Excel file with explicit options
-        const excelBuffer = XLSX.write(workbook, { 
-            type: 'buffer', 
-            bookType: 'xlsm',
-            cellStyles: true,
-            cellDates: true,
-            bookSST: true
-        })
-
-        // Return the Excel file
-        return new NextResponse(excelBuffer as Buffer, {
-            headers: {
-                'Content-Type': 'application/vnd.ms-excel.sheet.macroEnabled.12',
-                'Content-Disposition': `attachment; filename="${className}_gruppenliste.xlsm"`
-            }
-        })
-    } catch (error) {
-        console.error('Error generating Excel:', error)
-        captureError(error, {
-            location: 'api/export',
-            type: 'export-schedule'
-        })
-        return NextResponse.json({ error: 'Failed to generate Excel file' }, { status: 500 })
+    if (!selectedWeekday) {
+      return NextResponse.json({ error: 'Selected Weekday is required' }, { status: 400 })
     }
+
+    const weekday = Number(selectedWeekday)
+    if (isNaN(weekday) || weekday < 1 || weekday > 5) {
+      return NextResponse.json({ error: 'Selected Weekday is invalid' }, { status: 400 })
+    }
+
+    if (!className) {
+      return NextResponse.json({ error: 'Class Name is required' }, { status: 400 })
+    }
+
+    const schoolYearIdParam = searchParams.get('schoolYearId')
+    let schoolYearId: number | null = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : null
+    if (schoolYearId == null || Number.isNaN(schoolYearId)) {
+      const now = new Date()
+      const current = await prisma.schoolYear.findFirst({
+        where: { startDate: { lte: now }, endDate: { gte: now } },
+        select: { id: true },
+      })
+      schoolYearId =
+        current?.id ??
+        (
+          await prisma.schoolYear.findFirst({
+            orderBy: { startDate: 'desc' },
+            select: { id: true },
+          })
+        )?.id ??
+        null
+    }
+    if (schoolYearId == null) {
+      return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
+    }
+
+    const class_response = await prisma.class.findUnique({
+      where: { name: className },
+      include: { classHead: true, classLead: true },
+    })
+
+    if (!class_response) {
+      return NextResponse.json({ error: 'Class not found' }, { status: 404 })
+    }
+
+    const membershipIds = await prisma.classMembership.findMany({
+      where: { classId: class_response.id, schoolYearId },
+      select: { studentId: true },
+    })
+    const studentIds = membershipIds.map(m => m.studentId)
+    const studentsList =
+      studentIds.length > 0
+        ? await prisma.student.findMany({
+            where: { id: { in: studentIds } },
+            orderBy: [{ groupId: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }],
+          })
+        : []
+    const classWithStudents = { ...class_response, students: studentsList }
+
+    const schedule = await prisma.schedule.findFirst({
+      where: {
+        classId: class_response.id,
+        selectedWeekday: weekday,
+        schoolYearId,
+      },
+      orderBy: [{ createdAt: 'desc' }],
+      include: {
+        turns: {
+          include: {
+            weeks: true,
+            holidays: {
+              include: {
+                holiday: true,
+              },
+            },
+          },
+          orderBy: {
+            order: 'asc',
+          },
+        },
+      },
+    })
+
+    if (!schedule) {
+      return NextResponse.json({ error: 'Schedule not found' }, { status: 404 })
+    }
+
+    // Fetch teacher assignments for this year
+    const teacherAssignments = await prisma.teacherAssignment.findMany({
+      where: { classId: class_response.id, schoolYearId },
+      include: {
+        teacher: true,
+      },
+    })
+
+    // Create a new workbook
+    const workbook = XLSX.utils.book_new()
+
+    // Create empty worksheet with proper dimensions
+    const worksheet = XLSX.utils.aoa_to_sheet([[]])
+
+    // Track maximum row and column indices
+    let maxRow = 0
+    let maxCol = 0
+
+    // Get students grouped by their group ID
+    const studentsByGroup = classWithStudents.students.reduce<Record<number, { name: string }[]>>(
+      (acc, student) => {
+        const groupId = student.groupId ?? 0
+        acc[groupId] ??= []
+        acc[groupId].push({
+          name: `${student.lastName} ${student.firstName}`,
+        })
+        return acc
+      },
+      {},
+    )
+
+    // Fill in the student groups (columns B-E)
+    Object.entries(studentsByGroup).forEach(([, students], index) => {
+      students.forEach((student, studentIndex) => {
+        const cell = XLSX.utils.encode_cell({ r: studentIndex, c: index + 1 }) // Start from column B (index 1)
+        worksheet[cell] = { v: student.name, t: 's' } // Explicitly set type as string
+        maxRow = Math.max(maxRow, studentIndex)
+        maxCol = Math.max(maxCol, index + 1)
+      })
+    })
+
+    // Add class information
+    worksheet.F1 = { v: class_response.name, t: 's' } // Class name
+    const teacherName = class_response.classHead
+      ? `${class_response.classHead.firstName} ${class_response.classHead.lastName}`
+      : ''
+    const leadName = class_response.classLead
+      ? `${class_response.classLead.firstName} ${class_response.classLead.lastName}`
+      : ''
+    worksheet.G1 = { v: teacherName, t: 's' } // Class teacher
+    worksheet.H1 = { v: leadName, t: 's' } // Class lead
+    maxCol = Math.max(maxCol, 7) // Column H is index 7
+
+    // Add Turnustage headers (columns I-R)
+    const turnustageHeaders = [
+      'Turnustage Gruppe 1',
+      'Turnustage Gruppe 2',
+      'Turnustage Gruppe 3',
+      'Turnustage Gruppe 4',
+      'Turnustage Gruppe 5',
+      'Turnustage Gruppe 6',
+      'Turnustage Gruppe 7',
+      'Turnustage Gruppe 8',
+      'Lehrer Vormittag',
+      'Lehrer Nachmittag',
+    ]
+
+    // Add turn combination headers starting from column S
+    const turnCombinationHeaders = [
+      'Turnus 1+2',
+      'Turnus 1+3',
+      'Turnus 1+4',
+      'Turnus 1+5',
+      'Turnus 1+7',
+      'Turnus 1+8',
+      'Turnus 2+4',
+      'Turnus 2+6',
+      'Turnus 2+7',
+      'Turnus 2+8',
+      'Turnus 3+4',
+      'Turnus 3+5',
+      'Turnus 3+6',
+      'Turnus 3+7',
+      'Turnus 3+8',
+      'Turnus 4+5',
+      'Turnus 4+6',
+      'Turnus 4+7',
+      'Turnus 4+8',
+      'Turnus 5+6',
+      'Turnus 5+7',
+      'Turnus 5+8',
+      'Turnus 6+7',
+      'Turnus 6+8',
+      'Turnus 7+8',
+    ]
+
+    turnustageHeaders.forEach((header, index) => {
+      const cell = XLSX.utils.encode_cell({ r: 0, c: index + 8 }) // Start from column I (index 8)
+      worksheet[cell] = { v: header, t: 's' }
+      maxCol = Math.max(maxCol, index + 8)
+    })
+
+    // Add turn combination headers
+    turnCombinationHeaders.forEach((header, index) => {
+      const cell = XLSX.utils.encode_cell({ r: 0, c: index + 18 }) // Start from column S (index 18)
+      worksheet[cell] = { v: header, t: 's' }
+      maxCol = Math.max(maxCol, index + 18)
+    })
+
+    // Use normalized turns if available, otherwise fall back to scheduleData
+    let scheduleData: ScheduleData = {}
+    if (schedule?.turns && schedule.turns.length > 0) {
+      scheduleData = normalizeToJsonFormat(schedule.turns) as ScheduleData
+    } else if (
+      schedule?.scheduleData &&
+      typeof schedule.scheduleData === 'object' &&
+      !Array.isArray(schedule.scheduleData)
+    ) {
+      scheduleData = schedule.scheduleData as unknown as ScheduleData
+    }
+
+    // Process schedule data for turns
+    if (Object.keys(scheduleData).length > 0) {
+      // Debug log to see the structure of scheduleData
+      console.log('Schedule Data Structure:', JSON.stringify(scheduleData, null, 2))
+
+      // Process each turnus
+      Object.entries(scheduleData).forEach(([, turnus], turnusIndex) => {
+        if (turnus.weeks) {
+          // Filter out holidays and sort dates
+          const validDates = turnus.weeks
+            .filter(week => !week.isHoliday)
+            .sort((a, b) => {
+              const [dayA, monthA, yearA] = a.date.split('.').map(Number)
+              const [dayB, monthB, yearB] = b.date.split('.').map(Number)
+              if (!dayA || !monthA || !yearA || !dayB || !monthB || !yearB) return 0
+              return (
+                new Date(yearA, monthA - 1, dayA).getTime() -
+                new Date(yearB, monthB - 1, dayB).getTime()
+              )
+            })
+
+          // Write dates to the worksheet starting from row 3
+          validDates.forEach((week, dateIndex) => {
+            const cell = XLSX.utils.encode_cell({ r: dateIndex + 2, c: turnusIndex + 8 }) // Start from column I (index 8), row 3 (index 2)
+            const [day, month, year] = week.date.split('.')
+            const formattedDate = `${day}.${month}.20${year}`
+            worksheet[cell] = {
+              v: formattedDate,
+            }
+            maxRow = Math.max(maxRow, dateIndex + 2)
+          })
+        }
+      })
+
+      // Process turnus combinations
+      const turnusCombinations = [
+        [1, 2],
+        [1, 3],
+        [1, 4],
+        [1, 5],
+        [1, 7],
+        [1, 8],
+        [2, 4],
+        [2, 6],
+        [2, 7],
+        [2, 8],
+        [3, 4],
+        [3, 5],
+        [3, 6],
+        [3, 7],
+        [3, 8],
+        [4, 5],
+        [4, 6],
+        [4, 7],
+        [4, 8],
+        [5, 6],
+        [5, 7],
+        [5, 8],
+        [6, 7],
+        [6, 8],
+        [7, 8],
+      ]
+
+      // For each combination, combine dates from both turnus groups
+      turnusCombinations.forEach(([turnus1, turnus2], combinationIndex) => {
+        // Get the turnus data using the correct key format
+        const turnus1Key = `TURNUS ${turnus1}`
+        const turnus2Key = `TURNUS ${turnus2}`
+
+        const turnus1Data = scheduleData[turnus1Key]
+        const turnus2Data = scheduleData[turnus2Key]
+
+        console.log(`Processing combination ${turnus1}+${turnus2}:`, {
+          turnus1Exists: !!turnus1Data,
+          turnus2Exists: !!turnus2Data,
+          turnus1Dates: turnus1Data?.weeks?.length,
+          turnus2Dates: turnus2Data?.weeks?.length,
+        })
+
+        if (turnus1Data?.weeks && turnus2Data?.weeks) {
+          // Get valid dates for both turnus groups
+          const turnus1Dates = turnus1Data.weeks
+            .filter(week => !week.isHoliday)
+            .map(week => ({
+              ...week,
+              date: week.date,
+            }))
+            .sort((a, b) => {
+              const [dayA, monthA, yearA] = a.date.split('.').map(Number)
+              const [dayB, monthB, yearB] = b.date.split('.').map(Number)
+              if (!dayA || !monthA || !yearA || !dayB || !monthB || !yearB) return 0
+              return (
+                new Date(yearA, monthA - 1, dayA).getTime() -
+                new Date(yearB, monthB - 1, dayB).getTime()
+              )
+            })
+
+          const turnus2Dates = turnus2Data.weeks
+            .filter(week => !week.isHoliday)
+            .map(week => ({
+              ...week,
+              date: week.date,
+            }))
+            .sort((a, b) => {
+              const [dayA, monthA, yearA] = a.date.split('.').map(Number)
+              const [dayB, monthB, yearB] = b.date.split('.').map(Number)
+              if (!dayA || !monthA || !yearA || !dayB || !monthB || !yearB) return 0
+              return (
+                new Date(yearA, monthA - 1, dayA).getTime() -
+                new Date(yearB, monthB - 1, dayB).getTime()
+              )
+            })
+
+          // Combine dates from both turnus groups
+          const allDates = [...turnus1Dates, ...turnus2Dates].sort((a, b) => {
+            const [dayA, monthA, yearA] = a.date.split('.').map(Number)
+            const [dayB, monthB, yearB] = b.date.split('.').map(Number)
+            if (!dayA || !monthA || !yearA || !dayB || !monthB || !yearB) return 0
+            return (
+              new Date(yearA, monthA - 1, dayA).getTime() -
+              new Date(yearB, monthB - 1, dayB).getTime()
+            )
+          })
+
+          console.log(`Writing ${allDates.length} dates for combination ${turnus1}+${turnus2}`)
+
+          // Write combined dates to the worksheet
+          allDates.forEach((week, dateIndex) => {
+            const cell = XLSX.utils.encode_cell({ r: dateIndex + 2, c: combinationIndex + 18 }) // Start from column S (index 18)
+            const [day, month, year] = week.date.split('.')
+            const formattedDate = `${day}.${month}.20${year}`
+            worksheet[cell] = {
+              v: formattedDate,
+              t: 's', // Explicitly set type as string
+            }
+            maxRow = Math.max(maxRow, dateIndex + 2)
+          })
+        }
+      })
+    }
+
+    // Add teacher assignments
+    const amAssignments = teacherAssignments.filter(a => a.period === 'AM')
+    const pmAssignments = teacherAssignments.filter(a => a.period === 'PM')
+
+    // Write AM teachers (column Q)
+    amAssignments.forEach((assignment, index) => {
+      const cell = XLSX.utils.encode_cell({ r: index + 2, c: 16 }) // Column Q (index 16)
+      worksheet[cell] = {
+        v: `${assignment.teacher.lastName.toUpperCase()} ${assignment.teacher.firstName}`,
+        t: 's',
+      }
+      maxRow = Math.max(maxRow, index + 2)
+    })
+
+    // Write PM teachers (column R)
+    pmAssignments.forEach((assignment, index) => {
+      const cell = XLSX.utils.encode_cell({ r: index + 2, c: 17 }) // Column R (index 17)
+      worksheet[cell] = {
+        v: `${assignment.teacher.lastName.toUpperCase()} ${assignment.teacher.firstName}`,
+        t: 's',
+      }
+      maxRow = Math.max(maxRow, index + 2)
+    })
+
+    // Set worksheet dimensions based on actual data
+    worksheet['!ref'] = `A1:${XLSX.utils.encode_col(maxCol)}${maxRow + 1}`
+
+    // Add the worksheet to the workbook
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Gruppenliste')
+
+    // Generate the Excel file with explicit options
+    const excelBuffer = XLSX.write(workbook, {
+      type: 'buffer',
+      bookType: 'xlsm',
+      cellStyles: true,
+      cellDates: true,
+      bookSST: true,
+    })
+
+    // Return the Excel file
+    return new NextResponse(excelBuffer as Buffer, {
+      headers: {
+        'Content-Type': 'application/vnd.ms-excel.sheet.macroEnabled.12',
+        'Content-Disposition': `attachment; filename="${className}_gruppenliste.xlsm"`,
+      },
+    })
+  } catch (error) {
+    console.error('Error generating Excel:', error)
+    captureError(error, {
+      location: 'api/export',
+      type: 'export-schedule',
+    })
+    return NextResponse.json({ error: 'Failed to generate Excel file' }, { status: 500 })
+  }
 }

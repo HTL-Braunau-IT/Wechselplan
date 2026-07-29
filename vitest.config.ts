@@ -1,6 +1,6 @@
-import { defineConfig } from 'vitest/config';
-import react from '@vitejs/plugin-react';
-import { resolve } from 'path';
+import { defineConfig } from 'vitest/config'
+import react from '@vitejs/plugin-react'
+import { resolve } from 'path'
 
 export default defineConfig({
   // Needed for the automatic JSX runtime in component tests. Without it any
@@ -22,7 +22,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
+      // Both aliases are configured in tsconfig and both appear in source.
       '~': resolve(__dirname, './src'),
     },
   },
-});
+})

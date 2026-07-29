@@ -6,7 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { addWeeks, format, setDay, isWithinInterval } from 'date-fns'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useTranslation } from 'next-i18next'
 import { captureFrontendError } from '@/lib/frontend-error'
 
@@ -51,13 +57,18 @@ const WEEKDAYS = [
   { value: 2, label: 'Tuesday' },
   { value: 3, label: 'Wednesday' },
   { value: 4, label: 'Thursday' },
-  { value: 5, label: 'Friday' }
+  { value: 5, label: 'Friday' },
 ]
 
 interface RotationScheduleEditorProps {
   className: string | null
   initialWeekday?: number | null
-  onSave: (schedule: Schedule, selectedWeekday: number, additionalInfo: string, semesterPlanning: 'first' | 'second' | null) => Promise<void>
+  onSave: (
+    schedule: Schedule,
+    selectedWeekday: number,
+    additionalInfo: string,
+    semesterPlanning: 'first' | 'second' | null,
+  ) => Promise<void>
   onCancel?: () => void
 }
 
@@ -66,7 +77,12 @@ interface RotationScheduleEditorProps {
  *
  * Users can specify the number of terms, select a rotation weekday, assign custom week lengths per term, and provide additional schedule information. The component automatically distributes weeks among terms, excludes holidays, and displays a summary table of the resulting schedule.
  */
-export function RotationScheduleEditor({ className, initialWeekday, onSave, onCancel }: RotationScheduleEditorProps) {
+export function RotationScheduleEditor({
+  className,
+  initialWeekday,
+  onSave,
+  onCancel,
+}: RotationScheduleEditorProps) {
   const { t } = useTranslation('schedule')
   const isManualChangeRef = useRef(false)
   const shouldUpdateScheduleRef = useRef(false)
@@ -137,7 +153,11 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
     const newSchedule: Schedule = {}
     const startDateForCalculation = onlySecondSemester ? schoolYearMiddle : schoolYearStart
     const endDateForCalculation = onlyFirstSemester ? schoolYearMiddle : schoolYearEnd
-    const allRotationDates = getAllRotationDates(startDateForCalculation, endDateForCalculation, selectedWeekday)
+    const allRotationDates = getAllRotationDates(
+      startDateForCalculation,
+      endDateForCalculation,
+      selectedWeekday,
+    )
     const totalWeeks = allRotationDates.length
     let weeksLeft = totalWeeks
     let turnsLeft = numberOfTerms
@@ -174,34 +194,38 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
       const termDates = allRotationDates.slice(rotationIndex, rotationIndex + weeksForThisTerm)
       rotationIndex += weeksForThisTerm
 
-      const weeksWithHolidays = termDates.map((date) => ({
+      const weeksWithHolidays = termDates.map(date => ({
         week: `KW${getWeekNumber(date)}`,
         date: format(date, 'dd.MM.yy'),
         isHoliday: isHoliday(date),
-        originalDate: date
+        originalDate: date,
       }))
 
       const firstWeek = weeksWithHolidays[0]
       const lastWeek = weeksWithHolidays[weeksWithHolidays.length - 1]
       const turnDateRange = {
         start: firstWeek?.originalDate ?? new Date(),
-        end: lastWeek?.originalDate ?? new Date()
+        end: lastWeek?.originalDate ?? new Date(),
       }
 
       const turnHolidays = holidays.filter(holiday => {
         if (!turnDateRange.start || !turnDateRange.end) return false
         const holidayStart = new Date(holiday.startDate)
         const holidayEnd = new Date(holiday.endDate)
-        return isWithinInterval(holidayStart, {
-          start: turnDateRange.start,
-          end: turnDateRange.end
-        }) || isWithinInterval(holidayEnd, {
-          start: turnDateRange.start,
-          end: turnDateRange.end
-        }) || isWithinInterval(turnDateRange.start, {
-          start: holidayStart,
-          end: holidayEnd
-        })
+        return (
+          isWithinInterval(holidayStart, {
+            start: turnDateRange.start,
+            end: turnDateRange.end,
+          }) ||
+          isWithinInterval(holidayEnd, {
+            start: turnDateRange.start,
+            end: turnDateRange.end,
+          }) ||
+          isWithinInterval(turnDateRange.start, {
+            start: holidayStart,
+            end: holidayEnd,
+          })
+        )
       })
 
       newSchedule[turnusKey] = {
@@ -209,18 +233,34 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
         weeks: weeksWithHolidays
           .filter(week => !week.isHoliday)
           .map(({ week, date }) => ({ week, date, isHoliday: false })),
-        holidays: turnHolidays
+        holidays: turnHolidays,
       }
     }
 
     setSchedule(newSchedule)
     isManualChangeRef.current = false
     shouldUpdateScheduleRef.current = false
-  }, [numberOfTerms, selectedWeekday, isLoading, holidays, schoolYearStart, schoolYearEnd, customLengths, onlyFirstSemester, onlySecondSemester, schoolYearMiddle])
+  }, [
+    numberOfTerms,
+    selectedWeekday,
+    isLoading,
+    holidays,
+    schoolYearStart,
+    schoolYearEnd,
+    customLengths,
+    onlyFirstSemester,
+    onlySecondSemester,
+    schoolYearMiddle,
+  ])
 
   // Handle weekday changes
   useEffect(() => {
-    if (!isLoading && allSchedules.length > 0 && selectedWeekday !== null && !isManualChangeRef.current) {
+    if (
+      !isLoading &&
+      allSchedules.length > 0 &&
+      selectedWeekday !== null &&
+      !isManualChangeRef.current
+    ) {
       const scheduleForWeekday = allSchedules.find(s => s.selectedWeekday === selectedWeekday)
       if (scheduleForWeekday) {
         setSchedule((scheduleForWeekday.scheduleData as Schedule) ?? {})
@@ -284,7 +324,7 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
         return
       }
 
-      const schedules = await response.json() as ScheduleResponse[]
+      const schedules = (await response.json()) as ScheduleResponse[]
 
       if (schedules && schedules.length > 0) {
         setAllSchedules(schedules)
@@ -342,8 +382,8 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
           type: 'fetch-schedule',
           extra: {
             className,
-            selectedWeekday
-          }
+            selectedWeekday,
+          },
         })
       }
       // Set default values on error
@@ -360,17 +400,19 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
     try {
       const response = await fetch('/api/settings/holidays')
       if (!response.ok) throw new Error('Failed to fetch holidays')
-      const data = await response.json() as Holiday[]
-      setHolidays(data.map(holiday => ({
-        ...holiday,
-        startDate: new Date(holiday.startDate),
-        endDate: new Date(holiday.endDate)
-      })))
+      const data = (await response.json()) as Holiday[]
+      setHolidays(
+        data.map(holiday => ({
+          ...holiday,
+          startDate: new Date(holiday.startDate),
+          endDate: new Date(holiday.endDate),
+        })),
+      )
     } catch (err) {
       console.error('Error fetching holidays:', err)
       captureFrontendError(err, {
         location: 'schedule/create/rotation',
-        type: 'fetch-holidays'
+        type: 'fetch-holidays',
       })
       setFetchError('Failed to load holidays.')
     } finally {
@@ -383,12 +425,20 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
     const checkDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
     return holidays.some(holiday => {
       // Set time to midnight for holiday start and end dates
-      const holidayStart = new Date(holiday.startDate.getFullYear(), holiday.startDate.getMonth(), holiday.startDate.getDate())
-      const holidayEnd = new Date(holiday.endDate.getFullYear(), holiday.endDate.getMonth(), holiday.endDate.getDate())
+      const holidayStart = new Date(
+        holiday.startDate.getFullYear(),
+        holiday.startDate.getMonth(),
+        holiday.startDate.getDate(),
+      )
+      const holidayEnd = new Date(
+        holiday.endDate.getFullYear(),
+        holiday.endDate.getMonth(),
+        holiday.endDate.getDate(),
+      )
 
       const isHoliday = isWithinInterval(checkDate, {
         start: holidayStart,
-        end: holidayEnd
+        end: holidayEnd,
       })
 
       return isHoliday
@@ -446,8 +496,8 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
           schedule,
           numberOfTerms,
           selectedWeekday,
-          additionalInfo
-        }
+          additionalInfo,
+        },
       })
       setSaveError('Failed to save schedule.')
     } finally {
@@ -464,16 +514,12 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
       </CardHeader>
       <CardContent>
         {fetchError && (
-          <div className="mb-4 p-4 text-red-500 bg-red-50 rounded-md">
+          <div className="mb-4 rounded-md bg-red-50 p-4 text-red-500">
             {t('failedToLoadHolidays')}
           </div>
         )}
-        {weekError && (
-          <div className="mb-4 p-4 text-red-500 bg-red-50 rounded-md">
-            {weekError}
-          </div>
-        )}
-        <div className="flex gap-8 mb-4">
+        {weekError && <div className="mb-4 rounded-md bg-red-50 p-4 text-red-500">{weekError}</div>}
+        <div className="mb-4 flex gap-8">
           <div>
             <Label htmlFor="numberOfTerms">{t('numberOfTerms')}</Label>
             <Input
@@ -490,7 +536,7 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
             <Label htmlFor="weekday">{t('rotationDay')}</Label>
             <Select
               value={selectedWeekday?.toString() ?? ''}
-              onValueChange={(value) => {
+              onValueChange={value => {
                 setSelectedWeekday(parseInt(value))
                 shouldUpdateScheduleRef.current = true
               }}
@@ -499,7 +545,7 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
                 <SelectValue placeholder={t('selectWeekday')} />
               </SelectTrigger>
               <SelectContent>
-                {WEEKDAYS.map((day) => (
+                {WEEKDAYS.map(day => (
                   <SelectItem key={day.value} value={day.value.toString()}>
                     {day.label}
                   </SelectItem>
@@ -514,7 +560,7 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
           <Input
             id="additionalInfo"
             value={additionalInfo}
-            onChange={(e) => setAdditionalInfo(e.target.value)}
+            onChange={e => setAdditionalInfo(e.target.value)}
             placeholder={t('additionalInfoPlaceholder')}
             className="w-full"
           />
@@ -526,7 +572,7 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
             <div className="flex items-center gap-4">
               <Button
                 type="button"
-                variant={onlyFirstSemester ? "default" : "outline"}
+                variant={onlyFirstSemester ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => {
                   setOnlyFirstSemester(!onlyFirstSemester)
@@ -538,7 +584,7 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
               </Button>
               <Button
                 type="button"
-                variant={onlySecondSemester ? "default" : "outline"}
+                variant={onlySecondSemester ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => {
                   setOnlySecondSemester(!onlySecondSemester)
@@ -549,20 +595,19 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
                 Zweites Semester planen
               </Button>
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               {onlyFirstSemester
                 ? `Rotation wird nur bis ${format(schoolYearMiddle, 'dd.MM.yyyy')} berechnet`
                 : onlySecondSemester
-                ? `Rotation wird ab ${format(schoolYearMiddle, 'dd.MM.yyyy')} bis ${format(schoolYearEnd, 'dd.MM.yyyy')} berechnet`
-                : 'Rotation wird für das gesamte Schuljahr berechnet'
-              }
+                  ? `Rotation wird ab ${format(schoolYearMiddle, 'dd.MM.yyyy')} bis ${format(schoolYearEnd, 'dd.MM.yyyy')} berechnet`
+                  : 'Rotation wird für das gesamte Schuljahr berechnet'}
             </p>
           </div>
         </div>
 
         <div className="mb-4">
           <Label>{t('customLengths')}</Label>
-          <div className="flex gap-4 mt-2">
+          <div className="mt-2 flex gap-4">
             {Array.from({ length: numberOfTerms }).map((_, index) => {
               const turnusKey = `TURNUS ${index + 1}`
               const currentWeeks = schedule[turnusKey]?.weeks.length ?? 0
@@ -572,7 +617,7 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
                   <Input
                     type="number"
                     value={customLengths[turnusKey] ?? ''}
-                    onChange={(e) => {
+                    onChange={e => {
                       setIsCustomLength(true)
                       shouldUpdateScheduleRef.current = true
                       if (isNaN(parseInt(e.target.value)) || parseInt(e.target.value) <= 0) {
@@ -584,11 +629,11 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
                       } else {
                         setCustomLengths(prev => ({
                           ...prev,
-                          [turnusKey]: parseInt(e.target.value)
+                          [turnusKey]: parseInt(e.target.value),
                         }))
                       }
                     }}
-                    className="w-20 h-8"
+                    className="h-8 w-20"
                     min={1}
                     placeholder={`${currentWeeks} ${t('weeks')}`}
                   />
@@ -606,7 +651,7 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
                   {Object.entries(schedule).map(([turnus, entry]) => (
                     <th key={turnus} className="border p-2">
                       <div>{turnus}</div>
-                      <div className="text-sm font-normal text-muted-foreground">
+                      <div className="text-muted-foreground text-sm font-normal">
                         {entry.weeks.length} {t('weeks')}
                       </div>
                     </th>
@@ -614,7 +659,9 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
                 </tr>
               </thead>
               <tbody>
-                {Array.from({ length: Math.max(...Object.values(schedule).map(entry => entry.weeks.length)) }).map((_, weekIndex) => (
+                {Array.from({
+                  length: Math.max(...Object.values(schedule).map(entry => entry.weeks.length)),
+                }).map((_, weekIndex) => (
                   <tr key={weekIndex}>
                     {Object.values(schedule).map((entry, turnusIndex) => (
                       <td key={turnusIndex} className="border p-2">
@@ -622,7 +669,11 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
                           <>
                             {entry.weeks[weekIndex].week}
                             <br />
-                            <span className={entry.weeks[weekIndex].isHoliday ? 'text-destructive' : undefined}>
+                            <span
+                              className={
+                                entry.weeks[weekIndex].isHoliday ? 'text-destructive' : undefined
+                              }
+                            >
                               {entry.weeks[weekIndex].date}
                             </span>
                           </>
@@ -636,10 +687,10 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
                 <tr>
                   {Object.entries(schedule).map(([, entry], turnusIndex) => {
                     return (
-                      <td key={turnusIndex} className="border p-2 bg-muted">
+                      <td key={turnusIndex} className="bg-muted border p-2">
                         {entry?.holidays?.length > 0 ? (
                           <div className="text-sm">
-                            <div className="font-medium mb-1">{t('missedHolidays')}</div>
+                            <div className="mb-1 font-medium">{t('missedHolidays')}</div>
                             {entry.holidays.map((holiday, index) => (
                               <div key={index} className="text-muted-foreground">
                                 {holiday.name} ({format(holiday.startDate, 'dd.MM.yy')})
@@ -647,7 +698,9 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
                             ))}
                           </div>
                         ) : (
-                          <div className="text-sm text-muted-foreground">{t('noMissedHolidays')}</div>
+                          <div className="text-muted-foreground text-sm">
+                            {t('noMissedHolidays')}
+                          </div>
                         )}
                       </td>
                     )
@@ -669,13 +722,8 @@ export function RotationScheduleEditor({ className, initialWeekday, onSave, onCa
           </Button>
         </div>
 
-        {saveError && (
-          <div className="mt-4 text-red-500">
-            {t('failedToSaveSchedule')}
-          </div>
-        )}
+        {saveError && <div className="mt-4 text-red-500">{t('failedToSaveSchedule')}</div>}
       </CardContent>
     </Card>
   )
 }
-

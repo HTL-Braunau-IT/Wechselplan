@@ -1,10 +1,10 @@
-"use client"
+'use client'
 
-import * as React from "react"
-import { CheckIcon, ChevronDownIcon, PlusIcon } from "lucide-react"
-import { cn } from "~/lib/utils"
-import { Input } from "./input"
-import { Button } from "./button"
+import * as React from 'react'
+import { CheckIcon, ChevronDownIcon, PlusIcon } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Input } from './input'
+import { Button } from './button'
 
 interface ComboboxSelectProps {
   value: string
@@ -19,7 +19,7 @@ export function ComboboxSelect({
   onChange,
   options,
   placeholder,
-  className
+  className,
 }: ComboboxSelectProps) {
   const [isOpen, setIsOpen] = React.useState(false)
   const [inputValue, setInputValue] = React.useState(value)
@@ -34,7 +34,7 @@ export function ComboboxSelect({
   React.useEffect(() => {
     if (inputValue) {
       const filtered = options.filter(option =>
-        option.name.toLowerCase().includes(inputValue.toLowerCase())
+        option.name.toLowerCase().includes(inputValue.toLowerCase()),
       )
       setFilteredOptions(filtered)
     } else {
@@ -79,12 +79,14 @@ export function ComboboxSelect({
     setTimeout(() => setIsOpen(false), 150)
   }
 
-  const showCustomOption = Boolean(inputValue.trim() && 
-    !options.some(option => option.name.toLowerCase() === inputValue.toLowerCase()) &&
-    filteredOptions.length === 0)
+  const showCustomOption = Boolean(
+    inputValue.trim() &&
+      !options.some(option => option.name.toLowerCase() === inputValue.toLowerCase()) &&
+      filteredOptions.length === 0,
+  )
 
   return (
-    <div className={cn("relative", className)}>
+    <div className={cn('relative', className)}>
       <div className="relative">
         <Input
           value={inputValue}
@@ -99,7 +101,7 @@ export function ComboboxSelect({
           type="button"
           variant="ghost"
           size="sm"
-          className="absolute right-0 top-0 h-full px-2 py-0 hover:bg-transparent"
+          className="absolute top-0 right-0 h-full px-2 py-0 hover:bg-transparent"
           onClick={() => setIsOpen(!isOpen)}
         >
           <ChevronDownIcon className="h-4 w-4" />
@@ -107,33 +109,31 @@ export function ComboboxSelect({
       </div>
 
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-60 overflow-auto">
+        <div className="bg-popover border-border absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border shadow-lg">
           {filteredOptions.length > 0 && (
             <div className="p-1">
-              {filteredOptions.map((option) => (
+              {filteredOptions.map(option => (
                 <button
                   key={option.id}
                   type="button"
                   className={cn(
-                    "w-full text-left px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground flex items-center justify-between",
-                    value === option.name && "bg-accent text-accent-foreground"
+                    'hover:bg-accent hover:text-accent-foreground flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-left text-sm',
+                    value === option.name && 'bg-accent text-accent-foreground',
                   )}
                   onClick={() => handleOptionSelect(option.name)}
                 >
                   <span>{option.name}</span>
-                  {value === option.name && (
-                    <CheckIcon className="h-4 w-4" />
-                  )}
+                  {value === option.name && <CheckIcon className="h-4 w-4" />}
                 </button>
               ))}
             </div>
           )}
-          
+
           {showCustomOption && (
-            <div className="border-t border-border p-1">
+            <div className="border-border border-t p-1">
               <button
                 type="button"
-                className="w-full text-left px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground flex items-center gap-2"
+                className="hover:bg-accent hover:text-accent-foreground flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm"
                 onClick={handleCustomValueConfirm}
               >
                 <PlusIcon className="h-4 w-4" />
@@ -141,11 +141,9 @@ export function ComboboxSelect({
               </button>
             </div>
           )}
-          
+
           {filteredOptions.length === 0 && !showCustomOption && inputValue && (
-            <div className="p-2 text-sm text-muted-foreground text-center">
-              No options found
-            </div>
+            <div className="text-muted-foreground p-2 text-center text-sm">No options found</div>
           )}
         </div>
       )}

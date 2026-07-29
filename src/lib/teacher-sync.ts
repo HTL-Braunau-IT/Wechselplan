@@ -1,5 +1,5 @@
 import type { Prisma, Teacher } from '@prisma/client'
-import { prisma } from '@/lib/prisma'
+import { ANY_ACTIVE_STATE, prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { collectGroupMembers } from '@/lib/graph'
 import { recordSyncRun } from '@/lib/directory-sync-settings'
@@ -9,6 +9,7 @@ import {
   type EntraUserMappingIssue,
 } from '@/lib/entra-user-mapper'
 import { normalizeUsername } from '@/lib/username'
+import { assertDeactivationWithinLimit, resolveMaxDeactivationRatio } from '@/lib/sync-guard'
 
 export const EXTERNAL_SOURCE_ENTRA = 'entra'
 
@@ -26,7 +27,17 @@ export interface TeacherSyncCreate {
 }
 
 export interface TeacherSyncUpdate {
-  existing: Pick<Teacher, 'id' | 'firstName' | 'lastName' | 'email' | 'username' | 'externalId' | 'externalSource' | 'isActive'>
+  existing: Pick<
+    Teacher,
+    | 'id'
+    | 'firstName'
+    | 'lastName'
+    | 'email'
+    | 'username'
+    | 'externalId'
+    | 'externalSource'
+    | 'isActive'
+  >
   entra: EntraTeacher
   changes: TeacherSyncChange[]
   willAdopt: boolean
@@ -148,7 +159,9 @@ export async function previewTeacherSync(): Promise<TeacherSyncDiff> {
     }
   }
 
+  // Sync must see deactivated rows so it can reactivate people who reappear.
   const existingTeachers = await prisma.teacher.findMany({
+    where: { isActive: ANY_ACTIVE_STATE },
     select: {
       id: true,
       firstName: true,
@@ -299,14 +312,31 @@ export async function previewTeacherSync(): Promise<TeacherSyncDiff> {
  * Recomputes the diff and applies it to the DB inside a transaction.
  * Writes a sync-run record on DirectorySyncSettings on success/failure.
  */
-export async function applyTeacherSync(selection?: TeacherSyncSelection): Promise<TeacherSyncSummary> {
+export interface TeacherSyncApplyOptions {
+  /**
+   * Refuse to apply when deactivations exceed this share of the currently
+   * active teachers. See lib/sync-guard. Pass `null` to disable.
+   */
+  maxDeactivationRatio?: number | null
+}
+
+export async function applyTeacherSync(
+  selection?: TeacherSyncSelection,
+  options: TeacherSyncApplyOptions = {},
+): Promise<TeacherSyncSummary> {
   const diff = await previewTeacherSync()
   const now = new Date()
+  const deactivationLimit =
+    options.maxDeactivationRatio === undefined
+      ? resolveMaxDeactivationRatio()
+      : options.maxDeactivationRatio
 
   try {
     const selectedCreateOids = selection?.createOids ? new Set(selection.createOids) : null
     const selectedUpdateOids = selection?.updateOids ? new Set(selection.updateOids) : null
-    const selectedReactivateOids = selection?.reactivateOids ? new Set(selection.reactivateOids) : null
+    const selectedReactivateOids = selection?.reactivateOids
+      ? new Set(selection.reactivateOids)
+      : null
     const selectedDeactivateTeacherIds = selection?.deactivateTeacherIds
       ? new Set(selection.deactivateTeacherIds)
       : null
@@ -323,6 +353,13 @@ export async function applyTeacherSync(selection?: TeacherSyncSelection): Promis
     const selectedDeactivations = selectedDeactivateTeacherIds
       ? diff.toDeactivate.filter(item => selectedDeactivateTeacherIds.has(item.existing.id))
       : diff.toDeactivate
+
+    assertDeactivationWithinLimit({
+      scope: 'teachers',
+      deactivating: selectedDeactivations.length,
+      activeBefore: diff.unchanged.length + diff.toUpdate.length + diff.toDeactivate.length,
+      limit: deactivationLimit,
+    })
 
     const adoptedCount = selectedUpdates.filter(u => u.willAdopt).length
 

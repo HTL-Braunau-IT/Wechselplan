@@ -18,9 +18,24 @@ interface CachedToken {
 let cachedToken: CachedToken | null = null
 
 function resolveCredentials(): GraphAppCredentials {
-  const tenantId = (process.env.ENTRA_TENANT_ID ?? process.env.AZURE_AD_TENANT_ID ?? process.env.GRAPH_TENANT_ID ?? '').trim()
-  const clientId = (process.env.ENTRA_CLIENT_ID ?? process.env.AZURE_AD_CLIENT_ID ?? process.env.GRAPH_CLIENT_ID ?? '').trim()
-  const clientSecret = (process.env.ENTRA_CLIENT_SECRET ?? process.env.AZURE_AD_CLIENT_SECRET ?? process.env.GRAPH_CLIENT_SECRET ?? '').trim()
+  const tenantId = (
+    process.env.ENTRA_TENANT_ID ??
+    process.env.AZURE_AD_TENANT_ID ??
+    process.env.GRAPH_TENANT_ID ??
+    ''
+  ).trim()
+  const clientId = (
+    process.env.ENTRA_CLIENT_ID ??
+    process.env.AZURE_AD_CLIENT_ID ??
+    process.env.GRAPH_CLIENT_ID ??
+    ''
+  ).trim()
+  const clientSecret = (
+    process.env.ENTRA_CLIENT_SECRET ??
+    process.env.AZURE_AD_CLIENT_SECRET ??
+    process.env.GRAPH_CLIENT_SECRET ??
+    ''
+  ).trim()
 
   if (!tenantId || !clientId || !clientSecret) {
     throw new Error(
@@ -64,7 +79,8 @@ export async function getGraphAppToken(): Promise<string> {
   }
 
   if (!response.ok || !data.access_token) {
-    const message = data.error_description ?? data.error ?? `Graph token request failed (${response.status})`
+    const message =
+      data.error_description ?? data.error ?? `Graph token request failed (${response.status})`
     const error = new Error(message)
     captureError(error, {
       location: 'lib/graph',
@@ -115,7 +131,9 @@ export async function graphFetch<T>(pathOrUrl: string, init?: RequestInit): Prom
     if (response.status === 429 && attempt < MAX_RETRIES) {
       const retryAfterRaw = response.headers.get('Retry-After')
       const retryAfterSeconds = retryAfterRaw ? parseInt(retryAfterRaw, 10) : NaN
-      const waitMs = Number.isFinite(retryAfterSeconds) ? retryAfterSeconds * 1000 : 2 ** attempt * 500
+      const waitMs = Number.isFinite(retryAfterSeconds)
+        ? retryAfterSeconds * 1000
+        : 2 ** attempt * 500
       attempt += 1
       await sleep(waitMs)
       continue
@@ -123,7 +141,9 @@ export async function graphFetch<T>(pathOrUrl: string, init?: RequestInit): Prom
 
     if (!response.ok) {
       const bodyText = await response.text().catch(() => '')
-      const error = new Error(`Graph request failed ${response.status} ${response.statusText}: ${bodyText.slice(0, 500)}`)
+      const error = new Error(
+        `Graph request failed ${response.status} ${response.statusText}: ${bodyText.slice(0, 500)}`,
+      )
       captureError(error, {
         location: 'lib/graph',
         type: 'graph_request_error',
@@ -195,7 +215,8 @@ export async function* listGroupMembers(
   }
 
   const memberPath = options.transitive ? 'transitiveMembers' : 'members'
-  let nextUrl: string | undefined = `/groups/${encodeURIComponent(groupId)}/${memberPath}/microsoft.graph.user?${params.toString()}`
+  let nextUrl: string | undefined =
+    `/groups/${encodeURIComponent(groupId)}/${memberPath}/microsoft.graph.user?${params.toString()}`
 
   while (nextUrl) {
     const page: GraphListResponse<EntraGroupMember> = await graphFetch(nextUrl)
@@ -314,6 +335,54 @@ export async function getGroup(groupId: string): Promise<EntraGroup | null> {
   }
 }
 
+/** Graph caps `checkMemberGroups` at 20 group ids per request. */
+const CHECK_MEMBER_GROUPS_CHUNK = 20
+
+/**
+ * Returns the subset of {@link groupIds} the user is a member of, transitively.
+ *
+ * Uses the app-only token rather than the signed-in user's delegated token, so
+ * it needs no consent beyond the app registration's own `GroupMember.Read.All`
+ * and works outside a request scope (role refresh, background sync). Being
+ * transitive, it agrees with the `transitiveMembers` expansion used by class
+ * sync — a delegated `/me/memberOf` call returns direct memberships only, so a
+ * student in a nested group would sync but fail to log in.
+ *
+ * Group ids are chunked to respect the Graph limit; an empty input short
+ * circuits without a request.
+ */
+export async function checkMemberGroups(
+  userId: string,
+  groupIds: readonly string[],
+): Promise<string[]> {
+  const trimmedUserId = userId?.trim()
+  if (!trimmedUserId) {
+    throw new Error('checkMemberGroups requires a non-empty userId')
+  }
+
+  const unique = Array.from(new Set(groupIds.map(id => id.trim()).filter(Boolean)))
+  if (unique.length === 0) return []
+
+  const matched = new Set<string>()
+
+  for (let index = 0; index < unique.length; index += CHECK_MEMBER_GROUPS_CHUNK) {
+    const chunk = unique.slice(index, index + CHECK_MEMBER_GROUPS_CHUNK)
+    const response = await graphFetch<{ value?: string[] }>(
+      `/users/${encodeURIComponent(trimmedUserId)}/checkMemberGroups`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ groupIds: chunk }),
+      },
+    )
+    for (const id of response.value ?? []) {
+      matched.add(id)
+    }
+  }
+
+  return Array.from(matched)
+}
+
 export interface GraphUserPhoto {
   bytes: Buffer
   contentType: string
@@ -347,7 +416,9 @@ export async function getUserPhoto(userId: string): Promise<GraphUserPhoto | nul
     if (response.status === 429 && attempt < MAX_RETRIES) {
       const retryAfterRaw = response.headers.get('Retry-After')
       const retryAfterSeconds = retryAfterRaw ? parseInt(retryAfterRaw, 10) : NaN
-      const waitMs = Number.isFinite(retryAfterSeconds) ? retryAfterSeconds * 1000 : 2 ** attempt * 500
+      const waitMs = Number.isFinite(retryAfterSeconds)
+        ? retryAfterSeconds * 1000
+        : 2 ** attempt * 500
       attempt += 1
       await sleep(waitMs)
       continue
@@ -366,11 +437,7 @@ export async function getUserPhoto(userId: string): Promise<GraphUserPhoto | nul
       throw error
     }
 
-    // Treat a missing *or* empty content-type as unknown and fall back.
-    const rawContentType = response.headers.get('content-type')
-    const contentType = rawContentType != null && rawContentType.length > 0
-      ? rawContentType
-      : 'image/jpeg'
+    const contentType = response.headers.get('content-type') ?? 'image/jpeg'
     const arrayBuffer = await response.arrayBuffer()
     return {
       bytes: Buffer.from(arrayBuffer),

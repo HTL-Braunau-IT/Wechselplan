@@ -6,4 +6,4 @@ export async function register() {
 // No-op error handler
 export const onRequestError = () => {
   // Do nothing - Sentry has been removed
-};
+}

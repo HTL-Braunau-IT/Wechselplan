@@ -1,22 +1,19 @@
 'use client'
 
-import { notFound } from 'next/navigation'
-import { useParams } from 'next/navigation'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { notFound, useParams } from 'next/navigation'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
+import { PageHeader } from '@/components/ui/page-header'
 import { useSchoolYear } from '@/contexts/school-year-context'
 import { useEntitlements } from '@/contexts/entitlements-context'
-import {
-  adminDataSections,
-  getAdminDataSectionContent,
-} from '../_components/data-sections'
+import { adminDataSections, getAdminDataSectionContent } from '../_components/data-sections'
 
 export default function AdminDataSectionPage() {
   const { selectedYear } = useSchoolYear()
   const { isFeatureEnabled } = useEntitlements()
   const params = useParams<{ section: string }>()
 
-  const sectionSlug = params.section
-  const section = adminDataSections.find((item) => item.slug === sectionSlug)
+  const section = adminDataSections.find(item => item.slug === params.section)
   if (!section) {
     notFound()
   }
@@ -30,34 +27,25 @@ export default function AdminDataSectionPage() {
     notFound()
   }
 
-  const Icon = section.icon
-
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center space-x-2">
-          <Icon className="h-8 w-8" />
-          <div>
-            <h1 className="text-3xl font-bold">{section.label}</h1>
-            <p className="text-muted-foreground">{section.description}</p>
-          </div>
-        </div>
-        {selectedYear != null && (
-          <p className="text-sm text-muted-foreground">
-            Schuljahr: <span className="font-medium text-foreground">{selectedYear.label}</span>
-          </p>
-        )}
-      </div>
+      {/* The title and description used to be repeated immediately below in a
+          card header; one heading is enough. */}
+      <PageHeader
+        icon={section.icon}
+        title={section.label}
+        description={section.description}
+        actions={
+          selectedYear != null ? (
+            <Badge variant="outline" className="font-normal">
+              Schuljahr {selectedYear.label}
+            </Badge>
+          ) : null
+        }
+      />
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Icon className="h-5 w-5" />
-            <span>{section.label}</span>
-          </CardTitle>
-          <CardDescription>{section.description}</CardDescription>
-        </CardHeader>
-        <CardContent>{content}</CardContent>
+        <CardContent className="pt-6">{content}</CardContent>
       </Card>
     </div>
   )

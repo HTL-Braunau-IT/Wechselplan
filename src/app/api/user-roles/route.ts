@@ -4,6 +4,7 @@ import { captureError } from '@/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 async function requireSuperAdmin() {
   const session = await getServerSession(authOptions)
@@ -24,6 +25,9 @@ async function requireSuperAdmin() {
  * @returns A JSON response with the list of user-role assignments, or an error message if the `userId` is missing or an error occurs.
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('admin')
+  if (denied) return denied
+
   try {
     const isSuperAdmin = await requireSuperAdmin()
     if (!isSuperAdmin) {
@@ -33,36 +37,29 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const rawUserId = searchParams.get('userId')
     if (!rawUserId) {
-      return NextResponse.json(
-        { error: 'User ID is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
     }
     const userId = normalizeUsername(rawUserId)
 
     const userRoles = await prisma.userRole.findMany({
       where: {
-        userId
+        userId,
       },
       include: {
-        role: true
-      }
+        role: true,
+      },
     })
 
     return NextResponse.json(userRoles)
   } catch (error) {
-   
     captureError(error, {
       location: 'api/user-roles',
       type: 'fetch-user-roles',
       extra: {
-        searchParams: Object.fromEntries(new URL(request.url).searchParams)
-      }
+        searchParams: Object.fromEntries(new URL(request.url).searchParams),
+      },
     })
-    return NextResponse.json(
-      { error: 'Failed to fetch user roles' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to fetch user roles' }, { status: 500 })
   }
 }
 
@@ -72,76 +69,69 @@ export async function GET(request: Request) {
  * Parses the request body for `userId` and `roleId`, validates their presence, checks for the existence of the specified role and user (as either a teacher or student), and creates the user-role assignment if all checks pass. Returns the created user-role assignment with role details as JSON. Responds with appropriate error messages and status codes for invalid input, missing entities, or unexpected failures.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('admin')
+  if (denied) return denied
+
   try {
     const isSuperAdmin = await requireSuperAdmin()
     if (!isSuperAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
-    const { userId, roleId } = await request.json() as { userId?: string; roleId?: string | number }
+    const { userId, roleId } = (await request.json()) as {
+      userId?: string
+      roleId?: string | number
+    }
     const numericRoleId = Number(roleId)
- 
+
     if (!userId || Number.isNaN(numericRoleId)) {
-      return NextResponse.json(
-        { error: 'User ID and Role ID are required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'User ID and Role ID are required' }, { status: 400 })
     }
 
     // Check if the role exists
     const role = await prisma.role.findUnique({
-      where: { id: numericRoleId }
+      where: { id: numericRoleId },
     })
 
     if (!role) {
-      return NextResponse.json(
-        { error: 'Role not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Role not found' }, { status: 404 })
     }
 
     // Check if the user exists (either as a teacher or student)
     const normalizedUserId = normalizeUsername(userId)
     const teacher = await prisma.teacher.findUnique({
-      where: { username: normalizedUserId }
+      where: { username: normalizedUserId },
     })
 
     const student = await prisma.student.findUnique({
-      where: { username: normalizedUserId }
+      where: { username: normalizedUserId },
     })
 
     if (!teacher && !student) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
     // Create the user role assignment (store normalized userId)
     const userRole = await prisma.userRole.create({
       data: {
         userId: normalizedUserId,
-        roleId: numericRoleId
+        roleId: numericRoleId,
       },
       include: {
-        role: true
-      }
+        role: true,
+      },
     })
 
     return NextResponse.json(userRole)
   } catch (error) {
-   
     captureError(error, {
       location: 'api/user-roles',
       type: 'assign-role',
       extra: {
-        requestBody: await request.text()
-      }
+        requestBody: await request.text(),
+      },
     })
-    return NextResponse.json(
-      { error: 'Failed to assign role to user' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to assign role to user' }, { status: 500 })
   }
 }
 
@@ -151,6 +141,9 @@ export async function POST(request: Request) {
  * Expects `userId` and `roleId` as query parameters in the request URL. Returns a success message upon successful deletion, or an error message with an appropriate status code if validation fails or an error occurs.
  */
 export async function DELETE(request: Request) {
+  const denied = await denyUnlessAccess('admin')
+  if (denied) return denied
+
   try {
     const isSuperAdmin = await requireSuperAdmin()
     if (!isSuperAdmin) {
@@ -162,43 +155,33 @@ export async function DELETE(request: Request) {
     const roleId = searchParams.get('roleId')
 
     if (!rawUserId || !roleId) {
-      return NextResponse.json(
-        { error: 'User ID and Role ID are required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'User ID and Role ID are required' }, { status: 400 })
     }
     const userId = normalizeUsername(rawUserId)
 
     const numericRoleId = Number(roleId)
     if (Number.isNaN(numericRoleId)) {
-      return NextResponse.json(
-        { error: 'Invalid Role ID format' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Invalid Role ID format' }, { status: 400 })
     }
 
     await prisma.userRole.delete({
       where: {
         userId_roleId: {
           userId,
-          roleId: numericRoleId
-        }
-      }
+          roleId: numericRoleId,
+        },
+      },
     })
 
     return NextResponse.json({ message: 'Role assignment removed successfully' })
   } catch (error) {
-    
     captureError(error, {
       location: 'api/user-roles',
       type: 'remove-role',
       extra: {
-        requestBody: await request.text()
-      }
+        requestBody: await request.text(),
+      },
     })
-    return NextResponse.json(
-      { error: 'Failed to remove role assignment' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to remove role assignment' }, { status: 500 })
   }
-} 
+}

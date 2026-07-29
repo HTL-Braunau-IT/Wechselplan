@@ -24,7 +24,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { AlertCircle, CheckCircle2, RefreshCw, Save, Search, Image as ImageIcon } from 'lucide-react'
+import {
+  AlertCircle,
+  CheckCircle2,
+  RefreshCw,
+  Save,
+  Search,
+  Image as ImageIcon,
+} from 'lucide-react'
+import { PageHeader } from '@/components/ui/page-header'
+import { LastSyncCard } from './_components/last-sync-card'
 import { toast } from 'sonner'
 
 interface EntraGroup {
@@ -38,7 +47,7 @@ interface DirectorySyncSettings {
   syncedClassGroupIds: string[]
   syncMode: 'hybrid' | 'nightly_only'
   syncEnabled: boolean
-  studentFotoQuellePriority: 'manual_first' | 'o365_first'
+  studentPhotoSourcePriority: 'manual_first' | 'o365_first'
   teacherPhotoSourcePriority: 'manual_first' | 'o365_first'
   lastSyncAt: string | null
   lastSyncStatus: string | null
@@ -85,10 +94,10 @@ export default function EntraSyncSettingsPage() {
   const [isLoadingGroups, setIsLoadingGroups] = useState(true)
   const [settings, setSettings] = useState<DirectorySyncSettings | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [photoQuellePriority, setFotoQuellePriority] = useState<'manual_first' | 'o365_first'>(
-    'manual_first',
-  )
-  const [teacherPhotoSourcePriority, setTeacherPhotoQuellePriority] = useState<
+  const [studentPhotoSourcePriority, setStudentPhotoSourcePriority] = useState<
+    'manual_first' | 'o365_first'
+  >('manual_first')
+  const [teacherPhotoSourcePriority, setTeacherPhotoSourcePriority] = useState<
     'manual_first' | 'o365_first'
   >('manual_first')
   const [isLoadingSettings, setIsLoadingSettings] = useState(true)
@@ -108,8 +117,8 @@ export default function EntraSyncSettingsPage() {
       const data = (await res.json()) as DirectorySyncSettings
       setSettings(data)
       setSelectedIds(new Set(data.syncedClassGroupIds))
-      setFotoQuellePriority(data.studentFotoQuellePriority ?? 'manual_first')
-      setTeacherPhotoQuellePriority(data.teacherPhotoSourcePriority ?? 'manual_first')
+      setStudentPhotoSourcePriority(data.studentPhotoSourcePriority ?? 'manual_first')
+      setTeacherPhotoSourcePriority(data.teacherPhotoSourcePriority ?? 'manual_first')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Einstellungen konnten nicht geladen werden')
     } finally {
@@ -262,7 +271,7 @@ export default function EntraSyncSettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           syncedClassGroupIds: Array.from(selectedIds),
-          studentFotoQuellePriority: photoQuellePriority,
+          studentPhotoSourcePriority,
           teacherPhotoSourcePriority,
         }),
       })
@@ -273,11 +282,12 @@ export default function EntraSyncSettingsPage() {
       const data = (await res.json()) as DirectorySyncSettings
       setSettings(data)
       setSelectedIds(new Set(data.syncedClassGroupIds))
-      setFotoQuellePriority(data.studentFotoQuellePriority ?? 'manual_first')
-      setTeacherPhotoQuellePriority(data.teacherPhotoSourcePriority ?? 'manual_first')
+      setStudentPhotoSourcePriority(data.studentPhotoSourcePriority ?? 'manual_first')
+      setTeacherPhotoSourcePriority(data.teacherPhotoSourcePriority ?? 'manual_first')
       toast.success('Synchronisierte Klassengruppen gespeichert')
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Einstellungen konnten nicht gespeichert werden'
+      const message =
+        err instanceof Error ? err.message : 'Einstellungen konnten nicht gespeichert werden'
       setError(message)
       toast.error(message)
     } finally {
@@ -296,13 +306,16 @@ export default function EntraSyncSettingsPage() {
       })
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string }
-        throw new Error(body.error ?? `O365-Lehrerfotos konnten nicht aktualisiert werden (${res.status})`)
+        throw new Error(
+          body.error ?? `O365-Lehrerfotos konnten nicht aktualisiert werden (${res.status})`,
+        )
       }
 
       const body = (await res.json()) as { refreshed: number; withFoto: number }
       toast.success(`${body.refreshed} Lehrkraft(en) aktualisiert, ${body.withFoto} mit Foto`)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'O365-Lehrerfotos konnten nicht aktualisiert werden'
+      const message =
+        err instanceof Error ? err.message : 'O365-Lehrerfotos konnten nicht aktualisiert werden'
       setError(message)
       toast.error(message)
     } finally {
@@ -321,13 +334,16 @@ export default function EntraSyncSettingsPage() {
       })
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string }
-        throw new Error(body.error ?? `O365-Schülerfotos konnten nicht aktualisiert werden (${res.status})`)
+        throw new Error(
+          body.error ?? `O365-Schülerfotos konnten nicht aktualisiert werden (${res.status})`,
+        )
       }
 
       const body = (await res.json()) as { refreshed: number; withFoto: number }
       toast.success(`${body.refreshed} Schüler(innen) aktualisiert, ${body.withFoto} mit Foto`)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'O365-Schülerfotos konnten nicht aktualisiert werden'
+      const message =
+        err instanceof Error ? err.message : 'O365-Schülerfotos konnten nicht aktualisiert werden'
       setError(message)
       toast.error(message)
     } finally {
@@ -343,22 +359,28 @@ export default function EntraSyncSettingsPage() {
       if (!current.has(id)) return true
     }
     return (
-      settings.studentFotoQuellePriority !== photoQuellePriority ||
+      settings.studentPhotoSourcePriority !== studentPhotoSourcePriority ||
       settings.teacherPhotoSourcePriority !== teacherPhotoSourcePriority
     )
-  }, [photoQuellePriority, settings, selectedIds, teacherPhotoSourcePriority])
+  }, [studentPhotoSourcePriority, settings, selectedIds, teacherPhotoSourcePriority])
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <h1 className="text-3xl font-bold">Entra-Synchronisierung</h1>
-          <p className="text-muted-foreground">
-            Wähle aus, welche Entra-Sicherheitsgruppen als Klassen gelten. Die Lehrkräfte-Gruppe
-            wird über die Umgebungsvariable konfiguriert.
-          </p>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        icon={RefreshCw}
+        title="Entra-Synchronisierung"
+        description="Wähle aus, welche Entra-Sicherheitsgruppen als Klassen gelten. Die Lehrkräfte-Gruppe wird über die Umgebungsvariable konfiguriert."
+        actions={
+          settings ? (
+            <>
+              <Badge variant="outline">Modus: {settings.syncMode}</Badge>
+              <Badge variant={settings.syncEnabled ? 'default' : 'outline'}>
+                {settings.syncEnabled ? 'Auto-Sync aktiv' : 'Auto-Sync aus'}
+              </Badge>
+            </>
+          ) : null
+        }
+      />
 
       {error && (
         <Alert variant="destructive">
@@ -368,59 +390,28 @@ export default function EntraSyncSettingsPage() {
         </Alert>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Aktueller Synchronisierungsstatus</CardTitle>
-          <CardDescription>Metadaten des letzten Laufs aus dem Verzeichnis-Sync.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          {isLoadingSettings ? (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Spinner className="h-4 w-4" />
-              Lädt...
-            </div>
-          ) : settings ? (
-            <>
-              <div>
-                <span className="text-muted-foreground">Modus: </span>
-                <Badge variant="outline">{settings.syncMode}</Badge>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Auto-Sync: </span>
-                <Badge variant={settings.syncEnabled ? 'default' : 'outline'}>
-                  {settings.syncEnabled ? 'aktiv' : 'deaktiviert'}
-                </Badge>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Letzter Lauf: </span>
-                {settings.lastSyncAt ? new Date(settings.lastSyncAt).toLocaleString() : 'nie'}
-                {settings.lastSyncStatus ? (
-                  <Badge
-                    className="ml-2"
-                    variant={
-                      settings.lastSyncStatus === 'success'
-                        ? 'default'
-                        : settings.lastSyncStatus === 'partial'
-                          ? 'secondary'
-                          : 'destructive'
-                    }
-                  >
-                    {settings.lastSyncStatus}
-                  </Badge>
-                ) : null}
-              </div>
-              {teacherGroupId && (
-                <div>
-                  <span className="text-muted-foreground">Lehrkräfte-Gruppen-ID (aus Env): </span>
-                  <code className="font-mono text-xs">{teacherGroupId}</code>
-                </div>
-              )}
-            </>
-          ) : (
-            <p className="text-muted-foreground">Keine Einstellungen geladen.</p>
-          )}
-        </CardContent>
-      </Card>
+      {isLoadingSettings ? (
+        <Card>
+          <CardContent className="text-muted-foreground flex items-center gap-2 py-6">
+            <Spinner className="h-4 w-4" />
+            Einstellungen werden geladen …
+          </CardContent>
+        </Card>
+      ) : settings ? (
+        <LastSyncCard
+          lastSyncAt={settings.lastSyncAt}
+          lastSyncStatus={settings.lastSyncStatus}
+          lastSyncSummary={settings.lastSyncSummary}
+          syncEnabled={settings.syncEnabled}
+        />
+      ) : null}
+
+      {teacherGroupId ? (
+        <p className="text-muted-foreground text-xs">
+          Lehrkräfte-Gruppen-ID (aus Umgebungsvariable):{' '}
+          <code className="font-mono">{teacherGroupId}</code>
+        </p>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -433,20 +424,22 @@ export default function EntraSyncSettingsPage() {
           <div className="max-w-md space-y-2">
             <Label htmlFor="photo-source-priority">Priorität</Label>
             <Select
-              value={photoQuellePriority}
+              value={studentPhotoSourcePriority}
               onValueChange={value =>
-                setFotoQuellePriority(value as 'manual_first' | 'o365_first')
+                setStudentPhotoSourcePriority(value as 'manual_first' | 'o365_first')
               }
             >
               <SelectTrigger id="photo-source-priority">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="manual_first">Manueller Upload zuerst (Fallback O365)</SelectItem>
+                <SelectItem value="manual_first">
+                  Manueller Upload zuerst (Fallback O365)
+                </SelectItem>
                 <SelectItem value="o365_first">O365 zuerst (Fallback manueller Upload)</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               Diese Einstellung steuert die Anzeige in Listen, Detailansichten und im Header-Profil.
             </p>
           </div>
@@ -455,18 +448,20 @@ export default function EntraSyncSettingsPage() {
             <Select
               value={teacherPhotoSourcePriority}
               onValueChange={value =>
-                setTeacherPhotoQuellePriority(value as 'manual_first' | 'o365_first')
+                setTeacherPhotoSourcePriority(value as 'manual_first' | 'o365_first')
               }
             >
               <SelectTrigger id="teacher-photo-source-priority">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="manual_first">Manueller Upload zuerst (Fallback O365)</SelectItem>
+                <SelectItem value="manual_first">
+                  Manueller Upload zuerst (Fallback O365)
+                </SelectItem>
                 <SelectItem value="o365_first">O365 zuerst (Fallback manueller Upload)</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               Nutze O365 zuerst, wenn Profilbilder zentral verwaltet werden sollen.
             </p>
           </div>
@@ -483,7 +478,7 @@ export default function EntraSyncSettingsPage() {
               )}
               O365-Schülerfoto-Cache aktualisieren
             </Button>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               Lädt gecachte Profilfotos für Entra-synchronisierte Schüler neu.
             </p>
           </div>
@@ -500,7 +495,7 @@ export default function EntraSyncSettingsPage() {
               )}
               O365-Lehrerfoto-Cache aktualisieren
             </Button>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               Lädt gecachte Profilfotos für Entra-synchronisierte Lehrkräfte neu.
             </p>
           </div>
@@ -546,13 +541,10 @@ export default function EntraSyncSettingsPage() {
                   <div className="mb-2 flex items-center justify-between gap-2 rounded border border-amber-300/60 bg-amber-50/40 p-2 text-xs">
                     <span>
                       {unavailableSelectedIds.length} ausgewählte Gruppe(n) sind nicht in der
-                      aktuellen Liste zulässiger Gruppen (Windows Server AD + mail-enabled security).
+                      aktuellen Liste zulässiger Gruppen (Windows Server AD + mail-enabled
+                      security).
                     </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={removeUnavailableSelectedGroups}
-                    >
+                    <Button size="sm" variant="outline" onClick={removeUnavailableSelectedGroups}>
                       Alle nicht verfügbaren entfernen
                     </Button>
                   </div>
@@ -564,7 +556,7 @@ export default function EntraSyncSettingsPage() {
                         <span className="text-muted-foreground">(nicht verfügbar)</span>
                       )}
                     </Badge>
-                    <code className="font-mono text-xs text-muted-foreground">{id}</code>
+                    <code className="text-muted-foreground font-mono text-xs">{id}</code>
                     <Button
                       size="sm"
                       variant="ghost"
@@ -590,10 +582,10 @@ export default function EntraSyncSettingsPage() {
               value={filter}
               onChange={e => setFilter(e.target.value)}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               Regex-Beispiele: <code>re:1-5.....?</code> oder <code>/1-5.....?/i</code>
             </p>
-            <Label className="flex w-fit cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+            <Label className="text-muted-foreground flex w-fit cursor-pointer items-center gap-2 text-xs">
               <Checkbox
                 checked={allFilteredChecked ? true : someFilteredChecked ? 'indeterminate' : false}
                 onCheckedChange={checked => toggleAllFiltered(Boolean(checked))}
@@ -603,17 +595,17 @@ export default function EntraSyncSettingsPage() {
               Alle gefilterten auswählen
             </Label>
             {compiledFilter.error ? (
-              <p className="text-xs text-destructive">Ungültiger Regex: {compiledFilter.error}</p>
+              <p className="text-destructive text-xs">Ungültiger Regex: {compiledFilter.error}</p>
             ) : null}
           </div>
 
           {isLoadingGroups ? (
-            <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
+            <div className="text-muted-foreground flex items-center justify-center gap-2 py-10">
               <Spinner className="h-4 w-4" />
               Entra-Gruppen werden geladen...
             </div>
           ) : filteredGroups.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
+            <p className="text-muted-foreground py-6 text-center text-sm">
               {groups.length === 0
                 ? 'Keine Gruppen gefunden. Bitte Graph-App-Berechtigungen prüfen.'
                 : compiledFilter.error
@@ -634,17 +626,14 @@ export default function EntraSyncSettingsPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredGroups.map(group => {
-                    const isTeacherGroup =
-                      teacherGroupId && group.id === teacherGroupId
+                    const isTeacherGroup = teacherGroupId && group.id === teacherGroupId
                     return (
                       <TableRow key={group.id}>
                         <TableCell>
                           <Checkbox
                             checked={selectedIds.has(group.id)}
                             disabled={Boolean(isTeacherGroup)}
-                            onCheckedChange={checked =>
-                              toggleGroup(group.id, Boolean(checked))
-                            }
+                            onCheckedChange={checked => toggleGroup(group.id, Boolean(checked))}
                           />
                         </TableCell>
                         <TableCell>
@@ -655,7 +644,7 @@ export default function EntraSyncSettingsPage() {
                             ) : null}
                           </div>
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
+                        <TableCell className="text-muted-foreground text-xs">
                           {group.description ?? '-'}
                         </TableCell>
                         <TableCell className="font-mono text-xs">

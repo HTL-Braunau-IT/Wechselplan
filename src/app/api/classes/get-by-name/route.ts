@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * Handles GET requests to retrieve class information by its name.
@@ -10,57 +11,50 @@ import { captureError } from '@/lib/sentry'
  * @returns A JSON response containing the class data or an error message with the appropriate HTTP status code.
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('session')
+  if (denied) return denied
+
   try {
     const { searchParams } = new URL(request.url)
     const name = searchParams.get('name')
 
     if (!name) {
-      return NextResponse.json(
-        { error: 'Class name is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Class name is required' }, { status: 400 })
     }
 
     const classData = await prisma.class.findUnique({
       where: {
-        name: name
+        name: name,
       },
       include: {
         classHead: {
           select: {
             firstName: true,
-            lastName: true
-          }
+            lastName: true,
+          },
         },
         classLead: {
           select: {
             firstName: true,
-            lastName: true
-          }
-        }
-      }
+            lastName: true,
+          },
+        },
+      },
     })
 
     if (!classData) {
-      return NextResponse.json(
-        { error: 'Class not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }
 
     return NextResponse.json(classData)
   } catch (error) {
-
     captureError(error, {
       location: 'api/classes/get-by-name',
       type: 'fetch-class-by-name',
       extra: {
-        searchParams: Object.fromEntries(new URL(request.url).searchParams)
-      }
+        searchParams: Object.fromEntries(new URL(request.url).searchParams),
+      },
     })
-    return NextResponse.json(
-      { error: 'Failed to fetch class' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to fetch class' }, { status: 500 })
   }
-} 
+}

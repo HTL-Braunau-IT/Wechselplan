@@ -4,18 +4,17 @@ import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { NextResponse } from 'next/server'
 
-
 // Mock the dependencies
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     room: {
-      findMany: vi.fn()
-    }
-  }
+      findMany: vi.fn(),
+    },
+  },
 }))
 
 vi.mock('@/lib/sentry', () => ({
-  captureError: vi.fn()
+  captureError: vi.fn(),
 }))
 
 describe('Rooms API', () => {
@@ -23,15 +22,13 @@ describe('Rooms API', () => {
     vi.clearAllMocks()
   })
 
-
-
   describe('GET /api/rooms', () => {
     it('should return rooms ordered by name', async () => {
       // Mock data
       const mockRooms = [
         { id: '1', name: 'Room A' },
         { id: '2', name: 'Room B' },
-        { id: '3', name: 'Room C' }
+        { id: '3', name: 'Room C' },
       ]
 
       // Mock the database response
@@ -50,11 +47,11 @@ describe('Rooms API', () => {
       expect(prisma.room.findMany).toHaveBeenCalledWith({
         select: {
           id: true,
-          name: true
+          name: true,
         },
         orderBy: {
-          name: 'asc'
-        }
+          name: 'asc',
+        },
       })
     })
 
@@ -75,8 +72,8 @@ describe('Rooms API', () => {
       // Verify error was captured
       expect(captureError).toHaveBeenCalledWith(mockError, {
         location: 'api/rooms',
-        type: 'fetch-rooms'
+        type: 'fetch-rooms',
       })
     })
   })
-}) 
+})

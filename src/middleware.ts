@@ -1,21 +1,35 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
+import { isStaffRole, resolveAccessTier, satisfiesTier } from '@/lib/api-access'
 
 const locales = ['en', 'de']
 const defaultLocale = 'de'
 
-function isTeacherOrAdminRole(role: unknown): boolean {
-  return role === 'teacher' || role === 'admin'
-}
+/**
+ * Page prefixes that require a signed-in teacher or admin.
+ *
+ * `/schedueles` is a historic typo that was linked to before the schedules
+ * page was renamed; it stays in the list so old bookmarks keep redirecting
+ * instead of falling through unauthenticated.
+ */
+const STAFF_PAGE_PREFIXES = [
+  '/schedule',
+  '/schedueles',
+  '/admin',
+  '/students',
+  '/notensammler',
+  '/noten',
+]
 
 /**
- * Middleware for handling authentication and locale redirection for incoming requests.
+ * Middleware for authentication and locale redirection.
  *
- * For requests to `/schedule`, `/admin`, `/schedueles`, `/students`, or `/notensammler`, only allows access to authenticated users with the `'teacher'` role; otherwise, redirects to the home page. Skips locale redirection for translation file requests. Redirects requests with a locale prefix in the path to the same path without the prefix, using the preferred language from the `language` cookie if available.
- *
- * @remark
- * Requests to `/schedueles` are also checked for authentication, though this may be a typo for `/schedules`.
+ * Unlike the previous version, `/api` is covered here as well: every API
+ * request is checked against the access policy in `lib/api-access`, so a route
+ * handler that forgets its own guard is still not reachable anonymously.
+ * Entitlement checks for `/notensammler` and `/noten` stay in their layouts and
+ * API routes because the Edge runtime cannot call the license server.
  */
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
@@ -25,57 +39,27 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Check if the path is under /schedule
-  if (pathname.startsWith('/schedule')) {
-    const token = await getToken({ req: request })
-    
-    // If no token or no teacher/admin role, redirect to home
-    if (!token || !isTeacherOrAdminRole(token.role)) {
-      return NextResponse.redirect(new URL('/', request.url))
+  if (pathname.startsWith('/api/')) {
+    const tier = resolveAccessTier(pathname, request.method)
+    if (tier === 'public') {
+      return NextResponse.next()
     }
+
+    const token = await getToken({ req: request })
+    if (!satisfiesTier(tier, token?.role, Boolean(token))) {
+      return NextResponse.json(
+        { error: token ? `Forbidden: ${tier} access required` : 'Unauthorized' },
+        { status: token ? 403 : 401 },
+      )
+    }
+
+    return NextResponse.next()
   }
 
-  if (pathname.startsWith('/admin')) {
+  if (STAFF_PAGE_PREFIXES.some(prefix => pathname.startsWith(prefix))) {
     const token = await getToken({ req: request })
-    
-    // If no token or no teacher/admin role, redirect to home
-    if (!token || !isTeacherOrAdminRole(token.role)) {
-      return NextResponse.redirect(new URL('/', request.url))
-    }
-  }
 
-  if (pathname.startsWith('/schedueles')) {
-    const token = await getToken({ req: request })
-    
-    // If no token or no teacher/admin role, redirect to home
-    if (!token || !isTeacherOrAdminRole(token.role)) {
-      return NextResponse.redirect(new URL('/', request.url))
-    }
-  }
-
-  if (pathname.startsWith('/students')) {
-    const token = await getToken({ req: request })
-    
-    // If no token or no teacher/admin role, redirect to home
-    if (!token || !isTeacherOrAdminRole(token.role)) {
-      return NextResponse.redirect(new URL('/', request.url))
-    }
-  }
-
-  // Entitlements for /notensammler and /noten are enforced in their layouts and API routes, not here (Edge runtime cannot call the license server).
-  if (pathname.startsWith('/notensammler')) {
-    const token = await getToken({ req: request })
-    
-    // If no token or no teacher/admin role, redirect to home
-    if (!token || !isTeacherOrAdminRole(token.role)) {
-      return NextResponse.redirect(new URL('/', request.url))
-    }
-  }
-
-  if (pathname.startsWith('/noten')) {
-    const token = await getToken({ req: request })
-    
-    if (!token || !isTeacherOrAdminRole(token.role)) {
+    if (!token || !isStaffRole(token.role)) {
       return NextResponse.redirect(new URL('/', request.url))
     }
   }
@@ -96,7 +80,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Skip all internal paths (_next)
-    '/((?!_next|api|favicon.ico).*)',
+    // Skip Next internals and the favicon; /api is now handled above.
+    '/((?!_next|favicon.ico).*)',
   ],
-} 
+}

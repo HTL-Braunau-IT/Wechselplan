@@ -19,7 +19,11 @@ export async function POST(request: Request) {
     const body = (await request.json().catch(() => ({}))) as {
       selection?: TeacherSyncSelection
     }
-    const summary = await applyTeacherSync(body.selection)
+    const summary = await applyTeacherSync(body.selection, {
+      // See the note in class-sync/apply: the threshold guards the unattended
+      // run, not a diff an admin has just reviewed.
+      maxDeactivationRatio: null,
+    })
     return NextResponse.json(summary)
   } catch (error) {
     captureError(error, {

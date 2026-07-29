@@ -1,17 +1,11 @@
-import { PrismaClient } from "@prisma/client";
-
-import { env } from "~/env";
-
-const createPrismaClient = () =>
-  new PrismaClient({
-    log:
-      env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
-  });
-
-const globalForPrisma = globalThis as unknown as {
-  prisma: ReturnType<typeof createPrismaClient> | undefined;
-};
-
-export const db = globalForPrisma.prisma ?? createPrismaClient();
-
-if (env.NODE_ENV !== "production") globalForPrisma.prisma = db;
+/**
+ * Historically this file constructed its own PrismaClient, as did
+ * `src/lib/db.ts`, while `src/lib/prisma.ts` constructed a third. All three
+ * cached onto `globalThis.prisma`, so in development they clobbered each other
+ * and a caller could end up holding a client without the active-by-default
+ * extension.
+ *
+ * There is now a single client. This module remains as the `db` alias that
+ * tRPC's context expects.
+ */
+export { prisma as db } from '@/lib/prisma'

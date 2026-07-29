@@ -4,13 +4,13 @@ import { useDroppable } from '@dnd-kit/core'
 import { useTranslation } from 'next-i18next'
 
 interface Group {
-	id: number
-	students: unknown[]
+  id: number
+  students: unknown[]
 }
 
 interface GroupContainerProps {
-	group: Group
-	children: React.ReactNode
+  group: Group
+  children: React.ReactNode
 }
 
 const UNASSIGNED_GROUP_ID = 0
@@ -24,25 +24,22 @@ const UNASSIGNED_GROUP_ID = 0
  * @param children - The student items or other elements to render inside the group container.
  */
 export function GroupContainer({ group, children }: GroupContainerProps) {
-	const { t } = useTranslation('schedule')
-	const { setNodeRef, isOver } = useDroppable({
-		id: `group-${group.id}`
-	})
+  const { t } = useTranslation('schedule')
+  const { setNodeRef, isOver } = useDroppable({
+    id: `group-${group.id}`,
+  })
 
-	return (
-		<div 
-			ref={setNodeRef}
-			className={`border border-border rounded-lg p-4 w-[320px] transition-colors bg-card min-h-[200px] ${
-				isOver ? 'bg-accent/50 border-accent' : ''
-			}`}
-		>
-			<h3 className="font-semibold mb-3 text-foreground text-center pb-2 border-b border-border/50">
-				{group.id === UNASSIGNED_GROUP_ID ? t('unassigned') : `${t('group')} ${group.id}`}
-			</h3>
-			<div className="space-y-2">
-				{children}
-			</div>
-		</div>
-	)
+  return (
+    <div
+      ref={setNodeRef}
+      className={`border-border bg-card min-h-[200px] w-[320px] rounded-lg border p-4 transition-colors ${
+        isOver ? 'bg-accent/50 border-accent' : ''
+      }`}
+    >
+      <h3 className="text-foreground border-border/50 mb-3 border-b pb-2 text-center font-semibold">
+        {group.id === UNASSIGNED_GROUP_ID ? t('unassigned') : `${t('group')} ${group.id}`}
+      </h3>
+      <div className="space-y-2">{children}</div>
+    </div>
+  )
 }
-

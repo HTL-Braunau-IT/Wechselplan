@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/server/db'
-import { captureError } from '~/lib/sentry'
+import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 /**
  * Handles bulk creation of school holidays from a POST request.
  *
@@ -9,18 +10,18 @@ import { captureError } from '~/lib/sentry'
  * @returns A JSON response containing the created holiday records, or an error message with the appropriate HTTP status code.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
-    const holidays = await request.json() as Array<{
+    const holidays = (await request.json()) as Array<{
       name: string
       startDate: string
       endDate: string
     }>
 
     if (!Array.isArray(holidays) || holidays.length === 0) {
-      return NextResponse.json(
-        { error: 'Invalid holidays data' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Invalid holidays data' }, { status: 400 })
     }
 
     // Create all holidays in a transaction
@@ -30,22 +31,18 @@ export async function POST(request: Request) {
           data: {
             name: holiday.name,
             startDate: new Date(holiday.startDate),
-            endDate: new Date(holiday.endDate)
-          }
-        })
-      )
+            endDate: new Date(holiday.endDate),
+          },
+        }),
+      ),
     )
 
     return NextResponse.json(createdHolidays)
   } catch (error) {
-   
     captureError(error, {
       location: 'api/settings/holidays/bulk',
-      type: 'save-holidays'
+      type: 'save-holidays',
     })
-    return NextResponse.json(
-      { error: 'Failed to save holidays' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to save holidays' }, { status: 500 })
   }
-} 
+}

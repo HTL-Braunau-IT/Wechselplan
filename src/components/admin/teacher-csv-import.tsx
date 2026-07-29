@@ -53,22 +53,22 @@ export function TeacherCSVImport({ onImport }: TeacherCSVImportProps) {
     try {
       const text = await file.text()
       const lines = text.split('\n')
-      
+
       // Skip header row and empty lines
       const dataLines = lines.slice(1).filter(line => line.trim())
-      
+
       const teachers: Teacher[] = []
-      
+
       for (const line of dataLines) {
         const [firstName, lastName, schedules] = line.split(',').map(field => field.trim())
-        
+
         if (!firstName || !lastName) {
           throw new Error('Invalid CSV format')
         }
 
         const teacher: Teacher = {
           firstName,
-          lastName
+          lastName,
         }
 
         if (schedules) {
@@ -86,8 +86,8 @@ export function TeacherCSVImport({ onImport }: TeacherCSVImportProps) {
         type: 'parse-csv',
         extra: {
           fileName: file.name,
-          fileSize: file.size
-        }
+          fileSize: file.size,
+        },
       })
       setError(t('admin.teachers.import.errors.invalidCSV'))
     } finally {
@@ -110,8 +110,8 @@ export function TeacherCSVImport({ onImport }: TeacherCSVImportProps) {
         location: 'admin/teacher-csv-import',
         type: 'import-csv',
         extra: {
-          teachersCount: csvData.length
-        }
+          teachersCount: csvData.length,
+        },
       })
       setError(t('admin.teachers.import.errors.importFailed'))
     } finally {
@@ -140,9 +140,9 @@ export function TeacherCSVImport({ onImport }: TeacherCSVImportProps) {
           />
           <Label
             htmlFor="csv-upload"
-            className="cursor-pointer inline-flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            className="inline-flex cursor-pointer items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
           >
-            <Upload className="h-4 w-4 mr-2" />
+            <Upload className="mr-2 h-4 w-4" />
             {t('admin.teachers.import.uploadCSV')}
           </Label>
         </div>
@@ -163,7 +163,7 @@ export function TeacherCSVImport({ onImport }: TeacherCSVImportProps) {
                 <span className="flex-1">
                   {teacher.firstName} {teacher.lastName}
                   {teacher.schedules && teacher.schedules.length > 0 && (
-                    <span className="text-sm text-gray-500 ml-2">
+                    <span className="ml-2 text-sm text-gray-500">
                       ({teacher.schedules.join(', ')})
                     </span>
                   )}
@@ -171,15 +171,13 @@ export function TeacherCSVImport({ onImport }: TeacherCSVImportProps) {
               </div>
             ))}
           </div>
-          <Button 
-            onClick={handleImport} 
-            disabled={isLoading}
-            className="w-full md:w-auto"
-          >
-            {isLoading ? t('admin.teachers.import.loading') : t('admin.teachers.import.importSelected')}
+          <Button onClick={handleImport} disabled={isLoading} className="w-full md:w-auto">
+            {isLoading
+              ? t('admin.teachers.import.loading')
+              : t('admin.teachers.import.importSelected')}
           </Button>
         </div>
       )}
     </div>
   )
-} 
+}

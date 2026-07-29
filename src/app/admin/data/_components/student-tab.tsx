@@ -1,53 +1,28 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
-import { useSchoolYear } from '@/contexts/school-year-context'
-import { DataTable } from './data-table'
-import type { Column } from './data-table'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select'
+import { useMemo, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
-import { ClassStudentSyncDialog } from './class-student-sync-dialog'
+import { Button } from '@/components/ui/button'
 import { StudentPhoto } from '@/components/student-photo'
-
-interface Student {
-  id: number
-  firstName: string
-  lastName: string
-  username: string
-  email?: string | null
-  classId?: number
-  groupId?: number
-  externalId?: string | null
-  externalSource?: string | null
-  isActive?: boolean
-  deactivatedAt?: string | null
-  lastSyncedAt?: string | null
-  syncStatus?: string | null
-  createdAt: string
-  updatedAt: string
-  class?: {
-    id: number
-    name: string
-    description?: string
-  }
-}
+import { useSchoolYear } from '@/contexts/school-year-context'
+import { useAdminModel, useAdminModelMutations } from '@/hooks/use-admin-model'
+import { ModelTab } from './model-tab'
+import { ClassStudentSyncDialog } from './class-student-sync-dialog'
+import { ActiveBadge, SyncStatusBadge } from './status-badge'
+import { SYNC_COLUMNS, TIMESTAMP_COLUMNS } from './model-configs'
+import type { Column } from './data-table'
 
 export function StudentTab() {
   const { selectedYear } = useSchoolYear()
   const schoolYearId = selectedYear?.id
-  const [students, setStudents] = useState<Student[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [classes, setClasses] = useState<{ id: number; name: string }[]>([])
   const [isSyncOpen, setIsSyncOpen] = useState(false)
+
+  // Classes populate the class select in the create/edit form.
+  const { data: classes } = useAdminModel('class', {
+    schoolYearId,
+    listUrl: schoolYearId != null ? `/api/classes?schoolYearId=${schoolYearId}` : undefined,
+  })
+  const { invalidate } = useAdminModelMutations('student', schoolYearId)
 
   const columns: Column[] = useMemo(
     () => [
@@ -56,7 +31,7 @@ export function StudentTab() {
         key: 'photo',
         label: 'Foto',
         sortable: false,
-        render: (item) => (
+        render: item => (
           <StudentPhoto
             studentId={item.id as number}
             firstName={(item.firstName as string) ?? ''}
@@ -64,179 +39,65 @@ export function StudentTab() {
             size={28}
             avatarOnly
           />
-        )
+        ),
       },
       { key: 'firstName', label: 'Vorname', type: 'text', required: true, sortable: true },
       { key: 'lastName', label: 'Nachname', type: 'text', required: true, sortable: true },
       { key: 'username', label: 'Benutzername', type: 'text', required: true, sortable: true },
-      { key: 'email', label: 'Email', type: 'text', sortable: true },
+      { key: 'email', label: 'E-Mail', type: 'text', sortable: true },
       {
         key: 'classId',
         label: 'Klasse',
         type: 'select',
-        options: classes.map((c) => ({ value: c.id, label: c.name })),
-        sortable: true
+        sortable: true,
+        options: (classes ?? []).map(c => ({ value: c.id as number, label: c.name as string })),
       },
       { key: 'groupId', label: 'Gruppen-ID', type: 'number', sortable: true },
       {
         key: 'isActive',
-        label: 'Aktiv',
+        label: 'Status',
         type: 'boolean',
         readonly: true,
         sortable: true,
-        render: (item) => (
-          <Badge variant={item.isActive === false ? 'outline' : 'default'}>
-            {item.isActive === false ? 'inaktiv' : 'aktiv'}
-          </Badge>
-        ),
+        render: item => <ActiveBadge isActive={item.isActive} />,
       },
       {
-        key: 'externalId',
-        label: 'Entra oid',
+        key: 'syncStatus',
+        label: 'Sync-Status',
         type: 'text',
         readonly: true,
         sortable: true,
-        render: (item) => (
-          <span className="font-mono text-xs">
-            {(item.externalId as string | null | undefined) ?? '-'}
-          </span>
-        ),
+        render: item => <SyncStatusBadge syncStatus={item.syncStatus} />,
       },
-      { key: 'externalSource', label: 'Quelle', type: 'text', readonly: true, sortable: true },
-      { key: 'lastSyncedAt', label: 'Zuletzt synchronisiert', type: 'date', readonly: true, sortable: true },
-      { key: 'createdAt', label: 'Erstellt am', type: 'date', readonly: true, sortable: true },
-      { key: 'updatedAt', label: 'Aktualisiert am', type: 'date', readonly: true, sortable: true }
+      ...SYNC_COLUMNS,
+      ...TIMESTAMP_COLUMNS,
     ],
-    [classes]
+    [classes],
   )
 
-  const fetchStudents = async () => {
-    try {
-      setIsLoading(true)
-      if (schoolYearId != null) {
-        const response = await fetch(`/api/students/all?schoolYearId=${schoolYearId}`, { cache: 'no-store' })
-        if (response.ok) {
-          const data = await response.json() as unknown as Student[]
-          setStudents(data)
-        }
-      } else {
-        const response = await fetch('/api/admin/data?model=student')
-        if (response.ok) {
-          const data = await response.json() as unknown as Student[]
-          setStudents(data)
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching students:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const fetchClasses = async () => {
-    try {
-      const url = schoolYearId != null ? `/api/classes?schoolYearId=${schoolYearId}` : '/api/admin/data?model=class'
-      const response = await fetch(url, schoolYearId != null ? { cache: 'no-store' } : undefined)
-      if (response.ok) {
-        const data = await response.json() as Array<{ id: number; name: string }>
-        setClasses(data.map(c => ({ id: c.id, name: c.name })))
-      }
-    } catch (error) {
-      console.error('Error fetching classes:', error)
-    }
-  }
-
-  useEffect(() => {
-    void fetchStudents()
-    void fetchClasses()
-  }, [schoolYearId])
-
-  const handleCreate = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
-    const response = await fetch('/api/admin/data?model=student', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-    
-    if (!response.ok) {
-      const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Schüler konnte nicht erstellt werden')
-    }
-    
-    return response.json() as Promise<Record<string, unknown>>
-  }
-
-  const handleEdit = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
-    const response = await fetch('/api/admin/data?model=student', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-    
-    if (!response.ok) {
-      const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Schüler konnte nicht aktualisiert werden')
-    }
-    
-    return response.json() as Promise<Record<string, unknown>>
-  }
-
-  const handleDelete = async (id: number): Promise<void> => {
-    const response = await fetch(`/api/admin/data?model=student&id=${id}`, {
-      method: 'DELETE'
-    })
-    
-    if (!response.ok) {
-      const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Schüler konnte nicht gelöscht werden')
-    }
-  }
-
-  const handleDeleteAll = async (): Promise<{ deleted?: Record<string, number> }> => {
-    const response = await fetch('/api/admin/data?model=student&bulk=true', {
-      method: 'DELETE'
-    })
-
-    if (!response.ok) {
-      const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Schüler konnten nicht gelöscht werden')
-    }
-
-    return response.json() as Promise<{ deleted?: Record<string, number> }>
-  }
-
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="ml-auto">
-          <Button onClick={() => setIsSyncOpen(true)} variant="secondary">
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Klassen + Schüler mit Entra synchronisieren
-          </Button>
-        </div>
-      </div>
-      <DataTable
-        model="Student"
-        columns={columns}
-        data={students as unknown as Record<string, unknown>[]}
-        onRefresh={() => {
-          void fetchStudents()
-        }}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        onDeleteAll={handleDeleteAll}
-        deleteAllLabel="Alle Schüler löschen"
-        onCreate={handleCreate}
-        isLoading={isLoading}
-      />
-
+    <ModelTab
+      model="student"
+      label="Schüler"
+      columns={columns}
+      schoolYearId={schoolYearId}
+      // /api/admin/data ignores schoolYearId for students, so a year-scoped
+      // view has to read from the students endpoint instead.
+      listUrl={schoolYearId != null ? `/api/students/all?schoolYearId=${schoolYearId}` : undefined}
+      allowDeleteAll
+      deleteAllLabel="Alle Schüler löschen"
+      toolbar={
+        <Button onClick={() => setIsSyncOpen(true)} variant="secondary">
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Klassen + Schüler mit Entra synchronisieren
+        </Button>
+      }
+    >
       <ClassStudentSyncDialog
         open={isSyncOpen}
         onOpenChange={setIsSyncOpen}
-        onCompleted={() => {
-          void fetchStudents()
-        }}
+        onCompleted={() => void invalidate()}
       />
-    </div>
+    </ModelTab>
   )
 }

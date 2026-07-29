@@ -1,11 +1,11 @@
 interface FrontendErrorOptions {
-  location: string;
-  type: string;
-  extra?: Record<string, unknown>;
+  location: string
+  type: string
+  extra?: Record<string, unknown>
   user?: {
-    id?: string;
-    email?: string;
-  };
+    id?: string
+    email?: string
+  }
 }
 
 /**
@@ -29,19 +29,19 @@ export function captureFrontendError(_error: unknown, _options: FrontendErrorOpt
  */
 export async function withFrontendErrorReporting<T>(
   operation: () => Promise<T>,
-  _options: FrontendErrorOptions
+  _options: FrontendErrorOptions,
 ): Promise<T> {
-  return await operation();
+  return await operation()
 }
 
 // Utility function to wrap async operations in try-catch (no error reporting)
 export async function tryWithErrorReporting<T>(
   operation: () => Promise<T>,
-  _options: FrontendErrorOptions
+  _options: FrontendErrorOptions,
 ): Promise<T | null> {
   try {
-    return await operation();
+    return await operation()
   } catch {
-    return null;
+    return null
   }
 }

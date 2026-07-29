@@ -1,6 +1,6 @@
-"use client";
+'use client'
 
-import NextError from "next/error";
+import NextError from 'next/error'
 
 /**
  * Displays a generic error page in a Next.js application.
@@ -14,8 +14,8 @@ import NextError from "next/error";
 export default function GlobalError({
   error: _error,
 }: {
-  error: Error & { digest?: string };
-  reset: () => void;
+  error: Error & { digest?: string }
+  reset: () => void
 }) {
   // Error logging removed - Sentry has been removed
 
@@ -29,5 +29,5 @@ export default function GlobalError({
         <NextError statusCode={0} />
       </body>
     </html>
-  );
+  )
 }

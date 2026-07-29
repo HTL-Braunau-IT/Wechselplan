@@ -22,12 +22,12 @@ export function SchoolYearSelector() {
     <Select
       key={selectedYear?.id ?? 'none'}
       value={selectedYear ? String(selectedYear.id) : undefined}
-      onOpenChange={(open) => {
+      onOpenChange={open => {
         if (open) void refetchYears()
       }}
-      onValueChange={(value) => {
+      onValueChange={value => {
         const id = parseInt(value, 10)
-        const year = years.find((y) => y.id === id)
+        const year = years.find(y => y.id === id)
         if (year) setSchoolYear(year)
       }}
     >
@@ -35,7 +35,7 @@ export function SchoolYearSelector() {
         <SelectValue placeholder={t('common.selectSchoolYear')} />
       </SelectTrigger>
       <SelectContent>
-        {years.map((year) => (
+        {years.map(year => (
           <SelectItem key={year.id} value={String(year.id)}>
             {year.label}
           </SelectItem>

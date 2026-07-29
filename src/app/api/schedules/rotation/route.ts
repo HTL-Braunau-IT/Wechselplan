@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 interface TeacherRotationRequest {
   classId: number
@@ -23,35 +24,32 @@ interface TeacherRotationRequest {
  * @returns A JSON response indicating success or providing an error message.
  */
 export async function POST(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
-    const data = await request.json() as TeacherRotationRequest
+    const data = (await request.json()) as TeacherRotationRequest
     const { classId, turns, amRotation, pmRotation } = data
 
     if (!classId || typeof classId !== 'number' || !turns || !amRotation || !pmRotation) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
     const classData = await prisma.class.findUnique({
       where: {
-        id: classId
-      }
+        id: classId,
+      },
     })
 
     if (!classData) {
-      return NextResponse.json(
-        { error: 'Class not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }
 
     // Delete existing rotations for this class
     await prisma.teacherRotation.deleteMany({
       where: {
-        classId: classData.id
-      }
+        classId: classData.id,
+      },
     })
 
     // Save AM rotation
@@ -65,8 +63,8 @@ export async function POST(request: Request) {
               groupId: groupRotation.groupId,
               teacherId: teacherId!,
               turnId: turns[i]!,
-              period: 'AM'
-            }
+              period: 'AM',
+            },
           })
         }
       }
@@ -83,8 +81,8 @@ export async function POST(request: Request) {
               groupId: groupRotation.groupId,
               teacherId: teacherId!,
               turnId: turns[i]!,
-              period: 'PM'
-            }
+              period: 'PM',
+            },
           })
         }
       }
@@ -92,15 +90,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-  
     captureError(error, {
       location: 'api/schedules/rotation',
-      type: 'update-rotation'
+      type: 'update-rotation',
     })
-    return NextResponse.json(
-      { error: 'Failed to update teacher rotation' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to update teacher rotation' }, { status: 500 })
   }
 }
-

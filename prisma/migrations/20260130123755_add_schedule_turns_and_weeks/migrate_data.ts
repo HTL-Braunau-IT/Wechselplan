@@ -1,10 +1,10 @@
 /**
  * Data migration script to populate ScheduleTurn and ScheduleWeek tables
  * from existing scheduleData JSON field.
- * 
+ *
  * This script should be run after the schema migration but before removing
  * the scheduleData field.
- * 
+ *
  * Run with: npx tsx prisma/migrations/20260130123755_add_schedule_turns_and_weeks/migrate_data.ts
  */
 
@@ -40,7 +40,7 @@ async function migrateScheduleData() {
   for (const schedule of schedules) {
     try {
       const scheduleData = schedule.scheduleData as unknown as ScheduleData | null
-      
+
       if (!scheduleData || typeof scheduleData !== 'object') {
         console.log(`Skipping schedule ${schedule.id}: invalid scheduleData`)
         continue
@@ -49,21 +49,25 @@ async function migrateScheduleData() {
       // Check if normalized data already exists and delete it (makes script idempotent)
       try {
         const existingTurns = await prisma.scheduleTurn.findMany({
-          where: { scheduleId: schedule.id }
+          where: { scheduleId: schedule.id },
         })
-        
+
         if (existingTurns.length > 0) {
-          console.log(`Deleting existing normalized data for schedule ${schedule.id} (${existingTurns.length} turns)`)
+          console.log(
+            `Deleting existing normalized data for schedule ${schedule.id} (${existingTurns.length} turns)`,
+          )
           // Delete turns (cascades will delete related weeks and holidays)
           await prisma.scheduleTurn.deleteMany({
-            where: { scheduleId: schedule.id }
+            where: { scheduleId: schedule.id },
           })
         }
       } catch (error) {
         // If table doesn't exist yet, that's fine - we'll create it
         // This can happen if Prisma client is out of sync
         if (error instanceof Error && error.message.includes('does not exist')) {
-          console.log(`No existing normalized data found for schedule ${schedule.id} (table may not exist yet)`)
+          console.log(
+            `No existing normalized data found for schedule ${schedule.id} (table may not exist yet)`,
+          )
         } else {
           throw error
         }
@@ -89,7 +93,7 @@ async function migrateScheduleData() {
             name: turnName,
             customLength: turnData.customLength ?? null,
             order: turnOrder++,
-          }
+          },
         })
 
         // Create ScheduleWeek entries
@@ -102,7 +106,7 @@ async function migrateScheduleData() {
                   date: String(week.date),
                   week: String(week.week),
                   isHoliday: Boolean(week.isHoliday),
-                }
+                },
               })
             }
           }
@@ -119,14 +123,14 @@ async function migrateScheduleData() {
                   where: {
                     turnId_holidayId: {
                       turnId: scheduleTurn.id,
-                      holidayId: dbHoliday.id
-                    }
+                      holidayId: dbHoliday.id,
+                    },
                   },
                   create: {
                     turnId: scheduleTurn.id,
                     holidayId: dbHoliday.id,
                   },
-                  update: {}
+                  update: {},
                 })
               }
             }
@@ -144,11 +148,10 @@ async function migrateScheduleData() {
 }
 
 migrateScheduleData()
-  .catch((error) => {
+  .catch(error => {
     console.error('Migration failed:', error)
     process.exit(1)
   })
   .finally(async () => {
     await prisma.$disconnect()
   })
-

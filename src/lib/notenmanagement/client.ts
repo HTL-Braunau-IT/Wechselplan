@@ -15,20 +15,20 @@ import { normalizeUsername } from '@/lib/username'
 
 /** Server envelope shared by every Notenmanagement route. */
 type NmEnvelope = {
-	error?: string
-	details?: unknown
-	token?: string
-	tokenExpiresIn?: number
+  error?: string
+  details?: unknown
+  token?: string
+  tokenExpiresIn?: number
 }
 
 export class NmError extends Error {
-	readonly details: unknown
+  readonly details: unknown
 
-	constructor(message: string, details?: unknown) {
-		super(message)
-		this.name = 'NmError'
-		this.details = details
-	}
+  constructor(message: string, details?: unknown) {
+    super(message)
+    this.name = 'NmError'
+    this.details = details
+  }
 }
 
 /**
@@ -36,44 +36,44 @@ export class NmError extends Error {
  * retry with. Callers surface a password prompt rather than an error toast.
  */
 export class NmAuthRequiredError extends NmError {
-	constructor(message = 'Notenmanagement authentication required') {
-		super(message)
-		this.name = 'NmAuthRequiredError'
-	}
+  constructor(message = 'Notenmanagement authentication required') {
+    super(message)
+    this.name = 'NmAuthRequiredError'
+  }
 }
 
 /** Build a readable message from an error envelope, including the upstream detail. */
 export function formatNmError(data: { error?: string; details?: unknown }): string {
-	const detail =
-		data.details == null
-			? ''
-			: typeof data.details === 'string'
-				? data.details
-				: ((data.details as { error_description?: string })?.error_description ??
-					(data.details as { error?: string })?.error ??
-					JSON.stringify(data.details))
-	return [data.error, detail].filter(Boolean).join(' — ') || 'Transfer failed'
+  const detail =
+    data.details == null
+      ? ''
+      : typeof data.details === 'string'
+        ? data.details
+        : ((data.details as { error_description?: string })?.error_description ??
+          (data.details as { error?: string })?.error ??
+          JSON.stringify(data.details))
+  return [data.error, detail].filter(Boolean).join(' — ') || 'Transfer failed'
 }
 
 export type NmCredentials = {
-	username: string
-	/** Omitted when the caller only has a cached token (e.g. the LF view shortcut). */
-	password?: string
-	/**
-	 * Use this token instead of looking one up in storage. The LF view resolves
-	 * the token itself before deciding whether to prompt.
-	 */
-	token?: string
+  username: string
+  /** Omitted when the caller only has a cached token (e.g. the LF view shortcut). */
+  password?: string
+  /**
+   * Use this token instead of looking one up in storage. The LF view resolves
+   * the token itself before deciding whether to prompt.
+   */
+  token?: string
 }
 
 async function postJson(endpoint: string, body: Record<string, unknown>) {
-	const res = await fetch(endpoint, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(body)
-	})
-	const data = (await res.json()) as NmEnvelope
-	return { res, data }
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const data = (await res.json()) as NmEnvelope
+  return { res, data }
 }
 
 /**
@@ -82,57 +82,57 @@ async function postJson(endpoint: string, body: Record<string, unknown>) {
  * NmAuthRequiredError) otherwise.
  */
 export async function nmRequest<T>(
-	endpoint: string,
-	payload: Record<string, unknown>,
-	credentials: NmCredentials
+  endpoint: string,
+  payload: Record<string, unknown>,
+  credentials: NmCredentials,
 ): Promise<T> {
-	const username = normalizeUsername(credentials.username) || credentials.username
+  const username = normalizeUsername(credentials.username) || credentials.username
 
-	const explicitToken = credentials.token
-	let storedToken: string | null = explicitToken ?? null
-	if (storedToken == null) {
-		const stored = getStoredToken()
-		if (stored && normalizeUsername(stored.username) === normalizeUsername(username)) {
-			storedToken = stored.token
-		}
-	}
+  const explicitToken = credentials.token
+  let storedToken: string | null = explicitToken ?? null
+  if (storedToken == null) {
+    const stored = getStoredToken()
+    if (stored && normalizeUsername(stored.username) === normalizeUsername(username)) {
+      storedToken = stored.token
+    }
+  }
 
-	const persist = (data: NmEnvelope) => {
-		if (data.token && data.tokenExpiresIn) {
-			storeToken(data.token, data.tokenExpiresIn, username)
-		}
-	}
+  const persist = (data: NmEnvelope) => {
+    if (data.token && data.tokenExpiresIn) {
+      storeToken(data.token, data.tokenExpiresIn, username)
+    }
+  }
 
-	const { res, data } = await postJson(endpoint, {
-		...payload,
-		username,
-		...(storedToken ? { token: storedToken } : { password: credentials.password })
-	})
+  const { res, data } = await postJson(endpoint, {
+    ...payload,
+    username,
+    ...(storedToken ? { token: storedToken } : { password: credentials.password }),
+  })
 
-	if (res.ok) {
-		persist(data)
-		return data as T
-	}
+  if (res.ok) {
+    persist(data)
+    return data as T
+  }
 
-	// A rejected request while using a cached token almost always means the
-	// token expired. Drop it and fall back to the password once.
-	if (storedToken) {
-		clearToken()
-		if (!credentials.password) {
-			throw new NmAuthRequiredError()
-		}
+  // A rejected request while using a cached token almost always means the
+  // token expired. Drop it and fall back to the password once.
+  if (storedToken) {
+    clearToken()
+    if (!credentials.password) {
+      throw new NmAuthRequiredError()
+    }
 
-		const retry = await postJson(endpoint, {
-			...payload,
-			username,
-			password: credentials.password
-		})
-		if (!retry.res.ok) {
-			throw new NmError(formatNmError(retry.data), retry.data.details)
-		}
-		persist(retry.data)
-		return retry.data as T
-	}
+    const retry = await postJson(endpoint, {
+      ...payload,
+      username,
+      password: credentials.password,
+    })
+    if (!retry.res.ok) {
+      throw new NmError(formatNmError(retry.data), retry.data.details)
+    }
+    persist(retry.data)
+    return retry.data as T
+  }
 
-	throw new NmError(formatNmError(data), data.details)
+  throw new NmError(formatNmError(data), data.details)
 }

@@ -9,7 +9,10 @@ import { refreshTeacherO365PhotoCache } from '@/lib/teacher-photo-source'
 export async function POST(request: Request) {
   const auth = await requireAdmin()
   if (!auth.ok) {
-    return NextResponse.json({ error: 'Nicht berechtigt: Admin-Rolle erforderlich' }, { status: 403 })
+    return NextResponse.json(
+      { error: 'Nicht berechtigt: Admin-Rolle erforderlich' },
+      { status: 403 },
+    )
   }
 
   try {
@@ -47,7 +50,8 @@ export async function POST(request: Request) {
       location: 'api/admin/teacher-photos/o365-refresh',
       type: 'refresh_o365_teacher_photos_error',
     })
-    const message = error instanceof Error ? error.message : 'O365-Fotos konnten nicht aktualisiert werden'
+    const message =
+      error instanceof Error ? error.message : 'O365-Fotos konnten nicht aktualisiert werden'
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

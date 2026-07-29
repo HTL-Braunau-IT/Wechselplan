@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 /**
  * Handles GET requests to retrieve a teacher's information by username.
@@ -11,44 +12,35 @@ import { normalizeUsername } from '@/lib/username'
  * @returns A JSON response containing the teacher's information, or an error message with HTTP status 400, 404, or 500.
  */
 export async function GET(request: Request) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     const { searchParams } = new URL(request.url)
     const rawUsername = searchParams.get('username')
     if (!rawUsername) {
-      return NextResponse.json(
-        { error: 'Username parameter is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Username parameter is required' }, { status: 400 })
     }
     const username = normalizeUsername(rawUsername)
     if (!username) {
-      return NextResponse.json(
-        { error: 'Username parameter is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Username parameter is required' }, { status: 400 })
     }
 
     const teacher = await prisma.teacher.findUnique({
-      where: { username }
+      where: { username },
     })
 
     if (!teacher) {
       console.warn('[username-match] Teacher not found', { raw: rawUsername, normalized: username })
-      return NextResponse.json(
-        { error: 'Teacher not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Teacher not found' }, { status: 404 })
     }
 
     return NextResponse.json(teacher)
   } catch (error) {
     captureError(error, {
       location: 'api/teachers/by-username',
-      type: 'fetch-teacher-by-username'
+      type: 'fetch-teacher-by-username',
     })
-    return NextResponse.json(
-      { error: 'Failed to fetch teacher' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to fetch teacher' }, { status: 500 })
   }
-} 
+}

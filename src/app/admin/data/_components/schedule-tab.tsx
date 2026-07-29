@@ -1,139 +1,48 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useMemo } from 'react'
 import { useSchoolYear } from '@/contexts/school-year-context'
-import { DataTable } from './data-table'
+import { useAdminModel } from '@/hooks/use-admin-model'
+import { ModelTab } from './model-tab'
+import { TIMESTAMP_COLUMNS } from './model-configs'
 import type { Column } from './data-table'
-
-interface Schedule {
-  id: number
-  name: string
-  description?: string
-  startDate: string
-  endDate: string
-  selectedWeekday: number
-  scheduleData: Record<string, unknown>
-  additionalInfo?: string
-  semesterPlanning?: string
-  classId?: number
-  createdAt: string
-  updatedAt: string
-  class?: { id: number; name: string }
-}
 
 export function ScheduleTab() {
   const { selectedYear } = useSchoolYear()
   const schoolYearId = selectedYear?.id
-  const [schedules, setSchedules] = useState<Schedule[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [classes, setClasses] = useState<{ id: number; name: string }[]>([])
+  const { data: classes } = useAdminModel('class')
 
-  const columns: Column[] = [
-    { key: 'id', label: 'ID', type: 'number', readonly: true },
-    { key: 'name', label: 'Name', type: 'text', required: true },
-    { key: 'description', label: 'Description', type: 'textarea' },
-    { key: 'startDate', label: 'Start Date', type: 'date', required: true },
-    { key: 'endDate', label: 'End Date', type: 'date', required: true },
-    { key: 'selectedWeekday', label: 'Selected Weekday', type: 'number', required: true },
-    { 
-      key: 'classId', 
-      label: 'Class', 
-      type: 'select', 
-      options: [{ value: '', label: 'None' }, ...classes.map(c => ({ value: c.id, label: c.name }))]
-    },
-    { key: 'semesterPlanning', label: 'Semester Planning', type: 'text' },
-    { key: 'createdAt', label: 'Erstellt am', type: 'date', readonly: true },
-    { key: 'updatedAt', label: 'Aktualisiert am', type: 'date', readonly: true }
-  ]
-
-  const fetchSchedules = async () => {
-    try {
-      setIsLoading(true)
-      const yearQ = schoolYearId != null ? `&schoolYearId=${schoolYearId}` : ''
-      const response = await fetch(`/api/admin/data?model=schedule${yearQ}`)
-      if (response.ok) {
-        const data = await response.json() as Schedule[]
-        setSchedules(data)
-      }
-    } catch (error) {
-      console.error('Error fetching schedules:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const fetchClasses = async () => {
-    try {
-      const response = await fetch('/api/admin/data?model=class')
-      if (response.ok) {
-        const data = await response.json() as Record<string, unknown>[]
-        setClasses(data.map((c: Record<string, unknown>) => ({ 
-          id: c.id as number, 
-          name: c.name as string 
-        })))
-      }
-    } catch (error) {
-      console.error('Error fetching classes:', error)
-    }
-  }
-
-  useEffect(() => {
-    void fetchSchedules()
-    void fetchClasses()
-  }, [schoolYearId])
-
-  const handleCreate = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
-    const payload = { ...data, ...(schoolYearId != null && { schoolYearId }) }
-    const response = await fetch('/api/admin/data?model=schedule', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-    
-    if (!response.ok) {
-      const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Erstellen fehlgeschlagen schedule')
-    }
-    
-    return response.json() as Promise<Record<string, unknown>>
-  }
-
-  const handleEdit = async (data: Record<string, unknown>): Promise<Record<string, unknown>> => {
-    const response = await fetch('/api/admin/data?model=schedule', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    })
-    
-    if (!response.ok) {
-      const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Aktualisieren fehlgeschlagen schedule')
-    }
-    
-    return response.json() as Promise<Record<string, unknown>>
-  }
-
-  const handleDelete = async (id: number): Promise<void> => {
-    const response = await fetch(`/api/admin/data?model=schedule&id=${id}`, {
-      method: 'DELETE'
-    })
-    
-    if (!response.ok) {
-      const error = await response.json() as { error?: string }
-      throw new Error(error.error ?? 'Löschen fehlgeschlagen schedule')
-    }
-  }
+  const columns: Column[] = useMemo(
+    () => [
+      { key: 'id', label: 'ID', type: 'number', readonly: true, sortable: true },
+      { key: 'name', label: 'Name', type: 'text', required: true, sortable: true },
+      { key: 'description', label: 'Beschreibung', type: 'textarea', sortable: true },
+      { key: 'startDate', label: 'Beginn', type: 'date', required: true, sortable: true },
+      { key: 'endDate', label: 'Ende', type: 'date', required: true, sortable: true },
+      {
+        key: 'selectedWeekday',
+        label: 'Wochentag',
+        type: 'number',
+        required: true,
+        sortable: true,
+      },
+      {
+        key: 'classId',
+        label: 'Klasse',
+        type: 'select',
+        sortable: true,
+        options: [
+          { value: '', label: 'Kein Eintrag' },
+          ...(classes ?? []).map(c => ({ value: c.id as number, label: c.name as string })),
+        ],
+      },
+      { key: 'semesterPlanning', label: 'Semesterplanung', type: 'text', sortable: true },
+      ...TIMESTAMP_COLUMNS,
+    ],
+    [classes],
+  )
 
   return (
-    <DataTable
-      model="Schedule"
-      columns={columns}
-      data={schedules as unknown as Record<string, unknown>[]}
-      onRefresh={fetchSchedules}
-      onEdit={handleEdit}
-      onDelete={handleDelete}
-      onCreate={handleCreate}
-      isLoading={isLoading}
-    />
+    <ModelTab model="schedule" label="Stundenplan" columns={columns} schoolYearId={schoolYearId} />
   )
 }

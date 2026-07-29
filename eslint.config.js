@@ -1,26 +1,29 @@
-import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
-import tseslint from "typescript-eslint";
-
-// eslint-config-next 16 ships a native flat config. Routing it through
-// FlatCompat (the eslintrc bridge) made ESLint throw "Converting circular
-// structure to JSON" on every run, so linting never actually ran.
+import nextCoreWebVitals from 'eslint-config-next/core-web-vitals'
+import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   {
     ignores: [
-      ".next",
-      "**/*.test.ts",
-      "**/*.test.tsx",
-      "**/*.spec.ts",
-      "**/*.spec.tsx",
-      "**/__tests__/**",
-      "**/test/**",
-      "**/tests/**"
+      '.next',
+      '**/*.test.ts',
+      '**/*.test.tsx',
+      '**/*.spec.ts',
+      '**/*.spec.tsx',
+      '**/__tests__/**',
+      '**/test/**',
+      '**/tests/**',
+      // One-off data-migration scripts, committed alongside the migration that
+      // ran them. They are a historical record, not living source.
+      'prisma/migrations/**',
     ],
   },
+  // eslint-config-next ships a flat config from v15 onwards. Loading it
+  // through FlatCompat, as this file used to, made ESLint fail outright with
+  // "Converting circular structure to JSON", so `npm run lint` and
+  // `npm run check` could not run at all.
   ...nextCoreWebVitals,
   {
-    files: ["**/*.ts", "**/*.tsx"],
+    files: ['**/*.ts', '**/*.tsx'],
     extends: [
       ...tseslint.configs.recommended,
       ...tseslint.configs.recommendedTypeChecked,
@@ -28,33 +31,27 @@ export default tseslint.config(
     ],
     rules: {
       //CUSTOM RULES
-      "@typescript-eslint/no-unsafe-call": "off",
-      "@typescript-eslint/no-unsafe-member-access": "off",
-      "react-hooks/exhaustive-deps": "off",
-      // New in React 19. Five pre-existing sites trip it, all the same shape:
-      // clear state, then fetch inside an effect (theme-provider,
-      // entitlements-context, overviews/teacher, transfer-student-dialog x2).
-      // The real fix is to move those loads onto React Query, which the
-      // schedule hooks already use — a change worth making on its own rather
-      // than smuggling into an unrelated refactor. Kept visible as a warning
-      // instead of silenced with per-site disables.
-      "react-hooks/set-state-in-effect": "warn",
-      "@typescript-eslint/no-unsafe-assignment": "off",
-      "@typescript-eslint/no-unnecessary-type-assertion": "off",
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      'react-hooks/exhaustive-deps': 'off',
+      // New in eslint-config-next 16, and flagged across several pre-existing
+      // components (theme-provider, entitlements-context, the schedule
+      // dialogs). Each needs a real restructure onto React Query rather than a
+      // mechanical edit, so it is a warning for now rather than a blocker.
+      'react-hooks/set-state-in-effect': 'warn',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unnecessary-type-assertion': 'off',
       //
-      "@typescript-eslint/array-type": "off",
-      "@typescript-eslint/consistent-type-definitions": "off",
-      "@typescript-eslint/consistent-type-imports": [
-        "warn",
-        { prefer: "type-imports", fixStyle: "inline-type-imports" },
+      '@typescript-eslint/array-type': 'off',
+      '@typescript-eslint/consistent-type-definitions': 'off',
+      '@typescript-eslint/consistent-type-imports': [
+        'warn',
+        { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
       ],
-      "@typescript-eslint/no-unused-vars": [
-        "warn",
-        { argsIgnorePattern: "^_" },
-      ],
-      "@typescript-eslint/require-await": "off",
-      "@typescript-eslint/no-misused-promises": [
-        "error",
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/no-misused-promises': [
+        'error',
         { checksVoidReturn: { attributes: false } },
       ],
     },
@@ -69,4 +66,4 @@ export default tseslint.config(
       },
     },
   },
-);
+)

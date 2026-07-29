@@ -2,12 +2,13 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 interface CreateStudentRequest {
-	firstName: string
-	lastName: string
-	username: string
-	className: string
+  firstName: string
+  lastName: string
+  username: string
+  className: string
 }
 
 /**
@@ -18,93 +19,89 @@ interface CreateStudentRequest {
  * @returns A JSON response containing the list of students or an error message.
  */
 export async function GET(request: Request) {
-	const { searchParams } = new URL(request.url)
-	const className = searchParams.get('class')
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
 
-	if (!className) {
-		return NextResponse.json(
-			{ error: 'Class parameter is required' },
-			{ status: 400 }
-		)
-	}
+  const { searchParams } = new URL(request.url)
+  const className = searchParams.get('class')
 
-	try {
-		const students = await prisma.student.findMany({
-			where: {
-				class: {
-					name: className
-				}
-			},
-			include: {
-				class: {
-					select: {
-						name: true,
-						description: true
-					}
-				}
-			},
-			orderBy: [
-				{ lastName: 'asc' },
-				{ firstName: 'asc' }
-			]
-		})
+  if (!className) {
+    return NextResponse.json({ error: 'Class parameter is required' }, { status: 400 })
+  }
 
-		// Process students to include original class information for combined classes
-		const processedStudents = students.map(student => {
-			// Ensure we have valid student data
-			if (!student?.id) {
-				console.warn('Invalid student data:', student)
-				return null
-			}
+  try {
+    const students = await prisma.student.findMany({
+      where: {
+        class: {
+          name: className,
+        },
+      },
+      include: {
+        class: {
+          select: {
+            name: true,
+            description: true,
+          },
+        },
+      },
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+    })
 
-			const studentData: {
-				id: number
-				firstName: string
-				lastName: string
-				class: string
-				username: string
-				originalClass?: string
-			} = {
-				id: student.id,
-				firstName: student.firstName ?? '',
-				lastName: student.lastName ?? '',
-				class: student.class?.name ?? 'Unknown',
-				username: student.username ?? ''
-			}
+    // Process students to include original class information for combined classes
+    const processedStudents = students
+      .map(student => {
+        // Ensure we have valid student data
+        if (!student?.id) {
+          console.warn('Invalid student data:', student)
+          return null
+        }
 
-			// Check if this is a combined class by looking at the description
-			if (student.class?.description?.includes('Combined class from')) {
-				// Extract original class information from username
-				// Format: "10A_john.doe" or "10B_john.doe1"
-				const usernameRegex = /^([^_]+)_(.+)$/
-				const usernameMatch = usernameRegex.exec(student.username ?? '')
-				if (usernameMatch?.[1] && usernameMatch?.[2]) {
-					const originalClass = usernameMatch[1]
-					const actualUsername = usernameMatch[2]
-					
-					studentData.originalClass = originalClass
-					studentData.username = actualUsername // Show the clean username
-				}
-			}
+        const studentData: {
+          id: number
+          firstName: string
+          lastName: string
+          class: string
+          username: string
+          originalClass?: string
+        } = {
+          id: student.id,
+          firstName: student.firstName ?? '',
+          lastName: student.lastName ?? '',
+          class: student.class?.name ?? 'Unknown',
+          username: student.username ?? '',
+        }
 
-			return studentData
-		}).filter(Boolean) // Remove any null entries
+        // Check if this is a combined class by looking at the description
+        if (student.class?.description?.includes('Combined class from')) {
+          // Extract original class information from username
+          // Format: "10A_john.doe" or "10B_john.doe1"
+          const usernameRegex = /^([^_]+)_(.+)$/
+          const usernameMatch = usernameRegex.exec(student.username ?? '')
+          if (usernameMatch?.[1] && usernameMatch?.[2]) {
+            const originalClass = usernameMatch[1]
+            const actualUsername = usernameMatch[2]
 
-		return NextResponse.json(processedStudents)
-	} catch (error) {
-		console.error('Error in students API:', error)
-		captureError(error, {
-			location: 'api/students',
-			type: 'fetch-students',
-			extra: {
-				searchParams: Object.fromEntries(searchParams)
-			}
-		})
-		return NextResponse.json(
-			{ error: 'Failed to fetch students' },
-			{ status: 500 }
-		)
-	}
+            studentData.originalClass = originalClass
+            studentData.username = actualUsername // Show the clean username
+          }
+        }
+
+        return studentData
+      })
+      .filter(Boolean) // Remove any null entries
+
+    return NextResponse.json(processedStudents)
+  } catch (error) {
+    console.error('Error in students API:', error)
+    captureError(error, {
+      location: 'api/students',
+      type: 'fetch-students',
+      extra: {
+        searchParams: Object.fromEntries(searchParams),
+      },
+    })
+    return NextResponse.json({ error: 'Failed to fetch students' }, { status: 500 })
+  }
 }
 
 /**
@@ -113,77 +110,64 @@ export async function GET(request: Request) {
  * Expects a JSON body containing `firstName`, `lastName`, `username`, and `className`. Validates required fields, ensures the username is unique, and associates the student with an existing class. Returns the created student as a JSON response, or an error response with an appropriate status code if validation fails or an error occurs.
  */
 export async function POST(request: Request) {
-	let requestBody: CreateStudentRequest = {
-		firstName: '',
-		lastName: '',
-		username: '',
-		className: ''
-	}
-	try {
-		requestBody = await request.json()
-		const { firstName, lastName, username: rawUsername, className } = requestBody
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
 
-		if (!firstName || !lastName || !rawUsername || !className) {
-			return NextResponse.json(
-				{ error: 'Missing required fields' },
-				{ status: 400 }
-			)
-		}
-		const username = normalizeUsername(rawUsername)
-		if (!username) {
-			return NextResponse.json(
-				{ error: 'Username is required' },
-				{ status: 400 }
-			)
-		}
+  let requestBody: CreateStudentRequest = {
+    firstName: '',
+    lastName: '',
+    username: '',
+    className: '',
+  }
+  try {
+    requestBody = await request.json()
+    const { firstName, lastName, username: rawUsername, className } = requestBody
 
-		// Check if username already exists
-		const existingStudent = await prisma.student.findUnique({
-			where: { username }
-		})
+    if (!firstName || !lastName || !rawUsername || !className) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    }
+    const username = normalizeUsername(rawUsername)
+    if (!username) {
+      return NextResponse.json({ error: 'Username is required' }, { status: 400 })
+    }
 
-		if (existingStudent) {
-			return NextResponse.json(
-				{ error: 'Username already exists' },
-				{ status: 400 }
-			)
-		}
+    // Check if username already exists
+    const existingStudent = await prisma.student.findUnique({
+      where: { username },
+    })
 
-		// Get the class ID from the class name
-		const classRecord = await prisma.class.findUnique({
-			where: { name: className }
-		})
+    if (existingStudent) {
+      return NextResponse.json({ error: 'Username already exists' }, { status: 400 })
+    }
 
-		if (!classRecord) {
-			return NextResponse.json(
-				{ error: 'Class not found' },
-				{ status: 404 }
-			)
-		}
+    // Get the class ID from the class name
+    const classRecord = await prisma.class.findUnique({
+      where: { name: className },
+    })
 
-		// Create the new student
-		const student = await prisma.student.create({
-			data: {
-				firstName,
-				lastName,
-				username,
-				classId: classRecord.id
-			}
-		})
+    if (!classRecord) {
+      return NextResponse.json({ error: 'Class not found' }, { status: 404 })
+    }
 
-		return NextResponse.json(student)
-	} catch (error) {
-		
-		captureError(error, {
-			location: 'api/students',
-			type: 'create-students',
-			extra: {
-				requestBody
-			}
-		})
-		return NextResponse.json(
-			{ error: 'Failed to create student' },
-			{ status: 500 }
-		)
-	}
-} 
+    // Create the new student
+    const student = await prisma.student.create({
+      data: {
+        firstName,
+        lastName,
+        username,
+        classId: classRecord.id,
+      },
+    })
+
+    return NextResponse.json(student)
+  } catch (error) {
+    captureError(error, {
+      location: 'api/students',
+      type: 'create-students',
+      extra: {
+        requestBody,
+      },
+    })
+    return NextResponse.json({ error: 'Failed to create student' }, { status: 500 })
+  }
+}

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-import { captureError } from '~/lib/sentry'
+import { captureError } from '@/lib/sentry'
+import { denyUnlessAccess } from '@/lib/api-guard'
 /**
  * Handles DELETE requests to remove a holiday entry by its ID.
  *
@@ -11,27 +12,24 @@ import { captureError } from '~/lib/sentry'
  * @param params - An object containing a promise that resolves to an object with the holiday `id`.
  * @returns A JSON response indicating the result of the deletion operation.
  */
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     const resolvedParams = await params
     await prisma.schoolHoliday.delete({
       where: {
-        id: parseInt(resolvedParams.id)
-      }
+        id: parseInt(resolvedParams.id),
+      },
     })
-    
+
     return NextResponse.json({ success: true })
   } catch (error) {
     captureError(error, {
       location: 'api/settings/holidays/[id]',
-      type: 'delete-holiday'
+      type: 'delete-holiday',
     })
-    return NextResponse.json(
-      { error: 'Failed to delete holiday' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to delete holiday' }, { status: 500 })
   }
-} 
+}

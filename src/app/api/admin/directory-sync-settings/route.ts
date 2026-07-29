@@ -14,10 +14,7 @@ import {
 export async function GET() {
   const auth = await requireAdmin()
   if (!auth.ok) {
-    return NextResponse.json(
-      { error: 'Unauthorized: admin role required' },
-      { status: 403 },
-    )
+    return NextResponse.json({ error: 'Unauthorized: admin role required' }, { status: 403 })
   }
 
   try {
@@ -44,10 +41,7 @@ function isStudentPhotoSourcePriority(value: unknown): value is StudentPhotoSour
 export async function PUT(request: Request) {
   const auth = await requireAdmin()
   if (!auth.ok) {
-    return NextResponse.json(
-      { error: 'Unauthorized: admin role required' },
-      { status: 403 },
-    )
+    return NextResponse.json({ error: 'Unauthorized: admin role required' }, { status: 403 })
   }
 
   try {
@@ -86,10 +80,7 @@ export async function PUT(request: Request) {
 
     if (body.syncEnabled !== undefined) {
       if (typeof body.syncEnabled !== 'boolean') {
-        return NextResponse.json(
-          { error: 'syncEnabled must be a boolean' },
-          { status: 400 },
-        )
+        return NextResponse.json({ error: 'syncEnabled must be a boolean' }, { status: 400 })
       }
       update.syncEnabled = body.syncEnabled
     }

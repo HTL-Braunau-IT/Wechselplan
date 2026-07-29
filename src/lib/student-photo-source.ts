@@ -94,7 +94,10 @@ function readManualPhoto(studentId: number): ResolvedStudentPhoto | null {
   return null
 }
 
-function readCachedO365Photo(studentId: number, metadata: CachedPhotoMetadata): ResolvedStudentPhoto | null {
+function readCachedO365Photo(
+  studentId: number,
+  metadata: CachedPhotoMetadata,
+): ResolvedStudentPhoto | null {
   if (!metadata.hasPhoto) return null
   const imagePath = getCacheImagePath(studentId)
   try {
@@ -112,7 +115,10 @@ function readCachedO365Photo(studentId: number, metadata: CachedPhotoMetadata): 
   }
 }
 
-async function fetchAndCacheO365Photo(studentId: number, externalId: string): Promise<ResolvedStudentPhoto | null> {
+async function fetchAndCacheO365Photo(
+  studentId: number,
+  externalId: string,
+): Promise<ResolvedStudentPhoto | null> {
   const fetched = await getUserPhoto(externalId)
   const nowIso = new Date().toISOString()
 

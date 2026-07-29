@@ -13,81 +13,81 @@ import type { NotenEntryRow, Student, TeachingDay, WeightConfig } from './types'
  */
 
 export type StudentSummary = {
-	nichtAnwesend: number
-	anwesend: number
-	alle: number
-	pct: number
-	calculatedGrade: number | null
+  nichtAnwesend: number
+  anwesend: number
+  alle: number
+  pct: number
+  calculatedGrade: number | null
 }
 
 /** Average of the two slots in a category, tolerating either being empty. */
 function pairAverage(first: number | null | undefined, second: number | null | undefined) {
-	if (first != null && second != null) return (first + second) / 2
-	return first ?? second ?? null
+  if (first != null && second != null) return (first + second) / 2
+  return first ?? second ?? null
 }
 
 export function computeStudentSummary(
-	students: Student[],
-	teachingDays: TeachingDay[],
-	entries: Record<string, NotenEntryRow>,
-	weights: WeightConfig
+  students: Student[],
+  teachingDays: TeachingDay[],
+  entries: Record<string, NotenEntryRow>,
+  weights: WeightConfig,
 ): Record<number, StudentSummary> {
-	const out: Record<number, StudentSummary> = {}
-	const totalDays = teachingDays.length
+  const out: Record<number, StudentSummary> = {}
+  const totalDays = teachingDays.length
 
-	for (const student of students) {
-		let anwesend = 0
-		let nichtAnwesend = 0
-		const dayGrades: number[] = []
+  for (const student of students) {
+    let anwesend = 0
+    let nichtAnwesend = 0
+    const dayGrades: number[] = []
 
-		for (const day of teachingDays) {
-			const entry = entries[entryKey(student.id, day.date, day.period)]
+    for (const day of teachingDays) {
+      const entry = entries[entryKey(student.id, day.date, day.period)]
 
-			// Anything that is not an explicit "Anwesend" — including a day with
-			// nothing recorded — counts as an absence.
-			if (entry?.attendance === 'Anwesend') anwesend++
-			else nichtAnwesend++
+      // Anything that is not an explicit "Anwesend" — including a day with
+      // nothing recorded — counts as an absence.
+      if (entry?.attendance === 'Anwesend') anwesend++
+      else nichtAnwesend++
 
-			const avgWiederholung = pairAverage(entry?.wiederholung1, entry?.wiederholung2)
-			const avgBericht = pairAverage(entry?.bericht1, entry?.bericht2)
-			const avgMitarbeit = pairAverage(entry?.mitarbeit1, entry?.mitarbeit2)
-			const avgPraktisch = pairAverage(entry?.praktischeArbeit1, entry?.praktischeArbeit2)
+      const avgWiederholung = pairAverage(entry?.wiederholung1, entry?.wiederholung2)
+      const avgBericht = pairAverage(entry?.bericht1, entry?.bericht2)
+      const avgMitarbeit = pairAverage(entry?.mitarbeit1, entry?.mitarbeit2)
+      const avgPraktisch = pairAverage(entry?.praktischeArbeit1, entry?.praktischeArbeit2)
 
-			if (
-				avgWiederholung == null &&
-				avgBericht == null &&
-				avgMitarbeit == null &&
-				avgPraktisch == null
-			) {
-				continue
-			}
+      if (
+        avgWiederholung == null &&
+        avgBericht == null &&
+        avgMitarbeit == null &&
+        avgPraktisch == null
+      ) {
+        continue
+      }
 
-			// Divide by the weights actually in play, not the full 100.
-			const divisor =
-				(avgWiederholung != null ? weights.weightWiederholung : 0) +
-				(avgBericht != null ? weights.weightBericht : 0) +
-				(avgMitarbeit != null ? weights.weightMitarbeit : 0) +
-				(avgPraktisch != null ? weights.weightPraktischeArbeit : 0)
-			if (divisor === 0) continue
+      // Divide by the weights actually in play, not the full 100.
+      const divisor =
+        (avgWiederholung != null ? weights.weightWiederholung : 0) +
+        (avgBericht != null ? weights.weightBericht : 0) +
+        (avgMitarbeit != null ? weights.weightMitarbeit : 0) +
+        (avgPraktisch != null ? weights.weightPraktischeArbeit : 0)
+      if (divisor === 0) continue
 
-			const dayGrade =
-				((avgWiederholung ?? 0) * weights.weightWiederholung +
-					(avgBericht ?? 0) * weights.weightBericht +
-					(avgMitarbeit ?? 0) * weights.weightMitarbeit +
-					(avgPraktisch ?? 0) * weights.weightPraktischeArbeit) /
-				divisor
-			dayGrades.push(dayGrade)
-		}
+      const dayGrade =
+        ((avgWiederholung ?? 0) * weights.weightWiederholung +
+          (avgBericht ?? 0) * weights.weightBericht +
+          (avgMitarbeit ?? 0) * weights.weightMitarbeit +
+          (avgPraktisch ?? 0) * weights.weightPraktischeArbeit) /
+        divisor
+      dayGrades.push(dayGrade)
+    }
 
-		// Grades land on half steps, matching what the dropdowns offer.
-		const calculatedGrade =
-			dayGrades.length > 0
-				? Math.round((dayGrades.reduce((a, b) => a + b, 0) / dayGrades.length) * 2) / 2
-				: null
-		const pct = totalDays > 0 ? Math.round((anwesend / totalDays) * 1000) / 10 : 0
+    // Grades land on half steps, matching what the dropdowns offer.
+    const calculatedGrade =
+      dayGrades.length > 0
+        ? Math.round((dayGrades.reduce((a, b) => a + b, 0) / dayGrades.length) * 2) / 2
+        : null
+    const pct = totalDays > 0 ? Math.round((anwesend / totalDays) * 1000) / 10 : 0
 
-		out[student.id] = { nichtAnwesend, anwesend, alle: totalDays, pct, calculatedGrade }
-	}
+    out[student.id] = { nichtAnwesend, anwesend, alle: totalDays, pct, calculatedGrade }
+  }
 
-	return out
+  return out
 }

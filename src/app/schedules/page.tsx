@@ -10,19 +10,15 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from '@/components/ui/select'
 import { useCachedData } from '@/hooks/use-cached-data'
 import { useScheduleOverview } from '@/hooks/use-schedule-overview'
 import { ScheduleOverview } from '@/components/schedule-overview'
 import { CheckCircle2, XCircle, AlertCircle, ChevronDown } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
 import { generateExcel, generatePdf, generateSchedulePDF } from '@/lib/export-utils'
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 
 interface Schedule {
   id: number
@@ -64,7 +60,13 @@ interface TeacherAssignmentsResponse {
  *
  * @param className - The name of the class for which to display the schedule overview.
  */
-function ClassScheduleOverview({ className, schoolYearId }: { className: string; schoolYearId: number | undefined }) {
+function ClassScheduleOverview({
+  className,
+  schoolYearId,
+}: {
+  className: string
+  schoolYearId: number | undefined
+}) {
   const {
     groups,
     amAssignments,
@@ -77,12 +79,12 @@ function ClassScheduleOverview({ className, schoolYearId }: { className: string;
     additionalInfo,
     weekday,
     loading: overviewLoading,
-    error: overviewError
+    error: overviewError,
   } = useScheduleOverview(className, schoolYearId)
 
   if (overviewLoading) {
     return (
-      <div className="p-4 flex items-center justify-center">
+      <div className="flex items-center justify-center p-4">
         <Spinner size="lg" />
       </div>
     )
@@ -90,7 +92,7 @@ function ClassScheduleOverview({ className, schoolYearId }: { className: string;
 
   if (overviewError) {
     return (
-      <Card className="m-4 border-destructive">
+      <Card className="border-destructive m-4">
         <CardHeader className="pb-2">
           <CardTitle className="text-destructive flex items-center gap-2">
             <AlertCircle className="h-5 w-5" />
@@ -99,11 +101,11 @@ function ClassScheduleOverview({ className, schoolYearId }: { className: string;
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground">
-            {overviewError === 'Class ID is required' 
+            {overviewError === 'Class ID is required'
               ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
               : overviewError === 'Failed to fetch schedule times'
-              ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
-              : overviewError}
+                ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
+                : overviewError}
           </p>
         </CardContent>
       </Card>
@@ -157,15 +159,15 @@ export default function SchedulesPage() {
   const {
     weekday,
     loading: overviewLoading,
-    error: overviewError
+    error: overviewError,
   } = useScheduleOverview(selectedClass !== 'all' ? selectedClass : null, schoolYearId)
 
   // Create a Map of class names to their schedule status
   const classScheduleMap = useMemo(() => {
     const map = new Map<string, boolean>()
     classes.forEach(cls => {
-      const hasScheduleForClass = schedules.some(schedule => 
-        schedule.classId !== null && schedule.classId === cls.id
+      const hasScheduleForClass = schedules.some(
+        schedule => schedule.classId !== null && schedule.classId === cls.id,
       )
       map.set(cls.name, hasScheduleForClass)
     })
@@ -195,7 +197,9 @@ export default function SchedulesPage() {
 
       try {
         // First, get the teacher record for the current user
-        const teacherResponse = await fetch(`/api/teachers/by-username?username=${session.user.name}`)
+        const teacherResponse = await fetch(
+          `/api/teachers/by-username?username=${session.user.name}`,
+        )
         if (!teacherResponse.ok) {
           console.log('Failed to fetch teacher record:', teacherResponse.status)
           setIsTeacherForClass(false)
@@ -220,11 +224,13 @@ export default function SchedulesPage() {
           setIsTeacherForPM(false)
           return
         }
-        const classData = await classRes.json() as { id: number }
-        
+        const classData = (await classRes.json()) as { id: number }
+
         // Then get the teacher assignments for the class (for selected school year)
         const yearQ = schoolYearId != null ? `&schoolYearId=${schoolYearId}` : ''
-        const response = await fetch(`/api/schedules/teacher-assignments?classId=${classData.id}${yearQ}`)
+        const response = await fetch(
+          `/api/schedules/teacher-assignments?classId=${classData.id}${yearQ}`,
+        )
         if (!response.ok) {
           setIsTeacherForClass(false)
           setIsTeacherForAM(false)
@@ -232,12 +238,18 @@ export default function SchedulesPage() {
           return
         }
 
-        const data = await response.json() as TeacherAssignmentsResponse
-        
+        const data = (await response.json()) as TeacherAssignmentsResponse
+
         console.log('Teacher assignments data:', {
           teacherId: teacher.id,
-          amAssignments: data.amAssignments.map(a => ({ teacherId: a.teacherId, name: `${a.teacherFirstName} ${a.teacherLastName}` })),
-          pmAssignments: data.pmAssignments.map(a => ({ teacherId: a.teacherId, name: `${a.teacherFirstName} ${a.teacherLastName}` }))
+          amAssignments: data.amAssignments.map(a => ({
+            teacherId: a.teacherId,
+            name: `${a.teacherFirstName} ${a.teacherLastName}`,
+          })),
+          pmAssignments: data.pmAssignments.map(a => ({
+            teacherId: a.teacherId,
+            name: `${a.teacherFirstName} ${a.teacherLastName}`,
+          })),
         })
 
         // Check if user is assigned as a teacher in AM assignments
@@ -246,13 +258,13 @@ export default function SchedulesPage() {
         const isAssignedPM = data.pmAssignments.some(a => a.teacherId === teacher.id)
         // Check if user is assigned to either period
         const isAssigned = isAssignedAM || isAssignedPM
-        
+
         console.log('Is user assigned as teacher:', isAssigned, {
           teacherId: teacher.id,
           amMatch: isAssignedAM,
-          pmMatch: isAssignedPM
+          pmMatch: isAssignedPM,
         })
-        
+
         setIsTeacherForClass(isAssigned)
         setIsTeacherForAM(isAssignedAM)
         setIsTeacherForPM(isAssignedPM)
@@ -288,12 +300,12 @@ export default function SchedulesPage() {
       // Fetch schedules and classes for the selected school year (when no year, APIs return all)
       const schedulesRes = await fetch(`/api/schedules/all${yearQ}`, { cache: 'no-store' })
       if (!schedulesRes.ok) throw new Error('Failed to fetch schedules')
-      const schedulesData = await schedulesRes.json() as Schedule[]
+      const schedulesData = (await schedulesRes.json()) as Schedule[]
       setSchedules(schedulesData)
 
       const classesRes = await fetch(`/api/classes${yearQ}`, { cache: 'no-store' })
       if (!classesRes.ok) throw new Error('Failed to fetch classes')
-      const classesData = await classesRes.json() as Class[]
+      const classesData = (await classesRes.json()) as Class[]
       setClasses(classesData)
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : 'Failed to load data'
@@ -308,11 +320,12 @@ export default function SchedulesPage() {
     router.push(`/schedules?class=${encodeURIComponent(value)}`)
   }
 
-  if (loading || isLoadingCachedData || overviewLoading) return (
-    <div className="p-8 flex items-center justify-center min-h-[200px]">
-      <Spinner size="lg" />
-    </div>
-  )
+  if (loading || isLoadingCachedData || overviewLoading)
+    return (
+      <div className="flex min-h-[200px] items-center justify-center p-8">
+        <Spinner size="lg" />
+      </div>
+    )
   if (error) return <div className="p-8 text-center text-red-500">{error}</div>
 
   const handlePDFExport = async () => {
@@ -366,7 +379,7 @@ export default function SchedulesPage() {
   return (
     <div className="container mx-auto p-4">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-4">Schedules Overview</h1>
+        <h1 className="mb-4 text-3xl font-bold">Schedules Overview</h1>
         <div className="mb-6">
           <Select value={selectedClass} onValueChange={handleClassChange}>
             <SelectTrigger className="w-[200px]">
@@ -374,10 +387,10 @@ export default function SchedulesPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Classes</SelectItem>
-              {classes.map((cls) => (
+              {classes.map(cls => (
                 <SelectItem key={cls.id} value={cls.name} className="flex items-center">
                   <span className="inline-block w-32 truncate">{cls.name}</span>
-                  <div className="w-8 flex justify-center">
+                  <div className="flex w-8 justify-center">
                     {hasSchedule(cls.name) ? (
                       <CheckCircle2 className="h-4 w-4 text-green-500" />
                     ) : (
@@ -388,18 +401,18 @@ export default function SchedulesPage() {
               ))}
             </SelectContent>
           </Select>
-          
+
           {selectedClass !== 'all' && hasSchedule(selectedClass) && (
-            <div className="flex items-center gap-2 mt-4">
+            <div className="mt-4 flex items-center gap-2">
               <button
-                className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 rounded px-6 py-2 disabled:opacity-50"
                 onClick={handlePDFExport}
                 disabled={savingPdf}
               >
                 {savingPdf ? 'Exporting PDF...' : 'PDF Export'}
               </button>
               <button
-                className="bg-primary text-primary-foreground px-6 py-2 rounded hover:bg-primary/90 disabled:opacity-50"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 rounded px-6 py-2 disabled:opacity-50"
                 onClick={handlePDFDatumExport}
                 disabled={savingPdfDatum}
               >
@@ -409,7 +422,7 @@ export default function SchedulesPage() {
               {/* AM Excel Export Button - only show if teacher is assigned to AM */}
               {isTeacherForAM && (
                 <button
-                  className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                  className="flex items-center gap-2 rounded bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
                   onClick={handleExcelAMExport}
                   disabled={savingExcelAM}
                 >
@@ -427,7 +440,7 @@ export default function SchedulesPage() {
               {/* PM Excel Export Button - only show if teacher is assigned to PM */}
               {isTeacherForPM && (
                 <button
-                   className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                  className="flex items-center gap-2 rounded bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
                   onClick={handleExcelPMExport}
                   disabled={savingExcelPM}
                 >
@@ -445,7 +458,7 @@ export default function SchedulesPage() {
           )}
 
           {selectedClass !== 'all' && overviewError && (
-            <Card className="mt-4 border-destructive">
+            <Card className="border-destructive mt-4">
               <CardHeader className="pb-2">
                 <CardTitle className="text-destructive flex items-center gap-2">
                   <AlertCircle className="h-5 w-5" />
@@ -454,11 +467,11 @@ export default function SchedulesPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">
-                  {overviewError === 'Class ID is required' 
+                  {overviewError === 'Class ID is required'
                     ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
                     : overviewError === 'Failed to fetch schedule times'
-                    ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
-                    : overviewError}
+                      ? 'Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.'
+                      : overviewError}
                 </p>
               </CardContent>
             </Card>
@@ -467,18 +480,18 @@ export default function SchedulesPage() {
 
         {/* Show all schedules when "All Classes" is selected */}
         {selectedClass === 'all' && (
-          <div className="space-y-6 mt-6">
-            {classes.map((cls) => {
-              const hasScheduleForClass = hasSchedule(cls.name);
-              const isExpanded = expandedClass === cls.name;
+          <div className="mt-6 space-y-6">
+            {classes.map(cls => {
+              const hasScheduleForClass = hasSchedule(cls.name)
+              const isExpanded = expandedClass === cls.name
               return (
-                <Collapsible 
-                  key={cls.id} 
-                  className="border rounded-lg"
+                <Collapsible
+                  key={cls.id}
+                  className="rounded-lg border"
                   open={isExpanded}
-                  onOpenChange={(open) => setExpandedClass(open ? cls.name : null)}
+                  onOpenChange={open => setExpandedClass(open ? cls.name : null)}
                 >
-                  <CollapsibleTrigger className="w-full p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">
+                  <CollapsibleTrigger className="hover:bg-muted/50 flex w-full items-center justify-between p-4 transition-colors">
                     <div className="flex items-center gap-2">
                       <h3 className="text-xl font-semibold">{cls.name}</h3>
                       {hasScheduleForClass ? (
@@ -487,7 +500,9 @@ export default function SchedulesPage() {
                         <XCircle className="h-5 w-5 text-red-500" />
                       )}
                     </div>
-                    <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                    <ChevronDown
+                      className={`text-muted-foreground h-5 w-5 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                    />
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     {hasScheduleForClass ? (
@@ -495,7 +510,7 @@ export default function SchedulesPage() {
                         <ClassScheduleOverview className={cls.name} schoolYearId={schoolYearId} />
                       </div>
                     ) : (
-                      <Card className="m-4 border-destructive">
+                      <Card className="border-destructive m-4">
                         <CardHeader className="pb-2">
                           <CardTitle className="text-destructive flex items-center gap-2">
                             <AlertCircle className="h-5 w-5" />
@@ -504,14 +519,15 @@ export default function SchedulesPage() {
                         </CardHeader>
                         <CardContent>
                           <p className="text-muted-foreground">
-                            Keine Daten gefunden, bitte den Klassenleiter auffordner einen Wechselplan zu erstellen.
+                            Keine Daten gefunden, bitte den Klassenleiter auffordner einen
+                            Wechselplan zu erstellen.
                           </p>
                         </CardContent>
                       </Card>
                     )}
                   </CollapsibleContent>
                 </Collapsible>
-              );
+              )
             })}
           </div>
         )}
@@ -523,4 +539,4 @@ export default function SchedulesPage() {
       </div>
     </div>
   )
-} 
+}

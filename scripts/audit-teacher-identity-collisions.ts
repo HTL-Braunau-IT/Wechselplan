@@ -11,20 +11,34 @@
 import { PrismaClient, type Teacher } from '@prisma/client'
 import { normalizeUsername } from '../src/lib/username'
 
-type TeacherWithKeys = Pick<Teacher, 'id' | 'firstName' | 'lastName' | 'username' | 'email' | 'externalId' | 'externalSource' | 'createdAt'>
+type TeacherWithKeys = Pick<
+  Teacher,
+  | 'id'
+  | 'firstName'
+  | 'lastName'
+  | 'username'
+  | 'email'
+  | 'externalId'
+  | 'externalSource'
+  | 'createdAt'
+>
 
-// A type alias (unlike an interface) carries an implicit index signature,
-// which lets Object.values() below infer number[] rather than any[].
-type DependencyCounts = {
-  teacherAssignments: number
-  teacherRotations: number
-  grades: number
-  notenWeightConfigs: number
-  lehrstoffPerDay: number
-  notenEntries: number
-  classHeadLinks: number
-  classLeadLinks: number
-}
+/**
+ * A type alias rather than an interface so `Object.values` stays typed:
+ * interfaces have no implicit index signature, so values() on one widens to
+ * `any` and the sum below loses its type.
+ */
+type DependencyCounts = Record<
+  | 'teacherAssignments'
+  | 'teacherRotations'
+  | 'grades'
+  | 'notenWeightConfigs'
+  | 'lehrstoffPerDay'
+  | 'notenEntries'
+  | 'classHeadLinks'
+  | 'classLeadLinks',
+  number
+>
 
 interface ClusterMember {
   teacher: TeacherWithKeys
@@ -240,7 +254,7 @@ async function main() {
 }
 
 main()
-  .catch((error) => {
+  .catch(error => {
     console.error(error)
     process.exit(1)
   })

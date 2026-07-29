@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GET, POST } from '../route';
-import { prisma } from '@/lib/prisma';
-import { captureError } from '@/lib/sentry';
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { GET, POST } from '../route'
+import { prisma } from '@/lib/prisma'
+import { captureError } from '@/lib/sentry'
 
 // Mock prisma
 vi.mock('@/lib/prisma', () => ({
@@ -11,17 +11,17 @@ vi.mock('@/lib/prisma', () => ({
       create: vi.fn(),
     },
   },
-}));
+}))
 
 // Mock sentry
-vi.mock('~/lib/sentry', () => ({
+vi.mock('@/lib/sentry', () => ({
   captureError: vi.fn(),
-}));
+}))
 
 describe('Break Times API', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-  });
+    vi.clearAllMocks()
+  })
 
   describe('GET /api/admin/settings/break-times', () => {
     it('should return all break times ordered by start time', async () => {
@@ -44,14 +44,14 @@ describe('Break Times API', () => {
           createdAt: new Date('2025-06-11T11:28:21.934Z'),
           updatedAt: new Date('2025-06-11T11:28:21.934Z'),
         },
-      ];
+      ]
 
-      vi.mocked(prisma.breakTime.findMany).mockResolvedValue(mockBreakTimes);
+      vi.mocked(prisma.breakTime.findMany).mockResolvedValue(mockBreakTimes)
 
-      const response = await GET();
-      const data = await response.json();
+      const response = await GET()
+      const data = await response.json()
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(200)
       expect(data).toEqual([
         {
           ...mockBreakTimes[0]!,
@@ -63,27 +63,27 @@ describe('Break Times API', () => {
           createdAt: mockBreakTimes[1]!.createdAt.toISOString(),
           updatedAt: mockBreakTimes[1]!.updatedAt.toISOString(),
         },
-      ]);
+      ])
       expect(prisma.breakTime.findMany).toHaveBeenCalledWith({
         orderBy: { startTime: 'asc' },
-      });
-    });
+      })
+    })
 
     it('should handle database errors', async () => {
-      const error = new Error('Database error');
-      vi.mocked(prisma.breakTime.findMany).mockRejectedValue(error);
+      const error = new Error('Database error')
+      vi.mocked(prisma.breakTime.findMany).mockRejectedValue(error)
 
-      const response = await GET();
-      const data = await response.json();
+      const response = await GET()
+      const data = await response.json()
 
-      expect(response.status).toBe(500);
-      expect(data).toEqual({ error: 'Failed to fetch break times' });
+      expect(response.status).toBe(500)
+      expect(data).toEqual({ error: 'Failed to fetch break times' })
       expect(captureError).toHaveBeenCalledWith(error, {
         location: 'api/settings/break-times',
         type: 'fetch-break-times',
-      });
-    });
-  });
+      })
+    })
+  })
 
   describe('POST /api/admin/settings/break-times', () => {
     it('should create a new break time', async () => {
@@ -92,7 +92,7 @@ describe('Break Times API', () => {
         startTime: '14:00',
         endTime: '14:15',
         period: 'PM',
-      };
+      }
 
       const createdBreakTime = {
         id: 3,
@@ -102,32 +102,32 @@ describe('Break Times API', () => {
         period: 'PM',
         createdAt: '2025-06-11T11:30:12.849Z',
         updatedAt: '2025-06-11T11:30:12.849Z',
-      };
+      }
 
       vi.mocked(prisma.breakTime.create).mockResolvedValue({
         ...createdBreakTime,
         createdAt: new Date(createdBreakTime.createdAt),
         updatedAt: new Date(createdBreakTime.updatedAt),
-      });
+      })
 
       const request = new Request('http://localhost/api/admin/settings/break-times', {
         method: 'POST',
         body: JSON.stringify(newBreakTime),
-      });
+      })
 
-      const response = await POST(request);
-      const data = await response.json();
+      const response = await POST(request)
+      const data = await response.json()
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(200)
       expect(data).toEqual({
         ...createdBreakTime,
         createdAt: new Date(createdBreakTime.createdAt).toISOString(),
         updatedAt: new Date(createdBreakTime.updatedAt).toISOString(),
-      });
+      })
       expect(prisma.breakTime.create).toHaveBeenCalledWith({
         data: newBreakTime,
-      });
-    });
+      })
+    })
 
     it('should validate break time data', async () => {
       const invalidBreakTime = {
@@ -135,21 +135,21 @@ describe('Break Times API', () => {
         startTime: '2024-03-20T14:00:00Z',
         endTime: '2024-03-20T13:00:00Z', // End time before start time
         period: '0', // Invalid period
-      };
+      }
 
       const request = new Request('http://localhost/api/admin/settings/break-times', {
         method: 'POST',
         body: JSON.stringify(invalidBreakTime),
-      });
+      })
 
-      const response = await POST(request);
-      const data = await response.json();
+      const response = await POST(request)
+      const data = await response.json()
 
-      expect(response.status).toBe(400);
-      expect(data).toHaveProperty('error', 'Validation failed');
-      expect(data).toHaveProperty('details');
-      expect(prisma.breakTime.create).not.toHaveBeenCalled();
-    });
+      expect(response.status).toBe(400)
+      expect(data).toHaveProperty('error', 'Validation failed')
+      expect(data).toHaveProperty('details')
+      expect(prisma.breakTime.create).not.toHaveBeenCalled()
+    })
 
     it('should handle database errors during creation', async () => {
       const newBreakTime = {
@@ -157,21 +157,21 @@ describe('Break Times API', () => {
         startTime: '14:00',
         endTime: '14:15',
         period: 'PM',
-      };
+      }
 
-      const error = new Error('Database error');
-      vi.mocked(prisma.breakTime.create).mockRejectedValue(error);
+      const error = new Error('Database error')
+      vi.mocked(prisma.breakTime.create).mockRejectedValue(error)
 
       const request = new Request('http://localhost/api/admin/settings/break-times', {
         method: 'POST',
         body: JSON.stringify(newBreakTime),
-      });
+      })
 
-      const response = await POST(request);
-      const data = await response.json();
+      const response = await POST(request)
+      const data = await response.json()
 
-      expect(response.status).toBe(500);
-      expect(data).toEqual({ error: 'Failed to create break time' });
-    });
-  });
-}); 
+      expect(response.status).toBe(500)
+      expect(data).toEqual({ error: 'Failed to create break time' })
+    })
+  })
+})

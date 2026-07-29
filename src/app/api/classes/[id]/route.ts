@@ -2,15 +2,17 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
+import { denyUnlessAccess } from '@/lib/api-guard'
 
 // Validation schema
-const updateClassSchema = z.object({
-  classHeadId: z.number().nullable().optional(),
-  classLeadId: z.number().nullable().optional()
-}).refine(
-  data => data.classHeadId !== undefined || data.classLeadId !== undefined,
-  { message: 'Nothing to update' }
-)
+const updateClassSchema = z
+  .object({
+    classHeadId: z.number().nullable().optional(),
+    classLeadId: z.number().nullable().optional(),
+  })
+  .refine(data => data.classHeadId !== undefined || data.classLeadId !== undefined, {
+    message: 'Nothing to update',
+  })
 
 /**
  * Handles PATCH requests to update a class entity by ID.
@@ -22,8 +24,11 @@ const updateClassSchema = z.object({
 export async function PATCH(
   request: NextRequest,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  context: any 
+  context: any,
 ) {
+  const denied = await denyUnlessAccess('staff')
+  if (denied) return denied
+
   try {
     const id = context?.params?.id
     // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
@@ -39,32 +44,32 @@ export async function PATCH(
     if (!validationResult.success) {
       return NextResponse.json(
         { error: 'Validation failed', details: validationResult.error.format() },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
     const updateData = validationResult.data
 
     const existingClass = await prisma.class.findUnique({
-      where: { id: classId }
+      where: { id: classId },
     })
 
     if (!existingClass) {
-        captureError(new Error('Class not found'), {
+      captureError(new Error('Class not found'), {
         location: 'api/classes/[id]',
-        type: 'update-class'
+        type: 'update-class',
       })
       return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }
 
     if (updateData.classHeadId !== undefined && updateData.classHeadId !== null) {
       const headTeacher = await prisma.teacher.findUnique({
-        where: { id: updateData.classHeadId }
+        where: { id: updateData.classHeadId },
       })
       if (!headTeacher) {
         captureError(new Error('Class head teacher not found'), {
           location: 'api/classes/[id]',
-          type: 'update-class'
+          type: 'update-class',
         })
         return NextResponse.json({ error: 'Class head teacher not found' }, { status: 404 })
       }
@@ -72,12 +77,12 @@ export async function PATCH(
 
     if (updateData.classLeadId !== undefined && updateData.classLeadId !== null) {
       const leadTeacher = await prisma.teacher.findUnique({
-        where: { id: updateData.classLeadId }
+        where: { id: updateData.classLeadId },
       })
       if (!leadTeacher) {
         captureError(new Error('Class lead teacher not found'), {
           location: 'api/classes/[id]',
-          type: 'update-class'
+          type: 'update-class',
         })
         return NextResponse.json({ error: 'Class lead teacher not found' }, { status: 404 })
       }
@@ -91,15 +96,15 @@ export async function PATCH(
         name: true,
         description: true,
         classHeadId: true,
-        classLeadId: true
-      }
+        classLeadId: true,
+      },
     })
 
     return NextResponse.json(updatedClass)
   } catch (error) {
     captureError(error, {
       location: 'api/classes/[id]',
-      type: 'update-class'
+      type: 'update-class',
     })
     return NextResponse.json({ error: 'Failed to update class' }, { status: 500 })
   }

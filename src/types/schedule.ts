@@ -4,150 +4,150 @@
  */
 
 export type ScheduleWeek = {
-	date: string
-	week: string
-	isHoliday: boolean
+  date: string
+  week: string
+  isHoliday: boolean
 }
 
 export type ScheduleTerm = {
-	name: string
-	weeks: ScheduleWeek[]
-	holidays?: Holiday[]
-	customLength?: number
+  name: string
+  weeks: ScheduleWeek[]
+  holidays?: Holiday[]
+  customLength?: number
 }
 
 export type ScheduleEntry = {
-	name: string
-	weeks: ScheduleWeek[]
-	holidays: Holiday[]
-	customLength?: number
+  name: string
+  weeks: ScheduleWeek[]
+  holidays: Holiday[]
+  customLength?: number
 }
 
 export type Schedule = Record<string, ScheduleEntry>
 
 export interface ScheduleResponse {
-	id: number
-	name: string
-	description?: string
-	startDate: string
-	endDate: string
-	selectedWeekday: number
-	scheduleData: unknown
-	additionalInfo?: string
-	semesterPlanning?: string | null
-	classId?: number
-	createdAt: string
-	updatedAt?: string
-	turns?: Array<{
-		name: string
-		customLength?: number | null
-		weeks: Array<{
-			date: string
-			week: string
-			isHoliday: boolean
-		}>
-		holidays?: Array<{
-			holiday: {
-				id: number
-				name: string
-				startDate: Date | string
-				endDate: Date | string
-			}
-		}>
-	}>
+  id: number
+  name: string
+  description?: string
+  startDate: string
+  endDate: string
+  selectedWeekday: number
+  scheduleData: unknown
+  additionalInfo?: string
+  semesterPlanning?: string | null
+  classId?: number
+  createdAt: string
+  updatedAt?: string
+  turns?: Array<{
+    name: string
+    customLength?: number | null
+    weeks: Array<{
+      date: string
+      week: string
+      isHoliday: boolean
+    }>
+    holidays?: Array<{
+      holiday: {
+        id: number
+        name: string
+        startDate: Date | string
+        endDate: Date | string
+      }
+    }>
+  }>
 }
 
 export interface ScheduleTime {
-	id: number
-	startTime: string
-	endTime: string
-	hours: number
-	period: 'AM' | 'PM'
-	createdAt?: string
-	updatedAt?: string
+  id: number
+  startTime: string
+  endTime: string
+  hours: number
+  period: 'AM' | 'PM'
+  createdAt?: string
+  updatedAt?: string
 }
 
 // For backward compatibility with old string ID format
 export interface ScheduleTimeLegacy {
-	id: string | number
-	startTime: string
-	endTime: string
-	hours: number
-	period: 'AM' | 'PM'
+  id: string | number
+  startTime: string
+  endTime: string
+  hours: number
+  period: 'AM' | 'PM'
 }
 
 export interface BreakTime {
-	id: number
-	name: string
-	startTime: string
-	endTime: string
-	period: 'AM' | 'PM' | 'LUNCH'
-	createdAt?: string
-	updatedAt?: string
+  id: number
+  name: string
+  startTime: string
+  endTime: string
+  period: 'AM' | 'PM' | 'LUNCH'
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface Holiday {
-	id: number
-	name: string
-	startDate: Date | string
-	endDate: Date | string
+  id: number
+  name: string
+  startDate: Date | string
+  endDate: Date | string
 }
 
 export type TurnSchedule = Record<string, ScheduleTerm>
 
 /** Normalized turn (ScheduleTurn + weeks) as returned by API. Used by teacher overview. */
 export type NormalizedTurn = {
-	name: string
-	customLength?: number | null
-	weeks: Array<{
-		date: string
-		week: string
-		isHoliday: boolean
-	}>
-	holidays?: Array<{
-		holiday: {
-			id: number
-			name: string
-			startDate: Date | string
-			endDate: Date | string
-		}
-	}>
+  name: string
+  customLength?: number | null
+  weeks: Array<{
+    date: string
+    week: string
+    isHoliday: boolean
+  }>
+  holidays?: Array<{
+    holiday: {
+      id: number
+      name: string
+      startDate: Date | string
+      endDate: Date | string
+    }
+  }>
 }
 
 /** Schedule with required turns for teacher overview (no scheduleData). */
 export interface ScheduleWithTurns {
-	id: number
-	classId: number | null
-	breakTimes: BreakTime[]
-	scheduleTimes: ScheduleTime[]
-	additionalInfo?: string | null
-	turns: NormalizedTurn[]
+  id: number
+  classId: number | null
+  breakTimes: BreakTime[]
+  scheduleTimes: ScheduleTime[]
+  additionalInfo?: string | null
+  turns: NormalizedTurn[]
 }
 
 export interface TeacherAssignmentResponse {
-	groupId: number
-	teacherId: number
-	subject: string
-	learningContent: string
-	room: string
-	teacherLastName: string
-	teacherFirstName: string
+  groupId: number
+  teacherId: number
+  subject: string
+  learningContent: string
+  room: string
+  teacherLastName: string
+  teacherFirstName: string
 }
 
 export interface TeacherAssignmentsResponse {
-	amAssignments: TeacherAssignmentResponse[]
-	pmAssignments: TeacherAssignmentResponse[]
-	selectedWeekday?: number
+  amAssignments: TeacherAssignmentResponse[]
+  pmAssignments: TeacherAssignmentResponse[]
+  selectedWeekday?: number
 }
 
 export interface GroupAssignment {
-	groupId: number
-	studentIds: number[]
+  groupId: number
+  studentIds: number[]
 }
 
 export interface AssignmentsResponse {
-	assignments: GroupAssignment[]
-	unassignedStudents: Student[]
+  assignments: GroupAssignment[]
+  unassignedStudents: Student[]
 }
 
 // Import Student type
@@ -155,4 +155,3 @@ import type { Student } from './types'
 
 // Re-export Student and Group from types.ts for convenience
 export type { Student, Group } from './types'
-

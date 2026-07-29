@@ -14,84 +14,84 @@ async function main() {
   const roles = [
     {
       name: 'admin',
-      description: 'Administrator with full access to all features'
+      description: 'Administrator with full access to all features',
     },
     {
       name: 'teacher',
-      description: 'Teacher with access to teaching-related features'
+      description: 'Teacher with access to teaching-related features',
     },
     {
       name: 'student',
-      description: 'Student with access to student-related features'
-    }
+      description: 'Student with access to student-related features',
+    },
   ]
 
   for (const role of roles) {
     await prisma.role.upsert({
       where: { name: role.name },
       update: {},
-      create: role
+      create: role,
     })
   }
-  
+
   const holidays = [
     {
       name: 'Erste Schulwoche',
       startDate: new Date('2025-09-08'),
-      endDate: new Date('2025-09-13')
+      endDate: new Date('2025-09-13'),
     },
     {
       name: 'Herbstferien',
       startDate: new Date('2025-10-27'),
-      endDate: new Date('2025-11-02')
+      endDate: new Date('2025-11-02'),
     },
     {
       name: 'Weihnachtsferien',
       startDate: new Date('2025-12-24'),
-      endDate: new Date('2026-01-06')
+      endDate: new Date('2026-01-06'),
     },
     {
       name: 'Semesterferien',
       startDate: new Date('2026-02-16'),
-      endDate: new Date('2026-02-21')
+      endDate: new Date('2026-02-21'),
     },
     {
       name: 'Osterferien',
       startDate: new Date('2026-03-28'),
-      endDate: new Date('2026-04-06')
+      endDate: new Date('2026-04-06'),
     },
     {
       name: 'Maifeiertag',
       startDate: new Date('2026-05-01'),
-      endDate: new Date('2026-05-02')
+      endDate: new Date('2026-05-02'),
     },
     {
       name: 'Christi Himmelfahrt',
       startDate: new Date('2026-05-29'),
-      endDate: new Date('2026-05-30')
+      endDate: new Date('2026-05-30'),
     },
     {
       name: 'Pfingstmontag',
       startDate: new Date('2026-05-23'),
-      endDate: new Date('2026-05-25')
+      endDate: new Date('2026-05-25'),
     },
     {
       name: 'Fronleichnam',
       startDate: new Date('2026-06-19'),
-      endDate: new Date('2026-06-20')
+      endDate: new Date('2026-06-20'),
     },
     {
       name: 'Letzten zwei Schulwoche',
       startDate: new Date('2026-06-29'),
-      endDate: new Date('2026-07-10')
-    }
+      endDate: new Date('2026-07-10'),
+    },
   ]
 
   for (const holiday of holidays) {
     await prisma.schoolHoliday.upsert({
       where: { name: holiday.name },
       update: holiday,
-      create: holiday
+      create: holiday,
     })
   }
 
@@ -99,7 +99,7 @@ async function main() {
 
   // Seed Schedule Times
   console.log('⏰ Seeding schedule times...')
-  
+
   const scheduleTimes = [
     { startTime: '07:50', endTime: '10:30', hours: 3, period: 'AM' },
     { startTime: '07:50', endTime: '11:25', hours: 5, period: 'AM' },
@@ -117,7 +117,7 @@ async function main() {
     { startTime: '12:15', endTime: '16:35', hours: 5, period: 'PM' },
     { startTime: '13:05', endTime: '15:45', hours: 3, period: 'PM' },
     { startTime: '13:05', endTime: '16:35', hours: 4, period: 'PM' },
-    { startTime: '14:25', endTime: '16:55', hours: 2, period: 'PM' }
+    { startTime: '14:25', endTime: '16:55', hours: 2, period: 'PM' },
   ]
 
   for (const scheduleTime of scheduleTimes) {
@@ -126,11 +126,11 @@ async function main() {
         startTime_endTime_period: {
           startTime: scheduleTime.startTime,
           endTime: scheduleTime.endTime,
-          period: scheduleTime.period
-        }
+          period: scheduleTime.period,
+        },
       },
       update: scheduleTime,
-      create: scheduleTime
+      create: scheduleTime,
     })
   }
 
@@ -138,7 +138,7 @@ async function main() {
 
   // Seed Break Times
   console.log('☕ Seeding break times...')
-  
+
   const breakTimes = [
     { name: 'Vormittagspause 1', startTime: '08:45', endTime: '09:00', period: 'AM' },
     { name: 'Vormittagspause 2', startTime: '09:45', endTime: '09:55', period: 'AM' },
@@ -147,7 +147,7 @@ async function main() {
     { name: 'Mittagspause 2', startTime: '12:15', endTime: '13:05', period: 'LUNCH' },
     { name: 'Mittagspause 3', startTime: '13:05', endTime: '13:55', period: 'LUNCH' },
     { name: 'Nachmittagspause 1', startTime: '14:00', endTime: '14:10', period: 'PM' },
-    { name: 'Nachmittagspause 2', startTime: '14:50', endTime: '15:00', period: 'PM' }
+    { name: 'Nachmittagspause 2', startTime: '14:50', endTime: '15:00', period: 'PM' },
   ]
 
   for (const breakTime of breakTimes) {
@@ -156,11 +156,11 @@ async function main() {
         startTime_endTime_period: {
           startTime: breakTime.startTime,
           endTime: breakTime.endTime,
-          period: breakTime.period
-        }
+          period: breakTime.period,
+        },
       },
       update: breakTime,
-      create: breakTime
+      create: breakTime,
     })
   }
 
@@ -168,7 +168,7 @@ async function main() {
 
   // Seed Learning Content
   console.log('📚 Seeding learning content...')
-  
+
   const learningContents = [
     'Analogschaltungen',
     'Antriebstechnik',
@@ -263,16 +263,16 @@ async function main() {
     'Voice over IP',
     'VPS-Steuerungstechnik',
     'Wärmebehandlung',
-    'Werkstoffbearbeitung'
+    'Werkstoffbearbeitung',
   ]
 
   for (const contentName of learningContents) {
     await prisma.learningContent.upsert({
       where: {
-        name: contentName
+        name: contentName,
       },
       update: { name: contentName },
-      create: { name: contentName }
+      create: { name: contentName },
     })
   }
 
@@ -280,7 +280,7 @@ async function main() {
 
   // Seed Rooms
   console.log('🏢 Seeding rooms...')
-  
+
   const rooms = [
     'E02',
     'E03',
@@ -332,16 +332,16 @@ async function main() {
     'EDV 1',
     'EDV 2',
     'EDV 3',
-    'B&R'
+    'B&R',
   ]
 
   for (const roomName of rooms) {
     await prisma.room.upsert({
       where: {
-        name: roomName
+        name: roomName,
       },
       update: { name: roomName, isCustom: false },
-      create: { name: roomName, isCustom: false }
+      create: { name: roomName, isCustom: false },
     })
   }
 
@@ -349,7 +349,7 @@ async function main() {
 
   // Seed Subjects
   console.log('📖 Seeding subjects...')
-  
+
   const subjects = [
     'WEPT-Grundausb. Mechanik',
     'PBE4-Baugruppenfertigung 1',
@@ -449,21 +449,20 @@ async function main() {
     'COPR-Verkabelungssysteme',
     'PBE4-Kommunikationssyst.',
     'COPR-Gebäudeinstallation',
-    'PBE4-Netzwerkinstallation'
+    'PBE4-Netzwerkinstallation',
   ]
 
   for (const subjectName of subjects) {
     await prisma.subject.upsert({
       where: {
-        name: subjectName
+        name: subjectName,
       },
       update: { name: subjectName, isCustom: false },
-      create: { name: subjectName, isCustom: false }
+      create: { name: subjectName, isCustom: false },
     })
   }
 
   console.log(`✅ Seeded ${subjects.length} subjects`)
-
 
   console.log('🎉 Database seeding completed!')
 }
@@ -472,10 +471,10 @@ async function main() {
  * Handles errors during seeding and ensures proper cleanup
  */
 main()
-  .catch((e) => {
+  .catch(e => {
     console.error('❌ Error during seeding:', e)
     process.exit(1)
   })
   .finally(async () => {
     await prisma.$disconnect()
-  }) 
+  })

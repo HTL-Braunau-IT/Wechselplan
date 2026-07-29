@@ -45,16 +45,16 @@ export function SchoolYearProvider({ children }: { children: ReactNode }) {
       if (isInitialLoad) {
         const currentFromDb = getCurrentSchoolYearFromList(data)
         const storedId = getStoredSchoolYearId()
-        const byStored = storedId ? data.find((y) => y.id === storedId) : null
+        const byStored = storedId ? data.find(y => y.id === storedId) : null
         const initial = byStored ?? currentFromDb ?? data[data.length - 1] ?? data[0]!
         setSelectedYearState(initial)
         if (!byStored && storedId === null) {
           setStoredSchoolYearId(initial.id)
         }
       } else {
-        setSelectedYearState((prev) => {
+        setSelectedYearState(prev => {
           if (!prev) return data[data.length - 1] ?? data[0]!
-          const stillInList = data.find((y) => y.id === prev.id)
+          const stillInList = data.find(y => y.id === prev.id)
           return stillInList ?? prev
         })
       }
@@ -73,14 +73,17 @@ export function SchoolYearProvider({ children }: { children: ReactNode }) {
     void fetchYears(true)
   }, [fetchYears])
 
-  const setSchoolYear = useCallback((year: SchoolYearFromApi | { id: number }) => {
-    const id = year.id
-    const found = years.find((y) => y.id === id)
-    if (found) {
-      setStoredSchoolYearId(found.id)
-      setSelectedYearState(found)
-    }
-  }, [years])
+  const setSchoolYear = useCallback(
+    (year: SchoolYearFromApi | { id: number }) => {
+      const id = year.id
+      const found = years.find(y => y.id === id)
+      if (found) {
+        setStoredSchoolYearId(found.id)
+        setSelectedYearState(found)
+      }
+    },
+    [years],
+  )
 
   const currentSemester =
     selectedYear?.semesterChangeDate != null

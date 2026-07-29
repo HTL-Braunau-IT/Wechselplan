@@ -59,37 +59,40 @@ export function CSVImport({ onImport }: CSVImportProps) {
     try {
       const text = await file.text()
       const lines = text.split('\n')
-      
+
       // Skip header row and empty lines
       const dataLines = lines.slice(1).filter(line => line.trim())
-      
+
       const classes: Record<string, CSVClass> = {}
-      
+
       for (const line of dataLines) {
         const [className, firstName, lastName] = line.split(',').map(field => field.trim())
-        
+
         if (!className || !firstName || !lastName) {
           throw new Error('Invalid CSV format')
         }
 
         classes[className] ??= {
           name: className,
-          students: []
+          students: [],
         }
 
         classes[className].students.push({
           firstName,
-          lastName
+          lastName,
         })
       }
 
       setCSVData(classes)
-      
+
       // Initialize all classes as selected
-      const initialSelection = Object.keys(classes).reduce((acc, className) => {
-        acc[className] = true
-        return acc
-      }, {} as Record<string, boolean>)
+      const initialSelection = Object.keys(classes).reduce(
+        (acc, className) => {
+          acc[className] = true
+          return acc
+        },
+        {} as Record<string, boolean>,
+      )
       setSelectedClasses(initialSelection)
     } catch (err) {
       console.error('Error parsing CSV:', err)
@@ -102,7 +105,7 @@ export function CSVImport({ onImport }: CSVImportProps) {
   const handleClassSelection = (className: string, checked: boolean) => {
     setSelectedClasses(prev => ({
       ...prev,
-      [className]: checked
+      [className]: checked,
     }))
   }
 
@@ -152,9 +155,9 @@ export function CSVImport({ onImport }: CSVImportProps) {
           />
           <Label
             htmlFor="csv-upload"
-            className="cursor-pointer inline-flex items-center justify-center px-4 py-2 border border-input rounded-md shadow-sm text-sm font-medium bg-background hover:bg-accent hover:text-accent-foreground"
+            className="border-input bg-background hover:bg-accent hover:text-accent-foreground inline-flex cursor-pointer items-center justify-center rounded-md border px-4 py-2 text-sm font-medium shadow-sm"
           >
-            <Upload className="h-4 w-4 mr-2" />
+            <Upload className="mr-2 h-4 w-4" />
             {t('admin.students.import.uploadCSV')}
           </Label>
         </div>
@@ -177,21 +180,27 @@ export function CSVImport({ onImport }: CSVImportProps) {
           <h2 className="text-xl font-semibold">{t('admin.students.import.previewTitle')}</h2>
           <div className="space-y-4">
             {Object.entries(csvData).map(([className, data]) => (
-              <div key={className} className="border rounded-lg p-4 bg-muted">
-                <div className="flex items-center space-x-2 mb-2">
+              <div key={className} className="bg-muted rounded-lg border p-4">
+                <div className="mb-2 flex items-center space-x-2">
                   <Checkbox
                     id={`class-${className}`}
                     checked={selectedClasses[className] ?? false}
-                    onCheckedChange={(checked) => handleClassSelection(className, checked as boolean)}
+                    onCheckedChange={checked => handleClassSelection(className, checked as boolean)}
                   />
                   <Label htmlFor={`class-${className}`} className="font-medium">
-                    {t('admin.students.import.classLabel', { name: className, count: data.students.length })}
+                    {t('admin.students.import.classLabel', {
+                      name: className,
+                      count: data.students.length,
+                    })}
                   </Label>
                 </div>
                 <div className="ml-6">
-                  <ul className="space-y-1 text-muted-foreground">
+                  <ul className="text-muted-foreground space-y-1">
                     {data.students.map((student, index) => (
-                      <li key={index} className={`py-1 px-2 rounded ${index % 2 === 0 ? 'bg-muted/50' : 'bg-muted'}`}>
+                      <li
+                        key={index}
+                        className={`rounded px-2 py-1 ${index % 2 === 0 ? 'bg-muted/50' : 'bg-muted'}`}
+                      >
                         {student.firstName} {student.lastName}
                       </li>
                     ))}
@@ -204,4 +213,4 @@ export function CSVImport({ onImport }: CSVImportProps) {
       )}
     </div>
   )
-} 
+}

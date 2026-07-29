@@ -1,11 +1,11 @@
-import "server-only";
+import 'server-only'
 
 import { createTRPCReact, httpBatchLink } from '@trpc/react-query'
 import { type inferRouterInputs, type inferRouterOutputs } from '@trpc/server'
 import { QueryClient } from '@tanstack/react-query'
 import superjson from 'superjson'
 
-import { type AppRouter } from '~/server/api/root'
+import { type AppRouter } from '@/server/api/root'
 
 export const api = createTRPCReact<AppRouter>()
 

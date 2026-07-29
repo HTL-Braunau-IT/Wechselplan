@@ -7,24 +7,24 @@ import { makeClass, makeSchedule } from '@/test/fixtures'
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     class: {
-      findFirst: vi.fn()
+      findFirst: vi.fn(),
     },
     schedule: {
       findFirst: vi.fn(),
       findMany: vi.fn(),
       deleteMany: vi.fn(),
       create: vi.fn(),
-      update: vi.fn()
+      update: vi.fn(),
     },
     // Both handlers resolve the active school year first, and POST replaces
     // normalised turns before writing. Missing either mock 500s every request.
     schoolYear: {
-      findFirst: vi.fn()
+      findFirst: vi.fn(),
     },
     scheduleTurn: {
-      deleteMany: vi.fn()
-    }
-  }
+      deleteMany: vi.fn(),
+    },
+  },
 }))
 
 describe('Schedules API', () => {
@@ -34,12 +34,13 @@ describe('Schedules API', () => {
     vi.mocked(prisma.scheduleTurn.deleteMany).mockResolvedValue({ count: 0 })
   })
 
-
   describe('GET /api/schedules', () => {
     it('should return schedules for a class and weekday', async () => {
       // Mock data
       const mockClass = makeClass({ id: 1, name: '1A' })
 
+      // The route selects `turns` alongside the row, which the generated
+      // findMany type does not describe, hence the cast.
       const mockSchedules = [
         {
           ...makeSchedule({
@@ -48,14 +49,11 @@ describe('Schedules API', () => {
             description: 'Test schedule',
             startDate: new Date('2024-01-01T00:00:00.000Z'),
             endDate: new Date('2024-01-31T00:00:00.000Z'),
-            selectedWeekday: 1,
             classId: 1,
-            createdAt: new Date('2025-06-11T11:56:57.353Z'),
-            updatedAt: new Date('2025-06-11T11:56:57.353Z')
           }),
-          turns: []
-        }
-      ]
+          turns: [],
+        },
+      ] as unknown as Awaited<ReturnType<typeof prisma.schedule.findMany>>
 
       // Mock the database responses
       vi.mocked(prisma.class.findFirst).mockResolvedValue(mockClass)
@@ -78,7 +76,7 @@ describe('Schedules API', () => {
         name: 'Schedule 1',
         classId: 1,
         scheduleData: null,
-        turns: []
+        turns: [],
       })
       expect(typeof data[0].createdAt).toBe('string')
       expect(typeof data[0].updatedAt).toBe('string')
@@ -86,15 +84,15 @@ describe('Schedules API', () => {
       // Verify the database calls
       expect(prisma.class.findFirst).toHaveBeenCalledWith({
         where: {
-          name: '1A'
-        }
+          name: '1A',
+        },
       })
 
       expect(prisma.schedule.findMany).toHaveBeenCalledWith({
         where: {
           classId: 1,
           selectedWeekday: 1,
-          schoolYearId: 1
+          schoolYearId: 1,
         },
         include: {
           turns: {
@@ -102,18 +100,18 @@ describe('Schedules API', () => {
               weeks: true,
               holidays: {
                 include: {
-                  holiday: true
-                }
-              }
+                  holiday: true,
+                },
+              },
             },
             orderBy: {
-              order: 'asc'
-            }
-          }
+              order: 'asc',
+            },
+          },
         },
         orderBy: {
-          createdAt: 'desc'
-        }
+          createdAt: 'desc',
+        },
       })
     })
 
@@ -144,11 +142,9 @@ describe('Schedules API', () => {
         description: 'Test schedule',
         startDate: new Date('2024-01-01T00:00:00.000Z'),
         endDate: new Date('2024-01-31T00:00:00.000Z'),
-        selectedWeekday: 1,
         classId: 1,
         scheduleData: {},
-        createdAt: new Date('2025-06-11T11:56:57.353Z'),
-        updatedAt: new Date('2025-06-11T11:56:57.353Z')
+        semesterPlanning: null,
       })
 
       // Mock the database responses
@@ -160,7 +156,7 @@ describe('Schedules API', () => {
       const request = new Request('http://localhost/api/schedules', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           name: 'New Schedule',
@@ -171,15 +167,14 @@ describe('Schedules API', () => {
           classId: '1',
           scheduleData: {},
           additionalInfo: null,
-          semesterPlanning: null
-        })
+          semesterPlanning: null,
+        }),
       })
 
       // Call the POST handler
       const response = await POST(request)
       const text = await response.text()
       const data = text === 'Internal Error' ? null : JSON.parse(text)
-
 
       // Verify the response (API returns JSON so dates are strings)
       expect(response).toBeInstanceOf(NextResponse)
@@ -204,12 +199,12 @@ describe('Schedules API', () => {
         where: {
           classId: 1,
           selectedWeekday: 1,
-          schoolYearId: 1
+          schoolYearId: 1,
         },
         include: {
           scheduleTimes: true,
-          breakTimes: true
-        }
+          breakTimes: true,
+        },
       })
 
       expect(prisma.schedule.create).toHaveBeenCalledWith({
@@ -225,8 +220,8 @@ describe('Schedules API', () => {
           additionalInfo: null,
           semesterPlanning: null,
           turns: {
-            create: []
-          }
+            create: [],
+          },
         },
         include: {
           scheduleTimes: true,
@@ -236,15 +231,15 @@ describe('Schedules API', () => {
               weeks: true,
               holidays: {
                 include: {
-                  holiday: true
-                }
-              }
+                  holiday: true,
+                },
+              },
             },
             orderBy: {
-              order: 'asc'
-            }
-          }
-        }
+              order: 'asc',
+            },
+          },
+        },
       })
     })
 
@@ -253,14 +248,14 @@ describe('Schedules API', () => {
       const request = new Request('http://localhost/api/schedules', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           name: '', // Invalid: empty name
           startDate: 'invalid-date', // Invalid date format
           endDate: '2024-01-31',
-          selectedWeekday: 7 // Invalid: weekday out of range
-        })
+          selectedWeekday: 7, // Invalid: weekday out of range
+        }),
       })
 
       // Call the POST handler
@@ -284,7 +279,7 @@ describe('Schedules API', () => {
       const request = new Request('http://localhost/api/schedules', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           name: 'New Schedule',
@@ -295,8 +290,8 @@ describe('Schedules API', () => {
           classId: '1',
           scheduleData: {},
           additionalInfo: null,
-          semesterPlanning: null
-        })
+          semesterPlanning: null,
+        }),
       })
 
       // Call the POST handler
@@ -316,12 +311,9 @@ describe('Schedules API', () => {
         description: 'Test first semester schedule',
         startDate: new Date('2024-01-01T00:00:00.000Z'),
         endDate: new Date('2024-01-31T00:00:00.000Z'),
-        selectedWeekday: 1,
         classId: 1,
         scheduleData: {},
         semesterPlanning: 'first',
-        createdAt: new Date('2025-06-11T11:56:57.353Z'),
-        updatedAt: new Date('2025-06-11T11:56:57.353Z')
       })
 
       // Mock the database responses
@@ -332,7 +324,7 @@ describe('Schedules API', () => {
       const request = new Request('http://localhost/api/schedules', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           name: 'First Semester Schedule',
@@ -343,8 +335,8 @@ describe('Schedules API', () => {
           classId: '1',
           scheduleData: {},
           additionalInfo: null,
-          semesterPlanning: 'first'
-        })
+          semesterPlanning: 'first',
+        }),
       })
 
       // Call the POST handler
@@ -382,8 +374,8 @@ describe('Schedules API', () => {
           additionalInfo: null,
           semesterPlanning: 'first',
           turns: {
-            create: []
-          }
+            create: [],
+          },
         },
         include: {
           scheduleTimes: true,
@@ -393,16 +385,16 @@ describe('Schedules API', () => {
               weeks: true,
               holidays: {
                 include: {
-                  holiday: true
-                }
-              }
+                  holiday: true,
+                },
+              },
             },
             orderBy: {
-              order: 'asc'
-            }
-          }
-        }
+              order: 'asc',
+            },
+          },
+        },
       })
     })
   })
-}) 
+})

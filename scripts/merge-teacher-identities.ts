@@ -93,9 +93,9 @@ function parseArgs(argv: string[]): CliOptions {
 
   const mergeIds = mergeRaw
     .split(',')
-    .map((id) => parseIntArg(id.trim(), 'merge id'))
+    .map(id => parseIntArg(id.trim(), 'merge id'))
     .filter((id, index, arr) => arr.indexOf(id) === index)
-    .filter((id) => id !== canonicalId)
+    .filter(id => id !== canonicalId)
 
   if (mergeIds.length === 0) {
     throw new Error('No merge teacher IDs remain after parsing')
@@ -114,11 +114,15 @@ function parseArgs(argv: string[]): CliOptions {
   }
 }
 
-function pickExternalIdentity(canonical: Teacher, mergeRows: Teacher[]): { sourceTeacherId: number; externalId: string; externalSource: string | null } | null {
+function pickExternalIdentity(
+  canonical: Teacher,
+  mergeRows: Teacher[],
+): { sourceTeacherId: number; externalId: string; externalSource: string | null } | null {
   if (canonical.externalId) return null
 
-  const preferred = mergeRows.find((row) => row.externalId && row.externalSource === 'entra')
-    ?? mergeRows.find((row) => row.externalId)
+  const preferred =
+    mergeRows.find(row => row.externalId && row.externalSource === 'entra') ??
+    mergeRows.find(row => row.externalId)
   if (!preferred?.externalId) return null
 
   return {
@@ -202,9 +206,7 @@ async function rewireTeacherRotation(
   return { rewired, deduped }
 }
 
-async function rewireGradeLikeTable<
-  TRow extends { id: number; updatedAt: Date },
->(
+async function rewireGradeLikeTable<TRow extends { id: number; updatedAt: Date }>(
   tx: Prisma.TransactionClient,
   sourceTeacherId: number,
   canonicalTeacherId: number,
@@ -238,7 +240,10 @@ async function rewireGradeLikeTable<
   return { rewired, deduped }
 }
 
-async function performMerge(tx: Prisma.TransactionClient, options: CliOptions): Promise<MergeSummary> {
+async function performMerge(
+  tx: Prisma.TransactionClient,
+  options: CliOptions,
+): Promise<MergeSummary> {
   const canonical = await tx.teacher.findUnique({ where: { id: options.canonicalId } })
   if (!canonical) throw new Error(`Canonical teacher ${options.canonicalId} not found`)
 
@@ -247,8 +252,8 @@ async function performMerge(tx: Prisma.TransactionClient, options: CliOptions): 
     orderBy: { id: 'asc' },
   })
   if (mergeRows.length !== options.mergeIds.length) {
-    const found = new Set(mergeRows.map((row) => row.id))
-    const missing = options.mergeIds.filter((id) => !found.has(id))
+    const found = new Set(mergeRows.map(row => row.id))
+    const missing = options.mergeIds.filter(id => !found.has(id))
     throw new Error(`Merge teacher IDs not found: ${missing.join(', ')}`)
   }
 
@@ -295,18 +300,20 @@ async function performMerge(tx: Prisma.TransactionClient, options: CliOptions): 
       tx,
       source.id,
       canonical.id,
-      (teacherId) => tx.grade.findMany({ where: { teacherId } }),
-      (row, teacherId) => tx.grade.findFirst({
-        where: {
-          teacherId,
-          studentId: (row as unknown as { studentId: number }).studentId,
-          classId: (row as unknown as { classId: number }).classId,
-          semester: (row as unknown as { semester: string }).semester,
-          schoolYearId: (row as unknown as { schoolYearId: number }).schoolYearId,
-        },
-      }),
-      (id, teacherId) => tx.grade.update({ where: { id }, data: { teacherId } }).then(() => undefined),
-      (id) => tx.grade.delete({ where: { id } }).then(() => undefined),
+      teacherId => tx.grade.findMany({ where: { teacherId } }),
+      (row, teacherId) =>
+        tx.grade.findFirst({
+          where: {
+            teacherId,
+            studentId: (row as unknown as { studentId: number }).studentId,
+            classId: (row as unknown as { classId: number }).classId,
+            semester: (row as unknown as { semester: string }).semester,
+            schoolYearId: (row as unknown as { schoolYearId: number }).schoolYearId,
+          },
+        }),
+      (id, teacherId) =>
+        tx.grade.update({ where: { id }, data: { teacherId } }).then(() => undefined),
+      id => tx.grade.delete({ where: { id } }).then(() => undefined),
     )
     rewired.grades += gradeStats.rewired
     deduped.grades += gradeStats.deduped
@@ -315,17 +322,19 @@ async function performMerge(tx: Prisma.TransactionClient, options: CliOptions): 
       tx,
       source.id,
       canonical.id,
-      (teacherId) => tx.notenWeightConfig.findMany({ where: { teacherId } }),
-      (row, teacherId) => tx.notenWeightConfig.findFirst({
-        where: {
-          teacherId,
-          classId: (row as unknown as { classId: number }).classId,
-          groupId: (row as unknown as { groupId: number }).groupId,
-          schoolYearId: (row as unknown as { schoolYearId: number }).schoolYearId,
-        },
-      }),
-      (id, teacherId) => tx.notenWeightConfig.update({ where: { id }, data: { teacherId } }).then(() => undefined),
-      (id) => tx.notenWeightConfig.delete({ where: { id } }).then(() => undefined),
+      teacherId => tx.notenWeightConfig.findMany({ where: { teacherId } }),
+      (row, teacherId) =>
+        tx.notenWeightConfig.findFirst({
+          where: {
+            teacherId,
+            classId: (row as unknown as { classId: number }).classId,
+            groupId: (row as unknown as { groupId: number }).groupId,
+            schoolYearId: (row as unknown as { schoolYearId: number }).schoolYearId,
+          },
+        }),
+      (id, teacherId) =>
+        tx.notenWeightConfig.update({ where: { id }, data: { teacherId } }).then(() => undefined),
+      id => tx.notenWeightConfig.delete({ where: { id } }).then(() => undefined),
     )
     rewired.notenWeightConfigs += weightStats.rewired
     deduped.notenWeightConfigs += weightStats.deduped
@@ -334,19 +343,21 @@ async function performMerge(tx: Prisma.TransactionClient, options: CliOptions): 
       tx,
       source.id,
       canonical.id,
-      (teacherId) => tx.lehrstoffPerDay.findMany({ where: { teacherId } }),
-      (row, teacherId) => tx.lehrstoffPerDay.findFirst({
-        where: {
-          teacherId,
-          classId: (row as unknown as { classId: number }).classId,
-          groupId: (row as unknown as { groupId: number }).groupId,
-          schoolYearId: (row as unknown as { schoolYearId: number }).schoolYearId,
-          date: (row as unknown as { date: Date }).date,
-          period: (row as unknown as { period: string }).period,
-        },
-      }),
-      (id, teacherId) => tx.lehrstoffPerDay.update({ where: { id }, data: { teacherId } }).then(() => undefined),
-      (id) => tx.lehrstoffPerDay.delete({ where: { id } }).then(() => undefined),
+      teacherId => tx.lehrstoffPerDay.findMany({ where: { teacherId } }),
+      (row, teacherId) =>
+        tx.lehrstoffPerDay.findFirst({
+          where: {
+            teacherId,
+            classId: (row as unknown as { classId: number }).classId,
+            groupId: (row as unknown as { groupId: number }).groupId,
+            schoolYearId: (row as unknown as { schoolYearId: number }).schoolYearId,
+            date: (row as unknown as { date: Date }).date,
+            period: (row as unknown as { period: string }).period,
+          },
+        }),
+      (id, teacherId) =>
+        tx.lehrstoffPerDay.update({ where: { id }, data: { teacherId } }).then(() => undefined),
+      id => tx.lehrstoffPerDay.delete({ where: { id } }).then(() => undefined),
     )
     rewired.lehrstoffPerDay += lehrstoffStats.rewired
     deduped.lehrstoffPerDay += lehrstoffStats.deduped
@@ -355,32 +366,38 @@ async function performMerge(tx: Prisma.TransactionClient, options: CliOptions): 
       tx,
       source.id,
       canonical.id,
-      (teacherId) => tx.notenEntry.findMany({ where: { teacherId } }),
-      (row, teacherId) => tx.notenEntry.findFirst({
-        where: {
-          teacherId,
-          studentId: (row as unknown as { studentId: number }).studentId,
-          classId: (row as unknown as { classId: number }).classId,
-          groupId: (row as unknown as { groupId: number }).groupId,
-          schoolYearId: (row as unknown as { schoolYearId: number }).schoolYearId,
-          date: (row as unknown as { date: Date }).date,
-          period: (row as unknown as { period: string }).period,
-        },
-      }),
-      (id, teacherId) => tx.notenEntry.update({ where: { id }, data: { teacherId } }).then(() => undefined),
-      (id) => tx.notenEntry.delete({ where: { id } }).then(() => undefined),
+      teacherId => tx.notenEntry.findMany({ where: { teacherId } }),
+      (row, teacherId) =>
+        tx.notenEntry.findFirst({
+          where: {
+            teacherId,
+            studentId: (row as unknown as { studentId: number }).studentId,
+            classId: (row as unknown as { classId: number }).classId,
+            groupId: (row as unknown as { groupId: number }).groupId,
+            schoolYearId: (row as unknown as { schoolYearId: number }).schoolYearId,
+            date: (row as unknown as { date: Date }).date,
+            period: (row as unknown as { period: string }).period,
+          },
+        }),
+      (id, teacherId) =>
+        tx.notenEntry.update({ where: { id }, data: { teacherId } }).then(() => undefined),
+      id => tx.notenEntry.delete({ where: { id } }).then(() => undefined),
     )
     rewired.notenEntries += notenEntryStats.rewired
     deduped.notenEntries += notenEntryStats.deduped
 
-    rewired.classHeadLinks += await tx.class.updateMany({
-      where: { classHeadId: source.id },
-      data: { classHeadId: canonical.id },
-    }).then((r) => r.count)
-    rewired.classLeadLinks += await tx.class.updateMany({
-      where: { classLeadId: source.id },
-      data: { classLeadId: canonical.id },
-    }).then((r) => r.count)
+    rewired.classHeadLinks += await tx.class
+      .updateMany({
+        where: { classHeadId: source.id },
+        data: { classHeadId: canonical.id },
+      })
+      .then(r => r.count)
+    rewired.classLeadLinks += await tx.class
+      .updateMany({
+        where: { classLeadId: source.id },
+        data: { classLeadId: canonical.id },
+      })
+      .then(r => r.count)
 
     if (options.retireMode === 'delete') {
       await tx.teacher.delete({ where: { id: source.id } })
@@ -400,14 +417,17 @@ async function performMerge(tx: Prisma.TransactionClient, options: CliOptions): 
 
   return {
     canonicalId: options.canonicalId,
-    mergedTeacherIds: mergeRows.map((row) => row.id),
+    mergedTeacherIds: mergeRows.map(row => row.id),
     dryRun: !options.apply,
     retireMode: options.retireMode,
     adoptedExternalIdFromTeacherId: adoption?.sourceTeacherId ?? null,
     rewired,
     deduped,
     retired: mergeRows.length,
-    mapping: mergeRows.map((row) => ({ oldTeacherId: row.id, canonicalTeacherId: options.canonicalId })),
+    mapping: mergeRows.map(row => ({
+      oldTeacherId: row.id,
+      canonicalTeacherId: options.canonicalId,
+    })),
   }
 }
 
@@ -415,26 +435,28 @@ async function main() {
   const options = parseArgs(process.argv.slice(2))
 
   if (!options.apply) {
-    const preview = await prisma.$transaction(async (tx) => {
-      const summary = await performMerge(tx, options)
-      throw new DryRunAbort(summary)
-    }).catch((error: unknown) => {
-      if (error instanceof DryRunAbort) {
-        return error.summary
-      }
-      throw error
-    })
+    const preview = await prisma
+      .$transaction(async tx => {
+        const summary = await performMerge(tx, options)
+        throw new DryRunAbort(summary)
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DryRunAbort) {
+          return error.summary
+        }
+        throw error
+      })
 
     console.log(JSON.stringify(preview, null, 2))
     return
   }
 
-  const summary = await prisma.$transaction(async (tx) => performMerge(tx, options))
+  const summary = await prisma.$transaction(async tx => performMerge(tx, options))
   console.log(JSON.stringify(summary, null, 2))
 }
 
 main()
-  .catch((error) => {
+  .catch(error => {
     console.error(error)
     process.exit(1)
   })
