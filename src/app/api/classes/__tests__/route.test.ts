@@ -6,13 +6,18 @@ import { captureError } from '@/lib/sentry';
 // Create hoisted mock function
 const mockFindMany = vi.hoisted(() => vi.fn());
 
-// Mock PrismaClient
+// Mock PrismaClient. `$extends` has to be present because lib/prisma applies
+// the active-by-default query extension at construction time.
 vi.mock('@prisma/client', () => ({
-  PrismaClient: vi.fn().mockImplementation(() => ({
-    class: {
-      findMany: mockFindMany,
-    },
-  })),
+  PrismaClient: vi.fn().mockImplementation(() => {
+    const client = {
+      class: {
+        findMany: mockFindMany,
+      },
+      $extends: () => client,
+    };
+    return client;
+  }),
 }));
 
 // Mock sentry

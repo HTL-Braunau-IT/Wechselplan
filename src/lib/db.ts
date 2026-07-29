@@ -1,9 +1,5 @@
-import { PrismaClient } from '@prisma/client'
-
-declare global {
-  var prisma: PrismaClient | undefined
-}
-
-export const db = globalThis.prisma ?? new PrismaClient()
-
-if (process.env.NODE_ENV !== 'production') globalThis.prisma = db 
+/**
+ * Legacy alias for the shared Prisma client. See `src/lib/prisma.ts` — that
+ * module owns construction, including the active-by-default query extension.
+ */
+export { prisma as db } from '@/lib/prisma'

@@ -1,5 +1,5 @@
 import type { Class, Prisma, Student } from '@prisma/client'
-import { prisma } from '@/lib/prisma'
+import { ANY_ACTIVE_STATE, prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import {
   collectGroupMembers,
@@ -369,7 +369,8 @@ export async function previewClassStudentSync(
 
   /* ----- Class diff ----- */
 
-  const classRows = await prisma.class.findMany()
+  // Sync must see deactivated rows so it can reactivate people who reappear.
+  const classRows = await prisma.class.findMany({ where: { isActive: ANY_ACTIVE_STATE } })
   const classByExternalId = new Map<string, Class>()
   const classByNormalizedName = new Map<string, Class>()
   for (const row of classRows) {
@@ -434,6 +435,7 @@ export async function previewClassStudentSync(
   /* ----- Student diff ----- */
 
   const studentRows = await prisma.student.findMany({
+    where: { isActive: ANY_ACTIVE_STATE },
     include: { class: { select: { name: true } } },
   })
   const studentByExternalId = new Map<string, (typeof studentRows)[number]>()

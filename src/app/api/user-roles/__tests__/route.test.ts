@@ -9,23 +9,29 @@ const mockCreate = vi.hoisted(() => vi.fn());
 const mockDelete = vi.hoisted(() => vi.fn());
 
 // Mock PrismaClient
+// `$extends` has to be present because lib/prisma applies the
+// active-by-default query extension at construction time.
 vi.mock('@prisma/client', () => ({
-  PrismaClient: vi.fn(() => ({
-    userRole: {
-      findMany: mockFindMany,
-      create: mockCreate,
-      delete: mockDelete,
-    },
-    role: {
-      findUnique: mockFindUnique,
-    },
-    teacher: {
-      findUnique: mockFindUnique,
-    },
-    student: {
-      findUnique: mockFindUnique,
-    },
-  })),
+  PrismaClient: vi.fn(() => {
+    const client = {
+      userRole: {
+        findMany: mockFindMany,
+        create: mockCreate,
+        delete: mockDelete,
+      },
+      role: {
+        findUnique: mockFindUnique,
+      },
+      teacher: {
+        findUnique: mockFindUnique,
+      },
+      student: {
+        findUnique: mockFindUnique,
+      },
+      $extends: () => client,
+    };
+    return client;
+  }),
 }));
 
 

@@ -117,6 +117,9 @@ export async function POST(request: Request) {
       where: { id: classId },
       include: {
         students: {
+          // Nested relation loads are not covered by the active-by-default
+          // extension in lib/prisma, so the filter is spelled out here.
+          where: { isActive: true },
           orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
           select: { id: true, firstName: true, lastName: true, groupId: true },
         },

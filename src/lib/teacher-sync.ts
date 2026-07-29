@@ -1,5 +1,5 @@
 import type { Prisma, Teacher } from '@prisma/client'
-import { prisma } from '@/lib/prisma'
+import { ANY_ACTIVE_STATE, prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { collectGroupMembers } from '@/lib/graph'
 import { recordSyncRun } from '@/lib/directory-sync-settings'
@@ -148,7 +148,9 @@ export async function previewTeacherSync(): Promise<TeacherSyncDiff> {
     }
   }
 
+  // Sync must see deactivated rows so it can reactivate people who reappear.
   const existingTeachers = await prisma.teacher.findMany({
+    where: { isActive: ANY_ACTIVE_STATE },
     select: {
       id: true,
       firstName: true,

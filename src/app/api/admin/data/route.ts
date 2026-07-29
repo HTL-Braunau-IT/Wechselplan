@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { ANY_ACTIVE_STATE, prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { denyUnlessAccess } from '@/lib/api-guard'
 
@@ -177,12 +177,15 @@ export async function DELETE(request: Request) {
 async function getAllRecords(model: string, schoolYearId?: number) {
   switch (model) {
     case 'student':
+      // Admin tables render an active/inactive badge, so they need both.
       return await prisma.student.findMany({
+        where: { isActive: ANY_ACTIVE_STATE },
         include: { class: true },
         orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }]
       })
     case 'teacher':
       return await prisma.teacher.findMany({
+        where: { isActive: ANY_ACTIVE_STATE },
         include: { 
           headClasses: true, 
           leadClasses: true,
@@ -194,6 +197,7 @@ async function getAllRecords(model: string, schoolYearId?: number) {
       })
     case 'class':
       return await prisma.class.findMany({
+        where: { isActive: ANY_ACTIVE_STATE },
         include: { 
           classHead: true, 
           classLead: true,
