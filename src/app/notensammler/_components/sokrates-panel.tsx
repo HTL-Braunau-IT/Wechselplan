@@ -1,10 +1,11 @@
 'use client'
 
 import { useTranslation } from 'react-i18next'
-import { CheckCircle2, Lock, LockOpen, ShieldCheck } from 'lucide-react'
+import { CheckCircle2, Info, Lock, LockOpen, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { Semester } from '@/lib/grades'
 import type { SokratesSemesterStatus, SokratesStatus } from '../_hooks/use-sokrates'
 
@@ -48,75 +49,94 @@ function SemesterRow({
       ? t('notensammler.firstSemester', '1. Semester')
       : t('notensammler.secondSemester', '2. Semester')
 
-  if (!s.marked) {
-    if (!canManage) return null
-    return (
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-muted-foreground text-sm font-medium">{semesterLabel}:</span>
-        <Button size="sm" variant="outline" disabled={busy} onClick={() => onMark(semester)}>
-          <ShieldCheck className="mr-1.5 h-4 w-4" />
-          {t('notensammler.sokratesMark', 'In Sokrates eingetragen & sperren')}
-        </Button>
-        <span className="text-muted-foreground text-xs">
-          {t(
-            'notensammler.sokratesMarkHint',
-            'Sperrt alle Noten dieses Semesters für alle Lehrer.',
-          )}
-        </span>
-      </div>
-    )
-  }
+  if (!s.marked && !canManage) return null
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="text-muted-foreground text-sm font-medium">{semesterLabel}:</span>
-      <Badge variant="outline" className="border-green-600/40 text-green-700 dark:text-green-400">
-        <CheckCircle2 className="mr-1 h-3 w-3" />
-        {t('notensammler.sokratesMarked', 'In Sokrates eingetragen')}
-        <span className="text-muted-foreground ml-1">
-          ({formatDate(s.markedAt)}
-          {s.markedByName ? `, ${s.markedByName}` : ''})
-        </span>
-      </Badge>
-      {s.lockedAll ? (
-        <Badge variant="outline" className="border-destructive/40 text-destructive">
-          <Lock className="mr-1 h-3 w-3" />
-          {t('notensammler.sokratesLocked', 'Gesperrt')}
-        </Badge>
-      ) : (
-        <span className="text-muted-foreground text-xs">
-          {t('notensammler.sokratesSoftHint', 'Änderungen werden dem Klassenleiter gemeldet.')}
-        </span>
-      )}
-      {canManage && (
+    <div className="border-border/60 flex flex-wrap items-center gap-2 border-t pt-2.5 first:border-t-0 first:pt-0">
+      <span className="w-24 shrink-0 text-sm font-medium">{semesterLabel}</span>
+
+      {!s.marked ? (
         <>
-          <Button
-            size="sm"
-            variant={s.lockedAll ? 'outline' : 'secondary'}
-            disabled={busy}
-            onClick={() => onSetLockAll(semester, !s.lockedAll)}
-          >
-            {s.lockedAll ? (
-              <>
-                <LockOpen className="mr-1.5 h-4 w-4" />
-                {t('notensammler.sokratesUnlockAll', 'Sperre aufheben')}
-              </>
-            ) : (
-              <>
-                <Lock className="mr-1.5 h-4 w-4" />
-                {t('notensammler.sokratesLockAll', 'Ganze Klasse sperren')}
-              </>
-            )}
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={busy}
-            onClick={() => onUnmark(semester)}
-            className="text-muted-foreground"
-          >
-            {t('notensammler.sokratesUnmark', 'Markierung aufheben')}
-          </Button>
+          <Badge variant="soft-muted">{t('notensammler.sokratesOpen', 'Offen')}</Badge>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => onMark(semester)}>
+                <ShieldCheck className="mr-1.5 h-4 w-4" />
+                {t('notensammler.sokratesMarkShort', 'Als eingetragen markieren')}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {t(
+                'notensammler.sokratesMarkHint',
+                'Sperrt alle Noten dieses Semesters für alle Lehrer.',
+              )}
+            </TooltipContent>
+          </Tooltip>
+        </>
+      ) : (
+        <>
+          <Badge variant="soft-success">
+            <CheckCircle2 className="mr-1 h-3 w-3" />
+            {t('notensammler.sokratesMarked', 'In Sokrates eingetragen')}
+          </Badge>
+          <span className="text-muted-foreground text-xs">
+            {formatDate(s.markedAt)}
+            {s.markedByName ? ` · ${s.markedByName}` : ''}
+          </span>
+
+          {s.lockedAll ? (
+            <Badge variant="soft-destructive">
+              <Lock className="mr-1 h-3 w-3" />
+              {t('notensammler.sokratesLocked', 'Gesperrt')}
+            </Badge>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="soft-warning" className="cursor-default">
+                  <Info className="mr-1 h-3 w-3" />
+                  {t('notensammler.sokratesSoftLabel', 'Änderungen gemeldet')}
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                {t(
+                  'notensammler.sokratesSoftHint',
+                  'Änderungen werden dem Klassenleiter gemeldet.',
+                )}
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {canManage && (
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                size="sm"
+                variant={s.lockedAll ? 'outline' : 'secondary'}
+                disabled={busy}
+                onClick={() => onSetLockAll(semester, !s.lockedAll)}
+              >
+                {s.lockedAll ? (
+                  <>
+                    <LockOpen className="mr-1.5 h-4 w-4" />
+                    {t('notensammler.sokratesUnlockAll', 'Sperre aufheben')}
+                  </>
+                ) : (
+                  <>
+                    <Lock className="mr-1.5 h-4 w-4" />
+                    {t('notensammler.sokratesLockAll', 'Ganze Klasse sperren')}
+                  </>
+                )}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy}
+                onClick={() => onUnmark(semester)}
+                className="text-muted-foreground"
+              >
+                {t('notensammler.sokratesUnmark', 'Markierung aufheben')}
+              </Button>
+            </div>
+          )}
         </>
       )}
     </div>
@@ -138,13 +158,35 @@ export function SokratesPanel({ status, canManage, busy, onMark, onUnmark, onSet
   if (!anythingToShow) return null
 
   return (
-    <div className="bg-muted/40 mb-4 rounded-md border px-3 py-2.5">
-      <div className="mb-1.5 flex items-center gap-2">
+    <section className="border-border/60 bg-card/40 rounded-xl border p-3">
+      <div className="mb-2 flex items-center gap-2">
         <ShieldCheck className="text-muted-foreground h-4 w-4" />
-        <p className="text-sm font-medium">{t('notensammler.sokratesTitle', 'Sokrates')}</p>
+        <h2 className="text-sm font-semibold">{t('notensammler.sokratesTitle', 'Sokrates')}</h2>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            {/* A button, not a focusable span: it needs button semantics, and
+                the label has to describe the tooltip rather than repeat the
+                heading next to it. */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-foreground h-5 w-5"
+              aria-label={t('notensammler.sokratesExplainerLabel', 'Was ist Sokrates?')}
+            >
+              <Info className="h-3.5 w-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {t(
+              'notensammler.sokratesExplainer',
+              'Noten werden in Sokrates von Hand eingetragen. Die Klassenleitung hält hier fest, dass das erledigt ist — die Noten werden dabei gesperrt, die Sperre kann aber wieder aufgehoben werden.',
+            )}
+          </TooltipContent>
+        </Tooltip>
         {busy && <Spinner size="sm" />}
       </div>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2.5">
         <SemesterRow
           semester="first"
           s={status.first}
@@ -164,6 +206,6 @@ export function SokratesPanel({ status, canManage, busy, onMark, onUnmark, onSet
           onSetLockAll={onSetLockAll}
         />
       </div>
-    </div>
+    </section>
   )
 }

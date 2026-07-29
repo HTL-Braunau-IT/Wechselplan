@@ -203,10 +203,10 @@ export default function SchedulesPage() {
       }
 
       try {
-        // First, get the teacher record for the current user
-        const teacherResponse = await fetch(
-          `/api/teachers/by-username?username=${session.user.name}`,
-        )
+        // First, get the teacher record for the current user. Resolved from the
+        // session server-side — the display name in `session.user.name` is not a
+        // username post-Entra, so looking it up by name silently finds nobody.
+        const teacherResponse = await fetch('/api/teachers/me', { cache: 'no-store' })
         if (!teacherResponse.ok) {
           console.log('Failed to fetch teacher record:', teacherResponse.status)
           setIsTeacherForClass(false)
@@ -215,7 +215,7 @@ export default function SchedulesPage() {
           return
         }
 
-        const teacher = await teacherResponse.json()
+        const { teacher } = (await teacherResponse.json()) as { teacher: { id: number } | null }
         if (!teacher) {
           setIsTeacherForClass(false)
           setIsTeacherForAM(false)

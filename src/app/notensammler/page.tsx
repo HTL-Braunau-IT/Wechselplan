@@ -2,34 +2,31 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertCircle, ClipboardList } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { AlertCircle, ClipboardList, Info, UserRound, Users, UsersRound } from 'lucide-react'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Label } from '@/components/ui/label'
 import { PageContainer } from '@/components/ui/page-container'
 import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
+import { TooltipProvider } from '@/components/ui/tooltip'
+import { useUnsavedWarning } from '@/hooks/use-unsaved-warning'
 import { captureFrontendError } from '@/lib/frontend-error'
 import { truncateSubject } from '@/lib/subject-utils'
 import type { Semester } from '@/lib/grades'
-import type { Period, SortDirection, SortField, Teacher } from './_lib/types'
+import type { Period, SemesterView, SortDirection, SortField, Teacher } from './_lib/types'
 import { useNotensammlerData } from './_hooks/use-notensammler-data'
 import { useGradeEditing } from './_hooks/use-grade-editing'
 import { useSokrates } from './_hooks/use-sokrates'
 import { useTransferFlow } from './_hooks/use-transfer-flow'
 import { useLfView } from './_hooks/use-lf-view'
 import { usePdfDownload } from './_hooks/use-pdf-download'
-import { NotensammlerToolbar } from './_components/notensammler-toolbar'
-import { ClassTabBar } from './_components/class-tab-bar'
+import { ClassPicker } from './_components/class-picker'
+import { ClassToolbar } from './_components/class-toolbar'
 import { PeriodTabs } from './_components/period-tabs'
+import { MyProgress } from './_components/my-progress'
 import { GradeTable } from './_components/grade-table'
 import { SokratesPanel } from './_components/sokrates-panel'
 import { TransferDialogs } from './_components/transfer-dialogs'
@@ -61,15 +58,21 @@ export default function NotensammlerPage() {
     refreshTeacherClasses,
     refreshClassData,
     currentTeacherId,
+    ungroupedStudentCount,
     loading,
     error,
     setError,
+    notice,
+    setNotice,
     schoolYearId,
     currentSemester,
   } = useNotensammlerData()
 
-  const [showFirstSemester, setShowFirstSemester] = useState(true)
-  const [showSecondSemester, setShowSecondSemester] = useState(true)
+  // Null until the teacher picks: the grid opens on the semester the school is
+  // actually in, rather than on a double-width both-semesters view.
+  const [semesterChoice, setSemesterChoice] = useState<SemesterView | null>(null)
+  const semesterView: SemesterView = semesterChoice ?? currentSemester ?? 'both'
+
   const [sortField, setSortField] = useState<SortField>('lastName')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [periodTab, setPeriodTab] = useState<Period>('AM')
@@ -77,10 +80,12 @@ export default function NotensammlerPage() {
   const [deleting, setDeleting] = useState(false)
 
   const sokrates = useSokrates({ classId: classData?.id, schoolYearId, setError })
+  const { refresh: refreshSokrates } = sokrates
 
   const {
-    saving,
     savingAll,
+    saveState,
+    hasUnsavedWork,
     handleGradeChange,
     getGrade,
     calculateAverage,
@@ -96,9 +101,14 @@ export default function NotensammlerPage() {
     finalGrades,
     setFinalGrades,
     setError,
+    setNotice,
     refreshTeacherClasses,
-    refreshSokrates: sokrates.refresh,
+    refreshSokrates,
   })
+
+  // Marks autosave half a second after they are typed; closing the tab inside
+  // that window used to drop them without a word.
+  useUnsavedWarning(hasUnsavedWork)
 
   const transfer = useTransferFlow({ classData, schoolYearId, setError, refreshClassData })
   const lfView = useLfView({ setError })
@@ -116,14 +126,31 @@ export default function NotensammlerPage() {
     (classData.amTeachers.some(teacher => teacher.id === currentTeacherId) ||
       classData.pmTeachers.some(teacher => teacher.id === currentTeacherId))
 
-  /** Any teacher still missing a mark for this student in the active semester. */
+  /** With separate AM/PM subjects the grid shows one period at a time. */
+  const tablePeriod: Period | undefined = classData?.hasSeparateAmPmSubjects ? periodTab : undefined
+
+  /**
+   * The teachers whose columns are actually on screen. Scoping to these is what
+   * makes "missing" mean missing *here*: with separate AM/PM subjects the check
+   * used to span both periods, so every student in the morning list was flagged
+   * — and re-sorted to the top — because the afternoon subject was still empty.
+   */
+  const visibleTeachers = useMemo(() => {
+    if (!classData) return []
+    if (tablePeriod === 'AM') return classData.amTeachers
+    if (tablePeriod === 'PM') return classData.pmTeachers
+    return [...classData.amTeachers, ...classData.pmTeachers]
+  }, [classData, tablePeriod])
+
+  /** Any visible teacher still missing a mark for this student in the active semester. */
   const hasMissingInCurrentSemester = useCallback(
     (studentId: number): boolean => {
-      if (currentSemester === null || !classData) return false
-      const allTeachers = [...classData.amTeachers, ...classData.pmTeachers]
-      return allTeachers.some(teacher => getGrade(studentId, teacher.id, currentSemester) === null)
+      if (currentSemester === null) return false
+      return visibleTeachers.some(
+        teacher => getGrade(studentId, teacher.id, currentSemester) === null,
+      )
     },
-    [currentSemester, classData, getGrade],
+    [currentSemester, visibleTeachers, getGrade],
   )
 
   // Students missing a mark float to the top so teachers see their gaps first.
@@ -159,25 +186,44 @@ export default function NotensammlerPage() {
       })
   }, [classData, sortField, sortDirection, currentSemester, hasMissingInCurrentSemester])
 
-  /** With separate AM/PM subjects the grid shows one period at a time. */
-  const tablePeriod: Period | undefined = classData?.hasSeparateAmPmSubjects ? periodTab : undefined
-
+  /**
+   * The AM/PM tab ticks report the signed-in teacher's own progress, matching
+   * the class chips. They used to report whether *every* teacher of the period
+   * was done, so the same badge meant two different things on one screen.
+   */
   const periodCompletion = useMemo(() => {
-    if (!classData?.hasSeparateAmPmSubjects || sortedStudents.length === 0) {
-      return { amFirst: false, amSecond: false, pmFirst: false, pmSecond: false }
-    }
-    const allEntered = (teachers: Teacher[], semester: Semester) =>
-      teachers.length === 0 ||
-      sortedStudents.every(student =>
-        teachers.every(teacher => grades[student.id]?.[teacher.id]?.[semester] != null),
+    const none = { amFirst: null, amSecond: null, pmFirst: null, pmSecond: null }
+    if (!classData?.hasSeparateAmPmSubjects || currentTeacherId == null) return none
+
+    const mine = (teachers: Teacher[], semester: Semester): boolean | null => {
+      if (!teachers.some(teacher => teacher.id === currentTeacherId)) return null
+      if (sortedStudents.length === 0) return null
+      return sortedStudents.every(
+        student => grades[student.id]?.[currentTeacherId]?.[semester] != null,
       )
-    return {
-      amFirst: allEntered(classData.amTeachers, 'first'),
-      amSecond: allEntered(classData.amTeachers, 'second'),
-      pmFirst: allEntered(classData.pmTeachers, 'first'),
-      pmSecond: allEntered(classData.pmTeachers, 'second'),
     }
-  }, [classData, sortedStudents, grades])
+
+    return {
+      amFirst: mine(classData.amTeachers, 'first'),
+      amSecond: mine(classData.amTeachers, 'second'),
+      pmFirst: mine(classData.pmTeachers, 'first'),
+      pmSecond: mine(classData.pmTeachers, 'second'),
+    }
+  }, [classData, currentTeacherId, sortedStudents, grades])
+
+  /** The semester the progress bar reports on — the one in view, or the live one. */
+  const progressSemester: Semester =
+    semesterView === 'both' ? (currentSemester ?? 'first') : semesterView
+
+  const myProgress = useMemo(() => {
+    if (currentTeacherId == null) return null
+    const teaches = visibleTeachers.some(teacher => teacher.id === currentTeacherId)
+    if (!teaches) return null
+    const entered = sortedStudents.filter(
+      student => grades[student.id]?.[currentTeacherId]?.[progressSemester] != null,
+    ).length
+    return { entered, total: sortedStudents.length }
+  }, [currentTeacherId, visibleTeachers, sortedStudents, grades, progressSemester])
 
   const deleteTeacherGrades = useCallback(async () => {
     if (!teacherToDelete || !classData) return
@@ -209,219 +255,259 @@ export default function NotensammlerPage() {
       })
 
       setTeacherToDelete(null)
+      // The class chips and the Sokrates drift markers both counted those rows.
+      await refreshTeacherClasses()
+      void refreshSokrates()
     } catch (e) {
       captureFrontendError(e, { location: 'notensammler', type: 'delete-teacher-grades' })
       setError(e instanceof Error ? e.message : 'Failed to delete grades')
     } finally {
       setDeleting(false)
     }
-  }, [teacherToDelete, classData, schoolYearId, setError, setGrades])
+  }, [
+    teacherToDelete,
+    classData,
+    schoolYearId,
+    setError,
+    setGrades,
+    refreshTeacherClasses,
+    refreshSokrates,
+  ])
 
-  const cardTitle = classData
-    ? classData.hasSeparateAmPmSubjects
-      ? classData.name
-      : classData.subjectName
-        ? `${classData.name} - ${truncateSubject(classData.subjectName)}`
-        : classData.name
-    : ''
+  const subjectLabel = classData?.hasSeparateAmPmSubjects
+    ? null
+    : classData?.subjectName
+      ? truncateSubject(classData.subjectName)
+      : null
+
+  const semesterLabel = (semester: Semester) =>
+    semester === 'first'
+      ? t('notensammler.firstSemester', '1. Semester')
+      : t('notensammler.secondSemester', '2. Semester')
 
   return (
-    <PageContainer size="wide" className="space-y-6">
-      <PageHeader
-        icon={ClipboardList}
-        title={t('notensammler.title', 'Notensammler')}
-        description={t(
-          'notensammler.subtitle',
-          'Noten je Lehrer erfassen und an das Notenmanagement übertragen.',
-        )}
-      />
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="flex items-start justify-between gap-4">
-            <span className="whitespace-pre-line">{error}</span>
-            <Button variant="outline" size="sm" className="shrink-0" onClick={() => setError(null)}>
-              {t('common.close', 'Schließen')}
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <div>
-        <NotensammlerToolbar
-          classes={classes}
-          selectedClassId={selectedClassId}
-          onClassChange={handleClassChange}
-          classData={classData}
-          currentSemester={currentSemester}
-          showFirstSemester={showFirstSemester}
-          setShowFirstSemester={setShowFirstSemester}
-          showSecondSemester={showSecondSemester}
-          setShowSecondSemester={setShowSecondSemester}
-          savingAll={savingAll}
-          onSaveAll={() => void saveAllGrades()}
-          downloadingPdf={downloadingPdf}
-          onDownloadPdf={() => void downloadClassPdf()}
-          downloadingAllPdf={downloadingAllPdf}
-          onDownloadAllPdf={() => void downloadAllClassesPdf()}
-          canDownloadAllPdf={teacherClasses.length > 0}
-          onOpenTransfer={transfer.open}
-          onViewLf={lfView.open}
+    <TooltipProvider delayDuration={200}>
+      <PageContainer size="wide" className="space-y-6">
+        <PageHeader
+          icon={ClipboardList}
+          title={t('notensammler.title', 'Notensammler')}
+          description={t(
+            'notensammler.subtitle',
+            'Noten je Lehrer erfassen und an das Notenmanagement übertragen.',
+          )}
         />
 
-        <ClassTabBar
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="flex items-start justify-between gap-4">
+              <span className="whitespace-pre-line">{error}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => setError(null)}
+              >
+                {t('common.close', 'Schließen')}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {notice && (
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription className="flex items-start justify-between gap-4">
+              <span className="whitespace-pre-line">{notice}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => setNotice(null)}
+              >
+                {t('common.close', 'Schließen')}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <ClassPicker
+          classes={classes}
           teacherClasses={teacherClasses}
           selectedClassId={selectedClassId}
           onSelect={handleClassChange}
         />
-      </div>
 
-      {loading && (
-        <div className="flex min-h-[200px] items-center justify-center">
-          <Spinner size="lg" />
-        </div>
-      )}
+        {loading && (
+          <div className="flex min-h-[240px] items-center justify-center">
+            <Spinner size="lg" />
+          </div>
+        )}
 
-      {classData && !loading && (
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {cardTitle}
-              {classData.classLead && (
-                <>
-                  {' · '}
-                  {t('notensammler.classLead', 'Klassenleitung')}: {classData.classLead}
-                </>
-              )}
-            </CardTitle>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <Label htmlFor="notensammler-sort-field" className="text-sm font-medium">
-                {t('notensammler.sortBy', 'Sortieren nach')}:
-              </Label>
-              <Select value={sortField} onValueChange={value => setSortField(value as SortField)}>
-                <SelectTrigger
-                  id="notensammler-sort-field"
-                  className="w-[180px]"
-                  aria-label={t('notensammler.sortBy', 'Sortieren nach')}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="lastName">
-                    {t('notensammler.sortByLastName', 'Nachname')}
-                  </SelectItem>
-                  <SelectItem value="groupId">
-                    {t('notensammler.sortByGroup', 'Gruppennummer')}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <Select
-                value={sortDirection}
-                onValueChange={value => setSortDirection(value as SortDirection)}
-              >
-                <SelectTrigger
-                  className="w-[150px]"
-                  aria-label={t('notensammler.sortDirection', 'Sortierrichtung')}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="asc">
-                    {t('notensammler.sortAscending', 'Aufsteigend')}
-                  </SelectItem>
-                  <SelectItem value="desc">
-                    {t('notensammler.sortDescending', 'Absteigend')}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <SokratesPanel
-              status={sokrates.status}
-              canManage={sokrates.canManage}
-              busy={sokrates.busy}
-              onMark={semester => void sokrates.mark(semester)}
-              onUnmark={semester => void sokrates.unmark(semester)}
-              onSetLockAll={(semester, locked) => void sokrates.setLockAll(semester, locked)}
-            />
-
-            {classData.hasSeparateAmPmSubjects && (
-              <PeriodTabs
-                value={periodTab}
-                onValueChange={setPeriodTab}
-                subjectNameAm={classData.subjectNameAm}
-                subjectNamePm={classData.subjectNamePm}
-                showCompletion={currentTeacherTeachesClass}
-                completion={periodCompletion}
-              />
+        {!loading && !classData && (
+          <EmptyState
+            icon={ClipboardList}
+            title={t('notensammler.noClassSelectedTitle', 'Keine Klasse ausgewählt')}
+            description={t(
+              'notensammler.noClassSelectedDesc',
+              'Wähle oben eine deiner Klassen, um Noten zu erfassen.',
             )}
+          />
+        )}
 
-            <GradeTable
-              classData={classData}
-              students={sortedStudents}
-              finalGrades={finalGrades}
-              currentTeacherId={currentTeacherId}
-              currentTeacherTeachesClass={currentTeacherTeachesClass}
-              currentSemester={currentSemester}
-              showFirstSemester={showFirstSemester}
-              showSecondSemester={showSecondSemester}
-              tablePeriod={tablePeriod}
-              getGrade={getGrade}
-              getFinalGradeDisplay={getFinalGradeDisplay}
-              calculateAverage={calculateAverage}
-              hasMissingInCurrentSemester={hasMissingInCurrentSemester}
-              onGradeChange={handleGradeChange}
-              onFinalGradeChange={handleFinalGradeChange}
-              onConductWishChange={handleConductWishChange}
-              onDeleteTeacher={setTeacherToDelete}
-              canManageSokrates={sokrates.canManage}
-              isSemesterMarked={semester => sokrates.status[semester].marked}
-              isSemesterLocked={sokrates.isSemesterLocked}
-              isCellLocked={sokrates.isCellLocked}
-              isCellDrifted={sokrates.isCellDrifted}
-              onToggleColumnLock={(teacherId, semester, locked) =>
-                void sokrates.setLockTeacher(semester, teacherId, locked)
-              }
-            />
-
-            {saving && (
-              <div className="text-muted-foreground mt-4 text-sm">
-                {t('notensammler.saving', 'Speichere...')}
+        {classData && !loading && (
+          <Card>
+            <CardHeader className="gap-4">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
+                <h2 className="truncate text-xl font-semibold tracking-tight">{classData.name}</h2>
+                {subjectLabel && <Badge variant="secondary">{subjectLabel}</Badge>}
+                {classData.classLead && (
+                  <span className="text-muted-foreground flex items-center gap-1.5 text-sm">
+                    <UserRound className="h-3.5 w-3.5" />
+                    {t('notensammler.classLead', 'Klassenleitung')}: {classData.classLead}
+                  </span>
+                )}
+                <span className="text-muted-foreground flex items-center gap-1.5 text-sm">
+                  <Users className="h-3.5 w-3.5" />
+                  {t('notensammler.studentCount', '{{count}} Schüler', {
+                    count: sortedStudents.length,
+                  })}
+                </span>
               </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
-      <TransferDialogs {...transfer} error={error} />
+              <ClassToolbar
+                classData={classData}
+                currentSemester={currentSemester}
+                semesterView={semesterView}
+                onSemesterViewChange={setSemesterChoice}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSortChange={(field, direction) => {
+                  setSortField(field)
+                  setSortDirection(direction)
+                }}
+                saveState={saveState}
+                savingAll={savingAll}
+                onSaveAll={() => void saveAllGrades()}
+                downloadingPdf={downloadingPdf}
+                onDownloadPdf={() => void downloadClassPdf()}
+                downloadingAllPdf={downloadingAllPdf}
+                onDownloadAllPdf={() => void downloadAllClassesPdf()}
+                canDownloadAllPdf={teacherClasses.length > 0}
+                onOpenTransfer={transfer.open}
+                onViewLf={lfView.open}
+              />
+            </CardHeader>
 
-      <NmCredentialsDialog
-        open={lfView.showPasswordDialog}
-        onOpenChange={lfView.setShowPasswordDialog}
-        username={lfView.username}
-        onUsernameChange={lfView.setUsername}
-        password={lfView.password}
-        onPasswordChange={lfView.setPassword}
-        onSubmit={lfView.submitPassword}
-        loading={lfView.loading}
-      />
+            <CardContent className="space-y-4">
+              <SokratesPanel
+                status={sokrates.status}
+                canManage={sokrates.canManage}
+                busy={sokrates.busy}
+                onMark={semester => void sokrates.mark(semester)}
+                onUnmark={semester => void sokrates.unmark(semester)}
+                onSetLockAll={(semester, locked) => void sokrates.setLockAll(semester, locked)}
+              />
 
-      <LfViewDialog
-        open={lfView.showDataDialog}
-        onOpenChange={lfView.setShowDataDialog}
-        lfId={lfView.selectedLfId}
-        notes={lfView.notes}
-      />
+              {classData.hasSeparateAmPmSubjects && (
+                <PeriodTabs
+                  value={periodTab}
+                  onValueChange={setPeriodTab}
+                  subjectNameAm={classData.subjectNameAm}
+                  subjectNamePm={classData.subjectNamePm}
+                  showCompletion={currentTeacherTeachesClass}
+                  completion={periodCompletion}
+                />
+              )}
 
-      <DeleteTeacherDialog
-        open={teacherToDelete !== null}
-        onOpenChange={open => !open && setTeacherToDelete(null)}
-        teacher={teacherToDelete}
-        deleting={deleting}
-        onConfirm={() => void deleteTeacherGrades()}
-      />
-    </PageContainer>
+              {myProgress && (
+                <MyProgress
+                  entered={myProgress.entered}
+                  total={myProgress.total}
+                  semesterLabel={semesterLabel(progressSemester)}
+                />
+              )}
+
+              {ungroupedStudentCount > 0 && (
+                <p className="text-muted-foreground flex items-center gap-2 text-sm">
+                  <UsersRound className="h-4 w-4 shrink-0" />
+                  {t(
+                    'notensammler.ungroupedHint',
+                    '{{count}} Schüler ohne Gruppe werden nicht angezeigt — sie nehmen an keinem Turnus teil.',
+                    { count: ungroupedStudentCount },
+                  )}
+                </p>
+              )}
+
+              {sortedStudents.length === 0 ? (
+                <EmptyState
+                  icon={Users}
+                  title={t('notensammler.noStudentsTitle', 'Keine Schüler in dieser Klasse')}
+                  description={t(
+                    'notensammler.noStudentsDesc',
+                    'Für dieses Schuljahr sind keine Schüler mit Gruppe zugeordnet.',
+                  )}
+                />
+              ) : (
+                <GradeTable
+                  classData={classData}
+                  students={sortedStudents}
+                  finalGrades={finalGrades}
+                  currentTeacherId={currentTeacherId}
+                  currentTeacherTeachesClass={currentTeacherTeachesClass}
+                  currentSemester={currentSemester}
+                  semesterView={semesterView}
+                  tablePeriod={tablePeriod}
+                  getGrade={getGrade}
+                  getFinalGradeDisplay={getFinalGradeDisplay}
+                  calculateAverage={calculateAverage}
+                  hasMissingInCurrentSemester={hasMissingInCurrentSemester}
+                  onGradeChange={handleGradeChange}
+                  onFinalGradeChange={handleFinalGradeChange}
+                  onConductWishChange={handleConductWishChange}
+                  onDeleteTeacher={setTeacherToDelete}
+                  canManageSokrates={sokrates.canManage}
+                  isSemesterMarked={semester => sokrates.status[semester].marked}
+                  isSemesterLocked={sokrates.isSemesterLocked}
+                  isCellLocked={sokrates.isCellLocked}
+                  isCellDrifted={sokrates.isCellDrifted}
+                  onToggleColumnLock={(teacherId, semester, locked) =>
+                    void sokrates.setLockTeacher(semester, teacherId, locked)
+                  }
+                />
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        <TransferDialogs {...transfer} error={error} />
+
+        <NmCredentialsDialog
+          open={lfView.showPasswordDialog}
+          onOpenChange={lfView.setShowPasswordDialog}
+          username={lfView.username}
+          onUsernameChange={lfView.setUsername}
+          password={lfView.password}
+          onPasswordChange={lfView.setPassword}
+          onSubmit={lfView.submitPassword}
+          loading={lfView.loading}
+        />
+
+        <LfViewDialog
+          open={lfView.showDataDialog}
+          onOpenChange={lfView.setShowDataDialog}
+          lfId={lfView.selectedLfId}
+          notes={lfView.notes}
+        />
+
+        <DeleteTeacherDialog
+          open={teacherToDelete !== null}
+          onOpenChange={open => !open && setTeacherToDelete(null)}
+          teacher={teacherToDelete}
+          deleting={deleting}
+          onConfirm={() => void deleteTeacherGrades()}
+        />
+      </PageContainer>
+    </TooltipProvider>
   )
 }

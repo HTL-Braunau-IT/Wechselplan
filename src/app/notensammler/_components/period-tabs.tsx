@@ -1,23 +1,49 @@
 'use client'
 
 import { useTranslation } from 'react-i18next'
-import { CheckCircle2, X } from 'lucide-react'
+import { Check, Sun, Sunset } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { truncateSubject } from '@/lib/subject-utils'
+import { cn } from '@/lib/utils'
 import type { Period } from '../_lib/types'
 
+/**
+ * Whether the signed-in teacher has finished that period+semester. `null` means
+ * the question does not apply — they teach the other period, and a red cross
+ * against somebody else's subject only ever read as an error.
+ */
 export type PeriodCompletion = {
-  amFirst: boolean
-  amSecond: boolean
-  pmFirst: boolean
-  pmSecond: boolean
+  amFirst: boolean | null
+  amSecond: boolean | null
+  pmFirst: boolean | null
+  pmSecond: boolean | null
 }
 
-function CompletionMark({ complete }: { complete: boolean }) {
-  return complete ? (
-    <CheckCircle2 className="text-success h-3.5 w-3.5 shrink-0" aria-hidden />
-  ) : (
-    <X className="text-destructive h-3.5 w-3.5 shrink-0" aria-hidden />
+/** Semester completion chip, matching the markers on the class chips. */
+function CompletionMark({
+  label,
+  title,
+  complete,
+}: {
+  label: string
+  /** Spelled out for assistive tech — the state is otherwise only a colour. */
+  title: string
+  complete: boolean | null
+}) {
+  if (complete === null) return null
+  return (
+    <span
+      role="img"
+      aria-label={title}
+      title={title}
+      className={cn(
+        'inline-flex h-4 items-center gap-0.5 rounded-full px-1.5 text-[10px] leading-none font-semibold',
+        complete ? 'bg-success/15 text-success' : 'bg-destructive/10 text-destructive',
+      )}
+    >
+      {label}
+      {complete && <Check className="h-2.5 w-2.5" aria-hidden />}
+    </span>
   )
 }
 
@@ -34,27 +60,29 @@ export function PeriodTabs({
   onValueChange: (period: Period) => void
   subjectNameAm?: string
   subjectNamePm?: string
+  /** Completion is the signed-in teacher's own — hidden for anyone else. */
   showCompletion: boolean
   completion: PeriodCompletion
 }) {
   const { t } = useTranslation()
 
-  const periods: Array<{
-    period: Period
-    label: string
-    subject?: string
-    first: boolean
-    second: boolean
-  }> = [
+  const completionWord = (complete: boolean | null) =>
+    complete
+      ? t('notensammler.completionComplete', 'vollständig')
+      : t('notensammler.completionIncomplete', 'unvollständig')
+
+  const periods = [
     {
-      period: 'AM',
+      period: 'AM' as Period,
+      icon: Sun,
       label: t('notensammler.vormittag', 'Vormittag'),
       subject: subjectNameAm,
       first: completion.amFirst,
       second: completion.amSecond,
     },
     {
-      period: 'PM',
+      period: 'PM' as Period,
+      icon: Sunset,
       label: t('notensammler.nachmittag', 'Nachmittag'),
       subject: subjectNamePm,
       first: completion.pmFirst,
@@ -64,26 +92,26 @@ export function PeriodTabs({
 
   return (
     <Tabs value={value} onValueChange={v => onValueChange(v as Period)}>
-      <TabsList className="text-foreground mb-2 flex h-auto flex-wrap justify-start gap-2 bg-transparent p-0">
-        {periods.map(({ period, label, subject, first, second }) => (
-          <TabsTrigger
-            key={period}
-            value={period}
-            className="group hover:bg-muted/60 data-[state=active]:border-primary data-[state=active]:bg-muted/60 flex items-center gap-3 rounded-lg border-2 border-transparent px-4 py-2.5 text-sm font-medium transition-all data-[state=active]:shadow-none"
-          >
-            <span className="font-semibold">
-              {label} – {subject ? truncateSubject(subject) : ''}
-            </span>
+      <TabsList className="flex h-auto flex-wrap justify-start">
+        {periods.map(({ period, icon: Icon, label, subject, first, second }) => (
+          <TabsTrigger key={period} value={period} className="gap-2 px-3 py-2">
+            <Icon className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="font-semibold">{label}</span>
+            {subject && (
+              <span className="text-muted-foreground font-normal">{truncateSubject(subject)}</span>
+            )}
             {showCompletion && (
-              <span className="flex items-center gap-2 text-xs font-normal opacity-90">
-                <span className="bg-muted/80 flex items-center gap-1 rounded-md px-2 py-0.5">
-                  {t('notensammler.firstSemesterShort', '1. Sem')}
-                  <CompletionMark complete={first} />
-                </span>
-                <span className="bg-muted/80 flex items-center gap-1 rounded-md px-2 py-0.5">
-                  {t('notensammler.secondSemesterShort', '2. Sem')}
-                  <CompletionMark complete={second} />
-                </span>
+              <span className="flex items-center gap-1">
+                <CompletionMark
+                  label="1"
+                  complete={first}
+                  title={`${t('notensammler.firstSemesterShort', '1. Sem')}: ${completionWord(first)}`}
+                />
+                <CompletionMark
+                  label="2"
+                  complete={second}
+                  title={`${t('notensammler.secondSemesterShort', '2. Sem')}: ${completionWord(second)}`}
+                />
               </span>
             )}
           </TabsTrigger>

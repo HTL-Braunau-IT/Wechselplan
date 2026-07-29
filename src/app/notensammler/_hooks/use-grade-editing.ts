@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { captureFrontendError } from '@/lib/frontend-error'
 import {
   CONDUCT_NOTE_WISH_NONE,
@@ -14,6 +14,16 @@ import type { ClassData, FinalGradesData, Period } from '../_lib/types'
 import { useKeyedDebounce } from './use-keyed-debounce'
 
 const SAVE_DEBOUNCE_MS = 500
+/**
+ * Rows per request for "Alle speichern". The two batch endpoints have
+ * different ceilings — `MAX_GRADES_BATCH` is 400, `MAX_FINAL_GRADES_BATCH` is
+ * 100 — so they get their own chunk size, each with headroom.
+ */
+const GRADES_CHUNK_SIZE = 200
+const FINAL_GRADES_CHUNK_SIZE = 50
+
+/** What the toolbar's autosave indicator should be showing. */
+export type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error'
 
 type Params = {
   classData: ClassData | null
@@ -23,6 +33,8 @@ type Params = {
   finalGrades: FinalGradesData
   setFinalGrades: React.Dispatch<React.SetStateAction<FinalGradesData>>
   setError: (message: string | null) => void
+  /** Non-fatal outcomes (locked cells skipped) — not rendered as a failure. */
+  setNotice?: (message: string | null) => void
   refreshTeacherClasses: () => Promise<void>
   /** Re-reads Sokrates lock/drift state after a save so badges stay current. */
   refreshSokrates?: () => void | Promise<void>
@@ -44,24 +56,40 @@ export function useGradeEditing({
   finalGrades,
   setFinalGrades,
   setError,
+  setNotice,
   refreshTeacherClasses,
   refreshSokrates,
 }: Params) {
   const [saving, setSaving] = useState(false)
   const [savingAll, setSavingAll] = useState(false)
-  const { schedule, cancelAll } = useKeyedDebounce(SAVE_DEBOUNCE_MS)
+  const [saveFailed, setSaveFailed] = useState(false)
+  const [savedAt, setSavedAt] = useState<number | null>(null)
+  const { schedule, cancelAll, pendingCount } = useKeyedDebounce(SAVE_DEBOUNCE_MS)
+
+  // `saving` is a boolean but several cells can be in flight at once, so the
+  // first response must not clear the indicator for the rest.
+  const inFlightRef = useRef(0)
+  const beginRequest = useCallback(() => {
+    inFlightRef.current += 1
+    setSaving(true)
+  }, [])
+  const endRequest = useCallback((ok: boolean) => {
+    inFlightRef.current = Math.max(0, inFlightRef.current - 1)
+    if (inFlightRef.current === 0) setSaving(false)
+    if (ok) {
+      setSaveFailed(false)
+      setSavedAt(Date.now())
+    } else {
+      setSaveFailed(true)
+    }
+  }, [])
 
   const saveGrade = useCallback(
-    async (
-      studentId: number,
-      teacherId: number,
-      semester: Semester,
-      grade: number | null,
-      silent = false,
-    ) => {
+    async (studentId: number, teacherId: number, semester: Semester, grade: number | null) => {
       if (!classData) return
+      let ok = false
       try {
-        if (!silent) setSaving(true)
+        beginRequest()
 
         const response = await fetch('/api/notensammler/grades', {
           method: 'POST',
@@ -80,16 +108,17 @@ export function useGradeEditing({
           const errorData = (await response.json()) as { error?: string }
           throw new Error(errorData.error ?? 'Failed to save grade')
         }
+        ok = true
       } catch (e) {
         captureFrontendError(e, { location: 'notensammler', type: 'save-grade' })
         throw e
       } finally {
-        if (!silent) setSaving(false)
+        endRequest(ok)
       }
     },
     // schoolYearId belongs here: without it the callback kept sending the
     // school year that was selected when the class was first opened.
-    [classData, schoolYearId],
+    [beginRequest, classData, endRequest, schoolYearId],
   )
 
   const handleGradeChange = useCallback(
@@ -112,8 +141,11 @@ export function useGradeEditing({
         void (async () => {
           try {
             await saveGrade(studentId, teacherId, semester, gradeValue)
-            // Coalesce the status refresh: one GET per typing burst, not per cell.
-            schedule('sokrates-refresh', () => void refreshSokrates?.())
+            // Coalesce the status refresh: one GET per typing burst, not per
+            // cell. It writes nothing, so it must not count as unsaved work —
+            // otherwise every successful save was followed by half a second of
+            // "Nicht gespeichert" and an unload warning with nothing pending.
+            schedule('sokrates-refresh', () => void refreshSokrates?.(), { persists: false })
           } catch {
             setGrades(prev => {
               const next = { ...prev }
@@ -168,12 +200,12 @@ export function useGradeEditing({
       studentId: number,
       semester: Semester,
       grade: number | null,
-      silent = false,
       conductNoteWish?: string | null,
     ) => {
       if (!classData) return
+      let ok = false
       try {
-        if (!silent) setSaving(true)
+        beginRequest()
         const body: Record<string, unknown> = {
           studentId,
           classId: classData.id,
@@ -194,14 +226,15 @@ export function useGradeEditing({
           const errorData = (await response.json()) as { error?: string }
           throw new Error(errorData.error ?? 'Failed to save final grade')
         }
+        ok = true
       } catch (e) {
         captureFrontendError(e, { location: 'notensammler', type: 'save-final-grade' })
         throw e
       } finally {
-        if (!silent) setSaving(false)
+        endRequest(ok)
       }
     },
-    [classData, schoolYearId],
+    [beginRequest, classData, endRequest, schoolYearId],
   )
 
   const handleFinalGradeChange = useCallback(
@@ -225,7 +258,7 @@ export function useGradeEditing({
       schedule(`final:${studentId}:${semester}`, () => {
         void (async () => {
           try {
-            await saveFinalGrade(studentId, semester, gradeValue, false, conductWish)
+            await saveFinalGrade(studentId, semester, gradeValue, conductWish)
           } catch {
             setFinalGrades(prev => {
               const next = { ...prev }
@@ -263,7 +296,7 @@ export function useGradeEditing({
       schedule(`conduct:${studentId}:${semester}`, () => {
         void (async () => {
           try {
-            await saveFinalGrade(studentId, semester, gradeToSend, false, conductValue)
+            await saveFinalGrade(studentId, semester, gradeToSend, conductValue)
           } catch {
             setFinalGrades(prev => {
               const next = { ...prev }
@@ -318,8 +351,15 @@ export function useGradeEditing({
         grade: number | null
         conductNoteWish: string | null
       }> = []
-      for (const studentKey of Object.keys(grades)) {
-        const studentId = parseInt(studentKey)
+      // Both maps, not just `grades`: a student can carry an Endnote or a
+      // Betragensnote wish without a single teacher mark, and iterating only
+      // `grades` dropped those rows from "Alle speichern" entirely.
+      const finalGradeStudentIds = new Set<number>()
+      for (const key of [...Object.keys(grades), ...Object.keys(finalGrades)]) {
+        const id = parseInt(key)
+        if (!Number.isNaN(id)) finalGradeStudentIds.add(id)
+      }
+      for (const studentId of finalGradeStudentIds) {
         const forApi = (value: string | null) =>
           value === CONDUCT_NOTE_WISH_NONE || value === '' ? null : value
 
@@ -344,49 +384,69 @@ export function useGradeEditing({
         classId: classData.id,
         ...(schoolYearId != null && { schoolYearId }),
       }
-      const ok = new Response(JSON.stringify({ success: true, count: 0 }), { status: 200 })
-      const [gradesRes, finalGradesRes] = await Promise.all([
-        gradesPayload.length > 0
-          ? fetch('/api/notensammler/grades/batch', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ ...batchBody, grades: gradesPayload }),
-            })
-          : Promise.resolve(ok),
-        finalGradesPayload.length > 0
-          ? fetch('/api/notensammler/final-grades/batch', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ ...batchBody, finalGrades: finalGradesPayload }),
-            })
-          : Promise.resolve(ok.clone()),
-      ])
 
-      if (!gradesRes.ok) {
-        const err = (await gradesRes.json()) as { error?: string }
-        throw new Error(err.error ?? 'Failed to save grades')
+      // Both batch endpoints reject an oversized request outright. A class of
+      // five groups with eight teachers is 960 grade rows against a ceiling of
+      // 400, and 120 final-grade rows against a ceiling of 100 — so sending
+      // the lot in one go failed the entire save with "Too many …".
+      const postChunks = async <T>(
+        url: string,
+        key: 'grades' | 'finalGrades',
+        rows: T[],
+        chunkSize: number,
+        fallbackMessage: string,
+      ) => {
+        const results: Array<{ skippedLocked?: number }> = []
+        for (let start = 0; start < rows.length; start += chunkSize) {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...batchBody, [key]: rows.slice(start, start + chunkSize) }),
+          })
+          if (!response.ok) {
+            const err = (await response.json().catch(() => null)) as { error?: string } | null
+            throw new Error(err?.error ?? fallbackMessage)
+          }
+          results.push(
+            ((await response.json().catch(() => null)) ?? {}) as { skippedLocked?: number },
+          )
+        }
+        return results
       }
-      if (!finalGradesRes.ok) {
-        const err = (await finalGradesRes.json()) as { error?: string }
-        throw new Error(err.error ?? 'Failed to save final grades')
-      }
+
+      const gradeResults = await postChunks(
+        '/api/notensammler/grades/batch',
+        'grades',
+        gradesPayload,
+        GRADES_CHUNK_SIZE,
+        'Failed to save grades',
+      )
+      await postChunks(
+        '/api/notensammler/final-grades/batch',
+        'finalGrades',
+        finalGradesPayload,
+        FINAL_GRADES_CHUNK_SIZE,
+        'Failed to save final grades',
+      )
 
       // Some grades may have been skipped because they are locked in Sokrates —
-      // the rest were still saved, so surface a notice rather than failing.
-      const gradesResult = (await gradesRes.json().catch(() => null)) as {
-        skippedLocked?: number
-      } | null
-      if (gradesResult?.skippedLocked && gradesResult.skippedLocked > 0) {
-        setError(
-          `${gradesResult.skippedLocked} in Sokrates gesperrte Note(n) wurden nicht gespeichert. Bitte den Klassenleiter kontaktieren.`,
+      // the rest were still saved, so this is a notice, not a failure.
+      const skippedLocked = gradeResults.reduce((sum, r) => sum + (r.skippedLocked ?? 0), 0)
+      if (skippedLocked > 0) {
+        setNotice?.(
+          `${skippedLocked} in Sokrates gesperrte Note(n) wurden nicht gespeichert. Bitte den Klassenleiter kontaktieren.`,
         )
       }
+
+      setSavedAt(Date.now())
+      setSaveFailed(false)
 
       // Refresh so the per-class tab ticks reflect the new completion state.
       await refreshTeacherClasses()
       void refreshSokrates?.()
     } catch (e) {
       captureFrontendError(e, { location: 'notensammler', type: 'save-all-grades' })
+      setSaveFailed(true)
       setError(e instanceof Error ? e.message : 'Failed to save all grades')
     } finally {
       setSavingAll(false)
@@ -401,11 +461,29 @@ export function useGradeEditing({
     refreshSokrates,
     schoolYearId,
     setError,
+    setNotice,
   ])
+
+  // Edits are still queued behind the debounce, or a request is in flight.
+  // Leaving the page now would drop them.
+  const hasUnsavedWork = pendingCount > 0 || saving || savingAll
+
+  const saveState: SaveState = saveFailed
+    ? 'error'
+    : saving || savingAll
+      ? 'saving'
+      : pendingCount > 0
+        ? 'pending'
+        : savedAt != null
+          ? 'saved'
+          : 'idle'
 
   return {
     saving,
     savingAll,
+    saveState,
+    savedAt,
+    hasUnsavedWork,
     handleGradeChange,
     getGrade,
     calculateAverage,
