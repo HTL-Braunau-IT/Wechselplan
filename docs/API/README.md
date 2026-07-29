@@ -11,6 +11,7 @@ The API is organized into different modules based on functionality:
 - **Classes API** - Class management and operations
 - **Export API** - Data export functionality (PDF, Excel)
 - **Learning Contents API** - Learning content management and retrieval
+- **Notifications API** - In-app notifications behind the bell in the top bar
 - **Rooms API** - Room management and retrieval
 - **Schedule API** - Schedule management, teacher assignments, and rotations
 - **Schedules API** - General schedule management and data retrieval
@@ -43,6 +44,8 @@ docs/API/
 │   ├── README.md            # Learning Contents API overview
 │   ├── index.md             # Main learning contents endpoints
 │   └── testing.md           # Testing documentation
+├── notifications/            # Notifications API documentation
+│   └── README.md            # In-app notification types, delivery and endpoints
 ├── rooms/                    # Rooms API documentation
 │   ├── README.md            # Rooms API overview
 │   ├── index.md             # Main rooms endpoints
@@ -108,7 +111,8 @@ API endpoints may be subject to rate limiting. Check response headers for rate l
 3. Check the [Export API documentation](./export/README.md) for data export functionality
 4. Check the [Learning Contents API documentation](./learning-contents/README.md) for learning content management
 5. Check the [Rooms API documentation](./rooms/README.md) for room management
-6. Check the [Schedule API documentation](./schedule/README.md) for schedule management
-7. Check the [Schedules API documentation](./schedules/README.md) for general schedule management
-8. Check the [examples](./examples/README.md) for common usage patterns
-9. Use the specific endpoint documentation for detailed information about each API route 
+6. Check the [Notifications API documentation](./notifications/README.md) for the in-app bell
+7. Check the [Schedule API documentation](./schedule/README.md) for schedule management
+8. Check the [Schedules API documentation](./schedules/README.md) for general schedule management
+9. Check the [examples](./examples/README.md) for common usage patterns
+10. Use the specific endpoint documentation for detailed information about each API route 

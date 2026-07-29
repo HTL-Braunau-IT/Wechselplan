@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { denyUnlessAccess } from '@/lib/api-guard'
+import { resolveCurrentTeacher } from '@/lib/current-teacher'
+import { resolveSchoolYearId } from '@/lib/school-year'
+import { notifyScheduleChange } from '../_notify'
 
 interface TeacherRotationRequest {
   classId: number
@@ -45,6 +50,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }
 
+    // Captured before the wipe below: a teacher dropped from the rotation is
+    // exactly the person who most needs to hear that it changed.
+    const previousTeachers = await prisma.teacherRotation.findMany({
+      where: { classId: classData.id },
+      select: { teacherId: true },
+      distinct: ['teacherId'],
+    })
+
     // Delete existing rotations for this class
     await prisma.teacherRotation.deleteMany({
       where: {
@@ -86,6 +99,22 @@ export async function POST(request: Request) {
           })
         }
       }
+    }
+
+    // The rotation table itself carries no school year; the notification
+    // audience does, so it is resolved the same way every other route does.
+    const schoolYearId = await resolveSchoolYearId()
+    const session = await getServerSession(authOptions)
+    if (schoolYearId != null) {
+      await notifyScheduleChange({
+        type: 'schedule-rotation-changed',
+        classId: classData.id,
+        schoolYearId,
+        actor: await resolveCurrentTeacher(session),
+        session,
+        alsoNotify: previousTeachers.map(rotation => rotation.teacherId),
+        dedupeKey: `schedule-rotation:${classData.id}`,
+      })
     }
 
     return NextResponse.json({ success: true })

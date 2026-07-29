@@ -6,6 +6,12 @@ import { captureError } from '@/lib/sentry'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { prisma } from '@/lib/prisma'
 import { canManageSokrates } from '@/lib/sokrates-lock'
+import {
+  clearSokratesChangeNotifications,
+  gradeColumnTeachers,
+  notensammlerLink,
+  notifyQuietly,
+} from '@/lib/notifications'
 import { parseId, parseSemester, resolveCurrentTeacher, resolveSchoolYearId } from '../_shared'
 
 export const dynamic = 'force-dynamic'
@@ -79,6 +85,28 @@ export async function POST(request: Request) {
       })
       return t
     })
+
+    // The notices this mark just resolved were also sitting in the class lead's
+    // bell; clear them there too so the two views agree.
+    await clearSokratesChangeNotifications({ classId, schoolYearId, semester, readAt: now })
+
+    // Everyone with a column in this sheet needs to know it is now considered
+    // final — from here on their edits are either blocked or reported.
+    const classRecord = await prisma.class.findUnique({
+      where: { id: classId },
+      select: { name: true },
+    })
+    if (classRecord) {
+      await notifyQuietly({
+        type: 'sokrates-marked',
+        recipientIds: await gradeColumnTeachers(classId, schoolYearId),
+        actorId: teacher?.id ?? null,
+        actorName: markedByName,
+        params: { className: classRecord.name, semester },
+        link: notensammlerLink(classRecord.name),
+        dedupeKey: `sokrates-marked:${classId}:${schoolYearId}:${semester}`,
+      })
+    }
 
     return NextResponse.json({ success: true, transferId: transfer.id })
   } catch (error) {

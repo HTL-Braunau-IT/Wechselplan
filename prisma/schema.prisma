@@ -52,6 +52,8 @@ model Teacher {
   headClasses    Class[]             @relation("ClassHead")
   leadClasses    Class[]             @relation("ClassLead")
   grades         Grade[]
+  notifications  Notification[]      @relation("NotificationRecipient")
+  createdSchedules Schedule[]        @relation("ScheduleCreator")
 
   @@index([firstName, lastName])
   @@index([isActive])
@@ -132,16 +134,21 @@ model Schedule {
   semesterPlanning  String?        // "first", "second", or null for full year
   classId           Int?
   schoolYearId      Int
+  // Teacher who first created this plan. Kept across later edits so the author
+  // is notified about changes someone else makes (see src/lib/notifications.ts).
+  createdById       Int?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   class             Class?         @relation(fields: [classId], references: [id])
   schoolYear        SchoolYear     @relation(fields: [schoolYearId], references: [id])
+  createdBy         Teacher?       @relation("ScheduleCreator", fields: [createdById], references: [id], onDelete: SetNull)
   breakTimes        BreakTime[]    @relation("BreakTimeToSchedule")
   scheduleTimes     ScheduleTime[] @relation("ScheduleToScheduleTime")
   turns             ScheduleTurn[]
 
   @@index([classId])
   @@index([schoolYearId])
+  @@index([createdById])
 }
 
 model ScheduleTurn {
@@ -570,4 +577,37 @@ model SokratesChangeNotice {
   @@index([transferId])
   @@index([classId, schoolYearId])
   @@index([recipientId, acknowledgedAt])
+}
+
+// One in-app notification addressed to one teacher, rendered by the bell in the
+// top bar. Deliberately generic: the domain tables above stay the record of
+// what happened, this one is only the delivery channel.
+//
+// `type` selects the i18next message and `params` supplies its interpolation
+// values, so a notification written today still renders in both languages —
+// see NOTIFICATION_TYPES in src/lib/notifications.ts, which is the contract
+// between the writer and src/components/notification-bell.tsx.
+model Notification {
+  id          Int       @id @default(autoincrement())
+  recipientId Int
+  type        String
+  params      Json      @default("{}")
+  /// In-app path opened when the row is clicked, e.g. "/notensammler?class=1AHIT".
+  link        String?
+  /// Teacher who triggered it; null when an admin without a Teacher row did.
+  actorId     Int?
+  /// Point-in-time snapshot, so the row stays readable after a rename.
+  actorName   String
+  /// Collapse key. An unread row with the same recipient+type+key is refreshed
+  /// rather than duplicated, so saving a grade sheet fifty times still leaves
+  /// the class lead with a single entry.
+  dedupeKey   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  readAt      DateTime?
+
+  recipient Teacher @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId, readAt, createdAt])
+  @@index([type, dedupeKey, readAt])
 }

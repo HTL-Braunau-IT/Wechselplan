@@ -10,8 +10,9 @@ import {
   getSokratesStatus,
   isEditBlocked,
   recordSokratesChanges,
-  resolveCurrentTeacher,
 } from '@/lib/sokrates-lock'
+import { actorName, resolveCurrentTeacher } from '@/lib/current-teacher'
+import { notifyGradesEntered } from './_notify'
 
 // Force dynamic rendering - no caching
 export const dynamic = 'force-dynamic'
@@ -320,40 +321,39 @@ export async function POST(request: Request) {
     const semesterTyped = semester as 'first' | 'second'
     const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId)
     const semesterMarked = sokratesStatus[semesterTyped].marked
-    const currentTeacher = semesterMarked ? await resolveCurrentTeacher(session) : null
-    let sokratesOldGrade: number | null = null
-    if (semesterMarked) {
-      const existingGrade = await prisma.grade.findUnique({
-        where: {
-          studentId_teacherId_classId_semester_schoolYearId: {
-            studentId: studentIdNum,
-            teacherId: teacherIdNum,
-            classId: classIdNum,
-            semester: semesterTyped,
-            schoolYearId,
-          },
-        },
-        select: { grade: true },
-      })
-      sokratesOldGrade = existingGrade?.grade ?? null
+    const currentTeacher = await resolveCurrentTeacher(session)
 
-      // Re-saving the same value is a no-op — never block it (mirrors the batch
-      // route, and the documented contract). Only an actual change is gated.
-      if (sokratesOldGrade !== gradeValue) {
-        const canOverride = await canManageSokrates({
+    const existingGrade = await prisma.grade.findUnique({
+      where: {
+        studentId_teacherId_classId_semester_schoolYearId: {
+          studentId: studentIdNum,
+          teacherId: teacherIdNum,
           classId: classIdNum,
-          role: session.user?.role,
-          teacherId: currentTeacher?.id ?? null,
-        })
-        if (isEditBlocked(sokratesStatus, semesterTyped, teacherIdNum, canOverride)) {
-          return NextResponse.json(
-            {
-              error:
-                'Diese Note wurde bereits in Sokrates eingetragen und ist gesperrt. Bitte den Klassenleiter kontaktieren.',
-            },
-            { status: 423 },
-          )
-        }
+          semester: semesterTyped,
+          schoolYearId,
+        },
+      },
+      select: { grade: true },
+    })
+    const previousGrade = existingGrade?.grade ?? null
+    const gradeChanged = previousGrade !== gradeValue
+
+    // Re-saving the same value is a no-op — never block it (mirrors the batch
+    // route, and the documented contract). Only an actual change is gated.
+    if (semesterMarked && gradeChanged) {
+      const canOverride = await canManageSokrates({
+        classId: classIdNum,
+        role: session.user?.role,
+        teacherId: currentTeacher?.id ?? null,
+      })
+      if (isEditBlocked(sokratesStatus, semesterTyped, teacherIdNum, canOverride)) {
+        return NextResponse.json(
+          {
+            error:
+              'Diese Note wurde bereits in Sokrates eingetragen und ist gesperrt. Bitte den Klassenleiter kontaktieren.',
+          },
+          { status: 423 },
+        )
       }
     }
 
@@ -426,19 +426,28 @@ export async function POST(request: Request) {
         classId: classIdNum,
         schoolYearId,
         changedById: currentTeacher?.id ?? null,
-        changedByName: currentTeacher?.name ?? session.user?.name ?? 'Unbekannt',
+        changedByName: actorName(currentTeacher, session),
         status: sokratesStatus,
         changes: [
           {
             studentId: studentIdNum,
             teacherId: teacherIdNum,
             semester: semesterTyped,
-            oldGrade: sokratesOldGrade,
+            oldGrade: previousGrade,
             newGrade: gradeValue,
           },
         ],
       })
     }
+
+    await notifyGradesEntered({
+      classId: classIdNum,
+      className: classRecord.name,
+      schoolYearId,
+      actor: currentTeacher,
+      session,
+      count: gradeChanged ? 1 : 0,
+    })
 
     return NextResponse.json({ success: true, grade: result })
   } catch (error) {

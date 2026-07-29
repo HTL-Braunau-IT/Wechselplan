@@ -1,37 +1,12 @@
 import { prisma } from '@/lib/prisma'
-import type { Session } from 'next-auth'
 import { sendEmail } from '@/server/send-support-email-graph'
 import { captureError } from '@/lib/sentry'
 import { getGradeDisplayText, type Semester } from '@/lib/grades'
+import { notensammlerLink, notifyQuietly, sokratesChangeDedupeKey } from '@/lib/notifications'
 
-/** The signed-in staff member mapped to their Teacher row (username is the key). */
-export interface CurrentTeacher {
-  id: number
-  name: string
-  role: unknown
-}
-
-/**
- * Resolves the session's Teacher row via the username, the same key the
- * Notensammler uses everywhere else. Admins may not have a Teacher row; the
- * caller decides whether that is fatal.
- */
-export async function resolveCurrentTeacher(
-  session: Session | null,
-): Promise<CurrentTeacher | null> {
-  const username = session?.user?.name
-  if (!username) return null
-  const teacher = await prisma.teacher.findUnique({
-    where: { username },
-    select: { id: true, firstName: true, lastName: true },
-  })
-  if (!teacher) return null
-  return {
-    id: teacher.id,
-    name: `${teacher.firstName} ${teacher.lastName}`,
-    role: session?.user?.role,
-  }
-}
+// Re-exported: the Sokrates routes have always imported the current teacher
+// from here, and the helper is now shared with the notification layer.
+export { resolveCurrentTeacher, type CurrentTeacher } from '@/lib/current-teacher'
 
 /**
  * Sokrates transfer marker + edit lock.
@@ -220,6 +195,27 @@ export async function recordSokratesChanges(params: {
       recipientId,
     })),
   })
+
+  // Raise the bell for the class lead, one entry per affected semester. The
+  // count is read back from the still-open notices rather than from this batch,
+  // so a second change collapsing onto the same unread entry reports the total
+  // rather than overwriting it with the latest batch size.
+  if (recipientId != null) {
+    for (const semester of [...new Set(relevant.map(change => change.semester))]) {
+      const open = await prisma.sokratesChangeNotice.count({
+        where: { classId, schoolYearId, semester, recipientId, acknowledgedAt: null },
+      })
+      await notifyQuietly({
+        type: 'sokrates-change',
+        recipientIds: [recipientId],
+        actorId: changedById,
+        actorName: changedByName,
+        params: { className: classRecord.name, semester, count: open, classId, schoolYearId },
+        link: notensammlerLink(classRecord.name),
+        dedupeKey: sokratesChangeDedupeKey({ classId, schoolYearId, semester }),
+      })
+    }
+  }
 
   // Email the class lead (best-effort). No lead or no address → in-app only.
   const email = classRecord.classLead?.email

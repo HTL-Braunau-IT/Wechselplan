@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { denyUnlessAccess } from '@/lib/api-guard'
+import { resolveCurrentTeacher } from '@/lib/current-teacher'
+import { notifyScheduleChange } from '../_notify'
 
 /**
  * Handles GET requests to retrieve teacher assignments for a specified class, grouped by AM and PM periods.
@@ -330,6 +334,17 @@ export async function POST(request: Request) {
         },
       })
     }
+
+    const session = await getServerSession(authOptions)
+    await notifyScheduleChange({
+      type: 'schedule-assignments-changed',
+      classId: classRecord.id,
+      schoolYearId,
+      actor: await resolveCurrentTeacher(session),
+      session,
+      alsoNotify: existingAssignments.map(assignment => assignment.teacherId),
+      dedupeKey: `schedule-assignments:${classRecord.id}:${schoolYearId}`,
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

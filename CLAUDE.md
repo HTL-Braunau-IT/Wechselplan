@@ -48,7 +48,7 @@ Three things the minted token has to get right, all enforced in `e2e/session.ts`
 
 - `provider: 'azure-ad'`, or the `jwt` callback treats it as a stale LDAP token and strips the role to `user`.
 - `name` must match a real `Teacher.username` — it is the key `/api/teachers/by-username` is queried with, so an invented name signs in fine and then renders empty class lists. Global setup picks an active teacher from the DB when `E2E_USERNAME` is unset.
-- A non-empty `ENTRA_TEACHER_GROUP_ID` in `.env`, even a bogus one. Past the 15-minute refresh window the callback re-resolves the role via Graph; with a group configured the call throws and the `catch` preserves the role, but with *nothing* configured `resolveMicrosoftAccess` returns `role: 'user'` without throwing and silently demotes the session.
+- A non-empty `ENTRA_TEACHER_GROUP_ID` in `.env`, even a bogus one. Past the 15-minute refresh window the callback re-resolves the role via Graph; with a group configured the call throws and the `catch` preserves the role, but with _nothing_ configured `resolveMicrosoftAccess` returns `role: 'user'` without throwing and silently demotes the session.
 
 Harness knobs (not app env, not in `src/env.js`): `E2E_BASE_URL`, `E2E_ROLE`, `E2E_USERNAME`.
 
@@ -58,10 +58,11 @@ CI (`.github/workflows/node.js.yaml`) runs typecheck → vitest → lint on the 
 
 **Stack:** Next.js 15 App Router + React 19, Prisma (PostgreSQL), NextAuth, Tailwind v4, shadcn/Radix UI, React Query, i18next. Scaffolded from create-t3-app.
 
-**tRPC is scaffolded but unused.** `src/server/api/root.ts` is an empty router. All server logic lives in **REST route handlers under `src/app/api/**/route.ts`**. Do not add tRPC procedures — follow the existing REST pattern. The client calls these via `fetch` (often wrapped in hooks under `src/hooks/`).
+**tRPC is scaffolded but unused.** `src/server/api/root.ts` is an empty router. All server logic lives in **REST route handlers under `src/app/api/**/route.ts`**. Do not add tRPC procedures — follow the existing REST pattern. The client calls these via `fetch`(often wrapped in hooks under`src/hooks/`).
 
 **Authentication & authorization** is the most important cross-cutting concern:
-- Two NextAuth providers, each toggled by env (`AUTH_LDAP_ENABLED`, `AUTH_MS_ENABLED`): LDAP credentials and Azure AD / Entra. See `src/lib/auth.ts`. Roles are `admin | teacher | student | user` (note `staff` below is an access *tier*, satisfied by teacher-or-admin, not a role); Entra roles are re-resolved on a timer (app-only Graph call, `resolveMicrosoftAccess`) so removed users lose access within ~15 min rather than at JWT expiry.
+
+- Two NextAuth providers, each toggled by env (`AUTH_LDAP_ENABLED`, `AUTH_MS_ENABLED`): LDAP credentials and Azure AD / Entra. See `src/lib/auth.ts`. Roles are `admin | teacher | student | user` (note `staff` below is an access _tier_, satisfied by teacher-or-admin, not a role); Entra roles are re-resolved on a timer (app-only Graph call, `resolveMicrosoftAccess`) so removed users lose access within ~15 min rather than at JWT expiry.
 - **Access tiers** (`public | session | staff | admin`) are defined in one table: `src/lib/api-access.ts` (`API_ACCESS_RULES`, most-specific-prefix-first). Unmatched routes default to `staff` — new routes are protected by default.
 - **Two enforcement layers, both driven by that table:** (1) `src/middleware.ts` checks every `/api/*` request at the edge; (2) route handlers wrap themselves with `withSession` / `withStaff` / `withAdmin` or call `denyUnlessAccess(tier)` from `src/lib/api-guard.ts` (defence in depth — middleware is easy to mis-scope). When adding a route, update the rule table AND add a handler guard.
 - Note some endpoints under `/api/admin/settings` and `/api/admin/grades` are deliberately `staff`, not `admin`, because they're used during schedule creation.
@@ -69,8 +70,10 @@ CI (`.github/workflows/node.js.yaml`) runs typecheck → vitest → lint on the 
 **Data model** (`prisma/schema.prisma`): Students/Teachers/Classes carry `externalId`/`externalSource`/`isActive`/`lastSyncedAt` for directory sync (soft-deactivate, never hard-delete synced entities). Key relations: a `Schedule` has normalized `ScheduleTurn`/`ScheduleWeek` rows (the legacy `scheduleData` JSON blob is deprecated and null — see `refactor_progress.md` / `docs/MIGRATION_GUIDE.md`). `Student.groupId` is the source of truth for group membership; `GroupAssignment` is a denormalized cache kept in sync by app logic (see `docs/ARCHITECTURE.md`). Grades live in `Grade`/`FinalGrade`/`NotenEntry`; `SchoolYear` scopes most records by year with a semester change date.
 
 **Feature domains:**
+
 - **Schedule** (`src/app/schedules`, `src/components/schedule`, `src/hooks/use-schedule-*`): create rotation plans, assign student groups and teachers, generate PDFs.
 - **Notensammler & Noten** (`src/app/notensammler`, `src/app/noten`, `src/lib/grades.ts`): grade entry/collection. These were recently split out of "god components" (commit b10f587) — keep logic factored, shared rules in `src/lib/grades.ts`.
+- **Notifications** (`src/lib/notifications.ts`, `src/types/notifications.ts`, `src/app/api/notifications`, `src/components/notification-bell.tsx`): the in-app bell. Rows store a `type` plus interpolation `params`, never rendered text — the message lives in the i18next catalogue, so an old notification still renders in both languages, and `src/types/__tests__/notifications.test.ts` fails if a type has no message. Writers call `notifyQuietly` / the `_notify.ts` helpers beside each route: emission is best-effort and must never fail the save that caused it. The actor is never notified, deactivated teachers are dropped, and a `dedupeKey` collapses repeat events onto the recipient's existing _unread_ row. See `docs/API/notifications/README.md`.
 - **Directory sync** (`src/lib/directory-sync.ts`, `teacher-sync.ts`, `class-student-sync.ts`, `src/app/api/sync/run`): pulls users/classes from LDAP or Entra. The unattended `/api/sync/run` endpoint authenticates via a shared-secret header, not a session.
 - **Notenmanagement integration** (`src/lib/notenmanagement/`, `src/app/api/noten*/`): proxies to an external Notenmanagement system; `client.ts` is the single entry point with a bearer-token-then-password retry ladder.
 - **Entitlements/licensing** (`src/lib/entitlements.ts`, `src/types/entitlements.ts`): premium features gated by an external license server, cached. Server-only — clients read `GET /api/entitlements` via `EntitlementsContext`. `DISABLE_ENTITLEMENTS=true` enables everything locally.

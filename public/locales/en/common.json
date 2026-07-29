@@ -395,5 +395,25 @@
     "downloadingPdf": "Generating PDF...",
     "downloadAllClassesPdf": "Download all classes as PDF",
     "downloadingAllClassesPdf": "Generating PDF..."
+  },
+  "notifications": {
+    "title": "Notifications",
+    "empty": "No notifications",
+    "markRead": "Done",
+    "markAllRead": "Mark all as done",
+    "scheduleCreated": "New rotation plan for {{className}}",
+    "scheduleUpdated": "Rotation plan for {{className}} changed",
+    "scheduleAssignmentsChanged": "Teacher assignments for {{className}} changed",
+    "scheduleRotationChanged": "Teacher rotation for {{className}} changed",
+    "gradesEntered_one": "1 grade entered in {{className}}",
+    "gradesEntered_other": "{{count}} grades entered in {{className}}",
+    "sokratesMarked": "{{className}} ({{semester}}) has been entered into Sokrates",
+    "sokratesUnmarked": "Sokrates marker for {{className}} ({{semester}}) withdrawn",
+    "sokratesLockedAll": "All grades in {{className}} ({{semester}}) are locked",
+    "sokratesLockedMine": "Your grades in {{className}} ({{semester}}) are locked",
+    "sokratesUnlockedAll": "Grades in {{className}} ({{semester}}) are editable again",
+    "sokratesUnlockedMine": "Your grades in {{className}} ({{semester}}) are editable again",
+    "sokratesChange_one": "1 grade changed in {{className}} ({{semester}}) after the Sokrates transfer",
+    "sokratesChange_other": "{{count}} grades changed in {{className}} ({{semester}}) after the Sokrates transfer"
   }
 }

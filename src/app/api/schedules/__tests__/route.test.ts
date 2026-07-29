@@ -8,6 +8,7 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     class: {
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
     },
     schedule: {
       findFirst: vi.fn(),
@@ -24,7 +25,34 @@ vi.mock('@/lib/prisma', () => ({
     scheduleTurn: {
       deleteMany: vi.fn(),
     },
+    // POST records who authored the plan and then notifies everyone attached to
+    // the class (src/app/api/schedules/_notify.ts).
+    teacher: {
+      findUnique: vi.fn(),
+    },
+    teacherAssignment: {
+      findMany: vi.fn(),
+    },
+    teacherRotation: {
+      findMany: vi.fn(),
+    },
+    notification: {
+      findMany: vi.fn(),
+      createMany: vi.fn(),
+      updateMany: vi.fn(),
+      deleteMany: vi.fn(),
+    },
   },
+}))
+
+// POST reads the session to record the plan's author. Without these mocks
+// getServerSession() throws and every POST assertion collapses into a 500.
+vi.mock('next-auth', () => ({
+  getServerSession: vi.fn(async () => ({ user: { name: 'test.teacher', role: 'teacher' } })),
+}))
+
+vi.mock('@/lib/auth', () => ({
+  authOptions: {},
 }))
 
 describe('Schedules API', () => {
@@ -32,6 +60,11 @@ describe('Schedules API', () => {
     vi.clearAllMocks()
     vi.mocked(prisma.schoolYear.findFirst).mockResolvedValue({ id: 1 } as never)
     vi.mocked(prisma.scheduleTurn.deleteMany).mockResolvedValue({ count: 0 })
+    // No Teacher row behind the session and no class to notify about: the
+    // notification pass then short-circuits and these tests stay about the
+    // schedule write itself.
+    vi.mocked(prisma.teacher.findUnique).mockResolvedValue(null as never)
+    vi.mocked(prisma.class.findUnique).mockResolvedValue(null as never)
   })
 
   describe('GET /api/schedules', () => {
@@ -219,6 +252,8 @@ describe('Schedules API', () => {
           scheduleData: expect.anything(), // JsonNull after migration
           additionalInfo: null,
           semesterPlanning: null,
+          // No Teacher row behind the mocked session, so the author is unknown.
+          createdById: null,
           turns: {
             create: [],
           },
@@ -373,6 +408,7 @@ describe('Schedules API', () => {
           scheduleData: expect.anything(), // JsonNull after migration
           additionalInfo: null,
           semesterPlanning: 'first',
+          createdById: null,
           turns: {
             create: [],
           },
