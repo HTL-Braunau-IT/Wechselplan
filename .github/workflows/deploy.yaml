@@ -39,7 +39,21 @@ jobs:
     runs-on: [self-hosted, wechselplan]
     timeout-minutes: 20
 
+    permissions:
+      contents: read
+      packages: read
+
     steps:
+      # The image is private to the org, so the runner's Docker has to
+      # authenticate. Using the job's short-lived GITHUB_TOKEN keeps the package
+      # private without parking a long-lived registry credential on the host.
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Resolve target
         id: target
         run: |
@@ -160,3 +174,9 @@ jobs:
       - name: Prune old images
         if: always()
         run: docker image prune -af --filter 'until=168h'
+
+      # The registry credential is scoped to this job; leaving it in the
+      # runner's docker config would outlive the run for no reason.
+      - name: Log out of GHCR
+        if: always()
+        run: docker logout ghcr.io
