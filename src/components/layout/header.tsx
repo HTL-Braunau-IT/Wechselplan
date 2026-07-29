@@ -46,10 +46,25 @@ export function Header() {
 
 	// Only show menu for authenticated non-student users
 	const showMenu = session && session.user?.role !== 'student'
+	const displayName = useMemo(() => {
+		// Falls through on empty strings, not just nullish ones, so a user with a
+		// blank profile still gets something rendered.
+		const fullName = [session?.user?.firstName, session?.user?.lastName]
+			.filter(Boolean)
+			.join(' ')
+			.trim()
+		if (fullName) return fullName
+		const name = session?.user?.name?.trim()
+		if (name) return name
+		return session?.user?.email?.trim() ?? ''
+	}, [session?.user?.firstName, session?.user?.lastName, session?.user?.name, session?.user?.email])
+
 	const profileInitials = useMemo(() => {
 		const first = session?.user?.firstName?.charAt(0) ?? ''
 		const last = session?.user?.lastName?.charAt(0) ?? ''
-		return `${first}${last}`.toUpperCase() || session?.user?.name?.charAt(0)?.toUpperCase() || '?'
+		const initials = `${first}${last}`.toUpperCase()
+		if (initials) return initials
+		return session?.user?.name?.charAt(0)?.toUpperCase() ?? '?'
 	}, [session?.user?.firstName, session?.user?.lastName, session?.user?.name])
 
 	return (
@@ -135,9 +150,7 @@ export function Header() {
 									<DropdownMenuLabel>
 										<div className="flex flex-col space-y-1">
 											<p className="text-sm font-medium">
-												{[session.user?.firstName, session.user?.lastName]
-													.filter(Boolean)
-													.join(' ') || session.user?.name || session.user?.email || ''}
+												{displayName}
 											</p>
 											<p className="text-xs text-muted-foreground">
 												{t(`profile.role.${session.user?.role}`)}

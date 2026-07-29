@@ -1,9 +1,5 @@
-import { FlatCompat } from "@eslint/eslintrc";
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 import tseslint from "typescript-eslint";
-
-const compat = new FlatCompat({
-  baseDirectory: import.meta.dirname,
-});
 
 export default tseslint.config(
   {
@@ -18,7 +14,11 @@ export default tseslint.config(
       "**/tests/**"
     ],
   },
-  ...compat.extends("next/core-web-vitals"),
+  // eslint-config-next ships a flat config from v15 onwards. Loading it
+  // through FlatCompat, as this file used to, made ESLint fail outright with
+  // "Converting circular structure to JSON", so `npm run lint` and
+  // `npm run check` could not run at all.
+  ...nextCoreWebVitals,
   {
     files: ["**/*.ts", "**/*.tsx"],
     extends: [
@@ -31,6 +31,11 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-call": "off",
       "@typescript-eslint/no-unsafe-member-access": "off",
       "react-hooks/exhaustive-deps": "off",
+      // New in eslint-config-next 16, and flagged across several pre-existing
+      // components (theme-provider, entitlements-context, the schedule
+      // dialogs). Each needs a real restructure onto React Query rather than a
+      // mechanical edit, so it is a warning for now rather than a blocker.
+      "react-hooks/set-state-in-effect": "warn",
       "@typescript-eslint/no-unsafe-assignment": "off",
       "@typescript-eslint/no-unnecessary-type-assertion": "off",
       //

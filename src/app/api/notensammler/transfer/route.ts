@@ -357,9 +357,9 @@ export async function POST(request: Request) {
       if (match === null) {
         // Fallback: match by name only when it is unambiguous across Notenmanagement.
         const candidates = nmByName.get(nameKey)
-        if (candidates && candidates.length === 1) match = candidates[0]!
+        if (candidates?.length === 1) match = candidates[0]!
       }
-      if (!match || !match.klasse) {
+      if (!match?.klasse) {
         unmatched.push(`${st.lastName} ${st.firstName}`)
         continue
       }
@@ -378,7 +378,7 @@ export async function POST(request: Request) {
         const n = typeof item.note === 'number' ? item.note : (typeof item.note === 'string' ? parseInt(item.note, 10) : Number.NaN)
         if (!Number.isNaN(n) && [1, 2, 3, 4, 5].includes(n)) note = n as 1 | 2 | 3 | 4 | 5
       }
-      const klasse = klasseByMatr.get(matr) || nmClassName
+      const klasse = klasseByMatr.get(matr) ?? nmClassName
       pushNote(klasse, { Matrikelnummer: matr, Note: note, Punkte: 0.0, Kommentar: '' })
       notenCount++
     }

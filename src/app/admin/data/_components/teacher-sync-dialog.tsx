@@ -63,6 +63,7 @@ export function TeacherSyncDialog({ open, onOpenChange, onCompleted }: TeacherSy
   )
 
   const sync = useSyncPreview<TeacherSyncDiff, TeacherSyncSummary, Bucket>({
+    queryKey: 'teachers',
     previewUrl: '/api/admin/teachers/sync/preview',
     applyUrl: '/api/admin/teachers/sync/apply',
     buildSelection,
@@ -112,8 +113,8 @@ export function TeacherSyncDialog({ open, onOpenChange, onCompleted }: TeacherSy
       error={sync.error}
       canClose={sync.canClose}
       selectedCount={sync.selectedCount}
-      onReload={() => void sync.reload()}
-      onApply={() => void sync.apply()}
+      onReload={sync.reload}
+      onApply={sync.apply}
       doneContent={
         summary ? (
           <div className="space-y-4">

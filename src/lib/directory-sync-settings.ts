@@ -12,7 +12,7 @@ export interface DirectorySyncSettings {
   teacherPhotoSourcePriority: StudentPhotoSourcePriority
   lastSyncAt: Date | null
   lastSyncStatus: string | null
-  lastSyncSummary: unknown | null
+  lastSyncSummary: unknown
 }
 
 const SETTINGS_ROW_ID = 1

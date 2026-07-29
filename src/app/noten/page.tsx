@@ -940,7 +940,9 @@ export default function NotenPage() {
 				return [key, studentsData.students ?? []] as const
 			})
 		)
-		setDateSearchStudentsByGroup(Object.fromEntries(studentsEntries))
+		setDateSearchStudentsByGroup(
+			Object.fromEntries(studentsEntries) as Record<string, Student[]>
+		)
 	}, [searchDate, schoolYearId, t])
 
 	useEffect(() => {

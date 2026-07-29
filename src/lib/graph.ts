@@ -414,7 +414,7 @@ export async function getUserPhoto(userId: string): Promise<GraphUserPhoto | nul
       throw error
     }
 
-    const contentType = response.headers.get('content-type') || 'image/jpeg'
+    const contentType = response.headers.get('content-type') ?? 'image/jpeg'
     const arrayBuffer = await response.arrayBuffer()
     return {
       bytes: Buffer.from(arrayBuffer),

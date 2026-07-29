@@ -99,6 +99,7 @@ export function ClassStudentSyncDialog({
   )
 
   const sync = useSyncPreview<ClassStudentSyncDiff, ClassStudentSyncSummary, Bucket>({
+    queryKey: 'classes-students',
     previewUrl: '/api/admin/class-sync/preview',
     applyUrl: '/api/admin/class-sync/apply',
     buildSelection,
@@ -166,8 +167,8 @@ export function ClassStudentSyncDialog({
       error={sync.error}
       canClose={sync.canClose}
       selectedCount={sync.selectedCount}
-      onReload={() => void sync.reload()}
-      onApply={() => void sync.apply()}
+      onReload={sync.reload}
+      onApply={sync.apply}
       doneContent={
         summary ? (
           <div className="space-y-4">

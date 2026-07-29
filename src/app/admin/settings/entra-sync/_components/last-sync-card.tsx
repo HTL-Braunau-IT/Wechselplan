@@ -116,7 +116,10 @@ export function LastSyncCard({
         </CardDescription>
       </CardHeader>
 
-      {(lines.length > 0 || issueCount > 0 || summary.reason || summary.errors?.length) && (
+      {(lines.length > 0 ||
+        issueCount > 0 ||
+        Boolean(summary.reason) ||
+        Boolean(summary.errors?.length)) && (
         <CardContent className="space-y-2 text-sm">
           {summary.reason ? <p className="text-muted-foreground">{summary.reason}</p> : null}
 

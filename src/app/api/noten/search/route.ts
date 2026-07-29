@@ -96,7 +96,7 @@ export async function GET(request: Request) {
 		})
 		const classNameById = new Map(classRecords.map((c) => [c.id, c.name]))
 
-		let byName: SearchByNameResult[] = []
+		const byName: SearchByNameResult[] = []
 		if (nameQuery.length > 0) {
 			const memberships = await prisma.classMembership.findMany({
 				where: { classId: { in: classIds }, schoolYearId },
@@ -136,7 +136,7 @@ export async function GET(request: Request) {
 			}
 		}
 
-		let byDate: SearchByDateResult[] = []
+		const byDate: SearchByDateResult[] = []
 		if (dateQuery.length > 0) {
 			const rotations = await prisma.teacherRotation.findMany({
 				where: { teacherId: teacher.id, classId: { in: classIds } },

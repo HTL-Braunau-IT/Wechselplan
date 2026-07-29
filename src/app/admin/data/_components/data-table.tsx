@@ -120,7 +120,7 @@ export function DataTable({
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc'
     
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+    if (sortConfig?.key === key && sortConfig.direction === 'asc') {
       direction = 'desc'
     }
     
@@ -128,7 +128,7 @@ export function DataTable({
   }
 
   const getSortIcon = (key: string) => {
-    if (!sortConfig || sortConfig.key !== key) {
+    if (sortConfig?.key !== key) {
       return <ArrowUpDown className="h-4 w-4" />
     }
     

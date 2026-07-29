@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Database, Menu, Settings, X } from 'lucide-react'
@@ -85,13 +85,9 @@ function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
  * a third of a laptop viewport and pushed the data tables off-screen.
  */
 export function AdminMenu() {
+  // The drawer closes via each link's onNavigate; nothing else can navigate
+  // from inside it.
   const [isOpen, setIsOpen] = useState(false)
-  const pathname = usePathname()
-
-  // Close the drawer on navigation, otherwise it covers the page just picked.
-  useEffect(() => {
-    setIsOpen(false)
-  }, [pathname])
 
   return (
     <>
