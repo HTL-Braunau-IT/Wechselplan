@@ -286,7 +286,9 @@ function StudentCurrentAssignments({
             <AssignmentField
               icon={UserRound}
               label={t('overview.student.teacher')}
-              value={`${assignment.teacherFirstName} ${assignment.teacherLastName}`}
+              value={[assignment.teacherFirstName, assignment.teacherLastName]
+                .filter(Boolean)
+                .join(' ')}
               strong
             />
             <AssignmentField

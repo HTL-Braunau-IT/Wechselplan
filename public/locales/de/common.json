@@ -152,7 +152,8 @@
       "scheduleTime": "Unterrichtszeit",
       "breakTimes": "Pausenzeiten",
       "room": "Raum",
-      "noScheduleHint": "Für den gewählten Wochentag ist kein Wechselplan hinterlegt."
+      "noScheduleHint": "Für den gewählten Wochentag ist kein Wechselplan hinterlegt.",
+      "gradeList": "Notenliste"
     },
     "roles": {
       "teacher": "Lehrer",

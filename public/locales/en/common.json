@@ -127,6 +127,14 @@
       "thursday": "Thursday",
       "friday": "Friday"
     },
+    "student": {
+      "currentAssignments": "Current teacher assignments",
+      "teacher": "Teacher",
+      "subject": "Subject",
+      "learningContent": "Learning content",
+      "room": "Room",
+      "noAssignment": "No assignment"
+    },
     "teacher": {
       "currentClass": "Current Class",
       "currentTerm": "Current Term",
@@ -144,7 +152,8 @@
       "scheduleTime": "Schedule Time",
       "breakTimes": "Break Times",
       "room": "Room",
-      "noScheduleHint": "No schedule is set up for the selected weekday."
+      "noScheduleHint": "No schedule is set up for the selected weekday.",
+      "gradeList": "Grade list"
     },
     "roles": {
       "teacher": "Teacher",

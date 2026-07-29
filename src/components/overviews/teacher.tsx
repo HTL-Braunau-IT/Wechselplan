@@ -84,7 +84,10 @@ export function TeacherOverview() {
   const today = new Date().getDay()
 
   const fetchData = async (weekday: number) => {
-    if (!session?.user?.name) return
+    if (!session?.user?.name) {
+      setLoading(false)
+      return
+    }
     setScheduleData(null)
     setError(null)
     setLoading(true)
@@ -92,12 +95,11 @@ export function TeacherOverview() {
       const response = await fetch(
         `/api/schedules/data?teacher=${session.user.name}&weekday=${weekday}`,
       )
-      const data = await response.json()
-
       if (!response.ok) {
         setError(t('overview.teacher.noSchedule'))
         return
       }
+      const data = await response.json()
 
       // Check if we have any schedules
       if (
@@ -110,6 +112,8 @@ export function TeacherOverview() {
       }
 
       setScheduleData(data as TeacherScheduleData)
+    } catch {
+      setError(t('overview.teacher.noSchedule'))
     } finally {
       setLoading(false)
     }
@@ -325,10 +329,11 @@ export function TeacherOverview() {
           const additionalInfo = scheduleData.schedules
             .find(sList => sList.some(s => Number(s.classId) === assignment.classId))
             ?.at(0)?.additionalInfo
-          const hasAdditionalInfo = Boolean(additionalInfo && additionalInfo.trim() !== '—')
+          const trimmedInfo = additionalInfo?.trim() ?? ''
+          const hasAdditionalInfo = trimmedInfo !== '' && trimmedInfo !== '—'
 
           const students = getStudentsForGroup(actualGroupId ?? undefined, assignment.classId).sort(
-            (a, b) => a.lastName.localeCompare(b.lastName),
+            (a, b) => a.lastName.localeCompare(b.lastName, 'de'),
           )
 
           return (
@@ -363,7 +368,7 @@ export function TeacherOverview() {
                     }
                   >
                     <ListChecks className="mr-2 h-4 w-4" />
-                    Notenliste
+                    {t('overview.teacher.gradeList')}
                   </Link>
                 </Button>
               </div>
@@ -437,7 +442,7 @@ export function TeacherOverview() {
                       <p className="text-muted-foreground mb-0.5 text-xs font-medium">
                         {t('overview.teacher.additionalInfo')}
                       </p>
-                      <p className="font-medium">{additionalInfo}</p>
+                      <p className="font-medium">{trimmedInfo}</p>
                     </div>
                   </div>
                 )}
