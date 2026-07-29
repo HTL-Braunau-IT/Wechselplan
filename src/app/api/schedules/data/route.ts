@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { normalizeUsername } from '@/lib/username'
 import { denyUnlessAccess } from '@/lib/api-guard'
 
@@ -31,11 +34,23 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Teacher username is required' }, { status: 400 })
     }
 
-    const teacher = await prisma.teacher.findUnique({
+    let teacher = await prisma.teacher.findUnique({
       where: {
         username: teacherUsername,
       },
     })
+
+    // Callers (the Noten page auto-select, the teacher overview) pass
+    // session.user.name, which after the Entra migration is a display name that
+    // no longer matches the stored username. When the requested teacher is the
+    // signed-in user, fall back to the robust session resolver. Gated on the
+    // names matching so this can never return a different teacher's schedule.
+    if (!teacher) {
+      const session = await getServerSession(authOptions)
+      if (session?.user?.name && normalizeUsername(session.user.name) === teacherUsername) {
+        teacher = await resolveSessionTeacher(session)
+      }
+    }
 
     if (!teacher) {
       console.warn('[username-match] Teacher not found (schedules/data)', {

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
+import { resolveSessionStudent } from '@/lib/session-student'
+import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { resolveStudentPhoto } from '@/lib/student-photo-source'
 import { resolveTeacherPhoto } from '@/lib/teacher-photo-source'
 import { denyUnlessAccess } from '@/lib/api-guard'
@@ -21,18 +22,12 @@ export async function GET(request: Request) {
     | null = null
 
   if (session.user.role === 'teacher' || session.user.role === 'admin') {
-    const teacher = await prisma.teacher.findFirst({
-      where: { username: session.user.name },
-      select: { id: true },
-    })
+    const teacher = await resolveSessionTeacher(session)
     if (teacher) {
       photo = await resolveTeacherPhoto(teacher.id)
     }
   } else if (session.user.role === 'student') {
-    const student = await prisma.student.findFirst({
-      where: { username: session.user.name },
-      select: { id: true },
-    })
+    const student = await resolveSessionStudent(session)
     if (student) {
       photo = await resolveStudentPhoto(student.id)
     }
