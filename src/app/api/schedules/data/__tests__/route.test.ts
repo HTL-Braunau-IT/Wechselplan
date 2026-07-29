@@ -26,6 +26,10 @@ vi.mock('@/lib/prisma', () => ({
   },
 }))
 vi.mock('@/lib/sentry', () => ({ captureError: vi.fn() }))
+// The route falls back to the session resolver only when the username misses;
+// these tests drive the username path, so a null session skips the fallback.
+vi.mock('next-auth', () => ({ getServerSession: vi.fn(async () => null) }))
+vi.mock('@/lib/auth', () => ({ authOptions: {} }))
 
 describe('Schedule Data API', () => {
   beforeEach(() => {
