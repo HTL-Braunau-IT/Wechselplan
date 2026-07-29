@@ -5,15 +5,13 @@
 > of the code before those commits, not the state today. For the current Entra picture see
 > [`ENTRA_MIGRATION.md`](./ENTRA_MIGRATION.md).
 >
+> `npm run check` now passes: **0 TypeScript errors, 0 lint errors, and `format:check` clean.**
+>
 > Still open after that work:
 >
-> - `npm run format:check` fails repo-wide. Prettier's defaults disagree with the codebase's actual
->   style (double vs. single quotes, semicolons), so running it produces a 276-file diff. That
->   belongs in its own formatting-only commit.
-> - 38 TypeScript errors in test fixture files. The mocks predate several schema migrations and are
->   missing fields like `schoolYearId` and the sync lifecycle columns, so `npm run typecheck` is red
->   even though `src/` itself is clean.
-> - 31 pre-existing test failures across 7 files, unchanged by this work.
+> - 27 test failures across 5 files (`schedules`, `user-roles` ×2, `export`, `export/schedule-dates`),
+>   all pre-existing. Down from 31 — fixing the fixtures also fixed two files that were calling
+>   `GET()` without the `Request` their handler reads.
 > - `react-hooks/set-state-in-effect` (new in eslint-config-next 16) warns on five pre-existing
 >   components. Each needs restructuring onto React Query rather than a mechanical edit.
 > - The four Entra items listed under "Remaining work" in `ENTRA_MIGRATION.md`.
