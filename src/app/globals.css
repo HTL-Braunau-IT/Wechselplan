@@ -1,7 +1,13 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-@import "tailwindcss";
-@import "../styles/globals.css";
+/* IBM Plex Sans, self-hosted out of node_modules. No request leaves the browser
+   for a font, which keeps the app readable on a school network without internet
+   and off the wrong side of the Google-Fonts GDPR question. `wght.css` is the
+   variable weight axis (100–700) split by unicode-range, so a German page only
+   ever downloads the latin and latin-ext files (~77 KB). */
+@import '@fontsource-variable/ibm-plex-sans/wght.css';
+@import '@fontsource-variable/ibm-plex-sans/wght-italic.css';
+@import 'tailwindcss';
+@import '../styles/globals.css';
 
 body {
   min-height: 100vh;
-} 
+}

@@ -34,7 +34,7 @@ const styles = StyleSheet.create({
     paddingBottom: 34,
     paddingHorizontal: MARGIN_X,
     backgroundColor: colors.surface,
-    fontFamily: fonts.sans,
+    ...fonts.regular,
     color: colors.ink,
   },
 
@@ -58,9 +58,9 @@ const styles = StyleSheet.create({
     // as a muddy off-colour rather than blending them.
     borderRightColor: '#4B7BE5',
   },
-  headTitle: { fontFamily: fonts.sansBold, fontSize: 8, color: colors.surface, letterSpacing: 0.4 },
+  headTitle: { ...fonts.bold, fontSize: 8, color: colors.surface, letterSpacing: 0.4 },
   headMeta: {
-    fontFamily: fonts.sans,
+    ...fonts.regular,
     fontSize: 5.8,
     color: colors.surface,
     opacity: 0.85,
@@ -77,10 +77,10 @@ const styles = StyleSheet.create({
     borderRightColor: colors.line,
   },
   cellHoliday: { backgroundColor: '#FFE4E6' },
-  weekText: { fontFamily: fonts.sansBold, fontSize: 7.5, color: colors.ink },
-  weekTextHoliday: { fontFamily: fonts.sansBold, fontSize: 7.5, color: colors.danger },
-  dateText: { fontFamily: fonts.sans, fontSize: 6.2, color: colors.muted, marginTop: 1 },
-  dateTextHoliday: { fontFamily: fonts.sans, fontSize: 6.2, color: colors.danger, marginTop: 1 },
+  weekText: { ...fonts.bold, fontSize: 7.5, color: colors.ink },
+  weekTextHoliday: { ...fonts.bold, fontSize: 7.5, color: colors.danger },
+  dateText: { ...fonts.regular, fontSize: 6.2, color: colors.muted, marginTop: 1 },
+  dateTextHoliday: { ...fonts.regular, fontSize: 6.2, color: colors.danger, marginTop: 1 },
 
   legend: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
   legendSwatch: {
@@ -92,9 +92,9 @@ const styles = StyleSheet.create({
     borderColor: colors.danger,
     marginRight: 4,
   },
-  legendText: { fontFamily: fonts.sans, fontSize: 6.2, color: colors.muted },
+  legendText: { ...fonts.regular, fontSize: 6.2, color: colors.muted },
 
-  empty: { fontFamily: fonts.sansItalic, fontSize: 8, color: colors.faint, marginTop: 16 },
+  empty: { ...fonts.italic, fontSize: 8, color: colors.faint, marginTop: 16 },
 })
 
 /**

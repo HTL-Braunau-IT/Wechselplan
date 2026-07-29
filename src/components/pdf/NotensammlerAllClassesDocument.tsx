@@ -48,11 +48,11 @@ const styles = StyleSheet.create({
     paddingBottom: 34,
     paddingHorizontal: MARGIN_X,
     backgroundColor: colors.surface,
-    fontFamily: fonts.sans,
+    ...fonts.regular,
     color: colors.ink,
   },
 
-  columns: { flexDirection: 'row', marginTop: 12, alignItems: 'flex-start' },
+  columns: { flexDirection: 'row', marginTop: 9, alignItems: 'flex-start' },
   card: {
     width: COLUMN_WIDTH,
     borderWidth: 0.75,
@@ -65,9 +65,9 @@ const styles = StyleSheet.create({
     paddingVertical: 3.5,
     paddingHorizontal: 5,
   },
-  cardTitle: { fontFamily: fonts.sansBold, fontSize: 8, color: colors.surface, letterSpacing: 0.3 },
+  cardTitle: { ...fonts.bold, fontSize: 8, color: colors.surface, letterSpacing: 0.3 },
   cardSubtitle: {
-    fontFamily: fonts.sans,
+    ...fonts.regular,
     fontSize: 6,
     color: colors.surface,
     opacity: 0.85,
@@ -87,30 +87,30 @@ const styles = StyleSheet.create({
     borderRightColor: colors.line,
   },
   headText: {
-    fontFamily: fonts.sansBold,
+    ...fonts.bold,
     fontSize: 5.8,
     letterSpacing: 0.3,
     color: colors.inkSoft,
     textTransform: 'uppercase',
   },
   headTextCenter: {
-    fontFamily: fonts.sansBold,
+    ...fonts.bold,
     fontSize: 5.8,
     color: colors.inkSoft,
     textAlign: 'center',
   },
 
-  row: { flexDirection: 'row', alignItems: 'stretch', minHeight: 11.5 },
+  row: { flexDirection: 'row', alignItems: 'stretch', minHeight: 10.8 },
   rowAlt: { backgroundColor: colors.surfaceAlt },
   cell: {
     justifyContent: 'center',
     paddingHorizontal: 2,
-    paddingVertical: 1.2,
+    paddingVertical: 0.9,
     borderRightWidth: 0.5,
     borderRightColor: colors.line,
   },
-  nrText: { fontFamily: fonts.sans, fontSize: 5.8, color: colors.faint, textAlign: 'center' },
-  nameText: { fontFamily: fonts.sans, fontSize: 6.8, color: colors.ink },
+  nrText: { ...fonts.regular, fontSize: 5.8, color: colors.faint, textAlign: 'center' },
+  nameText: { ...fonts.regular, fontSize: 6.8, color: colors.ink },
   groupCell: { alignItems: 'center', justifyContent: 'center' },
   groupChip: {
     width: 11,
@@ -119,23 +119,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  groupChipText: { fontFamily: fonts.sansBold, fontSize: 5.5 },
-  gradeText: { fontFamily: fonts.sansBold, fontSize: 7.5, color: colors.ink, textAlign: 'center' },
+  groupChipText: { ...fonts.bold, fontSize: 5.5 },
+  gradeText: { ...fonts.bold, fontSize: 7.5, color: colors.ink, textAlign: 'center' },
   gradeSentinel: {
-    fontFamily: fonts.sans,
+    ...fonts.regular,
     fontSize: 5.5,
     color: colors.muted,
     textAlign: 'center',
   },
 
   cardEmpty: {
-    fontFamily: fonts.sansItalic,
+    ...fonts.italic,
     fontSize: 6.5,
     color: colors.faint,
     padding: 6,
     textAlign: 'center',
   },
-  legendNote: { fontFamily: fonts.sansItalic, fontSize: 6, color: colors.muted, marginTop: 8 },
+  legendNote: { ...fonts.italic, fontSize: 6, color: colors.muted, marginTop: 6 },
 })
 
 function gradeText(grade: number | null | undefined): { text: string; sentinel: boolean } {

@@ -62,7 +62,7 @@ const styles = StyleSheet.create({
     paddingBottom: 34,
     paddingHorizontal: MARGIN_X,
     backgroundColor: colors.surface,
-    fontFamily: fonts.sans,
+    ...fonts.regular,
     color: colors.ink,
   },
 
@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3.5,
   },
   semesterTitleText: {
-    fontFamily: fonts.sansBold,
+    ...fonts.bold,
     fontSize: 7,
     letterSpacing: 1.2,
     textTransform: 'uppercase',
@@ -100,14 +100,14 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.lineStrong,
   },
   headText: {
-    fontFamily: fonts.sansBold,
+    ...fonts.bold,
     fontSize: 6,
     letterSpacing: 0.4,
     color: colors.inkSoft,
     textTransform: 'uppercase',
   },
   headTextCenter: {
-    fontFamily: fonts.sansBold,
+    ...fonts.bold,
     fontSize: 6,
     letterSpacing: 0.3,
     color: colors.inkSoft,
@@ -123,8 +123,8 @@ const styles = StyleSheet.create({
     borderRightWidth: 0.5,
     borderRightColor: colors.line,
   },
-  nrText: { fontFamily: fonts.sans, fontSize: 6.2, color: colors.faint, textAlign: 'center' },
-  nameText: { fontFamily: fonts.sans, fontSize: 7.2, color: colors.ink },
+  nrText: { ...fonts.regular, fontSize: 6.2, color: colors.faint, textAlign: 'center' },
+  nameText: { ...fonts.regular, fontSize: 7.2, color: colors.ink },
   groupCell: { alignItems: 'center', justifyContent: 'center' },
   groupChip: {
     width: 12,
@@ -133,14 +133,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  groupChipText: { fontFamily: fonts.sansBold, fontSize: 6 },
+  groupChipText: { ...fonts.bold, fontSize: 6 },
 
-  gradeText: { fontFamily: fonts.sans, fontSize: 7.5, color: colors.ink, textAlign: 'center' },
-  gradeSentinel: { fontFamily: fonts.sans, fontSize: 6, color: colors.muted, textAlign: 'center' },
-  avgText: { fontFamily: fonts.sansBold, fontSize: 7.5, color: colors.ink, textAlign: 'center' },
-  finalText: { fontFamily: fonts.sansBold, fontSize: 7.5, textAlign: 'center' },
+  gradeText: { ...fonts.regular, fontSize: 7.5, color: colors.ink, textAlign: 'center' },
+  gradeSentinel: { ...fonts.regular, fontSize: 6, color: colors.muted, textAlign: 'center' },
+  avgText: { ...fonts.bold, fontSize: 7.5, color: colors.ink, textAlign: 'center' },
+  finalText: { ...fonts.bold, fontSize: 7.5, textAlign: 'center' },
   conductText: {
-    fontFamily: fonts.sansBold,
+    ...fonts.bold,
     fontSize: 6.8,
     color: colors.inkSoft,
     textAlign: 'center',
@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
 
   legend: { marginTop: 8, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
   legendLabel: {
-    fontFamily: fonts.sansBold,
+    ...fonts.bold,
     fontSize: 6,
     letterSpacing: 0.7,
     color: colors.faint,
@@ -158,11 +158,11 @@ const styles = StyleSheet.create({
     marginBottom: 3,
   },
   legendItem: { flexDirection: 'row', alignItems: 'center', marginRight: 12, marginBottom: 3 },
-  legendCode: { fontFamily: fonts.sansBold, fontSize: 6.2, color: colors.brandInk },
-  legendName: { fontFamily: fonts.sans, fontSize: 6.2, color: colors.inkSoft, marginLeft: 3 },
-  legendNote: { fontFamily: fonts.sansItalic, fontSize: 6, color: colors.muted, marginTop: 2 },
+  legendCode: { ...fonts.bold, fontSize: 6.2, color: colors.brandInk },
+  legendName: { ...fonts.regular, fontSize: 6.2, color: colors.inkSoft, marginLeft: 3 },
+  legendNote: { ...fonts.italic, fontSize: 6, color: colors.muted, marginTop: 2 },
 
-  empty: { fontFamily: fonts.sansItalic, fontSize: 8, color: colors.faint, marginTop: 16 },
+  empty: { ...fonts.italic, fontSize: 8, color: colors.faint, marginTop: 16 },
 })
 
 /**

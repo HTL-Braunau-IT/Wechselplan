@@ -19,6 +19,11 @@ const nextConfig = {
   // path, so name them explicitly.
   outputFileTracingIncludes: {
     '/api/export/notenliste': ['./src/app/templates/excel/**'],
+    // Every route that renders a PDF reads the IBM Plex Sans TTFs off disk.
+    '/api/export': ['./src/lib/pdf/fonts/**'],
+    '/api/export/schedule-dates': ['./src/lib/pdf/fonts/**'],
+    '/api/notensammler/pdf': ['./src/lib/pdf/fonts/**'],
+    '/api/notensammler/pdf/all': ['./src/lib/pdf/fonts/**'],
   },
   // `next build` re-runs eslint and tsc, which the CI `verify` job has already
   // done — and the `image` job depends on `verify`, so a build that gets this

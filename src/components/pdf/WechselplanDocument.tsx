@@ -61,13 +61,13 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     paddingHorizontal: MARGIN_X,
     backgroundColor: colors.surface,
-    fontFamily: fonts.sans,
+    ...fonts.regular,
     color: colors.ink,
   },
 
-  band: { marginTop: 9 },
+  band: { marginTop: 7 },
   bandHeading: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 5 },
-  bandHint: { fontFamily: fonts.sans, fontSize: 6.5, color: colors.faint, marginLeft: 8 },
+  bandHint: { ...fonts.regular, fontSize: 6.5, color: colors.faint, marginLeft: 8 },
 
   /* --- Gruppeneinteilung --- */
   groupRow: { flexDirection: 'row' },
@@ -82,32 +82,32 @@ const styles = StyleSheet.create({
   groupCardHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 4,
+    paddingVertical: 3.4,
     paddingHorizontal: 6,
   },
   groupCardTitle: {
-    fontFamily: fonts.sansBold,
+    ...fonts.bold,
     fontSize: 8.2,
     color: colors.surface,
     marginLeft: 5,
     letterSpacing: 0.4,
   },
   groupCardCount: {
-    fontFamily: fonts.sans,
+    ...fonts.regular,
     fontSize: 6.5,
     color: colors.surface,
     marginLeft: 'auto',
     opacity: 0.85,
   },
-  studentRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 2.6, paddingLeft: 6 },
+  studentRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 1.9, paddingLeft: 6 },
   studentIndex: {
-    fontFamily: fonts.sans,
+    ...fonts.regular,
     fontSize: 6.4,
     color: colors.faint,
     width: 13,
   },
-  studentName: { fontFamily: fonts.sans, fontSize: 7.8, color: colors.ink },
-  studentEmpty: { fontFamily: fonts.sans, fontSize: 7.8, color: colors.faint },
+  studentName: { ...fonts.regular, fontSize: 7.8, color: colors.ink },
+  studentEmpty: { ...fonts.regular, fontSize: 7.8, color: colors.faint },
 
   /* --- Einsatzplan grid --- */
   grid: { borderWidth: 0.75, borderColor: colors.lineStrong, borderRadius: 3, overflow: 'hidden' },
@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
     borderRightColor: colors.line,
   },
   headLabelText: {
-    fontFamily: fonts.sansBold,
+    ...fonts.bold,
     fontSize: 7,
     letterSpacing: 0.5,
     color: colors.inkSoft,
@@ -130,32 +130,32 @@ const styles = StyleSheet.create({
   headTurnusCell: {
     backgroundColor: colors.brandTint,
     alignItems: 'center',
-    paddingVertical: 4,
+    paddingVertical: 3,
     paddingHorizontal: 2,
     borderLeftWidth: 0.5,
     borderLeftColor: colors.line,
   },
-  headTurnusTitle: { fontFamily: fonts.sansBold, fontSize: 8, color: colors.brandInk },
-  headTurnusDates: { fontFamily: fonts.sans, fontSize: 6.4, color: colors.inkSoft, marginTop: 2 },
-  headTurnusMeta: { fontFamily: fonts.sans, fontSize: 6, color: colors.muted, marginTop: 1.5 },
+  headTurnusTitle: { ...fonts.bold, fontSize: 8, color: colors.brandInk },
+  headTurnusDates: { ...fonts.regular, fontSize: 6.4, color: colors.inkSoft, marginTop: 2 },
+  headTurnusMeta: { ...fonts.regular, fontSize: 6, color: colors.muted, marginTop: 1.5 },
 
   periodBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.brand,
-    paddingVertical: 4,
+    paddingVertical: 3.4,
     paddingHorizontal: 6,
   },
   periodName: {
-    fontFamily: fonts.sansBold,
+    ...fonts.bold,
     fontSize: 8.2,
     letterSpacing: 1,
     color: colors.surface,
     textTransform: 'uppercase',
   },
-  periodTime: { fontFamily: fonts.sans, fontSize: 7.6, color: colors.surface, marginLeft: 9 },
+  periodTime: { ...fonts.regular, fontSize: 7.6, color: colors.surface, marginLeft: 9 },
   periodBreak: {
-    fontFamily: fonts.sans,
+    ...fonts.regular,
     fontSize: 6.2,
     color: colors.surface,
     marginLeft: 'auto',
@@ -171,14 +171,14 @@ const styles = StyleSheet.create({
   cell: {
     justifyContent: 'center',
     paddingHorizontal: 6,
-    paddingVertical: 4.8,
+    paddingVertical: 3.9,
     borderRightWidth: 0.5,
     borderRightColor: colors.line,
   },
-  teacherName: { fontFamily: fonts.sansBold, fontSize: 8, color: colors.ink },
-  cellText: { fontFamily: fonts.sans, fontSize: 7.4, color: colors.inkSoft },
+  teacherName: { ...fonts.bold, fontSize: 8, color: colors.ink },
+  cellText: { ...fonts.regular, fontSize: 7.4, color: colors.inkSoft },
   cellTextCenter: {
-    fontFamily: fonts.sans,
+    ...fonts.regular,
     fontSize: 7.4,
     color: colors.inkSoft,
     textAlign: 'center',
@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 0.5,
     borderLeftColor: colors.surface,
   },
-  groupCellText: { fontFamily: fonts.sansBold, fontSize: 11 },
+  groupCellText: { ...fonts.bold, fontSize: 11 },
 
   /* --- footer strip --- */
   footerStrip: { flexDirection: 'row', marginTop: 8, alignItems: 'stretch' },
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   breakLabel: {
-    fontFamily: fonts.sansBold,
+    ...fonts.bold,
     fontSize: 6,
     letterSpacing: 0.7,
     color: colors.faint,
@@ -211,8 +211,8 @@ const styles = StyleSheet.create({
   },
   breakList: { flexDirection: 'row', alignItems: 'center' },
   breakItem: { marginRight: 12 },
-  breakItemName: { fontFamily: fonts.sans, fontSize: 6.2, color: colors.muted },
-  breakItemTime: { fontFamily: fonts.sansBold, fontSize: 7.2, color: colors.inkSoft },
+  breakItemName: { ...fonts.regular, fontSize: 6.2, color: colors.muted },
+  breakItemTime: { ...fonts.bold, fontSize: 7.2, color: colors.inkSoft },
   noteBox: {
     flexGrow: 1,
     flexBasis: 0,
@@ -226,16 +226,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   noteLabel: {
-    fontFamily: fonts.sansBold,
+    ...fonts.bold,
     fontSize: 6,
     letterSpacing: 0.7,
     color: colors.warnInk,
     textTransform: 'uppercase',
     marginBottom: 2,
   },
-  noteText: { fontFamily: fonts.sans, fontSize: 7, color: colors.ink, lineHeight: 1.35 },
+  noteText: { ...fonts.regular, fontSize: 7, color: colors.ink, lineHeight: 1.35 },
 
-  empty: { fontFamily: fonts.sansItalic, fontSize: 7, color: colors.faint, paddingVertical: 8 },
+  empty: { ...fonts.italic, fontSize: 7, color: colors.faint, paddingVertical: 8 },
 })
 
 /**

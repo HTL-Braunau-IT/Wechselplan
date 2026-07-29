@@ -14,10 +14,14 @@ vi.mock('@/lib/sentry', () => ({
   captureError: vi.fn(),
 }))
 
+// This suite mocks the document component too, so the renderer never runs for
+// real. `Font` still has to exist: renderPdfToBuffer registers IBM Plex Sans
+// before rendering, and a bare `{ pdf }` mock makes that throw.
 vi.mock('@react-pdf/renderer', () => ({
   pdf: vi.fn().mockReturnValue({
     toBuffer: vi.fn().mockResolvedValue(Buffer.from('mock-pdf-content')),
   }),
+  Font: { register: vi.fn() },
 }))
 
 vi.mock('@/components/ScheduleTurnusPDF', () => ({

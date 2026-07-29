@@ -6,11 +6,11 @@
  * portrait 595.28 x 841.89pt — the layouts below are budgeted against those
  * numbers, so keep sizes in pt rather than mm.
  *
- * Only the four PDF-core fonts are used (Helvetica and friends). They ship
- * inside the renderer, cover the German glyph set via WinAnsi, and need no
- * binary asset on disk — which matters because the app is built into an Alpine
- * image where a stray font path is an easy way to break the build.
+ * Type is IBM Plex Sans, the same family the app renders in, vendored as static
+ * TTFs under `./fonts` and registered by `./register-fonts`.
  */
+
+import { PLEX_SANS } from './register-fonts'
 
 export const colors = {
   ink: '#0F172A',
@@ -66,10 +66,18 @@ export function groupColor(groupId: number | null | undefined): GroupColor {
   return groupPalette[(Math.trunc(groupId) - 1) % groupPalette.length] ?? neutralGroup
 }
 
+/**
+ * Type ramp, spread into a style rather than assigned to `fontFamily` — a
+ * weight is two properties, not a family name:
+ *
+ *   headline: { ...fonts.bold, fontSize: 15 }
+ */
 export const fonts = {
-  sans: 'Helvetica',
-  sansBold: 'Helvetica-Bold',
-  sansItalic: 'Helvetica-Oblique',
+  regular: { fontFamily: PLEX_SANS, fontWeight: 400 },
+  /** Small uppercase labels; 600 holds its colour at 6–7pt where 700 blots. */
+  semibold: { fontFamily: PLEX_SANS, fontWeight: 600 },
+  bold: { fontFamily: PLEX_SANS, fontWeight: 700 },
+  italic: { fontFamily: PLEX_SANS, fontWeight: 400, fontStyle: 'italic' },
 } as const
 
 /** A4 page boxes in pt, so layouts can budget space explicitly. */

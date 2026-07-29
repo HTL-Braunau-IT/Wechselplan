@@ -9,13 +9,13 @@ type Style = NonNullable<Exclude<React.ComponentProps<typeof View>['style'], rea
 
 const styles = StyleSheet.create({
   docTitle: {
-    fontFamily: fonts.sansBold,
+    ...fonts.bold,
     fontSize: 15,
     letterSpacing: 0.6,
     color: colors.ink,
   },
   docSubtitle: {
-    fontFamily: fonts.sans,
+    ...fonts.regular,
     fontSize: 8.5,
     color: colors.muted,
     marginTop: 2,
@@ -33,20 +33,20 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   metaLabel: {
-    fontFamily: fonts.sans,
+    ...fonts.regular,
     fontSize: 6,
     letterSpacing: 0.7,
     color: colors.faint,
     textTransform: 'uppercase',
   },
   metaValue: {
-    fontFamily: fonts.sansBold,
+    ...fonts.bold,
     fontSize: 8,
     color: colors.inkSoft,
     marginTop: 1.5,
   },
   sectionLabel: {
-    fontFamily: fonts.sansBold,
+    ...fonts.bold,
     fontSize: 7.5,
     letterSpacing: 0.8,
     color: colors.brandInk,
@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   badgeText: {
-    fontFamily: fonts.sansBold,
+    ...fonts.bold,
     fontSize: 6.5,
     color: colors.surface,
   },
@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   footerText: {
-    fontFamily: fonts.sans,
+    ...fonts.regular,
     fontSize: 6,
     color: colors.faint,
   },
