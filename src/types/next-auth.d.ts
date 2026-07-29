@@ -21,7 +21,7 @@ declare module 'next-auth/jwt' {
     firstName?: string | null
     lastName?: string | null
     /** Which provider issued this token; drives whether roles are re-resolved. */
-    provider?: 'azure-ad' | 'ldap'
+    provider?: 'azure-ad'
     /** Epoch millis of the last Entra membership check, for periodic refresh. */
     accessCheckedAt?: number
   }

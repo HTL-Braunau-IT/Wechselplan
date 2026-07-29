@@ -39,8 +39,6 @@ const nextConfig = {
       },
     ]
   },
-  // Add configuration for Node.js runtime
-  serverExternalPackages: ['ldapjs'],
   experimental: {
     useLightningcss: false,
     serverActions: {

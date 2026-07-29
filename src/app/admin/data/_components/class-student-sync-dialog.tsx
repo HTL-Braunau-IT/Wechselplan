@@ -469,6 +469,11 @@ export function ClassStudentSyncDialog({
                               <span className="text-xs">
                                 {r.classChange.fromClassName ?? '–'} →{' '}
                                 {r.classChange.toGroupDisplayName}
+                                {r.classChange.clearedGroupId != null && (
+                                  <span className="text-muted-foreground block">
+                                    Gruppe {r.classChange.clearedGroupId} wird aufgehoben
+                                  </span>
+                                )}
                               </span>
                             ) : (
                               <span className="text-muted-foreground text-xs">–</span>

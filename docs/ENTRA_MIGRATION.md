@@ -3,6 +3,11 @@
 Status as of 2026-07-29. Replaces `.cursor/plans/entra-migration-progress.md`, which listed every
 phase as `todo` long after most of them had shipped and was therefore actively misleading.
 
+**LDAP has been removed from the codebase.** Entra is the only identity provider and the only
+directory source. See [LDAP retirement](#ldap-retirement) for what went and what the deployment
+still has to do. The class-move semantics that sync depends on are written up separately in
+[`CLASS_MOVE.md`](./CLASS_MOVE.md).
+
 ---
 
 ## Locked decisions
@@ -25,7 +30,7 @@ These have not changed and the implementation follows them:
 
 | Area | Where | Notes |
 |---|---|---|
-| Parallel LDAP + Microsoft login | `src/lib/auth.ts` | Toggled with `AUTH_LDAP_ENABLED` / `AUTH_MS_ENABLED`; Microsoft is the primary button on `/login`. |
+| Microsoft login | `src/lib/auth.ts` | The only provider. `/login` is a single button; the LDAP form and both `AUTH_*_ENABLED` toggles are gone. |
 | Role resolution | `src/lib/auth.ts` → `resolveMicrosoftAccess` | App-only Graph `checkMemberGroups`, transitive, memoised for 15 minutes, re-checked on that cadence rather than only at sign-in. |
 | Additive local admin | `src/lib/require-admin.ts` | Super-admin object id auto-grants on login. |
 | Graph client | `src/lib/graph.ts` | Client-credentials token with cache, paging, 429/Retry-After handling, photo fetch. |
@@ -43,10 +48,11 @@ These have not changed and the implementation follows them:
 
 ## Environment
 
-Required for Microsoft login and sync:
+Required for Microsoft login and sync. The first three are now **required by `src/env.js`**,
+not optional: without them the app can neither authenticate anyone nor sync, so it fails at boot
+rather than at the login page.
 
 ```
-AUTH_MS_ENABLED=true
 ENTRA_TENANT_ID=
 ENTRA_CLIENT_ID=
 ENTRA_CLIENT_SECRET=
@@ -56,6 +62,10 @@ ENTRA_SYNC_ENABLED=true
 SYNC_TRIGGER_SECRET=            # required for the nightly run
 SYNC_MAX_DEACTIVATION_RATIO=0.2 # optional, defaults to 0.2
 ```
+
+`GRAPH_*` is a **different app registration**, used only for support-mail sending. Directory
+sync no longer falls back to it — it carries `Mail.Send`, not `User.Read.All`, so borrowing it
+produced a token that authenticated and then 403'd in the middle of a nightly run.
 
 `ENTRA_SYNC_CLASS_GROUP_IDS` is a **first-run bootstrap only**. Once an admin has picked groups in
 `/admin/settings/entra-sync`, the database is authoritative for both sync scope and login
@@ -113,46 +123,52 @@ when no class groups are configured.
 3. **Transaction size.** The whole apply runs as one interactive transaction with sequential awaits
    — roughly 1,600 round-trips for 800 students, against Prisma's 5 second default timeout. Raise
    `timeout`/`maxWait` explicitly and batch the pure-insert path before the first full-size run.
-4. **Adoption audit.** Before turning LDAP off, confirm every active Teacher/Student/Class row has
-   `externalSource = 'entra'`. Anything still `null` was never adopted by sync and will be orphaned
-   at cutover. `npm run db:audit-teacher-identities` covers teachers; students and classes need an
-   equivalent.
-
 ---
 
-## LDAP retirement checklist
+## LDAP retirement
 
-Not yet started — it should follow an observation window in `hybrid` mode that spans at least one
-real class-list change.
+### Done in the codebase
 
-Files that still touch LDAP:
+| Removed | Note |
+|---|---|
+| `src/lib/ldap.ts` | The `LDAPClient`. |
+| `CredentialsProvider('ldap')` in `src/lib/auth.ts` | Azure AD is the sole provider; the `LDAPUser` type and both `isEnabled` toggles went with it. |
+| The form on `src/app/login/page.tsx` | One Microsoft button; the username/password/error state is gone. |
+| `src/app/api/students/import/**` | `route.ts` and `save/route.ts` both bound LDAP directly, and `save` **hard-deleted every student in the class** before recreating them — irreconcilable with the soft-delete model. `sample/route.ts` and the unmounted `components/admin/csv-import.tsx` went with them as their only consumers. |
+| `src/app/api/teachers/import/route.ts` | LDAP teacher fetch. `teachers/import/save/route.ts` is a plain JSON upsert with tests and **stays**. |
+| `ldapjs`, `@types/ldapjs` | Plus `serverExternalPackages` in `next.config.js`, which existed only for them. |
+| `LDAP_*`, `AUTH_LDAP_ENABLED`, `AUTH_MS_ENABLED` | Out of `src/env.js`, `.env.example`, `docker-compose.yaml`. |
+| `AZURE_AD_*`, `MS_STUDENT_GROUPS`, `MS_TEACHER_GROUPS` | Legacy aliases. `graph.ts` no longer falls back through `AZURE_AD_*` → `GRAPH_*` either. |
 
-```
-src/lib/ldap.ts                          LDAPClient
-src/lib/auth.ts                          CredentialsProvider 'ldap'
-src/app/login/page.tsx                   username/password form
-src/app/api/students/import/route.ts     LDAP student import
-src/app/api/students/import/save/route.ts
-src/app/api/teachers/import/route.ts     LDAP teacher import
-src/app/api/teachers/import/save/route.ts
-scripts/audit-teacher-identity-collisions.ts   keep — migration tooling
-scripts/merge-teacher-identities.ts            keep — migration tooling
-```
+Kept: `scripts/audit-teacher-identity-collisions.ts` and `scripts/merge-teacher-identities.ts` —
+migration tooling that reads LDAP-era rows without talking to LDAP.
 
-Order:
+### Still to do at the deployment, before shipping this
 
-1. Run in `hybrid` mode with LDAP still enabled as a fallback.
-2. Complete the adoption audit in item 4 above.
-3. Set `AUTH_LDAP_ENABLED=false` in production and watch for a week.
-4. Remove the LDAP form from `login/page.tsx`; the page becomes a single Microsoft button and the
-   username/password/error state goes with it.
-5. Delete the LDAP import routes — class/student sync plus the existing CSV import cover their
-   function — then `src/lib/ldap.ts`, the `CredentialsProvider` block, `ldapjs` and `@types/ldapjs`
-   from `package.json`, and the `LDAP_*` block from `.env.example`.
-6. Collapse the legacy env fallbacks. `graph.ts` and `auth.ts` still read through
-   `AZURE_AD_*` and `GRAPH_*` names, and `resolveMicrosoftAccess` still honours `MS_STUDENT_GROUPS`
-   / `MS_TEACHER_GROUPS`. Three accepted names for one value is how a tenant ends up misconfigured
-   in a way that only shows up at 02:00.
+The code is ready; the rollout is not something code can do.
+
+1. **Run the adoption audit and get a clean bill.**
+
+   ```bash
+   npm run db:audit-entra-adoption
+   ```
+
+   It reports every active Student/Teacher/Class row whose `externalSource` is not `entra`,
+   with the dependent-record counts each one would strand, plus any `GroupAssignment` rows
+   pointing at a class name no active class holds. Exit code 0 means safe to cut over, 1 means
+   there is work left. An unadopted row is not merely stale after cutover — sync only ever
+   deactivates rows it owns, so it will never even be reported.
+
+2. **Rotate `NEXTAUTH_SECRET`.** Sessions minted by the LDAP provider are valid for 30 days and
+   their `sub` is a username, not an Entra object id, so their role cannot be re-resolved against
+   Graph. The `jwt` callback now demotes any token without `provider === 'azure-ad'` to the
+   powerless `user` role, but rotating the secret is what actually ends those sessions.
+
+3. **Confirm every human has an Entra path in.** With LDAP gone there is no fallback: a teacher
+   missing from `ENTRA_TEACHER_GROUP_ID` cannot log in at all. Note that
+   `resolveMicrosoftAccess` denies rather than falling open when nothing is configured, so a
+   tenant that has not picked class groups in `/admin/settings/entra-sync` locks out everyone
+   except the super admin.
 
 ---
 
@@ -165,9 +181,13 @@ Order:
 | Non-member is denied | same |
 | Nothing configured → denied, not open | same |
 | Group list comes from the DB, not env | same |
-| Legacy `MS_*` groups still honoured | same |
+| Retired `MS_*` groups are ignored | same |
 | Mass deactivation refused | `src/lib/__tests__/sync-guard.test.ts` |
 | Soft-deleted rows excluded from reads | `src/lib/__tests__/prisma-active-filter.test.ts` |
 | API access policy | `src/lib/__tests__/api-access.test.ts`, `src/app/api/__tests__/route-guards.test.ts` |
-| Full add/move/remove/reactivate lifecycle | **not covered** — needs an integration test against a seeded database |
+| Class move clears the rotation group | `src/lib/__tests__/class-student-sync-move.test.ts` |
+| Class move repoints `ClassMembership` | same |
+| Profile-only change keeps the group | same |
+| Class rename carries `GroupAssignment` over | same |
+| Add/remove/reactivate against a real database | **not covered** — needs an integration test against a seeded database |
 | Sync duration at tenant size | **not measured** — see remaining work item 3 |

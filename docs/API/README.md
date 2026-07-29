@@ -23,7 +23,6 @@ docs/API/
 ├── README.md                 # This file - API overview
 ├── admin/                    # Admin API documentation
 │   ├── README.md            # Admin API overview
-│   ├── ldap-config.md       # LDAP configuration endpoints
 │   └── settings/            # Settings management endpoints
 │       ├── README.md        # Settings overview
 │       ├── break-times.md   # Break times management
