@@ -150,7 +150,15 @@
       "studentsInGroup": "Schüler in {{period}}-Gruppe",
       "noSchedule": "Kein Wechselplan für diesen Tag gefunden",
       "scheduleTime": "Unterrichtszeit",
-      "breakTimes": "Pausenzeiten"
+      "breakTimes": "Pausenzeiten",
+      "room": "Raum",
+      "noScheduleHint": "Für den gewählten Wochentag ist kein Wechselplan hinterlegt.",
+      "gradeList": "Notenliste"
+    },
+    "roles": {
+      "teacher": "Lehrer",
+      "admin": "Administrator",
+      "student": "Schüler"
     }
   },
   "auth": {
