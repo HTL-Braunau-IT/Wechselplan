@@ -1,7 +1,9 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest'
+import { getServerSession } from 'next-auth'
 import { GET } from '../route'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
+import { resolveSessionTeacher } from '@/lib/session-teacher'
 import {
   makeClass,
   makeClassMembership,
@@ -30,6 +32,7 @@ vi.mock('@/lib/sentry', () => ({ captureError: vi.fn() }))
 // these tests drive the username path, so a null session skips the fallback.
 vi.mock('next-auth', () => ({ getServerSession: vi.fn(async () => null) }))
 vi.mock('@/lib/auth', () => ({ authOptions: {} }))
+vi.mock('@/lib/session-teacher', () => ({ resolveSessionTeacher: vi.fn(async () => null) }))
 
 describe('Schedule Data API', () => {
   beforeEach(() => {
@@ -52,6 +55,45 @@ describe('Schedule Data API', () => {
     const res = await GET(req)
     const data = await res.json()
     expect(res.status).toBe(200)
+    expect(data).toEqual({ error: 'Teacher not found' })
+  })
+
+  test('resolves via the session when the requested teacher is the signed-in user', async () => {
+    // The username lookup misses (display name != stored username)...
+    vi.mocked(prisma.teacher.findUnique).mockResolvedValue(null)
+    // ...but the requested name is the signed-in user's own, so the fallback runs.
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { name: 'foo' },
+      expires: '2999-01-01',
+    } as never)
+    vi.mocked(resolveSessionTeacher).mockResolvedValue(
+      makeTeacher({ id: 1, firstName: 'T', lastName: 'E', username: 'foo.bar' }),
+    )
+    vi.mocked(prisma.teacherAssignment.findMany).mockResolvedValue([])
+
+    const req = new Request('http://localhost/api/schedules/data?teacher=foo')
+    const res = await GET(req)
+    const data = await res.json()
+
+    expect(resolveSessionTeacher).toHaveBeenCalledOnce()
+    // Teacher resolved, so we get past the "not found" branch.
+    expect(data).not.toEqual({ error: 'Teacher not found' })
+  })
+
+  test('does not resolve via the session for a different teacher', async () => {
+    vi.mocked(prisma.teacher.findUnique).mockResolvedValue(null)
+    // Signed in as someone else than the requested ?teacher=foo.
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { name: 'someone.else' },
+      expires: '2999-01-01',
+    } as never)
+
+    const req = new Request('http://localhost/api/schedules/data?teacher=foo')
+    const res = await GET(req)
+    const data = await res.json()
+
+    // The ownership gate blocks the fallback, so no other teacher's data leaks.
+    expect(resolveSessionTeacher).not.toHaveBeenCalled()
     expect(data).toEqual({ error: 'Teacher not found' })
   })
 

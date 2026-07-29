@@ -8,51 +8,50 @@ import { normalizeUsername } from '@/lib/username'
  *
  * The student counterpart of {@link import('./session-teacher').resolveSessionTeacher}:
  * after the Entra migration `session.user.name` is a display name, so keying a
- * lookup on `username` alone silently matches nobody. Keys are tried
- * current-behaviour-first (name → username), then the authoritative Entra
- * object id, then the UPN/email local part, then the full email.
+ * lookup on `username` alone silently matches nobody. Keys are tried in order
+ * of authority: the Entra object id first (it *is* the signed-in identity),
+ * then the display-name username, then the UPN/email local part, then the full
+ * email.
  *
  * `username` and `externalId` are unique on Student; `email` is not, so the
- * email fallback takes the first match.
+ * email fallback is only accepted when it identifies exactly one student.
  */
 export async function resolveSessionStudent(session: Session | null): Promise<Student | null> {
   const user = session?.user
   if (!user) return null
 
-  const nameUsername = normalizeUsername(user.name ?? '')
-  if (nameUsername) {
-    const byName = await prisma.student.findUnique({ where: { username: nameUsername } })
-    if (byName) return byName
-  }
-
   const oid = typeof user.id === 'string' ? user.id.trim() : ''
+  const email = typeof user.email === 'string' ? user.email.trim() : ''
+  const nameUsername = normalizeUsername(user.name ?? '')
+  const emailUsername = normalizeUsername(email)
+
+  // 1) Entra object id — the authoritative identity for a synced account.
   if (oid) {
     const byOid = await prisma.student.findFirst({ where: { externalId: oid } })
     if (byOid) return byOid
   }
 
-  const email = typeof user.email === 'string' ? user.email.trim() : ''
-
-  const emailUsername = normalizeUsername(email)
-  if (emailUsername && emailUsername !== nameUsername) {
-    const byEmailUsername = await prisma.student.findUnique({
-      where: { username: emailUsername },
-    })
-    if (byEmailUsername) return byEmailUsername
+  // 2) Username: the display name, then the UPN/email local part.
+  for (const username of new Set([nameUsername, emailUsername].filter(Boolean))) {
+    const byUsername = await prisma.student.findUnique({ where: { username } })
+    if (byUsername) return byUsername
   }
 
+  // 3) Full email — accept only when it identifies exactly one student, since
+  //    Student.email is not unique.
   if (email) {
-    const byEmail = await prisma.student.findFirst({
+    const matches = await prisma.student.findMany({
       where: { email: { equals: email, mode: 'insensitive' } },
+      take: 2,
     })
-    if (byEmail) return byEmail
+    if (matches.length === 1) return matches[0]!
   }
 
+  // Log only whether each path was available — never the raw identity (PII).
   console.warn('[session-student] No Student matched the session', {
-    name: user.name,
-    email,
-    oid,
-    nameUsername,
+    hadOid: Boolean(oid),
+    hadEmail: Boolean(email),
+    hadName: Boolean(nameUsername),
   })
   return null
 }

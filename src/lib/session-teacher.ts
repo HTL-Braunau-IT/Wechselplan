@@ -12,44 +12,34 @@ import { normalizeUsername } from '@/lib/username'
  * stored from the UPN ("anna.mueller"), so teachers with a class assignment
  * were silently treated as having none.
  *
- * The keys are tried most-forgiving-last but current-behaviour-first, so an
- * account that already resolves by name keeps the exact same identity (a
- * collision can never re-point it), while an account that used to fail now
- * falls back to the authoritative Entra object id, then the UPN/email local
- * part, then the full email. Every key (`username`, `externalId`, `email`) is
- * unique on Teacher, so each step matches at most one row.
+ * Keys are tried in order of authority: the Entra object id first (it *is* the
+ * signed-in identity, so it can never resolve to the wrong row), then the
+ * display-name username, then the UPN/email local part, then the full email.
+ * Every key (`username`, `externalId`, `email`) is unique on Teacher, so each
+ * step matches at most one row.
  */
 export async function resolveSessionTeacher(session: Session | null): Promise<Teacher | null> {
   const user = session?.user
   if (!user) return null
 
-  // 1) Existing behaviour: the provided name → username. Kept first so accounts
-  //    that already match do not change which Teacher they resolve to.
-  const nameUsername = normalizeUsername(user.name ?? '')
-  if (nameUsername) {
-    const byName = await prisma.teacher.findUnique({ where: { username: nameUsername } })
-    if (byName) return byName
-  }
-
-  // 2) Entra object id — the authoritative identity for a synced account.
   const oid = typeof user.id === 'string' ? user.id.trim() : ''
+  const email = typeof user.email === 'string' ? user.email.trim() : ''
+  const nameUsername = normalizeUsername(user.name ?? '')
+  const emailUsername = normalizeUsername(email)
+
+  // 1) Entra object id — the authoritative identity for a synced account.
   if (oid) {
     const byOid = await prisma.teacher.findFirst({ where: { externalId: oid } })
     if (byOid) return byOid
   }
 
-  const email = typeof user.email === 'string' ? user.email.trim() : ''
-
-  // 3) UPN/email local part → username (Entra stores username from the UPN).
-  const emailUsername = normalizeUsername(email)
-  if (emailUsername && emailUsername !== nameUsername) {
-    const byEmailUsername = await prisma.teacher.findUnique({
-      where: { username: emailUsername },
-    })
-    if (byEmailUsername) return byEmailUsername
+  // 2) Username: the display name, then the UPN/email local part.
+  for (const username of new Set([nameUsername, emailUsername].filter(Boolean))) {
+    const byUsername = await prisma.teacher.findUnique({ where: { username } })
+    if (byUsername) return byUsername
   }
 
-  // 4) Full email match.
+  // 3) Full email (unique on Teacher).
   if (email) {
     const byEmail = await prisma.teacher.findFirst({
       where: { email: { equals: email, mode: 'insensitive' } },
@@ -57,11 +47,11 @@ export async function resolveSessionTeacher(session: Session | null): Promise<Te
     if (byEmail) return byEmail
   }
 
+  // Log only whether each path was available — never the raw identity (PII).
   console.warn('[session-teacher] No Teacher matched the session', {
-    name: user.name,
-    email,
-    oid,
-    nameUsername,
+    hadOid: Boolean(oid),
+    hadEmail: Boolean(email),
+    hadName: Boolean(nameUsername),
   })
   return null
 }
