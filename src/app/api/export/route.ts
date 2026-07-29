@@ -194,7 +194,6 @@ export async function POST(request: Request) {
     const scheduleTimes = schedule?.scheduleTimes ?? []
     const breakTimes = schedule?.breakTimes ?? []
 
-    // Generate PDF using jsPDF
     const pdfBuffer = await generateSchedulePDF({
       groups,
       amAssignments,

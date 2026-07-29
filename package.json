@@ -29,7 +29,8 @@
     "test:coverage": "vitest run --coverage",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
-    "e2e:session": "npx tsx scripts/mint-session.ts"
+    "e2e:session": "npx tsx scripts/mint-session.ts",
+    "pdf:preview": "npx tsx --tsconfig tsconfig.scripts.json scripts/preview-pdfs.ts"
   },
   "dependencies": {
     "@azure/msal-browser": "^4.13.2",
@@ -55,7 +56,6 @@
     "@trpc/client": "^11.9.0",
     "@trpc/react-query": "^11.9.0",
     "@trpc/server": "^11.9.0",
-    "@types/pdfkit": "^0.14.0",
     "autoprefixer": "^10.4.21",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -66,8 +66,6 @@
     "i18next": "^25.8.0",
     "i18next-browser-languagedetector": "^8.2.0",
     "i18next-http-backend": "^3.0.2",
-    "jspdf": "^4.0.0",
-    "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.523.0",
     "negotiator": "^1.0.0",
     "next": "^15.2.3",
@@ -75,7 +73,6 @@
     "next-i18next": "^15.4.2",
     "node-fetch": "^3.3.2",
     "node-html-parser": "^7.0.1",
-    "pdfkit": "^0.17.1",
     "react": "^19.0.0",
     "react-dom": "^19.2.4",
     "react-i18next": "^15.5.3",

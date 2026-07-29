@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
-import { pdf } from '@react-pdf/renderer'
 import ScheduleTurnusPDF, { type ScheduleData } from '@/components/ScheduleTurnusPDF'
+import { renderPdfToBuffer } from '@/lib/pdf/render'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
 
 import { prisma } from '@/lib/prisma'
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
       className: className ?? '',
       weekdayString: weekdayString ?? '',
     })
-    const pdfBuffer = await pdf(doc).toBuffer()
+    const pdfBuffer = await renderPdfToBuffer(doc)
     return new NextResponse(pdfBuffer as unknown as BodyInit, {
       headers: {
         'Content-Type': 'application/pdf',

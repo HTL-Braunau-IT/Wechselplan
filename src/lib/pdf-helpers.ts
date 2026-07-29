@@ -23,6 +23,67 @@ export function getWeekdayAbbr(weekday: number): string {
 }
 
 /**
+ * Parses the "DD.MM.YYYY" / "DD.MM.YY" / "DD.MM" strings that turnus weeks are
+ * stored as. Two-digit years pivot at 50; a missing year falls back to the
+ * current one.
+ * @param dateStr - The date string to parse
+ * @returns A Date, or null if the string is not a parseable German date
+ */
+export function parseGermanDate(dateStr: string): Date | null {
+  if (!dateStr) return null
+
+  const parts = dateStr.trim().split('.')
+  if (parts.length < 2 || !parts[0] || !parts[1]) return null
+
+  const day = parseInt(parts[0], 10)
+  const month = parseInt(parts[1], 10) - 1
+  let year = parseInt(parts[2] ?? '', 10)
+
+  if (Number.isNaN(day) || Number.isNaN(month)) return null
+
+  if (year && year < 100) {
+    year = year < 50 ? 2000 + year : 1900 + year
+  } else if (!year || Number.isNaN(year)) {
+    year = new Date().getFullYear()
+  }
+
+  const date = new Date(year, month, day)
+  return isNaN(date.getTime()) ? null : date
+}
+
+/**
+ * Formats a date as "DD.MM." — the compact form used inside dense table headers.
+ */
+export function formatDayMonth(date: Date): string {
+  return `${String(date.getDate()).padStart(2, '0')}.${String(date.getMonth() + 1).padStart(2, '0')}.`
+}
+
+/**
+ * Returns the Monday of the week containing `dateStr`, as "22.09.".
+ * A turnus starts on its first *teaching* day, but the plan is read against
+ * whole calendar weeks, so the boundary shown is the Monday of that week — no
+ * need to spell the weekday out, it is always Monday.
+ */
+export function getWeekStartLabel(dateStr: string): string {
+  const date = parseGermanDate(dateStr)
+  if (!date) return ''
+  const dayOfWeek = date.getDay()
+  const monday = new Date(date)
+  monday.setDate(date.getDate() + (dayOfWeek === 0 ? -6 : 1 - dayOfWeek))
+  return formatDayMonth(monday)
+}
+
+/** Returns the Sunday closing the week containing `dateStr`, as "26.10.". */
+export function getWeekEndLabel(dateStr: string): string {
+  const date = parseGermanDate(dateStr)
+  if (!date) return ''
+  const dayOfWeek = date.getDay()
+  const sunday = new Date(date)
+  sunday.setDate(date.getDate() + (dayOfWeek === 0 ? 0 : 7 - dayOfWeek))
+  return formatDayMonth(sunday)
+}
+
+/**
  * Calculates the calendar week (KW) for a given date using ISO 8601 standard.
  * @param date - The date to calculate the week for
  * @returns The calendar week number (1-53)
@@ -43,33 +104,11 @@ export function getCalendarWeek(date: Date): number {
 export function formatDateWithWeekday(dateStr: string): string {
   if (!dateStr) return ''
 
-  // Try to parse the date string
-  // Handle formats like "09.09.2024" or "09.09.24"
-  const parts = dateStr.trim().split('.')
-  if (parts.length < 2) return dateStr
+  const date = parseGermanDate(dateStr)
+  if (!date) return dateStr
 
-  try {
-    if (!parts[0] || !parts[1]) return dateStr
-    const day = parseInt(parts[0], 10)
-    const month = parseInt(parts[1], 10) - 1 // Month is 0-indexed
-    let year = parseInt(parts[2] ?? '', 10)
-
-    // Handle 2-digit years
-    if (year && year < 100) {
-      year = year < 50 ? 2000 + year : 1900 + year
-    } else if (!year) {
-      year = new Date().getFullYear()
-    }
-
-    const date = new Date(year, month, day)
-    if (isNaN(date.getTime())) return dateStr
-
-    const weekday = date.getDay()
-    const weekdayAbbr = getWeekdayAbbr(weekday)
-    return `${weekdayAbbr} - ${String(day).padStart(2, '0')}.${String(month + 1).padStart(2, '0')}`
-  } catch {
-    return dateStr
-  }
+  const weekdayAbbr = getWeekdayAbbr(date.getDay())
+  return `${weekdayAbbr} - ${String(date.getDate()).padStart(2, '0')}.${String(date.getMonth() + 1).padStart(2, '0')}`
 }
 
 /**
@@ -135,50 +174,16 @@ export function getTurnusInfo(turnKey: string, turns: Record<string, unknown>) {
   let startDayFormatted = ''
   let endDayFormatted = ''
 
-  if (startDateStr) {
-    try {
-      const parts = startDateStr.split('.')
-      if (parts.length >= 2 && parts[0] && parts[1]) {
-        const day = parseInt(parts[0], 10)
-        const month = parseInt(parts[1], 10) - 1
-        let year = parseInt(parts[2] ?? '', 10)
-        if (year && year < 100) {
-          year = year < 50 ? 2000 + year : 1900 + year
-        } else if (!year) {
-          year = new Date().getFullYear()
-        }
-        const startDate = new Date(year, month, day)
-        if (!isNaN(startDate.getTime())) {
-          startKW = getCalendarWeek(startDate)
-          startDayFormatted = formatDateWithWeekday(startDateStr)
-        }
-      }
-    } catch {
-      // Ignore parsing errors
-    }
+  const startDate = parseGermanDate(startDateStr)
+  if (startDate) {
+    startKW = getCalendarWeek(startDate)
+    startDayFormatted = formatDateWithWeekday(startDateStr)
   }
 
-  if (endDateStr) {
-    try {
-      const parts = endDateStr.split('.')
-      if (parts.length >= 2 && parts[0] && parts[1]) {
-        const day = parseInt(parts[0], 10)
-        const month = parseInt(parts[1], 10) - 1
-        let year = parseInt(parts[2] ?? '', 10)
-        if (year && year < 100) {
-          year = year < 50 ? 2000 + year : 1900 + year
-        } else if (!year) {
-          year = new Date().getFullYear()
-        }
-        const endDate = new Date(year, month, day)
-        if (!isNaN(endDate.getTime())) {
-          endKW = getCalendarWeek(endDate)
-          endDayFormatted = formatDateWithWeekday(endDateStr)
-        }
-      }
-    } catch {
-      // Ignore parsing errors
-    }
+  const endDate = parseGermanDate(endDateStr)
+  if (endDate) {
+    endKW = getCalendarWeek(endDate)
+    endDayFormatted = formatDateWithWeekday(endDateStr)
   }
 
   // Format KW range

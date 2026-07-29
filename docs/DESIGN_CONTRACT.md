@@ -28,9 +28,11 @@ Remove now-redundant `dark:` color classes. Keep `dark:` **only** for genuine
 per-theme needs (rare). Opacity modifiers on tokens are fine: `bg-primary/10`,
 `border-destructive/30`.
 
-**Do NOT touch literal colors in PDF code** (`src/components/PDFLayout.js`,
-`ScheduleTurnusPDF.tsx`, `src/lib/pdf-generator.ts`) or grade-color maps in
+**Do NOT touch literal colors in PDF code** (`src/components/pdf/*`,
+`src/components/ScheduleTurnusPDF.tsx`) or grade-color maps in
 `src/lib/grades.ts` unless told — those render outside the DOM and need literals.
+PDF colours live in one place, `src/lib/pdf/theme.ts`; change them there rather
+than inline, and preview the result with `npm run pdf:preview`.
 
 ## 2. Use shared components — stop hand-rolling
 

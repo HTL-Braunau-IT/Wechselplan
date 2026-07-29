@@ -1,0 +1,7 @@
+{
+  "//": "tsx/esbuild cannot emit `jsx: preserve` — Next.js compiles that itself, but a plain node script has no such step. Standalone scripts that render React (the PDF preview) run against this file so JSX gets the automatic runtime.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx"
+  }
+}

@@ -62,3 +62,6 @@ yarn-error.log*
 
 !\src\app\templates\excel\NOTENLISTE.xlsm
 !*.xlsm
+
+# rendered output of `npm run pdf:preview`
+/.pdf-preview

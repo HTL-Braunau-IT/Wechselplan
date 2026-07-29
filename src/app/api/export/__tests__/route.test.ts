@@ -5,10 +5,11 @@ import { prisma } from '@/lib/prisma'
 import { makeClass, makeSchedule } from '@/test/fixtures'
 import type { Student, TeacherAssignment, Schedule } from '@prisma/client'
 
-// Mock PDFLayout component
-vi.mock('@/components/PDFLayout', () => ({
-  default: vi.fn().mockReturnValue({ type: 'mock-pdf-layout' }),
-}))
+// The renderer is deliberately NOT mocked: react-pdf runs fine under node and
+// rendering for real is what proves the Wechselplan document survives whatever
+// shape the route hands it. Its reconciler is not a UI though — the global act
+// environment @testing-library/react installs from the shared setup would
+// otherwise warn on every render, so it is switched off per test below.
 
 // Mock PrismaClient
 vi.mock('@/lib/prisma', () => ({
@@ -37,13 +38,6 @@ vi.mock('@/lib/prisma', () => ({
   },
 }))
 
-// Mock @react-pdf/renderer
-vi.mock('@react-pdf/renderer', () => ({
-  pdf: vi.fn().mockReturnValue({
-    toBuffer: vi.fn().mockResolvedValue(Buffer.from('mock-pdf-content')),
-  }),
-}))
-
 // Mock sentry
 vi.mock('@/lib/sentry', () => ({
   captureError: vi.fn(),
@@ -51,6 +45,7 @@ vi.mock('@/lib/sentry', () => ({
 
 describe('Export API', () => {
   beforeEach(() => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false
     vi.clearAllMocks()
     // resolveSchoolYearId() runs before every other branch in the handler, so
     // without a school year each test short-circuits on "No school year found"

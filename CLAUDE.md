@@ -75,6 +75,17 @@ CI (`.github/workflows/node.js.yaml`) runs typecheck → vitest → lint on the 
 - **Notenmanagement integration** (`src/lib/notenmanagement/`, `src/app/api/noten*/`): proxies to an external Notenmanagement system; `client.ts` is the single entry point with a bearer-token-then-password retry ladder.
 - **Entitlements/licensing** (`src/lib/entitlements.ts`, `src/types/entitlements.ts`): premium features gated by an external license server, cached. Server-only — clients read `GET /api/entitlements` via `EntitlementsContext`. `DISABLE_ENTITLEMENTS=true` enables everything locally.
 
+**PDF generation** is entirely `@react-pdf/renderer` — jsPDF, jspdf-autotable and pdfkit were removed. Documents are React components under `src/components/pdf/` (plus `src/components/ScheduleTurnusPDF.tsx`), share their tokens through `src/lib/pdf/theme.ts`, and are turned into a Buffer by `renderPdfToBuffer` (`src/lib/pdf/render.ts` — `toBuffer()` hands back a stream, which must be drained before it can be a response body). `src/lib/pdf-generator.ts` is a thin wrapper the route handlers call.
+
+Only the built-in Helvetica family is used: it covers German glyphs and needs no font file, which the Alpine build would otherwise have to resolve at runtime. Sizes are in pt, budgeted against A4 landscape (841.89 × 595.28) for the worst case the school actually hits — 4 groups of 12 students, 4 AM + 4 PM teachers, 8 turnus columns. Preview any change without a database or a login:
+
+```bash
+npm run pdf:preview           # renders all four documents to .pdf-preview/
+npm run pdf:preview -- /tmp/x # somewhere else
+```
+
+Fixtures live in `scripts/preview-pdfs.ts`; it runs against `tsconfig.scripts.json` because tsx cannot emit the repo's `jsx: preserve`.
+
 **Env vars** are validated by `src/env.js` (`@t3-oss/env-nextjs` + zod). Add new server/client vars there and to `runtimeEnv`. `.env.example` documents them.
 
 ## Conventions
