@@ -403,5 +403,25 @@
     "downloadingPdf": "PDF wird erstellt...",
     "downloadAllClassesPdf": "Notenliste alle Klassen als PDF",
     "downloadingAllClassesPdf": "PDF wird erstellt..."
+  },
+  "notifications": {
+    "title": "Benachrichtigungen",
+    "empty": "Keine Benachrichtigungen",
+    "markRead": "Erledigt",
+    "markAllRead": "Alle als erledigt",
+    "scheduleCreated": "Neuer Wechselplan für {{className}}",
+    "scheduleUpdated": "Wechselplan für {{className}} geändert",
+    "scheduleAssignmentsChanged": "Lehrerzuteilung für {{className}} geändert",
+    "scheduleRotationChanged": "Lehrerrotation für {{className}} geändert",
+    "gradesEntered_one": "1 Note in {{className}} eingetragen",
+    "gradesEntered_other": "{{count}} Noten in {{className}} eingetragen",
+    "sokratesMarked": "{{className}} ({{semester}}) ist in Sokrates eingetragen",
+    "sokratesUnmarked": "Sokrates-Markierung für {{className}} ({{semester}}) aufgehoben",
+    "sokratesLockedAll": "Alle Noten in {{className}} ({{semester}}) sind gesperrt",
+    "sokratesLockedMine": "Deine Noten in {{className}} ({{semester}}) sind gesperrt",
+    "sokratesUnlockedAll": "Noten in {{className}} ({{semester}}) sind wieder bearbeitbar",
+    "sokratesUnlockedMine": "Deine Noten in {{className}} ({{semester}}) sind wieder bearbeitbar",
+    "sokratesChange_one": "1 Notenänderung in {{className}} ({{semester}}) nach der Sokrates-Übertragung",
+    "sokratesChange_other": "{{count}} Notenänderungen in {{className}} ({{semester}}) nach der Sokrates-Übertragung"
   }
 }

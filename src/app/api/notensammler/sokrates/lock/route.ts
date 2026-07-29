@@ -7,6 +7,7 @@ import { isFeatureEnabled } from '@/lib/entitlements'
 import { prisma } from '@/lib/prisma'
 import { canManageSokrates } from '@/lib/sokrates-lock'
 import { parseId, parseSemester, resolveCurrentTeacher, resolveSchoolYearId } from '../_shared'
+import { notifySokratesLock } from '../_notify'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -100,6 +101,18 @@ export async function POST(request: Request) {
         where: { transferId: transfer.id, teacherId: teacherId! },
       })
     }
+
+    // A lock takes the sheet away from the people who fill it in, so tell them.
+    await notifySokratesLock({
+      classId,
+      schoolYearId,
+      semester,
+      actor: teacher,
+      session,
+      locked,
+      scope,
+      teacherId,
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

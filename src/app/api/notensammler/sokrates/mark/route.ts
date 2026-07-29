@@ -7,6 +7,7 @@ import { isFeatureEnabled } from '@/lib/entitlements'
 import { prisma } from '@/lib/prisma'
 import { canManageSokrates } from '@/lib/sokrates-lock'
 import { parseId, parseSemester, resolveCurrentTeacher, resolveSchoolYearId } from '../_shared'
+import { notifySokratesMarked } from '../_notify'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -78,6 +79,15 @@ export async function POST(request: Request) {
         data: { acknowledgedAt: now },
       })
       return t
+    })
+
+    await notifySokratesMarked({
+      classId,
+      schoolYearId,
+      semester,
+      actor: teacher,
+      session,
+      readAt: now,
     })
 
     return NextResponse.json({ success: true, transferId: transfer.id })

@@ -10,8 +10,11 @@ Most Notensammler endpoints (`grades`, `grades/batch`, `class/[id]`,
 This folder documents the cross-cutting pieces:
 
 - [`sokrates.md`](./sokrates.md) — the Sokrates transfer marker, edit lock, and
-  the change-notification flow (in-app bell + email to the class lead), plus the
-  `/api/notifications` endpoints that back the bell.
+  the change-notification flow (in-app bell + email to the class lead).
+
+Saving grades also pings the Klassenleiter through the in-app bell, so they can
+see the sheet filling up without asking. That channel is documented in
+[`../notifications/README.md`](../notifications/README.md).
 
 All routes require the **staff** access tier; the Sokrates mutating routes
 additionally require the caller to be the class's `classLead` or an admin.

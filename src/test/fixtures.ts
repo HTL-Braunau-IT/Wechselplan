@@ -150,6 +150,7 @@ export function makeSchedule(overrides: Partial<Schedule> = {}): Schedule {
     semesterPlanning: null,
     classId: null,
     schoolYearId: 1,
+    createdById: null,
     ...timestamps,
     ...overrides,
   }

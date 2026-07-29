@@ -10,9 +10,10 @@ import {
   getSokratesStatus,
   isEditBlocked,
   recordSokratesChanges,
-  resolveCurrentTeacher,
   type GradeChange,
 } from '@/lib/sokrates-lock'
+import { actorName, resolveCurrentTeacher } from '@/lib/current-teacher'
+import { notifyGradesEntered } from '../_notify'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -162,6 +163,23 @@ export async function POST(request: Request) {
       })
     }
 
+    // The grades already on file, keyed the same way as the incoming batch.
+    // Needed twice over: to tell an actual edit from a resave (only the former
+    // is gated by a Sokrates lock, and only the former is worth telling the
+    // class lead about), and to count what really moved.
+    const existing = await prisma.grade.findMany({
+      where: { classId: classIdNum, schoolYearId },
+      select: { studentId: true, teacherId: true, semester: true, grade: true },
+    })
+    const existingMap = new Map<string, number | null>()
+    for (const e of existing) {
+      existingMap.set(`${e.studentId}:${e.teacherId}:${e.semester}`, e.grade)
+    }
+    const gradeKey = (g: GradeEntry) => `${g.studentId}:${g.teacherId}:${g.semester}`
+    const changed = grades.filter(g => (existingMap.get(gradeKey(g)) ?? null) !== g.grade)
+
+    const currentTeacher = await resolveCurrentTeacher(session)
+
     // Sokrates lock: a hard-locked grade that would change is skipped (not
     // written) rather than failing the whole "Alle speichern" — unrelated edits
     // in the same batch still persist. Changes that land on a marked semester
@@ -171,27 +189,15 @@ export async function POST(request: Request) {
     const anyMarked = sokratesStatus.first.marked || sokratesStatus.second.marked
     const sokratesChanges: GradeChange[] = []
     const blockedKeys = new Set<string>()
-    let currentTeacher: Awaited<ReturnType<typeof resolveCurrentTeacher>> = null
     if (anyMarked) {
-      currentTeacher = await resolveCurrentTeacher(session)
       const canOverride = await canManageSokrates({
         classId: classIdNum,
         role: session.user?.role,
         teacherId: currentTeacher?.id ?? null,
       })
-      const existing = await prisma.grade.findMany({
-        where: { classId: classIdNum, schoolYearId },
-        select: { studentId: true, teacherId: true, semester: true, grade: true },
-      })
-      const existingMap = new Map<string, number | null>()
-      for (const e of existing) {
-        existingMap.set(`${e.studentId}:${e.teacherId}:${e.semester}`, e.grade)
-      }
-      for (const g of grades) {
+      for (const g of changed) {
         if (!sokratesStatus[g.semester].marked) continue
-        const key = `${g.studentId}:${g.teacherId}:${g.semester}`
-        const oldGrade = existingMap.get(key) ?? null
-        if (oldGrade === g.grade) continue // unchanged: never blocked, never notified
+        const key = gradeKey(g)
         if (isEditBlocked(sokratesStatus, g.semester, g.teacherId, canOverride)) {
           blockedKeys.add(key)
         } else {
@@ -199,7 +205,7 @@ export async function POST(request: Request) {
             studentId: g.studentId,
             teacherId: g.teacherId,
             semester: g.semester,
-            oldGrade,
+            oldGrade: existingMap.get(key) ?? null,
             newGrade: g.grade,
           })
         }
@@ -242,11 +248,20 @@ export async function POST(request: Request) {
         classId: classIdNum,
         schoolYearId,
         changedById: currentTeacher?.id ?? null,
-        changedByName: currentTeacher?.name ?? session.user?.name ?? 'Unbekannt',
+        changedByName: actorName(currentTeacher, session),
         status: sokratesStatus,
         changes: sokratesChanges,
       })
     }
+
+    await notifyGradesEntered({
+      classId: classIdNum,
+      className: classRecord.name,
+      schoolYearId,
+      actor: currentTeacher,
+      session,
+      count: changed.filter(g => !blockedKeys.has(gradeKey(g))).length,
+    })
 
     return NextResponse.json({
       success: true,

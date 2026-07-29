@@ -117,11 +117,19 @@ Both `POST /api/notensammler/grades` (single) and
 
 ## Notifications
 
-- `GET /api/notifications` — the signed-in teacher's notices (as a class lead),
-  unacknowledged first. Returns `{ notifications, unreadCount }`.
-- `POST /api/notifications/acknowledge` — body `{ id }` for one or `{ all: true }`
-  for all. Always scoped to the caller's own `recipientId`.
+The change notices reach the class lead through the shared in-app notification
+channel — see [`../notifications/README.md`](../notifications/README.md) for the
+endpoints and the data model. Sokrates raises five of its types:
 
-Surfaced in the UI by the bell in the top bar (`src/components/notification-bell.tsx`)
-and by the amber "changed after Sokrates transfer" highlight on drifted cells in
-the Notensammler grid.
+- `sokrates-change` — grades moved after the mark. Addressed to the class lead;
+  `count` is the number of notices still open, so it accumulates rather than
+  being overwritten when entries collapse. Acknowledging it in the bell resolves
+  those notices, which is what clears the drifted-cell highlight in the grid.
+- `sokrates-marked` / `sokrates-unmarked` — sent to everyone holding a column in
+  the sheet, because from that moment their edits are either blocked or reported.
+  Re-marking also marks any open `sokrates-change` entries read.
+- `sokrates-locked` / `sokrates-unlocked` — `scope: 'all'` reaches every column
+  owner, `scope: 'teacher'` only the one whose column moved.
+
+The email to the class lead (best-effort via Microsoft Graph) is the redundant
+channel and is unchanged: it is the one that reaches someone who is not logged in.

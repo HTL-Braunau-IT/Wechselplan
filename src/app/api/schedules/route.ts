@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
+import { authOptions } from '@/lib/auth'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import {
@@ -9,6 +11,8 @@ import {
   normalizeToJsonFormat,
 } from '@/lib/schedule-data-helpers'
 import { denyUnlessAccess } from '@/lib/api-guard'
+import { resolveCurrentTeacher } from '@/lib/current-teacher'
+import { notifyScheduleChange } from './_notify'
 
 const scheduleSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -102,6 +106,9 @@ export async function POST(req: Request) {
       },
     })
 
+    const session = await getServerSession(authOptions)
+    const author = await resolveCurrentTeacher(session)
+
     let newSchedule
     if (existingSchedule) {
       // Delete existing turns (cascade will delete weeks and holidays)
@@ -121,6 +128,9 @@ export async function POST(req: Request) {
           scheduleData: Prisma.JsonNull, // No longer storing JSON - using normalized turns instead
           additionalInfo,
           semesterPlanning,
+          // Plans predating the author column get one on their next save, so
+          // the person who built them still hears about later edits.
+          createdById: existingSchedule.createdById ?? author?.id ?? null,
           // Create normalized turns if scheduleData is provided
           ...(scheduleData
             ? {
@@ -164,6 +174,7 @@ export async function POST(req: Request) {
           scheduleData: Prisma.JsonNull, // No longer storing JSON - using normalized turns instead
           additionalInfo,
           semesterPlanning,
+          createdById: author?.id ?? null,
           // Create normalized turns if scheduleData is provided
           ...(scheduleData
             ? {
@@ -192,6 +203,16 @@ export async function POST(req: Request) {
             },
           },
         },
+      })
+    }
+
+    if (newSchedule.classId != null) {
+      await notifyScheduleChange({
+        type: existingSchedule ? 'schedule-updated' : 'schedule-created',
+        classId: newSchedule.classId,
+        schoolYearId,
+        actor: author,
+        session,
       })
     }
 

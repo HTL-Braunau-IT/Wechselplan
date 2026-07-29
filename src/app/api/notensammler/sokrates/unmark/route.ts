@@ -7,6 +7,7 @@ import { isFeatureEnabled } from '@/lib/entitlements'
 import { prisma } from '@/lib/prisma'
 import { canManageSokrates } from '@/lib/sokrates-lock'
 import { parseId, parseSemester, resolveCurrentTeacher, resolveSchoolYearId } from '../_shared'
+import { notifySokratesUnmarked } from '../_notify'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -57,6 +58,10 @@ export async function POST(request: Request) {
     }
 
     await prisma.sokratesTransfer.deleteMany({ where: { classId, semester, schoolYearId } })
+
+    // Recipients are still resolvable afterwards: the cascade takes the locks
+    // and change notices with the transfer, but not the grades they were about.
+    await notifySokratesUnmarked({ classId, schoolYearId, semester, actor: teacher, session })
 
     return NextResponse.json({ success: true })
   } catch (error) {

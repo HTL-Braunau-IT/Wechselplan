@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { denyUnlessAccess } from '@/lib/api-guard'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
+import { resolveCurrentTeacher } from '@/lib/current-teacher'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -13,10 +14,13 @@ const MAX_NOTIFICATIONS = 100
 /**
  * GET /api/notifications
  *
- * In-app notifications for the signed-in teacher. Currently these are Sokrates
- * change notices addressed to them as a class lead: a subject teacher changed a
- * grade after the class was marked as entered into Sokrates. Unacknowledged
- * first; acknowledged (recent) included so the bell can show history.
+ * The signed-in teacher's in-app notifications, unread first and newest first
+ * within each group. Read ones are included so the bell can show recent
+ * history; `src/lib/notifications.ts` prunes them after 90 days.
+ *
+ * The rows carry a `type` and its interpolation `params` rather than a rendered
+ * sentence — the bell turns those into text via i18next, so a notification
+ * written months ago still renders in the reader's language.
  */
 export async function GET() {
   const denied = await denyUnlessAccess('staff')
@@ -24,38 +28,33 @@ export async function GET() {
 
   try {
     const session = await getServerSession(authOptions)
-    const username = session?.user?.name
-    if (!username) return NextResponse.json({ notifications: [], unreadCount: 0 })
-
-    const teacher = await prisma.teacher.findUnique({
-      where: { username },
-      select: { id: true },
-    })
+    // Admins without a Teacher row have no inbox; that is not an error.
+    const teacher = await resolveCurrentTeacher(session)
     if (!teacher) return NextResponse.json({ notifications: [], unreadCount: 0 })
 
-    const notices = await prisma.sokratesChangeNotice.findMany({
-      where: { recipientId: teacher.id },
-      // Unacknowledged (null) first, then newest — nulls: 'first' is explicit so
-      // the intent survives any change to Prisma's default null placement.
-      orderBy: [{ acknowledgedAt: { sort: 'asc', nulls: 'first' } }, { changedAt: 'desc' }],
-      take: MAX_NOTIFICATIONS,
-    })
+    const [rows, unreadCount] = await Promise.all([
+      prisma.notification.findMany({
+        where: { recipientId: teacher.id },
+        // Unread (null) first, then newest — nulls: 'first' is explicit so the
+        // intent survives any change to Prisma's default null placement.
+        orderBy: [{ readAt: { sort: 'asc', nulls: 'first' } }, { createdAt: 'desc' }],
+        take: MAX_NOTIFICATIONS,
+      }),
+      // Counted separately rather than off `rows`: past MAX_NOTIFICATIONS unread
+      // the window is entirely unread, and deriving the badge from it would cap
+      // the count at the page size instead of reporting the real backlog.
+      prisma.notification.count({ where: { recipientId: teacher.id, readAt: null } }),
+    ])
 
-    const notifications = notices.map(notice => ({
-      id: notice.id,
-      type: 'sokrates-change' as const,
-      classId: notice.classId,
-      className: notice.className,
-      semester: notice.semester,
-      studentName: notice.studentName,
-      subjectTeacherName: notice.subjectTeacherName,
-      oldGrade: notice.oldGrade,
-      newGrade: notice.newGrade,
-      changedByName: notice.changedByName,
-      changedAt: notice.changedAt.toISOString(),
-      acknowledged: notice.acknowledgedAt != null,
+    const notifications = rows.map(row => ({
+      id: row.id,
+      type: row.type,
+      params: row.params,
+      link: row.link,
+      actorName: row.actorName,
+      createdAt: row.createdAt.toISOString(),
+      read: row.readAt != null,
     }))
-    const unreadCount = notifications.filter(n => !n.acknowledged).length
 
     return NextResponse.json({ notifications, unreadCount })
   } catch (error) {
