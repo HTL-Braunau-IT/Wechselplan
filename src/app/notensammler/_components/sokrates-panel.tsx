@@ -168,6 +168,7 @@ export function SokratesPanel({ status, canManage, busy, onMark, onUnmark, onSet
                 the label has to describe the tooltip rather than repeat the
                 heading next to it. */}
             <Button
+              type="button"
               variant="ghost"
               size="icon"
               className="text-muted-foreground hover:text-foreground h-5 w-5"
