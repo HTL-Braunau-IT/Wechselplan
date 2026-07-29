@@ -31,6 +31,9 @@ export const API_ACCESS_RULES: readonly ApiAccessRule[] = [
   { prefix: '/api/auth', tier: 'public' },
   // Public release metadata rendered in the header for signed-out visitors.
   { prefix: '/api/github/releases', tier: 'public' },
+  // Container healthcheck and the deploy workflow's rollout gate, both of which
+  // run before any session exists. Reports liveness only, never configuration.
+  { prefix: '/api/health', tier: 'public', methods: ['GET'] },
 
   // Schedule times and break times are edited during schedule creation, which
   // is a teacher task despite the endpoints living under /api/admin.

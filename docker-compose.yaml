@@ -1,30 +1,124 @@
+# Deployment stack for htlsrv-wechselplan-01.
+#
+# One file serves both environments. Production and staging differ only by the
+# env file they are started with (COMPOSE_PROJECT_NAME, DATA_ROOT, HTTP_PORT,
+# APP_IMAGE), which keeps the two from drifting apart the way a duplicated
+# compose file always eventually does:
+#
+#   prod     /srv/wechselplan          :3000   image tag `latest`  (main)
+#   staging  /srv/wechselplan-staging  :3001   image tag `develop` (develop)
+#
+# Deploys are `docker compose pull && docker compose up -d`, driven by
+# .github/workflows/deploy.yaml.
+#
+# Ordering is db -> migrate -> web. `web` will not start unless `migrate`
+# exited 0, so a broken migration fails the rollout instead of leaving the app
+# crash-looping against a half-applied schema.
+
+x-app-image: &app-image ${APP_IMAGE:-ghcr.io/htl-braunau-it/wechselplan:latest}
+
+# The app and the migration job must agree on every environment value, so both
+# inherit the same block.
+x-app-env: &app-env
+  DATABASE_URL: postgres://${POSTGRES_USER:-wechselplan}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/${POSTGRES_DB:-wechselplan}
+
+  NEXTAUTH_URL: ${NEXTAUTH_URL:?NEXTAUTH_URL is required}
+  NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?NEXTAUTH_SECRET is required}
+
+  # Entra / Microsoft 365 identity + directory sync
+  ENTRA_TENANT_ID: ${ENTRA_TENANT_ID}
+  ENTRA_CLIENT_ID: ${ENTRA_CLIENT_ID}
+  ENTRA_CLIENT_SECRET: ${ENTRA_CLIENT_SECRET}
+  ENTRA_TEACHER_GROUP_ID: ${ENTRA_TEACHER_GROUP_ID:-}
+  ENTRA_SUPER_ADMIN_OBJECT_ID: ${ENTRA_SUPER_ADMIN_OBJECT_ID:-}
+  ENTRA_SYNC_CLASS_GROUP_IDS: ${ENTRA_SYNC_CLASS_GROUP_IDS:-}
+  ENTRA_SYNC_ENABLED: ${ENTRA_SYNC_ENABLED:-true}
+  ENTRA_SYNC_MODE: ${ENTRA_SYNC_MODE:-hybrid}
+  SYNC_MAX_DEACTIVATION_RATIO: ${SYNC_MAX_DEACTIVATION_RATIO:-0.2}
+  SYNC_TRIGGER_SECRET: ${SYNC_TRIGGER_SECRET:-}
+
+  # Microsoft Graph mail — a separate app registration from ENTRA_* above.
+  GRAPH_TENANT_ID: ${GRAPH_TENANT_ID:-}
+  GRAPH_CLIENT_ID: ${GRAPH_CLIENT_ID:-}
+  GRAPH_CLIENT_SECRET: ${GRAPH_CLIENT_SECRET:-}
+  GRAPH_MAIL_FROM: ${GRAPH_MAIL_FROM:-}
+  GRAPH_MAIL_TO: ${GRAPH_MAIL_TO:-}
+
+  # External systems
+  NOTENMANAGEMENT_BASE_URL: ${NOTENMANAGEMENT_BASE_URL}
+  LICENSE_SERVER_URL: ${LICENSE_SERVER_URL:-}
+  LICENSE_KEY: ${LICENSE_KEY:-}
+  DISABLE_ENTITLEMENTS: ${DISABLE_ENTITLEMENTS:-}
+  GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+
+  NODE_ENV: production
+
 services:
-  web:
-    image: ghcr.io/michelroegl-brunner/wechselplan-app:latest
-    volumes:
-      - student_photos_data:/app/data
-    ports:
-      - "3000:3000"
+  db:
+    image: postgres:15
+    restart: unless-stopped
     environment:
-      # Entra / Microsoft 365 identity
-      ENTRA_TENANT_ID: ${ENTRA_TENANT_ID}
-      ENTRA_CLIENT_ID: ${ENTRA_CLIENT_ID}
-      ENTRA_CLIENT_SECRET: ${ENTRA_CLIENT_SECRET}
-      ENTRA_TEACHER_GROUP_ID: ${ENTRA_TEACHER_GROUP_ID}
-      ENTRA_SUPER_ADMIN_OBJECT_ID: ${ENTRA_SUPER_ADMIN_OBJECT_ID}
+      POSTGRES_USER: ${POSTGRES_USER:-wechselplan}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-wechselplan}
+      # German/Austrian names sort through the database collation, so it is
+      # pinned rather than left at the image default of C (which orders "Zöllner"
+      # after "Zwick" and uppercase before lowercase). ICU is used rather than a
+      # glibc locale because the image ships no generated de_AT.UTF-8 — initdb
+      # rejects it outright — whereas ICU carries its own locale data.
+      #
+      # Only applied when the data directory is empty; changing it later needs a
+      # dump/restore, not just a restart.
+      POSTGRES_INITDB_ARGS: >-
+        --encoding=UTF8
+        --locale=C.UTF-8
+        --locale-provider=icu
+        --icu-locale=de-AT
+    volumes:
+      # A bind mount, not a named volume: it puts the data inside the LXC
+      # filesystem where the nightly Proxmox Backup Server job already picks it
+      # up, and makes it findable without `docker volume inspect`.
+      - ${DATA_ROOT:?DATA_ROOT is required}/postgres:/var/lib/postgresql/data
+      - ${DATA_ROOT}/backups:/backups
+    shm_size: 256mb
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-wechselplan} -d ${POSTGRES_DB:-wechselplan}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks: [app-network]
 
-      NEXTAUTH_URL: ${NEXTAUTH_URL}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-
-      # Shared secret the sync-scheduler service below presents.
-      SYNC_TRIGGER_SECRET: ${SYNC_TRIGGER_SECRET}
-
-      NODE_ENV: "production"
+  # One-shot. Applies migrations, then exits; `web` waits for a clean exit.
+  migrate:
+    image: *app-image
+    command: ['migrate']
+    restart: 'no'
+    environment:
+      <<: *app-env
+      RUN_DB_SEED: ${RUN_DB_SEED:-false}
     depends_on:
       db:
         condition: service_healthy
-    networks:
-      - app-network
+    networks: [app-network]
+
+  web:
+    image: *app-image
+    restart: unless-stopped
+    environment: *app-env
+    volumes:
+      - ${DATA_ROOT:?DATA_ROOT is required}/data:/app/data
+    ports:
+      # Bound on the LXC's LAN address; TLS is terminated by the site reverse
+      # proxy in front of it, not here.
+      - '${HTTP_PORT:-3000}:3000'
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks: [app-network]
 
   # Nightly directory sync. The app has no in-process scheduler on purpose:
   # with more than one replica each would run its own timer and they would race
@@ -33,7 +127,8 @@ services:
     image: alpine:3.20
     restart: unless-stopped
     environment:
-      SYNC_TRIGGER_SECRET: ${SYNC_TRIGGER_SECRET}
+      SYNC_TRIGGER_SECRET: ${SYNC_TRIGGER_SECRET:-}
+      TZ: Europe/Vienna
     entrypoint:
       - /bin/sh
       - -c
@@ -45,30 +140,8 @@ services:
         crond -f -l 8
     depends_on:
       - web
-    networks:
-      - app-network
-
-  db:
-    image: postgres:15
-    restart: always
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-mydb}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - app-network
+    networks: [app-network]
 
 networks:
   app-network:
     driver: bridge
-
-volumes:
-  postgres_data:
-  student_photos_data:

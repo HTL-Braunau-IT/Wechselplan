@@ -1,0 +1,162 @@
+name: Deploy
+
+# Runs on a self-hosted runner inside htlsrv-wechselplan-01 (10.10.10.14).
+# Deploys are therefore pull-based: GitHub never needs a route into the school
+# network, and no SSH key or host credential is stored as a repository secret.
+#
+#   main    -> production (:3000)
+#   develop -> staging    (:3001)
+
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options: [staging, production]
+      image_tag:
+        description: 'Image tag to deploy (e.g. sha-<40 hex>). Defaults to the branch tag. Use this to roll back.'
+        required: false
+        type: string
+
+concurrency:
+  # Never let two rollouts touch the same stack at once.
+  group: deploy-${{ github.event.inputs.environment || github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # A red CI run must not reach a server.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    runs-on: [self-hosted, wechselplan]
+    timeout-minutes: 20
+
+    steps:
+      - name: Resolve target
+        id: target
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ENVIRONMENT="${{ github.event.inputs.environment }}"
+            BRANCH_TAG=$([ "$ENVIRONMENT" = "production" ] && echo latest || echo develop)
+            TAG="${{ github.event.inputs.image_tag }}"
+            TAG="${TAG:-$BRANCH_TAG}"
+          elif [ "${{ github.event.workflow_run.head_branch }}" = "main" ]; then
+            ENVIRONMENT=production
+            TAG="sha-${{ github.event.workflow_run.head_sha }}"
+          else
+            ENVIRONMENT=staging
+            TAG="sha-${{ github.event.workflow_run.head_sha }}"
+          fi
+
+          case "$ENVIRONMENT" in
+            production) DIR=/srv/wechselplan ;;
+            staging)    DIR=/srv/wechselplan-staging ;;
+            *) echo "unknown environment: $ENVIRONMENT" >&2; exit 1 ;;
+          esac
+
+          echo "environment=$ENVIRONMENT" >> "$GITHUB_OUTPUT"
+          echo "dir=$DIR"                 >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/htl-braunau-it/wechselplan:$TAG" >> "$GITHUB_OUTPUT"
+          echo "Deploying $TAG to $ENVIRONMENT ($DIR)"
+
+      # The commit that triggered CI, not whatever the runner happened to have.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+
+      - name: Sync compose definition
+        run: |
+          set -euo pipefail
+          install -m 0644 docker-compose.yaml "${{ steps.target.outputs.dir }}/docker-compose.yaml"
+
+      - name: Record currently deployed image
+        id: previous
+        working-directory: ${{ steps.target.outputs.dir }}
+        run: |
+          set -euo pipefail
+          # Resolve to a digest, not a tag: `latest` will have moved by the time
+          # a rollback is needed, so a tag is not a fixed point to return to.
+          PREV=''
+          CONTAINER=$(docker compose ps -q web | head -1)
+          if [ -n "$CONTAINER" ]; then
+            IMAGE_ID=$(docker inspect --format '{{.Image}}' "$CONTAINER")
+            PREV=$(docker inspect --format '{{if .RepoDigests}}{{index .RepoDigests 0}}{{end}}' "$IMAGE_ID")
+          fi
+          echo "image=${PREV}" >> "$GITHUB_OUTPUT"
+          echo "Previous image: ${PREV:-<none — first deploy, rollback unavailable>}"
+
+      - name: Back up the database
+        working-directory: ${{ steps.target.outputs.dir }}
+        run: |
+          set -euo pipefail
+          if [ -z "$(docker compose ps -q db)" ]; then
+            echo "No database running yet — nothing to back up."
+            exit 0
+          fi
+          # Taken before migrations, which is the only irreversible part of a
+          # rollout. Restore instructions: docs/DEPLOYMENT.md.
+          STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+          docker compose exec -T db sh -lc \
+            'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --format=custom' \
+            > "backups/pre-deploy-${STAMP}.dump"
+          echo "Wrote backups/pre-deploy-${STAMP}.dump"
+          # Keep a fortnight of pre-deploy dumps.
+          find backups -name 'pre-deploy-*.dump' -mtime +14 -delete
+
+      - name: Pull and roll out
+        working-directory: ${{ steps.target.outputs.dir }}
+        env:
+          APP_IMAGE: ${{ steps.target.outputs.image }}
+        run: |
+          set -euo pipefail
+          echo "APP_IMAGE=$APP_IMAGE" > .env.image
+          docker compose --env-file .env --env-file .env.image pull
+          # `migrate` runs here and `web` is gated on it exiting 0, so a failed
+          # migration aborts this step before the new code serves traffic.
+          docker compose --env-file .env --env-file .env.image up -d --remove-orphans
+
+      - name: Wait for health
+        id: health
+        working-directory: ${{ steps.target.outputs.dir }}
+        run: |
+          set -euo pipefail
+          PORT=$(grep -E '^HTTP_PORT=' .env | cut -d= -f2)
+          PORT="${PORT:-3000}"
+          for i in $(seq 1 30); do
+            if curl -fsS "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1; then
+              echo "Healthy after ${i} attempt(s)."
+              curl -sS "http://127.0.0.1:${PORT}/api/health"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Health check never passed on port ${PORT}"
+          docker compose logs --tail 100 web migrate
+          exit 1
+
+      - name: Roll back on failure
+        if: failure() && steps.previous.outputs.image != ''
+        working-directory: ${{ steps.target.outputs.dir }}
+        run: |
+          set -euo pipefail
+          echo "::warning::Rolling back to ${{ steps.previous.outputs.image }}"
+          echo "APP_IMAGE=${{ steps.previous.outputs.image }}" > .env.image
+          docker compose --env-file .env --env-file .env.image up -d
+          # Deliberately does not restore the database: a forward-only migration
+          # is usually compatible with the previous code, and an automatic
+          # restore would silently discard writes made since the dump. If the
+          # migration itself is the problem, restore by hand from backups/.
+          echo "Database left as-is. See docs/DEPLOYMENT.md if the migration must be reverted."
+
+      - name: Prune old images
+        if: always()
+        run: docker image prune -af --filter 'until=168h'
