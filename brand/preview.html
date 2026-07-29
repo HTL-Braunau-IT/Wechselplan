@@ -1,0 +1,358 @@
+<title>Wechselplan · logo pack candidates</title>
+<style>
+  :root {
+    --ground: #fbfcfe;
+    --panel: #ffffff;
+    --panel-sunken: #f1f4f9;
+    --ink: #0f172a;
+    --ink-soft: #334155;
+    --muted: #5b6b85;
+    --line: #e2e8f2;
+    --line-strong: #cbd5e5;
+    --brand: #1d4ed8;
+    --brand-ink: #1e3a8a;
+    --paper: #ffffff;
+    --shadow: 0 1px 2px rgba(15,23,42,.04), 0 12px 32px -12px rgba(15,23,42,.18);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #0d1220;
+      --panel: #141b2c;
+      --panel-sunken: #1b2438;
+      --ink: #e8edf6;
+      --ink-soft: #b7c2d6;
+      --muted: #8494b0;
+      --line: #26304a;
+      --line-strong: #33415f;
+      --paper: #f6f8fc;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 18px 40px -18px rgba(0,0,0,.6);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="light"] {
+    --ground:#fbfcfe;--panel:#fff;--panel-sunken:#f1f4f9;--ink:#0f172a;--ink-soft:#334155;
+    --muted:#5b6b85;--line:#e2e8f2;--line-strong:#cbd5e5;--paper:#fff;
+    --shadow:0 1px 2px rgba(15,23,42,.04),0 12px 32px -12px rgba(15,23,42,.18);color-scheme:light;
+  }
+  :root[data-theme="dark"] {
+    --ground:#0d1220;--panel:#141b2c;--panel-sunken:#1b2438;--ink:#e8edf6;--ink-soft:#b7c2d6;
+    --muted:#8494b0;--line:#26304a;--line-strong:#33415f;--paper:#f6f8fc;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 18px 40px -18px rgba(0,0,0,.6);color-scheme:dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: clamp(28px, 5vw, 72px) clamp(20px, 4vw, 48px) 96px; }
+
+  header.masthead { border-bottom: 1px solid var(--line); padding-bottom: 28px; margin-bottom: 40px; }
+  .eyebrow {
+    font-size: 12px; font-weight: 650; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--brand); margin: 0 0 14px;
+  }
+  h1 { font-size: clamp(30px, 5vw, 46px); line-height: 1.05; letter-spacing: -.022em; font-weight: 700; margin: 0 0 14px; text-wrap: balance; }
+  .lede { font-size: clamp(15px, 1.6vw, 17px); color: var(--muted); max-width: 60ch; margin: 0; }
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  @media (max-width: 920px) { .grid { grid-template-columns: 1fr; max-width: 460px; margin: 0 auto; } }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+    box-shadow: var(--shadow); overflow: hidden; display: flex; flex-direction: column;
+  }
+  .card-head { padding: 22px 22px 18px; border-bottom: 1px solid var(--line); }
+  .tag { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .card-head h2 { font-size: 21px; letter-spacing: -.01em; margin: 6px 0 6px; font-weight: 680; }
+  .card-head p { font-size: 13.5px; color: var(--muted); margin: 0; min-height: 3em; }
+
+  /* hero mark */
+  .hero {
+    display: grid; place-items: center; padding: 34px; gap: 0;
+    background:
+      radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--brand) 7%, transparent), transparent 60%),
+      var(--panel-sunken);
+    border-bottom: 1px solid var(--line);
+  }
+  .hero svg { width: 92px; height: 92px; display: block; }
+
+  .row { padding: 18px 22px; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: 0; }
+  .row-label { font-size: 11px; font-weight: 650; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
+
+  /* favicon / browser tab mock */
+  .tabbar { display: flex; align-items: flex-end; gap: 6px; }
+  .tab {
+    display: flex; align-items: center; gap: 8px; background: var(--panel-sunken);
+    border: 1px solid var(--line); border-bottom: none; border-radius: 9px 9px 0 0;
+    padding: 8px 12px; font-size: 12.5px; color: var(--ink-soft); max-width: 175px;
+  }
+  .tab svg { width: 16px; height: 16px; flex: none; }
+  .tab span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fav-sizes { display: flex; align-items: center; gap: 14px; margin-top: 14px; }
+  .fav-sizes figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .fav-sizes figcaption { font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .fav-16 { width: 16px; height: 16px; } .fav-32 { width: 32px; height: 32px; } .fav-48 { width: 48px; height: 48px; }
+
+  /* app header mock */
+  .appbar {
+    display: flex; align-items: center; gap: 11px; padding: 11px 14px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 11px;
+  }
+  .appbar svg { width: 26px; height: 26px; flex: none; }
+  .logotype { font-size: 17px; font-weight: 640; letter-spacing: -.015em; }
+  .logotype b { color: var(--brand); font-weight: 640; }
+  .appbar .spacer { flex: 1; }
+  .appbar .navdot { width: 8px; height: 8px; border-radius: 99px; background: var(--line-strong); }
+
+  /* pdf header mock — always light "paper", both themes */
+  .paper {
+    background: var(--paper); border-radius: 8px; padding: 15px 16px 14px;
+    border: 1px solid var(--line-strong); box-shadow: inset 0 0 0 1px rgba(255,255,255,.5);
+  }
+  .paper-head { display: flex; align-items: center; gap: 11px; padding-bottom: 11px; border-bottom: 1.5px solid #dbe2ee; }
+  .paper-head svg { width: 30px; height: 30px; flex: none; color: var(--brand-ink); }
+  .paper-title { line-height: 1.15; }
+  .paper-org { font-size: 9.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #94a3b8; }
+  .paper-doc { font-size: 15px; font-weight: 650; color: #0f172a; letter-spacing: -.01em; }
+  .paper-meta { margin-left: auto; text-align: right; font-size: 10px; color: #94a3b8; font-variant-numeric: tabular-nums; }
+  .paper-lines { margin-top: 11px; display: flex; flex-direction: column; gap: 7px; }
+  .paper-lines i { display: block; height: 6px; border-radius: 99px; background: #eef2f8; }
+  .paper-lines i:nth-child(1){width:88%} .paper-lines i:nth-child(2){width:96%} .paper-lines i:nth-child(3){width:70%}
+
+  footer { margin-top: 44px; padding-top: 24px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  footer code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; background: var(--panel-sunken); padding: 1px 6px; border-radius: 5px; color: var(--ink-soft); }
+  footer a { color: var(--brand); text-decoration: none; }
+
+  .theme-toggle {
+    position: fixed; top: 16px; right: 16px; z-index: 10;
+    background: var(--panel); border: 1px solid var(--line); color: var(--ink-soft);
+    border-radius: 99px; padding: 7px 14px; font: inherit; font-size: 12.5px; font-weight: 600;
+    cursor: pointer; box-shadow: var(--shadow);
+  }
+  .theme-toggle:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+</style>
+
+<!-- reusable marks -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- PACK A · ORBIT -->
+    <symbol id="a-icon" viewBox="0 0 64 64">
+      <g fill="none" stroke-width="8" stroke-linecap="round">
+        <path d="M51.75 35.13 A20 20 0 0 1 35.13 51.75" stroke="#B45309"/>
+        <path d="M28.87 51.75 A20 20 0 0 1 12.25 35.13" stroke="#047857"/>
+        <path d="M12.25 28.87 A20 20 0 0 1 28.87 12.25" stroke="#1D4ED8"/>
+        <path d="M35.13 12.25 A20 20 0 0 1 51.75 28.87" stroke="#BE123C"/>
+      </g>
+    </symbol>
+    <symbol id="a-fav" viewBox="0 0 64 64">
+      <rect width="64" height="64" rx="15" fill="#1D4ED8"/>
+      <g fill="none" stroke-width="7.5" stroke-linecap="round" transform="scale(0.82) translate(7 7)">
+        <path d="M51.75 35.13 A20 20 0 0 1 35.13 51.75" stroke="#FBBF24"/>
+        <path d="M28.87 51.75 A20 20 0 0 1 12.25 35.13" stroke="#34D399"/>
+        <path d="M12.25 28.87 A20 20 0 0 1 28.87 12.25" stroke="#FFFFFF"/>
+        <path d="M35.13 12.25 A20 20 0 0 1 51.75 28.87" stroke="#FB7185"/>
+      </g>
+    </symbol>
+    <symbol id="a-mono" viewBox="0 0 64 64">
+      <g fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round">
+        <path d="M51.75 35.13 A20 20 0 0 1 35.13 51.75"/>
+        <path d="M28.87 51.75 A20 20 0 0 1 12.25 35.13"/>
+        <path d="M12.25 28.87 A20 20 0 0 1 28.87 12.25"/>
+        <path d="M35.13 12.25 A20 20 0 0 1 51.75 28.87"/>
+      </g>
+    </symbol>
+
+    <!-- PACK B · RASTER -->
+    <symbol id="b-icon" viewBox="0 0 64 64">
+      <rect width="64" height="64" rx="15" fill="#1D4ED8"/>
+      <rect x="14" y="14" width="16" height="16" rx="3.5" fill="#FBBF24"/>
+      <rect x="34" y="14" width="16" height="16" rx="3.5" fill="#34D399"/>
+      <rect x="14" y="34" width="16" height="16" rx="3.5" fill="#F9FAFB"/>
+      <rect x="34" y="34" width="16" height="16" rx="3.5" fill="#FB7185"/>
+      <path d="M28 42 a6 6 0 1 1 -3.2 -5.3" fill="none" stroke="#1D4ED8" stroke-width="2.4" stroke-linecap="round"/>
+      <path d="M24.4 34.6 l1.2 3.4 l-3.5 0.9 z" fill="#1D4ED8"/>
+    </symbol>
+    <symbol id="b-fav" viewBox="0 0 64 64">
+      <rect width="64" height="64" rx="15" fill="#1D4ED8"/>
+      <rect x="12" y="12" width="18" height="18" rx="4" fill="#FBBF24"/>
+      <rect x="34" y="12" width="18" height="18" rx="4" fill="#34D399"/>
+      <rect x="12" y="34" width="18" height="18" rx="4" fill="#F9FAFB"/>
+      <rect x="34" y="34" width="18" height="18" rx="4" fill="#FB7185"/>
+    </symbol>
+    <symbol id="b-mono" viewBox="0 0 64 64">
+      <rect x="9" y="9" width="46" height="46" rx="11" fill="none" stroke="currentColor" stroke-width="4"/>
+      <g fill="currentColor"><rect x="18" y="18" width="12" height="12" rx="2.5"/><rect x="34" y="34" width="12" height="12" rx="2.5"/></g>
+      <g fill="none" stroke="currentColor" stroke-width="4"><rect x="34" y="18" width="12" height="12" rx="2.5"/><rect x="18" y="34" width="12" height="12" rx="2.5"/></g>
+    </symbol>
+
+    <!-- PACK C · MONOGRAM -->
+    <symbol id="c-icon" viewBox="0 0 64 64">
+      <g fill="none" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M13 18 L23 47 L32 30" stroke="#1E3A8A"/>
+        <path d="M32 30 L41 47 L51 18" stroke="#1D4ED8"/>
+      </g>
+      <circle cx="51" cy="18" r="4.5" fill="#B45309"/>
+    </symbol>
+    <symbol id="c-fav" viewBox="0 0 64 64">
+      <rect width="64" height="64" rx="15" fill="#1D4ED8"/>
+      <path d="M14 19 L23.5 46 L32 31 L40.5 46 L50 19" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="50" cy="19" r="4" fill="#FBBF24"/>
+    </symbol>
+    <symbol id="c-mono" viewBox="0 0 64 64">
+      <path d="M13 18 L23 47 L32 30 L41 47 L51 18" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+  </defs>
+</svg>
+
+<button class="theme-toggle" type="button" data-toggle>Dark / light</button>
+
+<div class="wrap">
+  <header class="masthead">
+    <p class="eyebrow">Wechselplan · identity study</p>
+    <h1>Three marks for the rotation plan</h1>
+    <p class="lede">Each candidate is drawn from the app's own tokens — brand blue, the four group colours, IBM&nbsp;Plex&nbsp;Sans — and shown where it actually has to work: a 16&nbsp;px browser favicon, the app header, and a printed PDF header. Toggle the theme; every mark holds on both grounds.</p>
+  </header>
+
+  <div class="grid">
+    <!-- ============ PACK A ============ -->
+    <section class="card" aria-label="Pack A, Orbit">
+      <div class="card-head">
+        <span class="tag">Pack A</span>
+        <h2>Orbit</h2>
+        <p>Four arcs form a broken ring — the student groups rotating through the plan. The most energetic and unmistakably about motion.</p>
+      </div>
+      <div class="hero"><svg><use href="#a-icon"/></svg></div>
+
+      <div class="row">
+        <p class="row-label">Favicon</p>
+        <div class="tabbar">
+          <span class="tab"><svg viewBox="0 0 64 64"><use href="#a-fav"/></svg><span>Wechselplan</span></span>
+        </div>
+        <div class="fav-sizes">
+          <figure><svg class="fav-48" viewBox="0 0 64 64"><use href="#a-fav"/></svg><figcaption>48</figcaption></figure>
+          <figure><svg class="fav-32" viewBox="0 0 64 64"><use href="#a-fav"/></svg><figcaption>32</figcaption></figure>
+          <figure><svg class="fav-16" viewBox="0 0 64 64"><use href="#a-fav"/></svg><figcaption>16</figcaption></figure>
+        </div>
+      </div>
+
+      <div class="row">
+        <p class="row-label">App header</p>
+        <div class="appbar"><svg><use href="#a-icon"/></svg><span class="logotype">Wechsel<b>plan</b></span><span class="spacer"></span><span class="navdot"></span><span class="navdot"></span></div>
+      </div>
+
+      <div class="row">
+        <p class="row-label">PDF header · mono</p>
+        <div class="paper">
+          <div class="paper-head">
+            <svg viewBox="0 0 64 64"><use href="#a-mono"/></svg>
+            <div class="paper-title"><div class="paper-org">Wechselplan</div><div class="paper-doc">Turnusplan</div></div>
+            <div class="paper-meta">2. Kl. · Gr. 1–4<br>2025/26</div>
+          </div>
+          <div class="paper-lines"><i></i><i></i><i></i></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PACK B ============ -->
+    <section class="card" aria-label="Pack B, Raster">
+      <div class="card-head">
+        <span class="tag">Pack B</span>
+        <h2>Raster</h2>
+        <p>The schedule grid itself, its four cells wearing the group palette. Literal, calm, and the strongest four‑colour favicon of the three.</p>
+      </div>
+      <div class="hero"><svg><use href="#b-icon"/></svg></div>
+
+      <div class="row">
+        <p class="row-label">Favicon</p>
+        <div class="tabbar">
+          <span class="tab"><svg viewBox="0 0 64 64"><use href="#b-fav"/></svg><span>Wechselplan</span></span>
+        </div>
+        <div class="fav-sizes">
+          <figure><svg class="fav-48" viewBox="0 0 64 64"><use href="#b-fav"/></svg><figcaption>48</figcaption></figure>
+          <figure><svg class="fav-32" viewBox="0 0 64 64"><use href="#b-fav"/></svg><figcaption>32</figcaption></figure>
+          <figure><svg class="fav-16" viewBox="0 0 64 64"><use href="#b-fav"/></svg><figcaption>16</figcaption></figure>
+        </div>
+      </div>
+
+      <div class="row">
+        <p class="row-label">App header</p>
+        <div class="appbar"><svg><use href="#b-icon"/></svg><span class="logotype">Wechsel<b>plan</b></span><span class="spacer"></span><span class="navdot"></span><span class="navdot"></span></div>
+      </div>
+
+      <div class="row">
+        <p class="row-label">PDF header · mono</p>
+        <div class="paper">
+          <div class="paper-head">
+            <svg viewBox="0 0 64 64"><use href="#b-mono"/></svg>
+            <div class="paper-title"><div class="paper-org">Wechselplan</div><div class="paper-doc">Turnusplan</div></div>
+            <div class="paper-meta">2. Kl. · Gr. 1–4<br>2025/26</div>
+          </div>
+          <div class="paper-lines"><i></i><i></i><i></i></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PACK C ============ -->
+    <section class="card" aria-label="Pack C, Monogram">
+      <div class="card-head">
+        <span class="tag">Pack C</span>
+        <h2>Monogram</h2>
+        <p>A two‑tone <b>W</b> of interlocking chevrons — <i>Wechsel</i>, an exchange between two positions. The most compact and serious app‑icon look.</p>
+      </div>
+      <div class="hero"><svg><use href="#c-icon"/></svg></div>
+
+      <div class="row">
+        <p class="row-label">Favicon</p>
+        <div class="tabbar">
+          <span class="tab"><svg viewBox="0 0 64 64"><use href="#c-fav"/></svg><span>Wechselplan</span></span>
+        </div>
+        <div class="fav-sizes">
+          <figure><svg class="fav-48" viewBox="0 0 64 64"><use href="#c-fav"/></svg><figcaption>48</figcaption></figure>
+          <figure><svg class="fav-32" viewBox="0 0 64 64"><use href="#c-fav"/></svg><figcaption>32</figcaption></figure>
+          <figure><svg class="fav-16" viewBox="0 0 64 64"><use href="#c-fav"/></svg><figcaption>16</figcaption></figure>
+        </div>
+      </div>
+
+      <div class="row">
+        <p class="row-label">App header</p>
+        <div class="appbar"><svg><use href="#c-icon"/></svg><span class="logotype">Wechsel<b>plan</b></span><span class="spacer"></span><span class="navdot"></span><span class="navdot"></span></div>
+      </div>
+
+      <div class="row">
+        <p class="row-label">PDF header · mono</p>
+        <div class="paper">
+          <div class="paper-head">
+            <svg viewBox="0 0 64 64"><use href="#c-mono"/></svg>
+            <div class="paper-title"><div class="paper-org">Wechselplan</div><div class="paper-doc">Turnusplan</div></div>
+            <div class="paper-meta">2. Kl. · Gr. 1–4<br>2025/26</div>
+          </div>
+          <div class="paper-lines"><i></i><i></i><i></i></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    Assets live in <code>brand/pack-*/</code> — <code>icon.svg</code>, <code>favicon.svg</code>, <code>icon-mono.svg</code>, <code>wordmark.svg</code>.
+    To ship one: copy its <code>favicon.svg</code> to <code>src/app/icon.svg</code> (App Router serves it automatically), and render <code>icon-mono.svg</code> in the PDF header via <code>currentColor</code>.
+  </footer>
+</div>
+
+<script>
+  (function () {
+    var btn = document.querySelector('[data-toggle]');
+    btn.addEventListener('click', function () {
+      var root = document.documentElement;
+      var now = root.getAttribute('data-theme');
+      var isDark = now ? now === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+      root.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    });
+  })();
+</script>

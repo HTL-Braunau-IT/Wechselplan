@@ -13,9 +13,23 @@ function BrandMark({ collapsed }: { collapsed?: boolean }) {
   const { t } = useTranslation()
   return (
     <Link href="/" className="flex items-center gap-2.5 overflow-hidden" aria-label="Wechselplan">
-      <span className="bg-primary text-primary-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold">
-        W
-      </span>
+      <svg
+        viewBox="0 0 64 64"
+        className="text-primary h-8 w-8 shrink-0"
+        role="img"
+        aria-hidden="true"
+      >
+        <rect width="64" height="64" rx="15" fill="currentColor" />
+        <path
+          d="M14 19 L23.5 46 L32 31 L40.5 46 L50 19"
+          fill="none"
+          stroke="#fff"
+          strokeWidth="7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <circle cx="50" cy="19" r="4" fill="#FBBF24" />
+      </svg>
       {!collapsed && (
         <span className="truncate text-base font-semibold tracking-tight">
           {t('common.appName')}

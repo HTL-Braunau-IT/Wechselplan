@@ -1,4 +1,4 @@
-import { Text, View, StyleSheet } from '@react-pdf/renderer'
+import { Text, View, StyleSheet, Svg, Path, Circle } from '@react-pdf/renderer'
 import { colors, fonts, groupColor } from '@/lib/pdf/theme'
 
 /**
@@ -27,6 +27,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1.5,
     borderBottomColor: colors.brand,
     paddingBottom: 6,
+  },
+  headerLead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   headerMeta: {
     flexDirection: 'row',
@@ -83,6 +88,35 @@ const styles = StyleSheet.create({
   },
 })
 
+/**
+ * The Wechselplan monogram — a two-tone "W" of interlocking chevrons (Wechsel =
+ * exchange). Drawn on a 64-unit grid so the stroke weights match the SVG assets
+ * under `brand/pack-c-monogram/`; scale it with the `size` prop.
+ */
+export function BrandMark({ size = 22 }: { size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 64 64">
+      <Path
+        d="M13 18 L23 47 L32 30"
+        stroke={colors.brandInk}
+        strokeWidth={7}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <Path
+        d="M32 30 L41 47 L51 18"
+        stroke={colors.brand}
+        strokeWidth={7}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <Circle cx="51" cy="18" r="4.5" fill={groupColor(1).accent} />
+    </Svg>
+  )
+}
+
 /** One `LABEL / value` pair, used in page headers. */
 export function Meta({ label, value }: { label: string; value: string }) {
   return (
@@ -105,9 +139,12 @@ export function PageHeader({
 }) {
   return (
     <View style={styles.headerBar}>
-      <View>
-        <Text style={styles.docTitle}>{title}</Text>
-        {subtitle ? <Text style={styles.docSubtitle}>{subtitle}</Text> : null}
+      <View style={styles.headerLead}>
+        <BrandMark />
+        <View>
+          <Text style={styles.docTitle}>{title}</Text>
+          {subtitle ? <Text style={styles.docSubtitle}>{subtitle}</Text> : null}
+        </View>
       </View>
       {meta ? <View style={styles.headerMeta}>{meta}</View> : null}
     </View>

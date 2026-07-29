@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 72" role="img" aria-label="Wechselplan">
+  <title>Wechselplan</title>
+  <g transform="translate(4 4)" fill="none" stroke-width="8" stroke-linecap="round">
+    <path d="M51.75 35.13 A20 20 0 0 1 35.13 51.75" stroke="#B45309"/>
+    <path d="M28.87 51.75 A20 20 0 0 1 12.25 35.13" stroke="#047857"/>
+    <path d="M12.25 28.87 A20 20 0 0 1 28.87 12.25" stroke="#1D4ED8"/>
+    <path d="M35.13 12.25 A20 20 0 0 1 51.75 28.87" stroke="#BE123C"/>
+  </g>
+  <text x="82" y="46" font-family="'IBM Plex Sans','Segoe UI',sans-serif" font-size="30" font-weight="600" fill="#0F172A" letter-spacing="-0.3">Wechsel<tspan fill="#1D4ED8">plan</tspan></text>
+</svg>
