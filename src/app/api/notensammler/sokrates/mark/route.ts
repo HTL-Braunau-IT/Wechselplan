@@ -17,9 +17,15 @@ export const revalidate = 0
  * Body: { classId, semester, schoolYearId? }
  *
  * The class lead records that this class+semester has been entered into
- * Sokrates. Re-marking an already-marked semester refreshes `markedAt` and
- * clears outstanding change notices — the class lead has re-synced, so the
- * drift is resolved. Only the class lead or an admin may do this.
+ * Sokrates, which hard-locks every teacher's column and the Zeugnisnoten in one
+ * go: the numbers now live in Sokrates, so nobody but the class lead or an
+ * administrator may move them (both pass `canManageSokrates`).
+ * The lead can lift the blanket lock afterwards via `sokrates/lock` to fall back
+ * to the soft, notify-only mode.
+ *
+ * Re-marking an already-marked semester refreshes `markedAt`, re-applies the
+ * lock and clears outstanding change notices — the class lead has re-synced, so
+ * the drift is resolved. Only the class lead or an admin may do this.
  */
 export async function POST(request: Request) {
   const denied = await denyUnlessAccess('staff')
@@ -66,13 +72,24 @@ export async function POST(request: Request) {
     // Mark (or refresh the mark) and, since re-marking means the class lead has
     // re-entered Sokrates, resolve any changes recorded before this moment —
     // atomically, so a notice can never be left dangling against a stale mark.
+    //
+    // `lockedAll` is set here rather than left to a second click: marking means
+    // the grades are in Sokrates, and from that moment every teacher is blocked.
     const transfer = await prisma.$transaction(async tx => {
       const t = await tx.sokratesTransfer.upsert({
         where: {
           classId_semester_schoolYearId: { classId, semester, schoolYearId },
         },
-        update: { markedById, markedByName, markedAt: now },
-        create: { classId, semester, schoolYearId, markedById, markedByName, markedAt: now },
+        update: { markedById, markedByName, markedAt: now, lockedAll: true },
+        create: {
+          classId,
+          semester,
+          schoolYearId,
+          markedById,
+          markedByName,
+          markedAt: now,
+          lockedAll: true,
+        },
       })
       await tx.sokratesChangeNotice.updateMany({
         where: { transferId: t.id, acknowledgedAt: null },

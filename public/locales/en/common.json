@@ -407,7 +407,7 @@
     "scheduleRotationChanged": "Teacher rotation for {{className}} changed",
     "gradesEntered_one": "1 grade entered in {{className}}",
     "gradesEntered_other": "{{count}} grades entered in {{className}}",
-    "sokratesMarked": "{{className}} ({{semester}}) has been entered into Sokrates",
+    "sokratesMarked": "{{className}} ({{semester}}) has been entered into Sokrates — grades locked",
     "sokratesUnmarked": "Sokrates marker for {{className}} ({{semester}}) withdrawn",
     "sokratesLockedAll": "All grades in {{className}} ({{semester}}) are locked",
     "sokratesLockedMine": "Your grades in {{className}} ({{semester}}) are locked",

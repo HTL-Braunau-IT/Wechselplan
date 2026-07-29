@@ -54,7 +54,16 @@ export const API_ACCESS_RULES: readonly ApiAccessRule[] = [
   { prefix: '/api/students/class', tier: 'session', methods: ['GET'] },
   { prefix: '/api/students/photo', tier: 'session', methods: ['GET'] },
   { prefix: '/api/teachers/photo', tier: 'session', methods: ['GET'] },
+  // Combining two classes into one is part of schedule creation, a teacher task.
+  // Listed before the /api/classes admin rule below, which would otherwise catch it.
+  { prefix: '/api/classes/combine', tier: 'staff', methods: ['POST'] },
   { prefix: '/api/classes', tier: 'session', methods: ['GET'] },
+  // Writing a class — in practice its Klassenvorstand/Klassenleiter — is an
+  // administrative act. It used to be open to any teacher, which let anyone make
+  // themselves class lead and from there mark the class as entered into Sokrates
+  // and freeze every colleague's grades. Ordered after the GET rule above so
+  // reads stay open to any signed-in user.
+  { prefix: '/api/classes', tier: 'admin' },
   // Students read their own class schedule from the home page overview.
   { prefix: '/api/schedules', tier: 'session', methods: ['GET'] },
 

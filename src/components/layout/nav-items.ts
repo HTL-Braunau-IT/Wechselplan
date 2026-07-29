@@ -46,12 +46,18 @@ export function useNavItems(): NavItem[] {
       icon: CalendarPlus,
     },
     { href: '/students', label: t('navigation.students'), icon: Users },
-    {
+  ]
+
+  // Assigning a class's Klassenvorstand/Klassenleiter decides who may lock the
+  // class's grades after the Sokrates transfer, so it is an admin task; the
+  // matching API is admin-only too (see lib/api-access).
+  if (role === 'admin') {
+    items.push({
       href: '/class-settings',
       label: t('navigation.classSettings'),
       icon: School,
-    },
-  ]
+    })
+  }
 
   if (isFeatureEnabled('noten')) {
     items.push({ href: '/noten', label: t('navigation.notenliste'), icon: ListChecks })

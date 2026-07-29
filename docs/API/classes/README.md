@@ -25,13 +25,18 @@ Authorization: Bearer <jwt-token>
 ## Available Endpoints
 
 ### Class Listing
-- `GET /api/classes` - Retrieve all classes (ordered by name)
+- `GET /api/classes` - Retrieve all classes (ordered by name) — *session*
 
 ### Class by Name
-- `GET /api/classes/get-by-name?name={className}` - Get class details by name
+- `GET /api/classes/get-by-name?name={className}` - Get class details by name — *session*
 
 ### Class Management
-- `PATCH /api/classes/{id}` - Update class assignments (class head/lead)
+- `PATCH /api/classes/{id}` - Update class assignments (class head/lead) — **admin**
+  (see [`[id].md`](./[id].md))
+
+### Class Combining
+- `POST /api/classes/combine` - Merge two classes into a new one, moving all students — *staff*
+  (used during schedule creation)
 
 ## Data Models
 
@@ -123,7 +128,10 @@ Common error scenarios:
 ## Security Considerations
 
 - Class data is typically read-only for most users
-- Class assignment updates may require administrative privileges
+- `GET` is open to any signed-in user; `PATCH /api/classes/{id}` is **admin only**,
+  because `classLeadId` decides who may lock a class's grades after the Sokrates
+  transfer (see [`../notensammler/sokrates.md`](../notensammler/sokrates.md))
+- `POST /api/classes/combine` stays at the staff tier — it is part of schedule creation
 - All operations are logged for audit purposes
 - Input validation prevents invalid data entry
 

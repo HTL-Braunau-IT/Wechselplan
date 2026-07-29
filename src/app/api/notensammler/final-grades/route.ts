@@ -5,6 +5,12 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { denyUnlessAccess } from '@/lib/api-guard'
+import {
+  canManageSokrates,
+  getSokratesStatus,
+  isFinalGradeEditBlocked,
+  resolveCurrentTeacher,
+} from '@/lib/sokrates-lock'
 
 // Force dynamic rendering - no caching
 export const dynamic = 'force-dynamic'
@@ -157,6 +163,30 @@ export async function POST(request: Request) {
     })
     if (!classRecord) {
       return NextResponse.json({ error: 'Class not found' }, { status: 404 })
+    }
+
+    // Sokrates lock: the Zeugnisnote is the number that was typed into Sokrates,
+    // so a locked semester freezes it for everyone but the class lead and admins.
+    // Unlike a teacher column there is nothing to scope a per-subject lock to —
+    // only the blanket lock applies (see isFinalGradeEditBlocked).
+    const semesterTyped = semester as 'first' | 'second'
+    const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId)
+    if (sokratesStatus[semesterTyped].marked) {
+      const currentTeacher = await resolveCurrentTeacher(session)
+      const canOverride = await canManageSokrates({
+        classId: classIdNum,
+        role: session.user?.role,
+        teacherId: currentTeacher?.id ?? null,
+      })
+      if (isFinalGradeEditBlocked(sokratesStatus, semesterTyped, canOverride)) {
+        return NextResponse.json(
+          {
+            error:
+              'Die Noten dieser Klasse sind nach der Sokrates-Übertragung gesperrt. Bitte wende dich an den Klassenleiter.',
+          },
+          { status: 403 },
+        )
+      }
     }
 
     // Parse grade value

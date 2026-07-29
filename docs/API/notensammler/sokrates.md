@@ -8,15 +8,24 @@ That manual step is the problem this feature solves: once a class lead has
 entered a class's grades into Sokrates, a subject teacher who later changes a
 grade in Wechselplan creates a silent divergence — the Zeugnis in Sokrates no
 longer matches. These endpoints let the class lead **mark** a class+semester as
-"entered into Sokrates" and, from that point on, either
+"entered into Sokrates", which **closes the class**: marking sets `lockedAll`, so
+every teacher's column and the Zeugnisnoten become read-only for everyone except
+the class lead and admins.
 
-- **soft mark** (default): teachers may still change grades, but each change is
-  recorded and the class lead is notified (in-app bell + email), or
-- **hard lock** (hybrid escalation): the whole class or a single subject column
-  is made read-only for everyone except the class lead / admin.
+The lead can lift that blanket lock afterwards (`lock` with
+`scope: 'all', locked: false`) without withdrawing the mark. That drops the
+semester into the **soft** mode: teachers may change grades again, each change is
+recorded and reported to the lead (in-app bell + email), and individual subject
+columns can still be locked one at a time.
 
 Server logic lives in `src/lib/sokrates-lock.ts`; enforcement is wired into the
-grade-save routes (`/api/notensammler/grades` and `/api/notensammler/grades/batch`).
+grade-save routes (`/api/notensammler/grades`, `/api/notensammler/grades/batch`)
+and the final-grade routes (`/api/notensammler/final-grades`,
+`/api/notensammler/final-grades/batch`).
+
+`/api/notensammler/transfer` is deliberately **not** blocked: it reads local
+grades and pushes them to the external Notenmanagement system, writing nothing in
+Wechselplan, so a frozen class can still be exported.
 
 ## Data model
 
@@ -35,6 +44,11 @@ All routes require the **staff** tier (teacher or admin), enforced by
 additionally require the caller to be the class's `classLead` **or** an admin
 (`canManageSokrates`). Reading status is open to any staff member — the grid
 needs it to disable locked cells for everyone.
+
+That check is only as strong as the `classLead` assignment behind it. Setting a
+class's lead (`PATCH /api/classes/{id}`, and the `/class-settings` page) is
+therefore **admin-only**: while it was staff-writable, any teacher could appoint
+themselves lead of any class and lock every colleague out of it.
 
 ---
 
@@ -63,9 +77,11 @@ and which cells have drifted (unresolved changes since the mark).
 
 ## POST `/api/notensammler/sokrates/mark`
 
-Records that a class+semester has been entered into Sokrates. Re-marking an
-already-marked semester refreshes `markedAt` **and acknowledges all outstanding
-change notices** — the class lead has re-synced, so the drift is resolved.
+Records that a class+semester has been entered into Sokrates **and hard-locks it
+for every teacher** (`lockedAll: true`) in the same transaction. Re-marking an
+already-marked semester refreshes `markedAt`, re-applies the lock **and
+acknowledges all outstanding change notices** — the class lead has re-synced, so
+the drift is resolved.
 
 **Body:** `{ classId, semester: "first" | "second", schoolYearId? }`
 **Auth:** class lead or admin. **403** otherwise.
@@ -79,8 +95,11 @@ Removes the mark for a class+semester (cascades to its locks and notices).
 
 ## POST `/api/notensammler/sokrates/lock`
 
-Hybrid escalation: turn a soft mark into a hard lock (or release it). Requires
-the class+semester to already be marked.
+Adjust the lock a mark already applied. `scope: 'all', locked: false` releases
+the blanket lock and leaves the semester in soft (notify-only) mode;
+`scope: 'teacher'` locks or releases a single subject column, which only has an
+effect while the blanket lock is off. Requires the class+semester to already be
+marked.
 
 **Body:**
 
@@ -101,6 +120,8 @@ the class+semester to already be marked.
 
 ## Enforcement in the grade-save routes
 
+### Teacher grade columns
+
 Both `POST /api/notensammler/grades` (single) and
 `POST /api/notensammler/grades/batch` call into `sokrates-lock`:
 
@@ -115,6 +136,19 @@ Both `POST /api/notensammler/grades` (single) and
   `src/server/send-support-email-graph.ts`). A change made by the class lead
   themselves is ignored.
 
+### Zeugnisnoten (final grades)
+
+`POST /api/notensammler/final-grades` and `/final-grades/batch` use
+`isFinalGradeEditBlocked`. A final grade is class-wide, so there is no teacher
+column to scope a per-subject lock to — **only `lockedAll` blocks it**, and a
+lone `SokratesSubjectLock` does not. As with the grade routes, the single
+endpoint rejects (**403**) and the batch endpoint skips the locked entries and
+reports `{ success, count, skippedLocked }`.
+
+The batch endpoint also mirrors each Endnote into the caller's *own* grade
+column, and that half is additionally filtered by `isEditBlocked` — otherwise
+saving an Endnote would be a way around a locked subject column.
+
 ## Notifications
 
 The change notices reach the class lead through the shared in-app notification
@@ -126,7 +160,7 @@ endpoints and the data model. Sokrates raises five of its types:
   being overwritten when entries collapse. Acknowledging it in the bell resolves
   those notices, which is what clears the drifted-cell highlight in the grid.
 - `sokrates-marked` / `sokrates-unmarked` — sent to everyone holding a column in
-  the sheet, because from that moment their edits are either blocked or reported.
+  the sheet, because marking locks them out of it (and unmarking hands it back).
   Re-marking also marks any open `sokrates-change` entries read.
 - `sokrates-locked` / `sokrates-unlocked` — `scope: 'all'` reaches every column
   owner, `scope: 'teacher'` only the one whose column moved.

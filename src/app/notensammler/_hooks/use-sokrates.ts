@@ -121,6 +121,16 @@ export function useSokrates({ classId, schoolYearId, setError }: Params) {
     [post],
   )
 
+  /**
+   * Whether the whole semester is hard-locked. This is what freezes the
+   * class-wide cells (Endnote, Betragensnote) — a per-column lock says nothing
+   * about them, so `isCellLocked` is the wrong question there.
+   */
+  const isSemesterLocked = useCallback(
+    (semester: Semester): boolean => status[semester].marked && status[semester].lockedAll,
+    [status],
+  )
+
   /** Whether a teacher's column is hard-locked for a semester. */
   const isCellLocked = useCallback(
     (teacherId: number, semester: Semester): boolean => {
@@ -145,6 +155,7 @@ export function useSokrates({ classId, schoolYearId, setError }: Params) {
     unmark,
     setLockAll,
     setLockTeacher,
+    isSemesterLocked,
     isCellLocked,
     isCellDrifted,
   }

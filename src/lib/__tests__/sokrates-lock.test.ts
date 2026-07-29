@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isEditBlocked, type SokratesStatus } from '@/lib/sokrates-lock'
+import { isEditBlocked, isFinalGradeEditBlocked, type SokratesStatus } from '@/lib/sokrates-lock'
 
 const status = (overrides: Partial<SokratesStatus>): SokratesStatus => ({
   first: {
@@ -109,5 +109,40 @@ describe('isEditBlocked', () => {
     })
     // second semester untouched → editable
     expect(isEditBlocked(s, 'second', 42, false)).toBe(false)
+  })
+})
+
+describe('isFinalGradeEditBlocked', () => {
+  const marked = (overrides: Partial<SokratesStatus['first']> = {}) =>
+    status({
+      first: {
+        marked: true,
+        markedAt: '2026-02-01T00:00:00.000Z',
+        markedByName: 'A B',
+        lockedAll: false,
+        lockedTeacherIds: [],
+        transferId: 1,
+        ...overrides,
+      },
+    })
+
+  it('blocks the Zeugnisnote when the whole semester is locked', () => {
+    expect(isFinalGradeEditBlocked(marked({ lockedAll: true }), 'first', false)).toBe(true)
+  })
+
+  it('does not block a marked-but-unlocked (soft) semester', () => {
+    expect(isFinalGradeEditBlocked(marked(), 'first', false)).toBe(false)
+  })
+
+  it('ignores per-subject locks — the final grade has no teacher column', () => {
+    expect(isFinalGradeEditBlocked(marked({ lockedTeacherIds: [42] }), 'first', false)).toBe(false)
+  })
+
+  it('never blocks an unmarked semester', () => {
+    expect(isFinalGradeEditBlocked(marked({ lockedAll: true }), 'second', false)).toBe(false)
+  })
+
+  it('lets the class lead or admin override', () => {
+    expect(isFinalGradeEditBlocked(marked({ lockedAll: true }), 'first', true)).toBe(false)
   })
 })

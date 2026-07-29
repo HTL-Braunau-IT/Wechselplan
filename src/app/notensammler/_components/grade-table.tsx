@@ -58,6 +58,8 @@ export type GradeTableProps = {
   /** Sokrates transfer lock: the class lead or an admin may still edit. */
   canManageSokrates?: boolean
   isSemesterMarked?: (semester: Semester) => boolean
+  /** Blanket lock — freezes the class-wide Endnote and Betragensnote cells. */
+  isSemesterLocked?: (semester: Semester) => boolean
   isCellLocked?: (teacherId: number, semester: Semester) => boolean
   isCellDrifted?: (studentId: number, teacherId: number, semester: Semester) => boolean
   onToggleColumnLock?: (teacherId: number, semester: Semester, locked: boolean) => void
@@ -89,6 +91,7 @@ export function GradeTable(props: GradeTableProps) {
     onDeleteTeacher,
     canManageSokrates = false,
     isSemesterMarked,
+    isSemesterLocked,
     isCellLocked,
     isCellDrifted,
     onToggleColumnLock,
@@ -234,6 +237,10 @@ export function GradeTable(props: GradeTableProps) {
       (semester === 'first'
         ? finalGrades[student.id]?.conductWishFirst
         : finalGrades[student.id]?.conductWishSecond) ?? CONDUCT_NOTE_WISH_DEFAULT
+    // Endnote and Betragensnote belong to the class, not to a teacher column, so
+    // only the blanket Sokrates lock reaches them. The server refuses these
+    // writes either way; disabling here is so nobody types into a dead cell.
+    const summaryLocked = (isSemesterLocked?.(semester) ?? false) && !canManageSokrates
 
     return (
       <>
@@ -247,12 +254,19 @@ export function GradeTable(props: GradeTableProps) {
         </TableCell>
         <TableCell
           className={cn('bg-primary/10 w-14 min-w-14 p-1', missing && MISSING_CELL_CLASS)}
-          title={finalGrade != null ? getGradeDisplayText(finalGrade) : '-'}
+          title={
+            summaryLocked
+              ? t('notensammler.sokratesCellLocked', 'In Sokrates eingetragen und gesperrt.')
+              : finalGrade != null
+                ? getGradeDisplayText(finalGrade)
+                : '-'
+          }
         >
           <GradeCombobox
             compact
             variant="endnote"
             value={finalGrade}
+            disabled={summaryLocked}
             onChange={value => onFinalGradeChange(student.id, semester, value)}
             aria-label={`Endnote ${student.lastName} ${student.firstName}`}
           />
@@ -263,10 +277,17 @@ export function GradeTable(props: GradeTableProps) {
             semester === 'first' && 'border-muted-foreground/60 border-r-4',
             missing && MISSING_CELL_CLASS,
           )}
-          title={conductWish === CONDUCT_NOTE_WISH_NONE ? '-' : conductWish}
+          title={
+            summaryLocked
+              ? t('notensammler.sokratesCellLocked', 'In Sokrates eingetragen und gesperrt.')
+              : conductWish === CONDUCT_NOTE_WISH_NONE
+                ? '-'
+                : conductWish
+          }
         >
           <Select
             value={conductWish}
+            disabled={summaryLocked}
             onValueChange={value => onConductWishChange(student.id, semester, value)}
           >
             <SelectTrigger className="h-8 w-full max-w-full min-w-0 truncate text-sm">
