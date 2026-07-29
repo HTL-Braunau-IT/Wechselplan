@@ -9,7 +9,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { useSchoolYear } from '@/contexts/school-year-context'
 import { useEntitlements } from '@/contexts/entitlements-context'
 import { entryKey, isSemester2 } from '@/lib/grades'
-import type { NotenEntryRow, SearchByNameMatch, WeightConfig } from './_lib/types'
+import { emptyEntry, type NotenEntryRow, type SearchByNameMatch, type WeightConfig } from './_lib/types'
 import { computeStudentSummary } from './_lib/summary'
 import { useNotenClasses } from './_hooks/use-noten-classes'
 import { useNotenData } from './_hooks/use-noten-data'
@@ -201,10 +201,12 @@ export default function NotenPage() {
 		const value = textModalContentRef.current?.getValue() ?? ''
 
 		if (textModal.type === 'notizen') {
+			// The day may have no entry yet — the note itself is what creates it.
 			const existing =
-				data.entries[entryKey(textModal.studentId, textModal.date, textModal.period)]
+				data.entries[entryKey(textModal.studentId, textModal.date, textModal.period)] ??
+				emptyEntry(textModal.studentId, textModal.date, textModal.period)
 			data.updateEntry(textModal.studentId, textModal.date, textModal.period, { notizen: value })
-			if (existing) void data.saveEntries([{ ...existing, notizen: value }])
+			void data.saveEntries([{ ...existing, notizen: value }])
 		} else {
 			const key = `${textModal.date}-${textModal.period}`
 			data.setLehrstoffByDay((prev) => ({ ...prev, [key]: value }))
