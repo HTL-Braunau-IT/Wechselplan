@@ -43,7 +43,10 @@ export function TeacherColumnHeader({
     <TableHead
       className={cn(
         'bg-muted sticky z-20 w-20 min-w-20 px-1 pt-1.5 pb-1 text-center align-bottom',
-        isCurrentTeacher && 'bg-primary/15',
+        // The cell is pinned, so its background must stay fully opaque or the
+        // rows scrolling underneath show through. A translucent tint (bg-primary/15)
+        // replaces bg-muted rather than layering over it, so blend an opaque one.
+        isCurrentTeacher && 'bg-[color-mix(in_oklab,var(--color-primary)_15%,var(--color-muted))]',
       )}
       style={stickyStyle}
       title={`${teacher.firstName} ${teacher.lastName}`}
