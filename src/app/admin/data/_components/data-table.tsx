@@ -291,15 +291,24 @@ export function DataTable({
           />
         )
       case 'date':
+        // Date columns (school-year/holiday dates, timestamps) are calendar
+        // dates, not instants. A datetime-local input displayed the value in UTC
+        // but parsed edits as local time, so every save shifted the date by the
+        // UTC offset — and clearing the field produced an Invalid Date that threw
+        // on the next render. Use a date input and keep both sides in UTC:
+        // toISOString().slice(0,10) to show, new Date('YYYY-MM-DD') (UTC) to store.
         return (
           <Input
             id={id}
-            type="datetime-local"
+            type="date"
             value={
-              value ? new Date(value as string | number | Date).toISOString().slice(0, 16) : ''
+              value ? new Date(value as string | number | Date).toISOString().slice(0, 10) : ''
             }
             onChange={e =>
-              setFormData(prev => ({ ...prev, [column.key]: new Date(e.target.value) }))
+              setFormData(prev => ({
+                ...prev,
+                [column.key]: e.target.value ? new Date(e.target.value) : null,
+              }))
             }
             required={column.required}
             readOnly={column.readonly}
