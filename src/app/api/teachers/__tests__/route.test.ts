@@ -2,6 +2,7 @@ import { describe, test, expect, vi, beforeEach, afterAll } from 'vitest';
 import { GET, POST } from '../route';
 import { prisma } from '@/lib/prisma';
 import { captureError } from '@/lib/sentry';
+import { makeTeacher } from '@/test/fixtures';
 
 
 
@@ -31,8 +32,8 @@ describe('Teachers API', () => {
   describe('GET', () => {
     test('should return list of teachers ordered by last name', async () => {
       const mockTeachers = [
-        { id: 1, firstName: 'John', lastName: 'Doe', username: 'johndoe', email: null, createdAt: new Date(), updatedAt: new Date() },
-        { id: 2, firstName: 'Jane', lastName: 'Smith', username: 'janesmith', email: null, createdAt: new Date(), updatedAt: new Date() },
+        makeTeacher({ id: 1, firstName: 'John', lastName: 'Doe', username: 'johndoe' }),
+        makeTeacher({ id: 2, firstName: 'Jane', lastName: 'Smith', username: 'janesmith' }),
       ];
 
       vi.mocked(prisma.teacher.findMany).mockResolvedValue(mockTeachers);
@@ -93,12 +94,7 @@ describe('Teachers API', () => {
     };
 
     test('should create a new teacher', async () => {
-      const mockCreatedTeacher = {
-        id: 1,
-        ...validTeacher,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      const mockCreatedTeacher = makeTeacher({ id: 1, ...validTeacher });
 
       vi.mocked(prisma.teacher.findUnique).mockResolvedValue(null);
       vi.mocked(prisma.teacher.create).mockResolvedValue(mockCreatedTeacher);
@@ -157,12 +153,9 @@ describe('Teachers API', () => {
     });
 
     test('should handle duplicate username', async () => {
-      vi.mocked(prisma.teacher.findUnique).mockResolvedValue({
-        id: 2,
-        ...validTeacher,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
+      vi.mocked(prisma.teacher.findUnique).mockResolvedValue(
+        makeTeacher({ id: 2, ...validTeacher })
+      );
 
       const request = new Request('http://localhost:3000/api/teachers', {
         method: 'POST',

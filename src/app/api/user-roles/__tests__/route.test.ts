@@ -1,12 +1,14 @@
 import { describe, test, expect, vi, beforeEach, afterAll } from 'vitest';
 import { GET, POST, DELETE } from '../route';
-import { PrismaClient } from '@prisma/client';
 
 // Create mock functions using hoisted
 const mockFindMany = vi.hoisted(() => vi.fn());
 const mockFindUnique = vi.hoisted(() => vi.fn());
 const mockCreate = vi.hoisted(() => vi.fn());
 const mockDelete = vi.hoisted(() => vi.fn());
+const mockCaptureError = vi.hoisted(() => vi.fn());
+const mockConsoleError = vi.hoisted(() => vi.fn());
+const mockGetServerSession = vi.hoisted(() => vi.fn());
 
 // Mock PrismaClient
 vi.mock('@prisma/client', () => ({
@@ -28,14 +30,73 @@ vi.mock('@prisma/client', () => ({
   })),
 }));
 
+// Mock sentry
+vi.mock('@/lib/sentry', () => ({
+  captureError: mockCaptureError,
+}));
 
+// The route guards every handler behind requireSuperAdmin(), which reads the
+// NextAuth session. Without these mocks getServerSession() throws and every
+// assertion collapses into a 500.
+vi.mock('next-auth', () => ({
+  getServerSession: mockGetServerSession,
+}));
+
+vi.mock('@/lib/auth', () => ({
+  authOptions: {},
+}));
+
+const SUPER_ADMIN_OBJECT_ID = 'super-admin-object-id';
+
+// Mock console.error
+const originalConsoleError = console.error;
+console.error = mockConsoleError;
 
 describe('User Roles API', () => {
-  let prisma: PrismaClient;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    prisma = new PrismaClient();
+    process.env.ENTRA_SUPER_ADMIN_OBJECT_ID = SUPER_ADMIN_OBJECT_ID;
+    mockGetServerSession.mockResolvedValue({
+      user: { id: SUPER_ADMIN_OBJECT_ID },
+    });
+  });
+
+  afterAll(() => {
+    console.error = originalConsoleError;
+  });
+
+  describe('authorization', () => {
+    test('should return 403 when the caller is not the super admin', async () => {
+      mockGetServerSession.mockResolvedValue({ user: { id: 'someone-else' } });
+
+      const request = new Request('http://localhost:3000/api/user-roles?userId=user1');
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(data).toEqual({ error: 'Unauthorized' });
+      expect(mockFindMany).not.toHaveBeenCalled();
+    });
+
+    test('should return 403 when there is no session', async () => {
+      mockGetServerSession.mockResolvedValue(null);
+
+      const request = new Request('http://localhost:3000/api/user-roles?userId=user1');
+      const response = await GET(request);
+
+      expect(response.status).toBe(403);
+      expect(mockFindMany).not.toHaveBeenCalled();
+    });
+
+    test('should return 403 when ENTRA_SUPER_ADMIN_OBJECT_ID is unset', async () => {
+      delete process.env.ENTRA_SUPER_ADMIN_OBJECT_ID;
+
+      const request = new Request('http://localhost:3000/api/user-roles?userId=user1');
+      const response = await GET(request);
+
+      expect(response.status).toBe(403);
+      expect(mockFindMany).not.toHaveBeenCalled();
+    });
   });
 
   describe('GET /api/user-roles', () => {
@@ -84,7 +145,6 @@ describe('User Roles API', () => {
 
       expect(response.status).toBe(500);
       expect(data).toEqual({ error: 'Failed to fetch user roles' });
-
     });
   });
 
@@ -227,7 +287,6 @@ describe('User Roles API', () => {
 
       expect(response.status).toBe(500);
       expect(data).toEqual({ error: 'Failed to remove role assignment' });
-
     });
   });
-}); 
+});

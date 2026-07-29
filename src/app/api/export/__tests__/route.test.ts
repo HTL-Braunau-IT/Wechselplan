@@ -2,7 +2,8 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { POST } from '../route';
 import { captureError } from '@/lib/sentry';
 import { prisma } from '@/lib/prisma';
-import type { Student, TeacherAssignment, Schedule } from '@prisma/client';
+import type { TeacherAssignment } from '@prisma/client';
+import { makeClass, makeSchedule, makeStudent } from '@/test/fixtures';
 
 // Mock PDFLayout component
 vi.mock('@/components/PDFLayout', () => ({
@@ -24,6 +25,15 @@ vi.mock('@/lib/prisma', () => ({
     schedule: {
       findFirst: vi.fn(),
     },
+    // Added by the school-year migration: the route resolves the active school
+    // year and scopes students through ClassMembership before it touches
+    // anything else, so both must be mocked or every request 500s.
+    schoolYear: {
+      findFirst: vi.fn(),
+    },
+    classMembership: {
+      findMany: vi.fn(),
+    },
   },
 }));
 
@@ -42,6 +52,11 @@ vi.mock('@/lib/sentry', () => ({
 describe('Export API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // resolveSchoolYearId() runs before every other branch in the handler, so
+    // without a school year each test would short-circuit on "No school year
+    // found" instead of reaching the behaviour it means to assert.
+    vi.mocked(prisma.schoolYear.findFirst).mockResolvedValue({ id: 1 } as never);
+    vi.mocked(prisma.classMembership.findMany).mockResolvedValue([]);
   });
 
   describe('POST /api/export', () => {
@@ -83,29 +98,17 @@ describe('Export API', () => {
     test('should generate PDF successfully', async () => {
       // Mock class data
       const findUniqueMock = vi.mocked(prisma.class.findUnique);
-      findUniqueMock.mockResolvedValue({
-        id: 1,
-        name: '1A',
-        description: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        classHeadId: null,
-        classLeadId: null,
-      });
+      findUniqueMock.mockResolvedValue(makeClass({ id: 1, name: '1A' }));
+
+      // The route resolves students through ClassMembership for the school year.
+      vi.mocked(prisma.classMembership.findMany).mockResolvedValue([
+        { studentId: 1 } as never,
+      ]);
 
       // Mock students data
       const findManyStudentsMock = vi.mocked(prisma.student.findMany);
       findManyStudentsMock.mockResolvedValue([
-        {
-          id: 1,
-          firstName: 'John',
-          lastName: 'Doe',
-          classId: 1,
-          groupId: 1,
-          username: 'john.doe',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        } as Student,
+        makeStudent({ id: 1, firstName: 'John', lastName: 'Doe', classId: 1, groupId: 1, username: 'john.doe' }),
       ]);
 
       // Mock teacher assignments
@@ -127,27 +130,24 @@ describe('Export API', () => {
 
       // Mock schedule data
       const findFirstScheduleMock = vi.mocked(prisma.schedule.findFirst);
-      findFirstScheduleMock.mockResolvedValue({
-        id: 1,
-        name: 'Schedule 1',
-        classId: 1,
-        description: null,
-        startDate: new Date('2024-01-01'),
-        endDate: new Date('2024-01-31'),
-        selectedWeekday: 1,
-        scheduleData: {
-          turn1: {
-            weeks: [
-              { date: '2024-01-01' },
-              { date: '2024-01-08' },
-            ],
+      findFirstScheduleMock.mockResolvedValue(
+        makeSchedule({
+          id: 1,
+          name: 'Schedule 1',
+          classId: 1,
+          startDate: new Date('2024-01-01'),
+          endDate: new Date('2024-01-31'),
+          selectedWeekday: 1,
+          scheduleData: {
+            turn1: {
+              weeks: [
+                { date: '2024-01-01' },
+                { date: '2024-01-08' },
+              ],
+            },
           },
-        },
-        additionalInfo: null,
-        semesterPlanning: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
+        })
+      );
 
       const request = new Request('http://localhost/api/export?className=1A');
       const response = await POST(request);

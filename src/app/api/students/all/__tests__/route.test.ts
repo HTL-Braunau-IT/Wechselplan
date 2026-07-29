@@ -1,6 +1,8 @@
 import { describe, test, expect, vi, beforeEach, afterAll } from 'vitest';
+import type { Student } from '@prisma/client';
 import { GET } from '../route';
 import { prisma } from '@/lib/prisma';
+import { makeStudent } from '@/test/fixtures';
 
 // Mock console.error to prevent error messages from appearing in test output
 const originalConsoleError = console.error;
@@ -11,19 +13,11 @@ vi.mock('@/lib/prisma', () => ({
     student: {
       findMany: vi.fn(),
     },
+    classMembership: {
+      findMany: vi.fn(),
+    },
   },
 }));
-
-interface Student {
-  id: number;
-  firstName: string;
-  lastName: string;
-  username: string;
-  classId: number | null;
-  groupId: number | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
 
 describe('Students All API', () => {
   beforeEach(() => {
@@ -40,26 +34,8 @@ describe('Students All API', () => {
         name: 'should return 200 with all students if found',
         setup: () => {
           const mockStudents: Student[] = [
-            {
-              id: 1,
-              firstName: 'John',
-              lastName: 'Doe',
-              username: 'john.doe',
-              classId: 1,
-              groupId: null,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            },
-            {
-              id: 2,
-              firstName: 'Jane',
-              lastName: 'Smith',
-              username: 'jane.smith',
-              classId: 1,
-              groupId: null,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            },
+            makeStudent({ id: 1, firstName: 'John', lastName: 'Doe', username: 'john.doe', classId: 1 }),
+            makeStudent({ id: 2, firstName: 'Jane', lastName: 'Smith', username: 'jane.smith', classId: 1 }),
           ];
           vi.mocked(prisma.student.findMany).mockResolvedValue(mockStudents);
         },
@@ -100,7 +76,7 @@ describe('Students All API', () => {
     testCases.forEach(({ name, setup, expectedStatus, expectedData }) => {
       test(name, async () => {
         if (setup) setup();
-        const res = await GET();
+        const res = await GET(new Request('http://localhost:3000/api/students/all'));
         const data = await res.json();
         expect(res.status).toBe(expectedStatus);
         if (typeof expectedData === 'function') {

@@ -1,6 +1,7 @@
 import { describe, test, expect, vi, beforeEach, afterAll } from 'vitest';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { makeClass, makeSchoolYear, makeStudent } from '@/test/fixtures';
 
 // Mock prisma
 vi.mock('@/lib/prisma', () => ({
@@ -138,43 +139,21 @@ describe('Students Import Save API', () => {
 
     test('should save selected classes and their students', async () => {
       // Mock prisma responses
-      vi.mocked(prisma.schoolYear.findFirst).mockResolvedValue({ id: 1 });
+      vi.mocked(prisma.schoolYear.findFirst).mockResolvedValue(makeSchoolYear({ id: 1 }));
 
-      vi.mocked(prisma.class.upsert).mockResolvedValue({
-        id: 1,
-        name: '1A',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        description: null,
-        classHeadId: null,
-        classLeadId: null,
-      });
+      vi.mocked(prisma.class.upsert).mockResolvedValue(makeClass({ id: 1, name: '1A' }));
 
       vi.mocked(prisma.student.deleteMany).mockResolvedValue({ count: 0 });
 
       vi.mocked(prisma.groupAssignment.deleteMany).mockResolvedValue({ count: 0 });
 
       vi.mocked(prisma.student.create)
-        .mockResolvedValueOnce({
-          id: 10,
-          firstName: 'John',
-          lastName: 'Doe',
-          username: 'john.doe',
-          classId: 1,
-          groupId: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .mockResolvedValueOnce({
-          id: 11,
-          firstName: 'Jane',
-          lastName: 'Smith',
-          username: 'jane.smith',
-          classId: 1,
-          groupId: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        });
+        .mockResolvedValueOnce(
+          makeStudent({ id: 10, firstName: 'John', lastName: 'Doe', username: 'john.doe', classId: 1 })
+        )
+        .mockResolvedValueOnce(
+          makeStudent({ id: 11, firstName: 'Jane', lastName: 'Smith', username: 'jane.smith', classId: 1 })
+        );
 
       vi.mocked(prisma.classMembership.upsert).mockResolvedValue({} as any);
 

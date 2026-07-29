@@ -7,6 +7,7 @@ import ScheduleTurnusPDF from '@/components/ScheduleTurnusPDF';
 // Create hoisted mock functions
 const mockFindUnique = vi.hoisted(() => vi.fn());
 const mockFindFirst = vi.hoisted(() => vi.fn());
+const mockSchoolYearFindFirst = vi.hoisted(() => vi.fn());
 
 // Mock dependencies
 vi.mock('@/lib/sentry', () => ({
@@ -32,12 +33,17 @@ vi.mock('@/lib/prisma', () => ({
     schedule: {
       findFirst: mockFindFirst,
     },
+    // The route resolves the active school year before anything else.
+    schoolYear: {
+      findFirst: mockSchoolYearFindFirst,
+    },
   },
 }));
 
 describe('Schedule Dates Export API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSchoolYearFindFirst.mockResolvedValue({ id: 1 });
   });
 
   describe('POST /api/export/schedule-dates', () => {

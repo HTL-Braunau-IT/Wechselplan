@@ -1,9 +1,9 @@
-import { FlatCompat } from "@eslint/eslintrc";
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 import tseslint from "typescript-eslint";
 
-const compat = new FlatCompat({
-  baseDirectory: import.meta.dirname,
-});
+// eslint-config-next 16 ships a native flat config. Routing it through
+// FlatCompat (the eslintrc bridge) made ESLint throw "Converting circular
+// structure to JSON" on every run, so linting never actually ran.
 
 export default tseslint.config(
   {
@@ -18,7 +18,7 @@ export default tseslint.config(
       "**/tests/**"
     ],
   },
-  ...compat.extends("next/core-web-vitals"),
+  ...nextCoreWebVitals,
   {
     files: ["**/*.ts", "**/*.tsx"],
     extends: [

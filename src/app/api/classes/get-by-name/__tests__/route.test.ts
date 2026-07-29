@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GET } from '../route';
 import { prisma } from '@/lib/prisma';
 import { captureError } from '@/lib/sentry';
+import { makeClass } from '@/test/fixtures';
 
 // Mock prisma
 vi.mock('@/lib/prisma', () => ({
@@ -25,13 +26,15 @@ describe('Classes Get By Name API', () => {
   describe('GET /api/classes/get-by-name', () => {
     it('should return class by name', async () => {
       const mockClass = {
-        id: 1,
-        name: 'Class A',
-        description: 'Description A',
-        createdAt: new Date('2024-03-20T09:30:00Z'),
-        updatedAt: new Date('2024-03-20T09:30:00Z'),
-        classHeadId: 1,
-        classLeadId: 2,
+        ...makeClass({
+          id: 1,
+          name: 'Class A',
+          description: 'Description A',
+          createdAt: new Date('2024-03-20T09:30:00Z'),
+          updatedAt: new Date('2024-03-20T09:30:00Z'),
+          classHeadId: 1,
+          classLeadId: 2
+        }),
         classHead: {
           firstName: 'John',
           lastName: 'Doe'

@@ -1,6 +1,8 @@
 import { describe, test, expect, vi, beforeEach, afterAll } from 'vitest';
 import { GET } from '../route';
+import type { Class as PrismaClass, Student as PrismaStudent } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { makeClass, makeStudent } from '@/test/fixtures';
 
 
 
@@ -12,22 +14,8 @@ vi.mock('@/lib/prisma', () => ({
   },
 }));
 
-interface Student {
-  id: number;
-  firstName: string;
-  lastName: string;
-  username: string;
-  classId: number | null;
-  groupId: number | null;
-  createdAt: Date;
-  updatedAt: Date;
-  class?: {
-    id: number;
-    name: string;
-    createdAt: Date;
-    updatedAt: Date;
-  } | null;
-}
+/** The route selects the student with its class relation included. */
+type StudentWithClass = PrismaStudent & { class: PrismaClass | null };
 
 describe('Students Class API', () => {
   beforeEach(() => {
@@ -55,15 +43,8 @@ describe('Students Class API', () => {
       {
         name: 'should return 404 if student has no class assigned',
         setup: () => {
-          const mockStudent: Student = {
-            id: 1,
-            firstName: 'John',
-            lastName: 'Doe',
-            username: 'john.doe',
-            classId: null,
-            groupId: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
+          const mockStudent: StudentWithClass = {
+            ...makeStudent({ id: 1, firstName: 'John', lastName: 'Doe', username: 'john.doe' }),
             class: null,
           };
           vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent);
@@ -75,21 +56,9 @@ describe('Students Class API', () => {
       {
         name: 'should return 200 with class name and groupId if found',
         setup: () => {
-          const mockStudent: Student = {
-            id: 1,
-            firstName: 'John',
-            lastName: 'Doe',
-            username: 'john.doe',
-            classId: 1,
-            groupId: 1,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            class: {
-              id: 1,
-              name: '1A',
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            },
+          const mockStudent: StudentWithClass = {
+            ...makeStudent({ id: 1, firstName: 'John', lastName: 'Doe', username: 'john.doe', classId: 1, groupId: 1 }),
+            class: makeClass({ id: 1, name: '1A' }),
           };
           vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent);
         },

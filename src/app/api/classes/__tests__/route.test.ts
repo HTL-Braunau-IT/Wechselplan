@@ -43,12 +43,13 @@ describe('Classes API', () => {
 
       mockFindMany.mockResolvedValue(mockClasses);
 
-      const response = await GET();
+      const response = await GET(new Request('http://localhost:3000/api/classes'));
       const data = await response.json();
 
       expect(response.status).toBe(200);
       expect(data).toEqual(mockClasses);
       expect(mockFindMany).toHaveBeenCalledWith({
+        where: undefined,
         select: {
           id: true,
           name: true,
@@ -60,11 +61,46 @@ describe('Classes API', () => {
       });
     });
 
+    it('should filter to active classes used in the requested school year', async () => {
+      mockFindMany.mockResolvedValue([]);
+
+      const response = await GET(
+        new Request('http://localhost:3000/api/classes?schoolYearId=7')
+      );
+
+      expect(response.status).toBe(200);
+      expect(mockFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            isActive: true,
+            OR: [
+              { schedules: { some: { schoolYearId: 7 } } },
+              { classMemberships: { some: { schoolYearId: 7 } } },
+              { assignments: { some: { schoolYearId: 7 } } },
+            ],
+          },
+        })
+      );
+    });
+
+    it('should ignore a non-numeric schoolYearId and return every class', async () => {
+      mockFindMany.mockResolvedValue([]);
+
+      const response = await GET(
+        new Request('http://localhost:3000/api/classes?schoolYearId=abc')
+      );
+
+      expect(response.status).toBe(200);
+      expect(mockFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: undefined })
+      );
+    });
+
     it('should handle database errors', async () => {
       const error = new Error('Database error');
       mockFindMany.mockRejectedValue(error);
 
-      const response = await GET();
+      const response = await GET(new Request('http://localhost:3000/api/classes'));
       const data = await response.json();
 
       expect(response.status).toBe(500);
