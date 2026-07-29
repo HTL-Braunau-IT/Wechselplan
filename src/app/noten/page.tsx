@@ -75,6 +75,12 @@ export default function NotenPage() {
   })
 
   const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set())
+  // Fold away days that haven't happened yet the first time a class/group loads,
+  // so the teacher lands on a compact "term so far" view instead of scrolling
+  // past a hundred empty future columns. Re-applied only when the class/group
+  // changes, never on a plain data refetch, so manual toggles are preserved.
+  const collapseInitKey = `${selectedClassId}-${selectedGroupId}`
+  const [collapseInitedFor, setCollapseInitedFor] = useState<string | null>(null)
   const [rowGradeVisibility, setRowGradeVisibility] = useState<Record<number, boolean>>({})
   const [textModal, setTextModal] = useState<TextModalState>(null)
   const textModalContentRef = useRef<TextModalContentRef | null>(null)
@@ -119,8 +125,9 @@ export default function NotenPage() {
   }, [data.teachingDays, semesterChangeDate])
 
   const summary = useMemo(
-    () => computeStudentSummary(data.students, data.teachingDays, data.entries, data.weights),
-    [data.students, data.teachingDays, data.entries, data.weights],
+    () =>
+      computeStudentSummary(data.students, data.teachingDays, data.entries, data.weights, todayYmd),
+    [data.students, data.teachingDays, data.entries, data.weights, todayYmd],
   )
 
   const remainingDays = useMemo(() => {
@@ -134,6 +141,16 @@ export default function NotenPage() {
       period: upcoming.filter(day => day.period === currentPeriod).length,
     }
   }, [data.teachingDays, todayYmd, semesterChangeDate, currentPeriod])
+
+  // Adjust during render (React's documented "reset state on key change"
+  // pattern) rather than in an effect, so there's no extra commit/repaint.
+  if (data.teachingDays.length > 0 && collapseInitedFor !== collapseInitKey) {
+    setCollapseInitedFor(collapseInitKey)
+    const future = data.teachingDays
+      .filter(day => day.date > todayYmd)
+      .map(day => `${day.date}-${day.period}`)
+    setCollapsedDays(new Set(future))
+  }
 
   const allDaysCollapsed =
     data.teachingDays.length > 0 &&
@@ -224,7 +241,9 @@ export default function NotenPage() {
 
   const handleWeightChange = useCallback(
     (key: keyof WeightConfig, value: number) => {
-      data.setWeightConfig(prev => ({ ...data.weights, ...prev, [key]: value }))
+      // Seed from the current weights (falling back to defaults) so the first
+      // edit, made before any config is stored, starts from a full set.
+      data.setWeightConfig(prev => ({ ...(prev ?? data.weights), [key]: value }))
     },
     [data],
   )

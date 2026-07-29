@@ -50,6 +50,28 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Student not found' }, { status: 404 })
     }
 
+    // A teacher may only edit the seat of a student in a class they are
+    // assigned to. Admins may edit any student. Without this, any staff user
+    // could overwrite any student's Sitzplatz by id.
+    if (session.user.role !== 'admin') {
+      const memberships = await prisma.classMembership.findMany({
+        where: { studentId },
+        select: { classId: true, schoolYearId: true },
+      })
+      const isAssigned =
+        memberships.length > 0 &&
+        (await prisma.teacherAssignment.findFirst({
+          where: {
+            teacherId: teacher.id,
+            OR: memberships.map(m => ({ classId: m.classId, schoolYearId: m.schoolYearId })),
+          },
+          select: { id: true },
+        })) != null
+      if (!isAssigned) {
+        return NextResponse.json({ error: 'Not assigned to this student' }, { status: 403 })
+      }
+    }
+
     // Update the sitzplatz
     const updated = await prisma.student.update({
       where: { id: studentId },

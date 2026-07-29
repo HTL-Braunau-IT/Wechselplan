@@ -42,11 +42,13 @@ export async function POST(request: Request) {
     if (period !== 'AM' && period !== 'PM') {
       return NextResponse.json({ error: 'period must be AM or PM' }, { status: 400 })
     }
-    const dateObj = new Date(date)
-    if (Number.isNaN(dateObj.getTime())) {
+    // Anchor at UTC midnight, exactly as the per-cell entries route does. Using
+    // local midnight here shifted the @db.Date to the previous day on servers
+    // ahead of UTC (e.g. Austria), so "Alle anwesend" landed on the wrong day.
+    const dateOnly = new Date(date.slice(0, 10) + 'T00:00:00.000Z')
+    if (Number.isNaN(dateOnly.getTime())) {
       return NextResponse.json({ error: 'Invalid date' }, { status: 400 })
     }
-    const dateOnly = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate())
 
     const username = normalizeUsername(session.user.name)
     const teacher = await prisma.teacher.findUnique({ where: { username } })
@@ -71,10 +73,22 @@ export async function POST(request: Request) {
       select: { id: true },
     })
 
-    for (const s of studentsInGroup) {
-      await prisma.notenEntry.upsert({
-        where: {
-          studentId_teacherId_classId_groupId_schoolYearId_date_period: {
+    // One transaction so a mid-loop failure doesn't leave the day half-marked.
+    await prisma.$transaction(
+      studentsInGroup.map(s =>
+        prisma.notenEntry.upsert({
+          where: {
+            studentId_teacherId_classId_groupId_schoolYearId_date_period: {
+              studentId: s.id,
+              teacherId: teacher.id,
+              classId,
+              groupId,
+              schoolYearId,
+              date: dateOnly,
+              period,
+            },
+          },
+          create: {
             studentId: s.id,
             teacherId: teacher.id,
             classId,
@@ -82,21 +96,12 @@ export async function POST(request: Request) {
             schoolYearId,
             date: dateOnly,
             period,
+            attendance: 'Anwesend',
           },
-        },
-        create: {
-          studentId: s.id,
-          teacherId: teacher.id,
-          classId,
-          groupId,
-          schoolYearId,
-          date: dateOnly,
-          period,
-          attendance: 'Anwesend',
-        },
-        update: { attendance: 'Anwesend' },
-      })
-    }
+          update: { attendance: 'Anwesend' },
+        }),
+      ),
+    )
 
     return NextResponse.json({ success: true })
   } catch (error) {
