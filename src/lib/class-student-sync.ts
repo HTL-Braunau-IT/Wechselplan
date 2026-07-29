@@ -14,6 +14,7 @@ import {
   type EntraUserMappingIssue,
 } from '@/lib/entra-user-mapper'
 import { EXTERNAL_SOURCE_ENTRA } from '@/lib/teacher-sync'
+import { assertDeactivationWithinLimit, resolveMaxDeactivationRatio } from '@/lib/sync-guard'
 
 /**
  * ---- Public types ------------------------------------------------------------------------------
@@ -113,6 +114,18 @@ export interface StudentSyncUnchanged {
   existing: StudentRowSummary
 }
 
+/**
+ * A student whose class cannot be determined because they belong to more than
+ * one synced class group. They are recorded rather than skipped: skipping left
+ * them invisible to sync, so they neither got a class nor were deactivated.
+ */
+export interface StudentSyncUnassigned {
+  /** Null when the ambiguous user has no local row yet. */
+  existing: StudentRowSummary | null
+  entra: EntraUser
+  groupDisplayNames: string[]
+}
+
 export interface ClassStudentSyncDiff {
   classes: {
     toCreate: ClassSyncCreate[]
@@ -126,6 +139,7 @@ export interface ClassStudentSyncDiff {
     toUpdate: StudentSyncUpdate[]
     toDeactivate: StudentSyncDeactivate[]
     toReactivate: StudentSyncReactivate[]
+    toMarkUnassigned: StudentSyncUnassigned[]
     unchanged: StudentSyncUnchanged[]
   }
   issues: EntraUserMappingIssue[]
@@ -161,6 +175,7 @@ export interface ClassStudentSyncSummary {
     adopted: number
     deactivated: number
     reactivated: number
+    unassigned: number
     unchanged: number
   }
   issues: EntraUserMappingIssue[]
@@ -179,12 +194,25 @@ export interface ClassStudentSyncSelection {
     createOids?: string[]
     updateOids?: string[]
     reactivateOids?: string[]
+    unassignedOids?: string[]
     deactivateStudentIds?: number[]
   }
 }
 
 export interface ClassStudentSyncOptions {
   schoolYearId?: number
+}
+
+export interface ClassStudentSyncApplyOptions extends ClassStudentSyncOptions {
+  /**
+   * Refuse to apply when deactivations exceed this share of the currently
+   * active rows. Guards against a Graph hiccup — an empty group response looks
+   * exactly like "everyone left" — which matters most on the unattended
+   * nightly path where no human reviews the preview first.
+   *
+   * Defaults to {@link DEFAULT_MAX_DEACTIVATION_RATIO}. Pass `null` to disable.
+   */
+  maxDeactivationRatio?: number | null
 }
 
 /**
@@ -453,7 +481,12 @@ export async function previewClassStudentSync(
   const studentsToUpdate: StudentSyncUpdate[] = []
   const studentsToReactivate: StudentSyncReactivate[] = []
   const studentsToDeactivate: StudentSyncDeactivate[] = []
+  const studentsToMarkUnassigned: StudentSyncUnassigned[] = []
   const studentsUnchanged: StudentSyncUnchanged[] = []
+
+  /** Resolves an existing local row for an Entra user, by oid then username. */
+  const findExistingStudent = (user: EntraUser) =>
+    studentByExternalId.get(user.oid) ?? studentByUsername.get(user.username.toLowerCase()) ?? null
 
   for (const { user, groupIds } of membershipByOid.values()) {
     const memberGroupIds = Array.from(groupIds)
@@ -469,15 +502,25 @@ export async function previewClassStudentSync(
     }
 
     if (memberGroupIds.length > 1) {
+      const groupDisplayNames = memberGroupIds.map(id => groupDisplayNameById.get(id) ?? id)
       issues.push({
         oid: user.oid,
         upn: user.username,
         displayName: user.displayName ?? undefined,
-        reason: `Entra user belongs to multiple synced class groups: ${memberGroupIds
-          .map(id => groupDisplayNameById.get(id) ?? id)
-          .join(', ')}`,
+        reason: `Entra user belongs to multiple synced class groups: ${groupDisplayNames.join(', ')}`,
       })
-      // Do not create/update this student; they stay unassigned for now.
+
+      // Their class is ambiguous, so no class is assigned. They are still
+      // tracked: marking them matched keeps them out of the deactivation list,
+      // and syncStatus records why they have no class. Skipping them, as this
+      // used to, left them invisible to sync in both directions.
+      const ambiguousExisting = findExistingStudent(user)
+      if (ambiguousExisting) matchedStudentIds.add(ambiguousExisting.id)
+      studentsToMarkUnassigned.push({
+        existing: ambiguousExisting ? toStudentRowSummary(ambiguousExisting) : null,
+        entra: user,
+        groupDisplayNames,
+      })
       continue
     }
 
@@ -488,11 +531,7 @@ export async function previewClassStudentSync(
       groupDisplayName: targetGroupDisplayName,
     }
 
-    const existing =
-      studentByExternalId.get(user.oid) ??
-      (studentByExternalId.has(user.oid)
-        ? null
-        : studentByUsername.get(user.username.toLowerCase()) ?? null)
+    const existing = findExistingStudent(user)
 
     if (!existing) {
       studentsToCreate.push({ entra: user, target })
@@ -597,6 +636,7 @@ export async function previewClassStudentSync(
   sortByExistingName(classesToDeactivate)
   sortByExistingName(classesUnchanged)
 
+  sortByEntraLastName(studentsToMarkUnassigned)
   sortByTargetClassThenEntraName(studentsToCreate)
   sortByTargetClassThenEntraName(studentsToUpdate)
   sortByTargetClassThenEntraName(studentsToReactivate)
@@ -616,6 +656,7 @@ export async function previewClassStudentSync(
       toUpdate: studentsToUpdate,
       toDeactivate: studentsToDeactivate,
       toReactivate: studentsToReactivate,
+      toMarkUnassigned: studentsToMarkUnassigned,
       unchanged: studentsUnchanged,
     },
     issues,
@@ -645,10 +686,14 @@ export async function previewClassStudentSync(
  */
 export async function applyClassStudentSync(
   selection?: ClassStudentSyncSelection,
-  options: ClassStudentSyncOptions = {},
+  options: ClassStudentSyncApplyOptions = {},
 ): Promise<ClassStudentSyncSummary> {
   const diff = await previewClassStudentSync(options)
   const now = new Date()
+  const deactivationLimit =
+    options.maxDeactivationRatio === undefined
+      ? resolveMaxDeactivationRatio()
+      : options.maxDeactivationRatio
 
   try {
     const classSelection = selection?.classes ?? {}
@@ -675,6 +720,9 @@ export async function applyClassStudentSync(
       : null
     const selectedStudentReactivateOids = studentSelection.reactivateOids
       ? new Set(studentSelection.reactivateOids)
+      : null
+    const selectedStudentUnassignedOids = studentSelection.unassignedOids
+      ? new Set(studentSelection.unassignedOids)
       : null
     const selectedStudentDeactivateIds = studentSelection.deactivateStudentIds
       ? new Set(studentSelection.deactivateStudentIds)
@@ -705,6 +753,29 @@ export async function applyClassStudentSync(
     const studentDeactivations = selectedStudentDeactivateIds
       ? diff.students.toDeactivate.filter(s => selectedStudentDeactivateIds.has(s.existing.id))
       : diff.students.toDeactivate
+    const studentUnassignments = selectedStudentUnassignedOids
+      ? diff.students.toMarkUnassigned.filter(s => selectedStudentUnassignedOids.has(s.entra.oid))
+      : diff.students.toMarkUnassigned
+
+    // Rows that were active going in: everything matched and live, plus the
+    // ones this run would retire. Reactivations are excluded because they were
+    // inactive before.
+    assertDeactivationWithinLimit({
+      scope: 'classes',
+      deactivating: classDeactivations.length,
+      activeBefore:
+        diff.classes.unchanged.length + diff.classes.toUpdate.length + diff.classes.toDeactivate.length,
+      limit: deactivationLimit,
+    })
+    assertDeactivationWithinLimit({
+      scope: 'students',
+      deactivating: studentDeactivations.length,
+      activeBefore:
+        diff.students.unchanged.length +
+        diff.students.toUpdate.length +
+        diff.students.toDeactivate.length,
+      limit: deactivationLimit,
+    })
 
     const classAdoptedCount = classUpdates.filter(c => c.willAdopt).length
     const studentAdoptedCount = studentUpdates.filter(s => s.willAdopt).length
@@ -871,6 +942,40 @@ export async function applyClassStudentSync(
         }
       }
 
+      for (const unassigned of studentUnassignments) {
+        // Profile fields still come from Entra; only the class is withheld
+        // because the source of truth is ambiguous.
+        if (unassigned.existing) {
+          await tx.student.update({
+            where: { id: unassigned.existing.id },
+            data: {
+              firstName: unassigned.entra.firstName,
+              lastName: unassigned.entra.lastName,
+              username: unassigned.entra.username,
+              email: unassigned.entra.email,
+              isActive: true,
+              deactivatedAt: null,
+              lastSyncedAt: now,
+              syncStatus: 'unassigned',
+            },
+          })
+        } else {
+          await tx.student.create({
+            data: {
+              firstName: unassigned.entra.firstName,
+              lastName: unassigned.entra.lastName,
+              username: unassigned.entra.username,
+              email: unassigned.entra.email,
+              externalId: unassigned.entra.oid,
+              externalSource: EXTERNAL_SOURCE_ENTRA,
+              isActive: true,
+              lastSyncedAt: now,
+              syncStatus: 'unassigned',
+            },
+          })
+        }
+      }
+
       for (const { existing } of studentDeactivations) {
         await tx.student.update({
           where: { id: existing.id },
@@ -898,6 +1003,7 @@ export async function applyClassStudentSync(
         adopted: studentAdoptedCount,
         deactivated: studentDeactivations.length,
         reactivated: studentReactivations.length,
+        unassigned: studentUnassignments.length,
         unchanged: diff.students.unchanged.length,
       },
       issues: diff.issues,

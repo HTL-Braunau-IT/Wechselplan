@@ -9,6 +9,7 @@ import {
   type EntraUserMappingIssue,
 } from '@/lib/entra-user-mapper'
 import { normalizeUsername } from '@/lib/username'
+import { assertDeactivationWithinLimit, resolveMaxDeactivationRatio } from '@/lib/sync-guard'
 
 export const EXTERNAL_SOURCE_ENTRA = 'entra'
 
@@ -301,9 +302,24 @@ export async function previewTeacherSync(): Promise<TeacherSyncDiff> {
  * Recomputes the diff and applies it to the DB inside a transaction.
  * Writes a sync-run record on DirectorySyncSettings on success/failure.
  */
-export async function applyTeacherSync(selection?: TeacherSyncSelection): Promise<TeacherSyncSummary> {
+export interface TeacherSyncApplyOptions {
+  /**
+   * Refuse to apply when deactivations exceed this share of the currently
+   * active teachers. See lib/sync-guard. Pass `null` to disable.
+   */
+  maxDeactivationRatio?: number | null
+}
+
+export async function applyTeacherSync(
+  selection?: TeacherSyncSelection,
+  options: TeacherSyncApplyOptions = {},
+): Promise<TeacherSyncSummary> {
   const diff = await previewTeacherSync()
   const now = new Date()
+  const deactivationLimit =
+    options.maxDeactivationRatio === undefined
+      ? resolveMaxDeactivationRatio()
+      : options.maxDeactivationRatio
 
   try {
     const selectedCreateOids = selection?.createOids ? new Set(selection.createOids) : null
@@ -325,6 +341,13 @@ export async function applyTeacherSync(selection?: TeacherSyncSelection): Promis
     const selectedDeactivations = selectedDeactivateTeacherIds
       ? diff.toDeactivate.filter(item => selectedDeactivateTeacherIds.has(item.existing.id))
       : diff.toDeactivate
+
+    assertDeactivationWithinLimit({
+      scope: 'teachers',
+      deactivating: selectedDeactivations.length,
+      activeBefore: diff.unchanged.length + diff.toUpdate.length + diff.toDeactivate.length,
+      limit: deactivationLimit,
+    })
 
     const adoptedCount = selectedUpdates.filter(u => u.willAdopt).length
 

@@ -6,22 +6,55 @@ services:
     ports:
       - "3000:3000"
     environment:
-      
-      LDAP_URL: ldap://10.10.10.1
-      LDAP_BASE_DN: "OU=HTL-BRAUNAU,DC=ad,DC=htl-braunau,DC=at"
-      LDAP_USERNAME: wechselplan@ad.htl-braunau.at
-      LDAP_PASSWORD: Braunau#5280
-      LDAP_STUDENTS_OU: "OU=SCHUELER,OU=BENUTZER,OU=HTL-BRAUNAU,DC=ad,DC=htl-braunau,DC=at"
-      LDAP_TEACHERS_OU: "OU=LEHRER,OU=BENUTZER,OU=HTL-BRAUNAU,DC=ad,DC=htl-braunau,DC=at"
-      LDAP_STUDENT_GROUPS: "Schueler"
-      LDAP_TEACHER_GROUPS: "Lehrer"
-      NEXTAUTH_URL: "http://wp.htl-braunau.at"
+      # LDAP (legacy; retired once the Entra migration completes)
+      LDAP_URL: ${LDAP_URL}
+      LDAP_BASE_DN: ${LDAP_BASE_DN}
+      LDAP_USERNAME: ${LDAP_USERNAME}
+      LDAP_PASSWORD: ${LDAP_PASSWORD}
+      LDAP_STUDENTS_OU: ${LDAP_STUDENTS_OU}
+      LDAP_TEACHERS_OU: ${LDAP_TEACHERS_OU}
+      LDAP_STUDENT_GROUPS: ${LDAP_STUDENT_GROUPS}
+      LDAP_TEACHER_GROUPS: ${LDAP_TEACHER_GROUPS}
+
+      # Entra / Microsoft 365 identity
+      ENTRA_TENANT_ID: ${ENTRA_TENANT_ID}
+      ENTRA_CLIENT_ID: ${ENTRA_CLIENT_ID}
+      ENTRA_CLIENT_SECRET: ${ENTRA_CLIENT_SECRET}
+      ENTRA_TEACHER_GROUP_ID: ${ENTRA_TEACHER_GROUP_ID}
+      ENTRA_SUPER_ADMIN_OBJECT_ID: ${ENTRA_SUPER_ADMIN_OBJECT_ID}
+
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-      DEBUG: "ldapjs:*"  # Enable LDAP debugging
-      NODE_ENV: "development"  # Enable more verbose logging
+
+      # Shared secret the sync-scheduler service below presents.
+      SYNC_TRIGGER_SECRET: ${SYNC_TRIGGER_SECRET}
+
+      NODE_ENV: "production"
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - app-network
+
+  # Nightly directory sync. The app has no in-process scheduler on purpose:
+  # with more than one replica each would run its own timer and they would race
+  # each other applying the same diff.
+  sync-scheduler:
+    image: alpine:3.20
+    restart: unless-stopped
+    environment:
+      SYNC_TRIGGER_SECRET: ${SYNC_TRIGGER_SECRET}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        apk add --no-cache curl tzdata >/dev/null
+        echo "0 2 * * * curl -fsS -X POST http://web:3000/api/sync/run \
+          -H \"x-sync-secret: $$SYNC_TRIGGER_SECRET\" \
+          || echo \"[sync] run failed at \$$(date -Iseconds)\"" > /etc/crontabs/root
+        crond -f -l 8
+    depends_on:
+      - web
     networks:
       - app-network
 
@@ -29,13 +62,13 @@ services:
     image: postgres:15
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: mydb
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-mydb}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 5
