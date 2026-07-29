@@ -18,7 +18,8 @@ export const revalidate = 0
  *
  * The class lead records that this class+semester has been entered into
  * Sokrates, which hard-locks every teacher's column and the Zeugnisnoten in one
- * go: the numbers now live in Sokrates, so nobody but the lead may move them.
+ * go: the numbers now live in Sokrates, so nobody but the class lead or an
+ * administrator may move them (both pass `canManageSokrates`).
  * The lead can lift the blanket lock afterwards via `sokrates/lock` to fall back
  * to the soft, notify-only mode.
  *

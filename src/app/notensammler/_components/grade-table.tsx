@@ -277,7 +277,13 @@ export function GradeTable(props: GradeTableProps) {
             semester === 'first' && 'border-muted-foreground/60 border-r-4',
             missing && MISSING_CELL_CLASS,
           )}
-          title={conductWish === CONDUCT_NOTE_WISH_NONE ? '-' : conductWish}
+          title={
+            summaryLocked
+              ? t('notensammler.sokratesCellLocked', 'In Sokrates eingetragen und gesperrt.')
+              : conductWish === CONDUCT_NOTE_WISH_NONE
+                ? '-'
+                : conductWish
+          }
         >
           <Select
             value={conductWish}

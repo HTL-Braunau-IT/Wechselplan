@@ -25,13 +25,18 @@ Authorization: Bearer <jwt-token>
 ## Available Endpoints
 
 ### Class Listing
-- `GET /api/classes` - Retrieve all classes (ordered by name)
+- `GET /api/classes` - Retrieve all classes (ordered by name) — *session*
 
 ### Class by Name
-- `GET /api/classes/get-by-name?name={className}` - Get class details by name
+- `GET /api/classes/get-by-name?name={className}` - Get class details by name — *session*
 
 ### Class Management
-- `PATCH /api/classes/{id}` - Update class assignments (class head/lead)
+- `PATCH /api/classes/{id}` - Update class assignments (class head/lead) — **admin**
+  (see [`[id].md`](./[id].md))
+
+### Class Combining
+- `POST /api/classes/combine` - Merge two classes into a new one, moving all students — *staff*
+  (used during schedule creation)
 
 ## Data Models
 
