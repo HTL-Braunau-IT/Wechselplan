@@ -84,26 +84,40 @@ describe('useGradeEditing — saveAllGrades', () => {
   })
 
   /**
-   * Both batch endpoints reject more than 400 rows. A class of five groups
-   * with several teachers exceeds that, and the whole save failed with "Too
-   * many grades" rather than persisting anything.
+   * The batch endpoints reject an oversized request outright, and their limits
+   * differ: MAX_GRADES_BATCH is 400, MAX_FINAL_GRADES_BATCH only 100. Sending
+   * a whole class in one request failed the entire save with "Too many …"
+   * rather than persisting anything, so both are chunked — and the final-grade
+   * chunk has to respect the smaller ceiling.
    */
-  it('splits an oversized batch instead of failing it', async () => {
-    // 250 students × 1 teacher × 2 semesters = 500 rows, past the 400 ceiling.
+  it('chunks each batch under its own endpoint limit', async () => {
+    // 250 students × 1 teacher × 2 semesters = 500 grade rows; the same
+    // students each carry an Endnote per semester, so 500 final-grade rows.
     const grades = Object.fromEntries(
       Array.from({ length: 250 }, (_, i) => [i + 1, { 100: { first: 2, second: 3 } }]),
     )
+    const finalGrades = Object.fromEntries(
+      Array.from({ length: 250 }, (_, i) => [
+        i + 1,
+        { first: 2, second: 3, conductWishFirst: null, conductWishSecond: null },
+      ]),
+    )
 
-    const { result } = setup({ grades })
+    const { result } = setup({ grades, finalGrades })
 
     await act(async () => {
       await result.current.saveAllGrades()
     })
 
-    const bodies = bodiesFor('/api/notensammler/grades/batch')
-    expect(bodies.length).toBeGreaterThan(1)
-    expect(bodies.every(body => (body.grades ?? []).length <= 400)).toBe(true)
-    expect(bodies.reduce((sum, body) => sum + (body.grades ?? []).length, 0)).toBe(500)
+    const gradeBodies = bodiesFor('/api/notensammler/grades/batch')
+    expect(gradeBodies.length).toBeGreaterThan(1)
+    expect(gradeBodies.every(body => (body.grades ?? []).length <= 400)).toBe(true)
+    expect(gradeBodies.reduce((sum, body) => sum + (body.grades ?? []).length, 0)).toBe(500)
+
+    const finalBodies = bodiesFor('/api/notensammler/final-grades/batch')
+    expect(finalBodies.length).toBeGreaterThan(1)
+    expect(finalBodies.every(body => (body.finalGrades ?? []).length <= 100)).toBe(true)
+    expect(finalBodies.reduce((sum, body) => sum + (body.finalGrades ?? []).length, 0)).toBe(500)
   })
 
   it('reports Sokrates-locked rows as a notice, not as an error', async () => {

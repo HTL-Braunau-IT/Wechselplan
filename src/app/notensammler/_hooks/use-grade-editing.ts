@@ -14,8 +14,13 @@ import type { ClassData, FinalGradesData, Period } from '../_lib/types'
 import { useKeyedDebounce } from './use-keyed-debounce'
 
 const SAVE_DEBOUNCE_MS = 500
-/** Kept under the batch endpoints' 400-row ceiling, with headroom. */
-const SAVE_ALL_CHUNK_SIZE = 200
+/**
+ * Rows per request for "Alle speichern". The two batch endpoints have
+ * different ceilings — `MAX_GRADES_BATCH` is 400, `MAX_FINAL_GRADES_BATCH` is
+ * 100 — so they get their own chunk size, each with headroom.
+ */
+const GRADES_CHUNK_SIZE = 200
+const FINAL_GRADES_CHUNK_SIZE = 50
 
 /** What the toolbar's autosave indicator should be showing. */
 export type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error'
@@ -377,24 +382,23 @@ export function useGradeEditing({
         ...(schoolYearId != null && { schoolYearId }),
       }
 
-      // Both batch endpoints cap a request at 400 rows. A class of five groups
-      // with eight teachers is 960 grade rows, so sending the lot in one go
-      // failed the whole save with "Too many grades" — chunk instead.
+      // Both batch endpoints reject an oversized request outright. A class of
+      // five groups with eight teachers is 960 grade rows against a ceiling of
+      // 400, and 120 final-grade rows against a ceiling of 100 — so sending
+      // the lot in one go failed the entire save with "Too many …".
       const postChunks = async <T>(
         url: string,
         key: 'grades' | 'finalGrades',
         rows: T[],
+        chunkSize: number,
         fallbackMessage: string,
       ) => {
         const results: Array<{ skippedLocked?: number }> = []
-        for (let start = 0; start < rows.length; start += SAVE_ALL_CHUNK_SIZE) {
+        for (let start = 0; start < rows.length; start += chunkSize) {
           const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              ...batchBody,
-              [key]: rows.slice(start, start + SAVE_ALL_CHUNK_SIZE),
-            }),
+            body: JSON.stringify({ ...batchBody, [key]: rows.slice(start, start + chunkSize) }),
           })
           if (!response.ok) {
             const err = (await response.json().catch(() => null)) as { error?: string } | null
@@ -411,12 +415,14 @@ export function useGradeEditing({
         '/api/notensammler/grades/batch',
         'grades',
         gradesPayload,
+        GRADES_CHUNK_SIZE,
         'Failed to save grades',
       )
       await postChunks(
         '/api/notensammler/final-grades/batch',
         'finalGrades',
         finalGradesPayload,
+        FINAL_GRADES_CHUNK_SIZE,
         'Failed to save final grades',
       )
 
