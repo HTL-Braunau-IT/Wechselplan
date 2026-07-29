@@ -81,8 +81,7 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
   const inFlightRef = useRef(0)
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const debounce = useKeyedDebounce(SITZPLATZ_DEBOUNCE_MS)
-  const { schedule, flushAll, pendingCount } = debounce
+  const { schedule, flushAll, pendingCount } = useKeyedDebounce(SITZPLATZ_DEBOUNCE_MS)
 
   const beginSave = useCallback(() => {
     inFlightRef.current += 1

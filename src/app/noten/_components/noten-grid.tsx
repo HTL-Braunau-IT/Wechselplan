@@ -710,11 +710,7 @@ export function NotenGrid(props: NotenGridProps) {
                   )
                 })}
 
-                <td
-                  className={cn(
-                    'border-border w-14 min-w-14 border-r border-b border-l-2 p-1 text-center',
-                  )}
-                >
+                <td className="border-border w-14 min-w-14 border-r border-b border-l-2 p-1 text-center">
                   {totals?.nichtAnwesend ?? 0}
                 </td>
                 <td className={cn('w-14 min-w-14 p-1 text-center', CELL_BORDER)}>
@@ -813,7 +809,7 @@ export function NotenGrid(props: NotenGridProps) {
             })}
             <td
               colSpan={summaryColumns.length}
-              className={cn('border-border border-r-2 border-b border-l-2 p-1')}
+              className="border-border border-r-2 border-b border-l-2 p-1"
             />
           </tr>
         </tbody>
