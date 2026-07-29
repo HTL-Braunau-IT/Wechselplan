@@ -142,7 +142,14 @@
       "studentsInGroup": "Students in {{period}} Group",
       "noSchedule": "No schedule found for this day",
       "scheduleTime": "Schedule Time",
-      "breakTimes": "Break Times"
+      "breakTimes": "Break Times",
+      "room": "Room",
+      "noScheduleHint": "No schedule is set up for the selected weekday."
+    },
+    "roles": {
+      "teacher": "Teacher",
+      "admin": "Administrator",
+      "student": "Student"
     }
   },
   "auth": {

@@ -2,7 +2,17 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import {
+  AlertTriangle,
+  BookOpen,
+  GraduationCap,
+  MapPin,
+  Sun,
+  Sunset,
+  UserRound,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { useScheduleOverview } from '@/hooks/use-schedule-overview'
 import { ScheduleOverview } from '@/components/schedule-overview'
 import { Spinner } from '@/components/ui/spinner'
@@ -257,37 +267,52 @@ function StudentCurrentAssignments({
     return null
   }
 
-  const renderPeriod = (label: string, assignment: TeacherAssignmentResponse | null) => (
-    <div className="bg-muted/50 rounded-lg border p-3">
-      <p className="text-foreground mb-2 text-sm font-semibold">{label}</p>
-      {assignment ? (
-        <div className="space-y-2">
-          <div>
-            <p className="text-muted-foreground mb-1 text-xs">{t('overview.student.teacher')}</p>
-            <p className="text-foreground font-semibold">
-              {assignment.teacherFirstName} {assignment.teacherLastName}
-            </p>
-          </div>
-          <div>
-            <p className="text-muted-foreground mb-1 text-xs">{t('overview.student.subject')}</p>
-            <p className="text-sm">{assignment.subject}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground mb-1 text-xs">
-              {t('overview.student.learningContent')}
-            </p>
-            <p className="text-sm">{assignment.learningContent}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground mb-1 text-xs">{t('overview.student.room')}</p>
-            <p className="text-sm">{assignment.room}</p>
-          </div>
+  const renderPeriod = (
+    label: string,
+    periodIcon: LucideIcon,
+    assignment: TeacherAssignmentResponse | null,
+  ) => {
+    const PeriodIcon = periodIcon
+    return (
+      <div className="bg-muted/40 rounded-lg border p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <span className="bg-background text-muted-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border">
+            <PeriodIcon className="h-4 w-4" />
+          </span>
+          <p className="text-foreground text-sm font-semibold">{label}</p>
         </div>
-      ) : (
-        <p className="text-muted-foreground text-sm italic">{t('overview.student.noAssignment')}</p>
-      )}
-    </div>
-  )
+        {assignment ? (
+          <dl className="space-y-2.5">
+            <AssignmentField
+              icon={UserRound}
+              label={t('overview.student.teacher')}
+              value={`${assignment.teacherFirstName} ${assignment.teacherLastName}`}
+              strong
+            />
+            <AssignmentField
+              icon={BookOpen}
+              label={t('overview.student.subject')}
+              value={assignment.subject}
+            />
+            <AssignmentField
+              icon={GraduationCap}
+              label={t('overview.student.learningContent')}
+              value={assignment.learningContent}
+            />
+            <AssignmentField
+              icon={MapPin}
+              label={t('overview.student.room')}
+              value={assignment.room}
+            />
+          </dl>
+        ) : (
+          <p className="text-muted-foreground text-sm italic">
+            {t('overview.student.noAssignment')}
+          </p>
+        )}
+      </div>
+    )
+  }
 
   return (
     <Card className="mb-8">
@@ -296,11 +321,39 @@ function StudentCurrentAssignments({
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {renderPeriod(t('overview.teacher.amGroup'), amAssignment)}
-          {renderPeriod(t('overview.teacher.pmGroup'), pmAssignment)}
+          {renderPeriod(t('overview.teacher.amGroup'), Sun, amAssignment)}
+          {renderPeriod(t('overview.teacher.pmGroup'), Sunset, pmAssignment)}
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * A single labelled fact inside a student's period card: muted icon + label on
+ * one line, value beneath. Keeps the AM/PM cards scannable at a glance.
+ */
+function AssignmentField({
+  icon: Icon,
+  label,
+  value,
+  strong = false,
+}: {
+  icon: LucideIcon
+  label: string
+  value: string
+  strong?: boolean
+}) {
+  return (
+    <div className="flex items-start gap-2">
+      <Icon className="text-muted-foreground mt-0.5 h-3.5 w-3.5 shrink-0" />
+      <div className="min-w-0">
+        <dt className="text-muted-foreground text-xs">{label}</dt>
+        <dd className={cn('text-sm', strong ? 'text-foreground font-semibold' : '')}>
+          {value || '—'}
+        </dd>
+      </div>
+    </div>
   )
 }
 

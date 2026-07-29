@@ -3,7 +3,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSession, signIn } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
-import { LogIn } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { CalendarClock, LayoutDashboard, LogIn, Tag } from 'lucide-react'
 import React from 'react'
 import { TeacherOverview } from '@/components/overviews/teacher'
 import { StudentOverview } from '@/components/overviews/students'
@@ -25,11 +26,14 @@ export default function Home() {
 
   if (!session) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="space-y-4 text-center">
-          <h1 className="text-4xl font-bold">{t('common.welcome')}</h1>
-          <p className="text-muted-foreground text-lg">{t('auth.pleaseLogin')}</p>
-          <Button onClick={() => signIn()} size="lg" className="mt-4">
+      <div className="flex min-h-[70vh] items-center justify-center px-4">
+        <div className="bg-card w-full max-w-sm rounded-2xl border p-8 text-center shadow-sm">
+          <span className="bg-primary/10 text-primary mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl">
+            <CalendarClock className="h-7 w-7" />
+          </span>
+          <h1 className="text-2xl font-bold tracking-tight">{t('common.welcome')}</h1>
+          <p className="text-muted-foreground mt-2 text-sm">{t('auth.pleaseLogin')}</p>
+          <Button onClick={() => signIn()} size="lg" className="mt-6 w-full">
             <LogIn className="mr-2 h-5 w-5" />
             {t('auth.login')}
           </Button>
@@ -45,13 +49,22 @@ export default function Home() {
     day: 'numeric',
   })
 
+  const role = session.user?.role
+  const roleLabel = role ? t(`overview.roles.${role}`, { defaultValue: '' }) : ''
+
   return (
     <PageContainer size="wide" className="space-y-8">
       <PageHeader
+        icon={LayoutDashboard}
         title={`${t('common.welcome')}, ${session.user?.firstName} ${session.user?.lastName}`}
         description={localizedDate}
         actions={
           <>
+            {roleLabel && (
+              <Badge variant="secondary" className="capitalize">
+                {roleLabel}
+              </Badge>
+            )}
             <Button
               variant="ghost"
               size="sm"
@@ -59,7 +72,8 @@ export default function Home() {
               title="Click to view changelog"
               disabled={loading || !release}
             >
-              Version: v{version.startsWith('v') ? version.slice(1) : version}
+              <Tag className="mr-1.5 h-3.5 w-3.5" />v
+              {version.startsWith('v') ? version.slice(1) : version}
             </Button>
             <ChangelogDialog
               release={release}
