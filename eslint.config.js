@@ -12,6 +12,9 @@ export default tseslint.config(
       '**/__tests__/**',
       '**/test/**',
       '**/tests/**',
+      // One-off data-migration scripts, committed alongside the migration that
+      // ran them. They are a historical record, not living source.
+      'prisma/migrations/**',
     ],
   },
   // eslint-config-next ships a flat config from v15 onwards. Loading it

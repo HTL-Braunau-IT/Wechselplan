@@ -23,16 +23,22 @@ type TeacherWithKeys = Pick<
   | 'createdAt'
 >
 
-interface DependencyCounts {
-  teacherAssignments: number
-  teacherRotations: number
-  grades: number
-  notenWeightConfigs: number
-  lehrstoffPerDay: number
-  notenEntries: number
-  classHeadLinks: number
-  classLeadLinks: number
-}
+/**
+ * A type alias rather than an interface so `Object.values` stays typed:
+ * interfaces have no implicit index signature, so values() on one widens to
+ * `any` and the sum below loses its type.
+ */
+type DependencyCounts = Record<
+  | 'teacherAssignments'
+  | 'teacherRotations'
+  | 'grades'
+  | 'notenWeightConfigs'
+  | 'lehrstoffPerDay'
+  | 'notenEntries'
+  | 'classHeadLinks'
+  | 'classLeadLinks',
+  number
+>
 
 interface ClusterMember {
   teacher: TeacherWithKeys
