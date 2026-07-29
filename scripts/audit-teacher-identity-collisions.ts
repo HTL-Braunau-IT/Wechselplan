@@ -13,7 +13,9 @@ import { normalizeUsername } from '../src/lib/username'
 
 type TeacherWithKeys = Pick<Teacher, 'id' | 'firstName' | 'lastName' | 'username' | 'email' | 'externalId' | 'externalSource' | 'createdAt'>
 
-interface DependencyCounts {
+// A type alias (unlike an interface) carries an implicit index signature,
+// which lets Object.values() below infer number[] rather than any[].
+type DependencyCounts = {
   teacherAssignments: number
   teacherRotations: number
   grades: number

@@ -56,10 +56,9 @@ async function resolveMicrosoftAccess(accessToken: string): Promise<{ allowed: b
   const legacyStudentGroups = parseCsvEnv(process.env.MS_STUDENT_GROUPS)
   const legacyTeacherGroups = parseCsvEnv(process.env.MS_TEACHER_GROUPS)
 
-  const isTeacher = Boolean(
-    (teacherGroupId && groups.includes(teacherGroupId)) ||
+  const isTeacher =
+    (teacherGroupId != null && groups.includes(teacherGroupId)) ||
     groups.some(id => legacyTeacherGroups.includes(id))
-  )
   const isSyncedStudent = groups.some(id => syncedClassGroupIds.includes(id))
   const isLegacyStudent = groups.some(id => legacyStudentGroups.includes(id))
   const allowed = isTeacher || isSyncedStudent || isLegacyStudent

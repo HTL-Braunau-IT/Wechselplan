@@ -254,7 +254,7 @@ export function StudentPhotosUpload() {
         </div>
         {allClassesFolderName != null && allClassesFiles != null && allClassesFiles.length > 0 && (
           <p className="text-sm text-muted-foreground">
-            Ordner "{allClassesFolderName}": {allClassesFiles.length} Datei(en) ausgewaehlt.
+            Ordner &quot;{allClassesFolderName}&quot;: {allClassesFiles.length} Datei(en) ausgewaehlt.
           </p>
         )}
       </div>

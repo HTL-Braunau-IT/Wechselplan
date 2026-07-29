@@ -46,11 +46,28 @@ export function Header() {
 
 	// Only show menu for authenticated non-student users
 	const showMenu = session && session.user?.role !== 'student'
-	const profileInitials = useMemo(() => {
+	// Plain string work — the React Compiler memoizes it better than a useMemo
+	// over optional-chained dependencies, which it could not preserve.
+	const profileInitials = (() => {
 		const first = session?.user?.firstName?.charAt(0) ?? ''
 		const last = session?.user?.lastName?.charAt(0) ?? ''
-		return `${first}${last}`.toUpperCase() || session?.user?.name?.charAt(0)?.toUpperCase() || '?'
-	}, [session?.user?.firstName, session?.user?.lastName, session?.user?.name])
+		const initials = `${first}${last}`.toUpperCase()
+		if (initials.length > 0) return initials
+
+		// Entra logins may only carry a display name.
+		const nameInitial = session?.user?.name?.charAt(0)?.toUpperCase() ?? ''
+		return nameInitial.length > 0 ? nameInitial : '?'
+	})()
+
+	// Prefer the real name; fall back through display name to e-mail.
+	const profileDisplayName = (() => {
+		const fullName = [session?.user?.firstName, session?.user?.lastName]
+			.filter((part): part is string => Boolean(part))
+			.join(' ')
+		if (fullName.length > 0) return fullName
+		if (session?.user?.name) return session.user.name
+		return session?.user?.email ?? ''
+	})()
 
 	return (
 		<header className="fixed top-0 left-0 right-0 z-50 bg-background border-b">
@@ -134,11 +151,7 @@ export function Header() {
 								<DropdownMenuContent align="end">
 									<DropdownMenuLabel>
 										<div className="flex flex-col space-y-1">
-											<p className="text-sm font-medium">
-												{[session.user?.firstName, session.user?.lastName]
-													.filter(Boolean)
-													.join(' ') || session.user?.name || session.user?.email || ''}
-											</p>
+											<p className="text-sm font-medium">{profileDisplayName}</p>
 											<p className="text-xs text-muted-foreground">
 												{t(`profile.role.${session.user?.role}`)}
 											</p>

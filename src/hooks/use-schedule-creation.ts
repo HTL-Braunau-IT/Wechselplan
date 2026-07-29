@@ -1,5 +1,5 @@
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useClassDataByName } from './use-class-data'
 
 /**
@@ -16,21 +16,16 @@ export function useScheduleCreation() {
 	const className = searchParams.get('class')
 	const weekdayParam = searchParams.get('weekday')
 	
-	const [selectedClassId, setSelectedClassId] = useState<number | null>(null)
 	const [selectedWeekday, setSelectedWeekday] = useState<number | null>(
 		weekdayParam ? parseInt(weekdayParam) : null
 	)
 
 	// Resolve className to classId
 	const { data: classData, isLoading: isLoadingClass } = useClassDataByName(className ?? null)
-	
-	useEffect(() => {
-		if (classData) {
-			setSelectedClassId(classData.id)
-		} else if (!className) {
-			setSelectedClassId(null)
-		}
-	}, [classData, className])
+
+	// Purely derived from the resolved class — mirroring it into state via an
+	// effect only added a render and could leave a stale id on the way out.
+	const selectedClassId = classData?.id ?? null
 
 	// Navigation helpers
 	const navigateToTeachers = () => {

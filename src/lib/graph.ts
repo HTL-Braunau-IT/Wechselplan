@@ -366,7 +366,11 @@ export async function getUserPhoto(userId: string): Promise<GraphUserPhoto | nul
       throw error
     }
 
-    const contentType = response.headers.get('content-type') || 'image/jpeg'
+    // Treat a missing *or* empty content-type as unknown and fall back.
+    const rawContentType = response.headers.get('content-type')
+    const contentType = rawContentType != null && rawContentType.length > 0
+      ? rawContentType
+      : 'image/jpeg'
     const arrayBuffer = await response.arrayBuffer()
     return {
       bytes: Buffer.from(arrayBuffer),

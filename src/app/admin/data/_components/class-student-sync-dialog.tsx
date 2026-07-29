@@ -774,7 +774,7 @@ export function ClassStudentSyncDialog({
                           {diff.students.toCreate.map((c, idx) => {
                             const next = diff.students.toCreate[idx + 1]
                             const isClassBoundary =
-                              !next || next.target.groupDisplayName !== c.target.groupDisplayName
+                              next?.target.groupDisplayName !== c.target.groupDisplayName
                             return (
                             <TableRow
                               key={c.entra.oid}
@@ -829,7 +829,7 @@ export function ClassStudentSyncDialog({
                           {diff.students.toUpdate.map((u, idx) => {
                             const next = diff.students.toUpdate[idx + 1]
                             const isClassBoundary =
-                              !next || next.target.groupDisplayName !== u.target.groupDisplayName
+                              next?.target.groupDisplayName !== u.target.groupDisplayName
                             return (
                             <TableRow
                               key={u.entra.oid}
@@ -957,7 +957,7 @@ export function ClassStudentSyncDialog({
                           {diff.students.toReactivate.map((r, idx) => {
                             const next = diff.students.toReactivate[idx + 1]
                             const isClassBoundary =
-                              !next || next.target.groupDisplayName !== r.target.groupDisplayName
+                              next?.target.groupDisplayName !== r.target.groupDisplayName
                             return (
                             <TableRow
                               key={r.entra.oid}

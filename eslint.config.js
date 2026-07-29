@@ -31,6 +31,14 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-call": "off",
       "@typescript-eslint/no-unsafe-member-access": "off",
       "react-hooks/exhaustive-deps": "off",
+      // New in React 19. Five pre-existing sites trip it, all the same shape:
+      // clear state, then fetch inside an effect (theme-provider,
+      // entitlements-context, overviews/teacher, transfer-student-dialog x2).
+      // The real fix is to move those loads onto React Query, which the
+      // schedule hooks already use — a change worth making on its own rather
+      // than smuggling into an unrelated refactor. Kept visible as a warning
+      // instead of silenced with per-site disables.
+      "react-hooks/set-state-in-effect": "warn",
       "@typescript-eslint/no-unsafe-assignment": "off",
       "@typescript-eslint/no-unnecessary-type-assertion": "off",
       //
