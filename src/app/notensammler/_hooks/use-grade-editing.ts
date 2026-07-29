@@ -24,6 +24,8 @@ type Params = {
   setFinalGrades: React.Dispatch<React.SetStateAction<FinalGradesData>>
   setError: (message: string | null) => void
   refreshTeacherClasses: () => Promise<void>
+  /** Re-reads Sokrates lock/drift state after a save so badges stay current. */
+  refreshSokrates?: () => void | Promise<void>
 }
 
 const emptyFinalGrade = () => ({
@@ -43,6 +45,7 @@ export function useGradeEditing({
   setFinalGrades,
   setError,
   refreshTeacherClasses,
+  refreshSokrates,
 }: Params) {
   const [saving, setSaving] = useState(false)
   const [savingAll, setSavingAll] = useState(false)
@@ -109,6 +112,8 @@ export function useGradeEditing({
         void (async () => {
           try {
             await saveGrade(studentId, teacherId, semester, gradeValue)
+            // Coalesce the status refresh: one GET per typing burst, not per cell.
+            schedule('sokrates-refresh', () => void refreshSokrates?.())
           } catch {
             setGrades(prev => {
               const next = { ...prev }
@@ -122,7 +127,7 @@ export function useGradeEditing({
         })()
       })
     },
-    [grades, saveGrade, schedule, setError, setGrades],
+    [grades, saveGrade, schedule, setError, setGrades, refreshSokrates],
   )
 
   const getGrade = useCallback(
@@ -366,8 +371,20 @@ export function useGradeEditing({
         throw new Error(err.error ?? 'Failed to save final grades')
       }
 
+      // Some grades may have been skipped because they are locked in Sokrates —
+      // the rest were still saved, so surface a notice rather than failing.
+      const gradesResult = (await gradesRes.json().catch(() => null)) as {
+        skippedLocked?: number
+      } | null
+      if (gradesResult?.skippedLocked && gradesResult.skippedLocked > 0) {
+        setError(
+          `${gradesResult.skippedLocked} in Sokrates gesperrte Note(n) wurden nicht gespeichert. Bitte den Klassenleiter kontaktieren.`,
+        )
+      }
+
       // Refresh so the per-class tab ticks reflect the new completion state.
       await refreshTeacherClasses()
+      void refreshSokrates?.()
     } catch (e) {
       captureFrontendError(e, { location: 'notensammler', type: 'save-all-grades' })
       setError(e instanceof Error ? e.message : 'Failed to save all grades')
@@ -381,6 +398,7 @@ export function useGradeEditing({
     getFinalGradeDisplay,
     grades,
     refreshTeacherClasses,
+    refreshSokrates,
     schoolYearId,
     setError,
   ])

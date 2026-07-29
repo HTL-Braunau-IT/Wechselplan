@@ -23,6 +23,7 @@ import type { Semester } from '@/lib/grades'
 import type { Period, SortDirection, SortField, Teacher } from './_lib/types'
 import { useNotensammlerData } from './_hooks/use-notensammler-data'
 import { useGradeEditing } from './_hooks/use-grade-editing'
+import { useSokrates } from './_hooks/use-sokrates'
 import { useTransferFlow } from './_hooks/use-transfer-flow'
 import { useLfView } from './_hooks/use-lf-view'
 import { usePdfDownload } from './_hooks/use-pdf-download'
@@ -30,6 +31,7 @@ import { NotensammlerToolbar } from './_components/notensammler-toolbar'
 import { ClassTabBar } from './_components/class-tab-bar'
 import { PeriodTabs } from './_components/period-tabs'
 import { GradeTable } from './_components/grade-table'
+import { SokratesPanel } from './_components/sokrates-panel'
 import { TransferDialogs } from './_components/transfer-dialogs'
 import { NmCredentialsDialog } from './_components/nm-credentials-dialog'
 import { LfViewDialog } from './_components/lf-view-dialog'
@@ -74,6 +76,8 @@ export default function NotensammlerPage() {
   const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null)
   const [deleting, setDeleting] = useState(false)
 
+  const sokrates = useSokrates({ classId: classData?.id, schoolYearId, setError })
+
   const {
     saving,
     savingAll,
@@ -93,6 +97,7 @@ export default function NotensammlerPage() {
     setFinalGrades,
     setError,
     refreshTeacherClasses,
+    refreshSokrates: sokrates.refresh,
   })
 
   const transfer = useTransferFlow({ classData, schoolYearId, setError, refreshClassData })
@@ -333,6 +338,15 @@ export default function NotensammlerPage() {
             </div>
           </CardHeader>
           <CardContent>
+            <SokratesPanel
+              status={sokrates.status}
+              canManage={sokrates.canManage}
+              busy={sokrates.busy}
+              onMark={semester => void sokrates.mark(semester)}
+              onUnmark={semester => void sokrates.unmark(semester)}
+              onSetLockAll={(semester, locked) => void sokrates.setLockAll(semester, locked)}
+            />
+
             {classData.hasSeparateAmPmSubjects && (
               <PeriodTabs
                 value={periodTab}
@@ -362,6 +376,13 @@ export default function NotensammlerPage() {
               onFinalGradeChange={handleFinalGradeChange}
               onConductWishChange={handleConductWishChange}
               onDeleteTeacher={setTeacherToDelete}
+              canManageSokrates={sokrates.canManage}
+              isSemesterMarked={semester => sokrates.status[semester].marked}
+              isCellLocked={sokrates.isCellLocked}
+              isCellDrifted={sokrates.isCellDrifted}
+              onToggleColumnLock={(teacherId, semester, locked) =>
+                void sokrates.setLockTeacher(semester, teacherId, locked)
+              }
             />
 
             {saving && (

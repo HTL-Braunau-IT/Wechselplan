@@ -5,6 +5,13 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { denyUnlessAccess } from '@/lib/api-guard'
+import {
+  canManageSokrates,
+  getSokratesStatus,
+  isEditBlocked,
+  recordSokratesChanges,
+  resolveCurrentTeacher,
+} from '@/lib/sokrates-lock'
 
 // Force dynamic rendering - no caching
 export const dynamic = 'force-dynamic'
@@ -307,6 +314,49 @@ export async function POST(request: Request) {
             ? parseFloat(grade)
             : null
 
+    // Sokrates lock enforcement: once a class+semester is marked as entered into
+    // Sokrates, a hard lock blocks non-class-leads from changing it; a soft mark
+    // allows the change but records it and notifies the class lead (below).
+    const semesterTyped = semester as 'first' | 'second'
+    const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId)
+    const semesterMarked = sokratesStatus[semesterTyped].marked
+    const currentTeacher = semesterMarked ? await resolveCurrentTeacher(session) : null
+    let sokratesOldGrade: number | null = null
+    if (semesterMarked) {
+      const existingGrade = await prisma.grade.findUnique({
+        where: {
+          studentId_teacherId_classId_semester_schoolYearId: {
+            studentId: studentIdNum,
+            teacherId: teacherIdNum,
+            classId: classIdNum,
+            semester: semesterTyped,
+            schoolYearId,
+          },
+        },
+        select: { grade: true },
+      })
+      sokratesOldGrade = existingGrade?.grade ?? null
+
+      // Re-saving the same value is a no-op — never block it (mirrors the batch
+      // route, and the documented contract). Only an actual change is gated.
+      if (sokratesOldGrade !== gradeValue) {
+        const canOverride = await canManageSokrates({
+          classId: classIdNum,
+          role: session.user?.role,
+          teacherId: currentTeacher?.id ?? null,
+        })
+        if (isEditBlocked(sokratesStatus, semesterTyped, teacherIdNum, canOverride)) {
+          return NextResponse.json(
+            {
+              error:
+                'Diese Note wurde bereits in Sokrates eingetragen und ist gesperrt. Bitte den Klassenleiter kontaktieren.',
+            },
+            { status: 423 },
+          )
+        }
+      }
+    }
+
     console.log(`[POST /api/notensammler/grades] Attempting to upsert grade:`, {
       studentId: studentIdNum,
       teacherId: teacherIdNum,
@@ -367,6 +417,27 @@ export async function POST(request: Request) {
       console.log(
         `[POST /api/notensammler/grades] Verification: Grade exists in DB with value: ${verifyGrade.grade}`,
       )
+    }
+
+    // Marked-then-changed → record + notify the class lead (no-op if unchanged
+    // or if the class lead made the change themselves).
+    if (semesterMarked) {
+      await recordSokratesChanges({
+        classId: classIdNum,
+        schoolYearId,
+        changedById: currentTeacher?.id ?? null,
+        changedByName: currentTeacher?.name ?? session.user?.name ?? 'Unbekannt',
+        status: sokratesStatus,
+        changes: [
+          {
+            studentId: studentIdNum,
+            teacherId: teacherIdNum,
+            semester: semesterTyped,
+            oldGrade: sokratesOldGrade,
+            newGrade: gradeValue,
+          },
+        ],
+      })
     }
 
     return NextResponse.json({ success: true, grade: result })

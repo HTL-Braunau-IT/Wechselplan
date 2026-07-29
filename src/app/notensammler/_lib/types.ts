@@ -22,6 +22,7 @@ export interface ClassData {
   subjectNameAm?: string
   subjectNamePm?: string
   classLead?: string | null
+  classLeadId?: number | null
   students: Student[]
   amTeachers: Teacher[]
   pmTeachers: Teacher[]

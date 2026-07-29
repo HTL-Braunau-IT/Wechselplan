@@ -503,3 +503,72 @@ model NotenEntry {
   @@index([schoolYearId])
   @@index([date])
 }
+
+// Sokrates transfer marker + edit lock.
+//
+// Wechselplan cannot write to Sokrates (the government Zeugnis system has no
+// API — grades are typed in by hand), so the Klassenvorstand records HERE that
+// a class+semester has been entered into Sokrates. Once marked, later grade
+// changes by subject teachers are either blocked (hard lock) or allowed and
+// reported to the class lead (soft mark) — see src/lib/sokrates-lock.ts.
+model SokratesTransfer {
+  id           Int      @id @default(autoincrement())
+  classId      Int
+  semester     String   // 'first' | 'second'
+  schoolYearId Int
+  markedById   Int      // Teacher (class lead or admin) who marked it entered
+  markedByName String
+  markedAt     DateTime @default(now())
+  lockedAll    Boolean  @default(false) // hard-lock the whole class (hybrid escalation)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  subjectLocks SokratesSubjectLock[]
+  notices      SokratesChangeNotice[]
+
+  @@unique([classId, semester, schoolYearId])
+  @@index([classId, schoolYearId])
+}
+
+// A single hard-locked teacher/subject column under a SokratesTransfer (hybrid:
+// the class lead can escalate one column rather than the whole class).
+model SokratesSubjectLock {
+  id         Int      @id @default(autoincrement())
+  transferId Int
+  teacherId  Int
+  createdAt  DateTime @default(now())
+
+  transfer SokratesTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+
+  @@unique([transferId, teacherId])
+}
+
+// Audit + notification record: one row per grade changed AFTER its class+semester
+// was marked as entered into Sokrates. Drives the in-app notification bell and is
+// the source for the email sent to the class lead. Names are point-in-time
+// snapshots so the record stays readable even if people are later renamed.
+model SokratesChangeNotice {
+  id                 Int       @id @default(autoincrement())
+  transferId         Int
+  classId            Int
+  className          String
+  semester           String
+  schoolYearId       Int
+  studentId          Int
+  studentName        String
+  teacherId          Int      // subject/teacher column that changed
+  subjectTeacherName String
+  oldGrade           Float?
+  newGrade           Float?
+  changedById        Int?     // teacher who made the change (null: admin without a Teacher row)
+  changedByName      String
+  recipientId        Int?     // class lead notified (null if the class has no lead)
+  changedAt          DateTime  @default(now())
+  acknowledgedAt     DateTime?
+
+  transfer SokratesTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+
+  @@index([transferId])
+  @@index([classId, schoolYearId])
+  @@index([recipientId, acknowledgedAt])
+}
