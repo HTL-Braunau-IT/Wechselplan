@@ -122,22 +122,33 @@ export async function notify<T extends NotificationType>(input: NotifyInput<T>):
 }
 
 /**
- * {@link notify}, but a failure is reported and swallowed. Notifications are a
- * side channel: losing one must never roll back the schedule or grade save that
- * produced it.
+ * Runs a notification side effect, reporting and swallowing any failure.
+ *
+ * Notifications are a side channel: losing one must never turn an already-saved
+ * schedule or grade into an error the user sees.
+ *
+ * Wrap the **whole** block, not just the `notify` call. The recipient lookups
+ * that build its input run first, and by the time they run the mutation has
+ * usually already committed — so a lookup that throws would escape into the
+ * route's outer catch and report a 500 for work that in fact succeeded.
+ */
+export async function bestEffort(what: string, run: () => Promise<void>): Promise<void> {
+  try {
+    await run()
+  } catch (error) {
+    captureError(error as Error, { location: 'lib/notifications', type: what })
+  }
+}
+
+/**
+ * {@link notify}, with {@link bestEffort} around it. Safe only when the input is
+ * already built; anything that has to be looked up first belongs inside a
+ * `bestEffort` block of its own.
  */
 export async function notifyQuietly<T extends NotificationType>(
   input: NotifyInput<T>,
 ): Promise<void> {
-  try {
-    await notify(input)
-  } catch (error) {
-    captureError(error as Error, {
-      location: 'lib/notifications',
-      type: 'notify',
-      extra: { notificationType: input.type },
-    })
-  }
+  await bestEffort(`notify:${input.type}`, () => notify(input).then(() => undefined))
 }
 
 /**

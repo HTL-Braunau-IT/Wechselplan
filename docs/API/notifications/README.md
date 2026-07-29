@@ -11,7 +11,10 @@ one case that has to reach someone who is not logged in (see
 
 ## Data model
 
-`Notification` — one row per recipient per event.
+`Notification` — one row per recipient per `dedupeKey`, not per event: repeated
+events with the same key refresh the recipient's existing unread row rather than
+adding another (see [Collapsing](#collapsing)). Without a key, each event does
+get its own row.
 
 | Column        | Meaning                                                              |
 | ------------- | -------------------------------------------------------------------- |
@@ -78,9 +81,11 @@ Two rules apply to every type, in `src/lib/notifications.ts`:
 - **Deactivated teachers are dropped.** Recipients are filtered through
   `teacher.findMany`, which defaults to `isActive: true`.
 
-Writing a notification is best-effort throughout (`notifyQuietly`, and the
-`_notify.ts` helpers next to the routes). A schedule that saved must not come
-back as a 500 because the bell could not be rung.
+Writing a notification is best-effort throughout: the `_notify.ts` helpers next
+to the routes wrap their whole body in `bestEffort`, **recipient lookups
+included**. That last part matters — the lookups run after the mutation has
+committed, so letting one throw would report a 500 for a schedule or grade save
+that in fact succeeded, and the user would do it again.
 
 ---
 

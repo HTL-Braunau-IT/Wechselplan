@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/server/send-support-email-graph'
 import { captureError } from '@/lib/sentry'
 import { getGradeDisplayText, type Semester } from '@/lib/grades'
-import { notensammlerLink, notifyQuietly, sokratesChangeDedupeKey } from '@/lib/notifications'
+import { bestEffort, notensammlerLink, notify, sokratesChangeDedupeKey } from '@/lib/notifications'
 
 // Re-exported: the Sokrates routes have always imported the current teacher
 // from here, and the helper is now shared with the notification layer.
@@ -200,21 +200,27 @@ export async function recordSokratesChanges(params: {
   // count is read back from the still-open notices rather than from this batch,
   // so a second change collapsing onto the same unread entry reports the total
   // rather than overwriting it with the latest batch size.
+  //
+  // The count query sits inside the bestEffort block on purpose: the grades are
+  // already written by the time we get here, so a failure must not surface as a
+  // failed save.
   if (recipientId != null) {
-    for (const semester of [...new Set(relevant.map(change => change.semester))]) {
-      const open = await prisma.sokratesChangeNotice.count({
-        where: { classId, schoolYearId, semester, recipientId, acknowledgedAt: null },
-      })
-      await notifyQuietly({
-        type: 'sokrates-change',
-        recipientIds: [recipientId],
-        actorId: changedById,
-        actorName: changedByName,
-        params: { className: classRecord.name, semester, count: open, classId, schoolYearId },
-        link: notensammlerLink(classRecord.name),
-        dedupeKey: sokratesChangeDedupeKey({ classId, schoolYearId, semester }),
-      })
-    }
+    await bestEffort('sokrates-change', async () => {
+      for (const semester of [...new Set(relevant.map(change => change.semester))]) {
+        const open = await prisma.sokratesChangeNotice.count({
+          where: { classId, schoolYearId, semester, recipientId, acknowledgedAt: null },
+        })
+        await notify({
+          type: 'sokrates-change',
+          recipientIds: [recipientId],
+          actorId: changedById,
+          actorName: changedByName,
+          params: { className: classRecord.name, semester, count: open, classId, schoolYearId },
+          link: notensammlerLink(classRecord.name),
+          dedupeKey: sokratesChangeDedupeKey({ classId, schoolYearId, semester }),
+        })
+      }
+    })
   }
 
   // Email the class lead (best-effort). No lead or no address → in-app only.

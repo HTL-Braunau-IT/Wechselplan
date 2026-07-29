@@ -6,13 +6,8 @@ import { captureError } from '@/lib/sentry'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { prisma } from '@/lib/prisma'
 import { canManageSokrates } from '@/lib/sokrates-lock'
-import {
-  clearSokratesChangeNotifications,
-  gradeColumnTeachers,
-  notensammlerLink,
-  notifyQuietly,
-} from '@/lib/notifications'
 import { parseId, parseSemester, resolveCurrentTeacher, resolveSchoolYearId } from '../_shared'
+import { notifySokratesUnmarked } from '../_notify'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -62,34 +57,11 @@ export async function POST(request: Request) {
       )
     }
 
-    // Recipients are read before the delete: cascading the transfer away takes
-    // its locks with it, and the teachers being released are the ones to tell.
-    const [columnTeachers, classRecord] = await Promise.all([
-      gradeColumnTeachers(classId, schoolYearId),
-      prisma.class.findUnique({ where: { id: classId }, select: { name: true } }),
-    ])
-
     await prisma.sokratesTransfer.deleteMany({ where: { classId, semester, schoolYearId } })
 
-    // The mark's own notifications describe a state that no longer exists.
-    await clearSokratesChangeNotifications({
-      classId,
-      schoolYearId,
-      semester,
-      readAt: new Date(),
-    })
-
-    if (classRecord) {
-      await notifyQuietly({
-        type: 'sokrates-unmarked',
-        recipientIds: columnTeachers,
-        actorId: teacher?.id ?? null,
-        actorName: teacher?.name ?? session?.user?.name ?? 'Administrator',
-        params: { className: classRecord.name, semester },
-        link: notensammlerLink(classRecord.name),
-        dedupeKey: `sokrates-unmarked:${classId}:${schoolYearId}:${semester}`,
-      })
-    }
+    // Recipients are still resolvable afterwards: the cascade takes the locks
+    // and change notices with the transfer, but not the grades they were about.
+    await notifySokratesUnmarked({ classId, schoolYearId, semester, actor: teacher, session })
 
     return NextResponse.json({ success: true })
   } catch (error) {

@@ -6,8 +6,8 @@ import { captureError } from '@/lib/sentry'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { prisma } from '@/lib/prisma'
 import { canManageSokrates } from '@/lib/sokrates-lock'
-import { gradeColumnTeachers, notensammlerLink, notifyQuietly } from '@/lib/notifications'
 import { parseId, parseSemester, resolveCurrentTeacher, resolveSchoolYearId } from '../_shared'
+import { notifySokratesLock } from '../_notify'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -103,24 +103,16 @@ export async function POST(request: Request) {
     }
 
     // A lock takes the sheet away from the people who fill it in, so tell them.
-    // `scope: 'all'` reaches every column owner; `scope: 'teacher'` only the one
-    // whose column moved.
-    const classRecord = await prisma.class.findUnique({
-      where: { id: classId },
-      select: { name: true },
+    await notifySokratesLock({
+      classId,
+      schoolYearId,
+      semester,
+      actor: teacher,
+      session,
+      locked,
+      scope,
+      teacherId,
     })
-    if (classRecord) {
-      await notifyQuietly({
-        type: locked ? 'sokrates-locked' : 'sokrates-unlocked',
-        recipientIds:
-          scope === 'all' ? await gradeColumnTeachers(classId, schoolYearId) : [teacherId],
-        actorId: teacher?.id ?? null,
-        actorName: teacher?.name ?? session?.user?.name ?? 'Administrator',
-        params: { className: classRecord.name, semester, scope },
-        link: notensammlerLink(classRecord.name),
-        dedupeKey: `sokrates-lock:${classId}:${schoolYearId}:${semester}:${scope}`,
-      })
-    }
 
     return NextResponse.json({ success: true })
   } catch (error) {
