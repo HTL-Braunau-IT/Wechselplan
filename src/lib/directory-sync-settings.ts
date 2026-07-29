@@ -111,6 +111,33 @@ export async function getSyncedClassGroupIds(): Promise<string[]> {
   return settings.syncedClassGroupIds
 }
 
+const GROUP_ID_CACHE_TTL_MS = 60_000
+let cachedGroupIds: { value: string[]; expiresAt: number } | null = null
+
+/**
+ * Same as {@link getSyncedClassGroupIds}, but memoised for a minute.
+ *
+ * The sign-in path needs this on every authentication; without the cache each
+ * login adds a settings query. A minute of staleness is acceptable because the
+ * admin UI changes this list rarely and a newly added class group only delays
+ * that class's first login by up to a minute.
+ */
+export async function getSyncedClassGroupIdsCached(): Promise<string[]> {
+  const now = Date.now()
+  if (cachedGroupIds && now < cachedGroupIds.expiresAt) {
+    return cachedGroupIds.value
+  }
+
+  const value = await getSyncedClassGroupIds()
+  cachedGroupIds = { value, expiresAt: now + GROUP_ID_CACHE_TTL_MS }
+  return value
+}
+
+/** Drops the memoised group ids so the next read hits the DB. */
+export function invalidateSyncedClassGroupIdsCache(): void {
+  cachedGroupIds = null
+}
+
 export interface DirectorySyncSettingsUpdate {
   syncedClassGroupIds?: string[]
   syncMode?: SyncMode
@@ -129,6 +156,8 @@ export async function updateDirectorySyncSettings(
   const cleanedGroupIds = update.syncedClassGroupIds
     ?.map(id => id.trim())
     .filter(Boolean)
+
+  invalidateSyncedClassGroupIdsCache()
 
   const row = await prisma.directorySyncSettings.upsert({
     where: { id: SETTINGS_ROW_ID },

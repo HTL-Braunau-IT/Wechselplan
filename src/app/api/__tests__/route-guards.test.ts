@@ -61,9 +61,9 @@ describe('API route guards', () => {
 
       // The declared tier must be one the policy table actually knows about,
       // i.e. the route is not relying on the fallback by accident.
-      for (const [, method] of handlers) {
+      for (const handler of handlers) {
         expect(['public', 'session', 'staff', 'admin']).toContain(
-          resolveAccessTier(route, method),
+          resolveAccessTier(route, handler[1]!),
         )
       }
     },

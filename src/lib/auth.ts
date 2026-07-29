@@ -6,6 +6,8 @@ import { prisma } from '@/lib/prisma'
 import type { User } from 'next-auth'
 import { captureError } from '@/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
+import { checkMemberGroups } from '@/lib/graph'
+import { getSyncedClassGroupIdsCached } from '@/lib/directory-sync-settings'
 
 type AppRole = 'admin' | 'teacher' | 'student' | 'user'
 
@@ -22,56 +24,84 @@ function isEnabled(value: string | undefined, defaultValue = true): boolean {
   return !['0', 'false', 'off', 'no'].includes(normalized)
 }
 
-async function fetchMicrosoftGroupIds(accessToken: string): Promise<string[]> {
-  const groups: string[] = []
-  let nextUrl = 'https://graph.microsoft.com/v1.0/me/memberOf?$select=id'
-
-  while (nextUrl) {
-    const response = await fetch(nextUrl, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    })
-
-    if (!response.ok) {
-      throw new Error(`Microsoft Graph API returned ${response.status} ${response.statusText}`)
-    }
-
-    const data = await response.json() as { value?: Array<{ id?: string }>; '@odata.nextLink'?: string }
-    for (const entry of data.value ?? []) {
-      if (entry.id) {
-        groups.push(entry.id)
-      }
-    }
-    nextUrl = data['@odata.nextLink'] ?? ''
-  }
-
-  return groups
+export interface MicrosoftAccess {
+  allowed: boolean
+  role: AppRole
 }
 
-async function resolveMicrosoftAccess(accessToken: string): Promise<{ allowed: boolean; role: AppRole }> {
-  const groups = await fetchMicrosoftGroupIds(accessToken)
-  const teacherGroupId = process.env.ENTRA_TEACHER_GROUP_ID?.trim()
-  const syncedClassGroupIds = parseCsvEnv(process.env.ENTRA_SYNC_CLASS_GROUP_IDS)
-  const legacyStudentGroups = parseCsvEnv(process.env.MS_STUDENT_GROUPS)
-  const legacyTeacherGroups = parseCsvEnv(process.env.MS_TEACHER_GROUPS)
+/**
+ * How long a resolved access decision is reused before Graph is consulted
+ * again. This bounds how long a user keeps teacher or admin rights after being
+ * removed from the Entra group; sessions themselves live far longer.
+ */
+const ACCESS_CACHE_TTL_MS = 15 * 60 * 1000
 
-  const isTeacher = Boolean(
-    (teacherGroupId && groups.includes(teacherGroupId)) ||
-    groups.some(id => legacyTeacherGroups.includes(id))
-  )
-  const isSyncedStudent = groups.some(id => syncedClassGroupIds.includes(id))
-  const isLegacyStudent = groups.some(id => legacyStudentGroups.includes(id))
-  const allowed = isTeacher || isSyncedStudent || isLegacyStudent
+const accessCache = new Map<string, { value: MicrosoftAccess; expiresAt: number }>()
 
-  if (!allowed) {
+/**
+ * Resolves whether an Entra user may sign in, and with which role.
+ *
+ * Membership is read with the **app-only** Graph token via `checkMemberGroups`
+ * rather than the user's delegated token against `/me/memberOf`. That matters
+ * for three reasons: it does not depend on delegated `GroupMember.Read.All`
+ * consent (the provider only requests `openid profile email`), it is
+ * transitive so nested class groups resolve the same way class sync sees them,
+ * and it works without an `access_token` in hand, which is what lets roles be
+ * re-checked on an existing session instead of only at sign-in.
+ *
+ * The synced class group list comes from the database, which is what the admin
+ * settings UI writes; the `ENTRA_SYNC_CLASS_GROUP_IDS` env var is only a
+ * first-run bootstrap and is applied inside `getDirectorySyncSettings`.
+ */
+export async function resolveMicrosoftAccess(objectId: string): Promise<MicrosoftAccess> {
+  const oid = objectId?.trim()
+  if (!oid) {
     return { allowed: false, role: 'user' }
   }
 
-  return {
-    allowed: true,
-    role: isTeacher ? 'teacher' : 'student',
+  const now = Date.now()
+  const cached = accessCache.get(oid)
+  if (cached && now < cached.expiresAt) {
+    return cached.value
   }
+
+  const teacherGroupId = process.env.ENTRA_TEACHER_GROUP_ID?.trim()
+  const syncedClassGroupIds = await getSyncedClassGroupIdsCached()
+  const legacyStudentGroups = parseCsvEnv(process.env.MS_STUDENT_GROUPS)
+  const legacyTeacherGroups = parseCsvEnv(process.env.MS_TEACHER_GROUPS)
+
+  const teacherGroups = [teacherGroupId, ...legacyTeacherGroups].filter(
+    (id): id is string => Boolean(id),
+  )
+  const studentGroups = [...syncedClassGroupIds, ...legacyStudentGroups]
+
+  const candidates = [...teacherGroups, ...studentGroups]
+  if (candidates.length === 0) {
+    // Nothing configured yet: deny rather than fall open.
+    const value: MicrosoftAccess = { allowed: false, role: 'user' }
+    accessCache.set(oid, { value, expiresAt: now + ACCESS_CACHE_TTL_MS })
+    return value
+  }
+
+  const memberOf = new Set(await checkMemberGroups(oid, candidates))
+
+  const isTeacher = teacherGroups.some(id => memberOf.has(id))
+  const isStudent = studentGroups.some(id => memberOf.has(id))
+
+  const value: MicrosoftAccess = isTeacher
+    ? { allowed: true, role: 'teacher' }
+    : isStudent
+      ? { allowed: true, role: 'student' }
+      : { allowed: false, role: 'user' }
+
+  accessCache.set(oid, { value, expiresAt: now + ACCESS_CACHE_TTL_MS })
+  return value
+}
+
+/** Drops a cached access decision, e.g. after an admin role change. */
+export function invalidateMicrosoftAccess(objectId?: string): void {
+  if (objectId) accessCache.delete(objectId.trim())
+  else accessCache.clear()
 }
 
 async function ensureRolesExist() {
@@ -141,17 +171,13 @@ async function ensureAdminRoleAssignment(userId: string) {
 
 async function saveUserRole(username: string, role: AppRole) {
   try {
-    console.log('Saving role for user:', { username, role })
-    
     // Ensure roles exist
     await ensureRolesExist()
-    
+
     // Get the role ID
     const roleRecord = await prisma.role.findUnique({
       where: { name: role }
     })
-
-    console.log('Found role record:', roleRecord)
 
     if (!roleRecord) {
       console.error(`Role ${role} not found in database`)
@@ -163,29 +189,29 @@ async function saveUserRole(username: string, role: AppRole) {
       return
     }
 
-    // Remove only non-admin role assignments so local admin stays additive.
-    console.log('Removing existing non-admin roles for user:', username)
-    await prisma.userRole.deleteMany({
-      where: {
-        userId: username,
-        role: {
-          name: {
-            in: ['teacher', 'student', 'user']
+    // Swap the directory-derived role in one transaction. Done as separate
+    // statements, two concurrent sign-ins could interleave the delete and the
+    // create and leave the user with no role at all, or with two.
+    await prisma.$transaction(async tx => {
+      // Remove only non-admin role assignments so local admin stays additive.
+      await tx.userRole.deleteMany({
+        where: {
+          userId: username,
+          role: {
+            name: {
+              in: ['teacher', 'student', 'user']
+            }
           }
         }
-      }
-    })
+      })
 
-    // Create new role assignment
-    console.log('Creating new role assignment:', { userId: username, roleId: roleRecord.id })
-    const userRole = await prisma.userRole.create({
-      data: {
-        userId: username,
-        roleId: roleRecord.id
-      }
+      await tx.userRole.create({
+        data: {
+          userId: username,
+          roleId: roleRecord.id
+        }
+      })
     })
-
-    console.log('Created user role:', userRole)
   } catch (error) {
     console.error('Error saving user role:', error)
     captureError(error, {
@@ -248,9 +274,6 @@ export const authOptions: NextAuthOptions = {
           })
 
           const userGroups = await groupClient.getUserGroups(user.dn)
-          console.log('User groups from LDAP:', userGroups)
-          console.log('Student groups from env:', studentGroups)
-          console.log('Teacher groups from env:', teacherGroups)
 
           const isStudent = userGroups.some((group) =>
             studentGroups.includes(group)
@@ -259,10 +282,7 @@ export const authOptions: NextAuthOptions = {
             teacherGroups.includes(group)
           )
 
-          console.log('Role determination:', { isStudent, isTeacher })
           const role = isTeacher ? 'teacher' : isStudent ? 'student' : 'user'
-          console.log('Assigned role:', role)
-
           const normalizedName = normalizeUsername(credentials.username)
           // Save the role to the database asynchronously (use normalized username)
           saveUserRole(normalizedName, role).catch(error => {
@@ -347,17 +367,22 @@ export const authOptions: NextAuthOptions = {
     })] : []),
   ],
   callbacks: {
-    async signIn({ account }) {
+    async signIn({ account, user }) {
       if (account?.provider !== 'azure-ad') {
         return true
       }
 
-      if (!account.access_token) {
+      // `profile()` maps the Entra object id onto user.id, which is also what
+      // the app stores as externalId, so it is the identifier Graph is queried
+      // with. The result is memoised, so the jwt callback that runs next reuses
+      // this decision instead of hitting Graph a second time.
+      const objectId = user?.id?.trim()
+      if (!objectId) {
         return false
       }
 
       try {
-        const { allowed } = await resolveMicrosoftAccess(account.access_token)
+        const { allowed } = await resolveMicrosoftAccess(objectId)
         return allowed
       } catch (error) {
         console.error('Error validating Microsoft group access:', error)
@@ -381,12 +406,23 @@ export const authOptions: NextAuthOptions = {
             token.lastName = msUser.lastName
           }
         }
+        token.provider = 'azure-ad'
       }
 
-      if (isAzureAd && account?.access_token) {
+      // Roles used to be resolved only when `account` was present, i.e. only at
+      // sign-in. With a 30-day JWT that meant a teacher removed from the Entra
+      // group kept their access for a month. Re-resolve on a timer instead;
+      // `resolveMicrosoftAccess` is app-only so it needs no user access token.
+      const objectId = typeof token.sub === 'string' ? token.sub.trim() : ''
+      const lastChecked = typeof token.accessCheckedAt === 'number' ? token.accessCheckedAt : 0
+      const isStale = Date.now() - lastChecked > ACCESS_CACHE_TTL_MS
+      const shouldResolve = token.provider === 'azure-ad' && objectId && (isAzureAd || isStale)
+
+      if (shouldResolve) {
         try {
-          const accessResult = await resolveMicrosoftAccess(account.access_token)
+          const accessResult = await resolveMicrosoftAccess(objectId)
           token.role = accessResult.role
+          token.accessCheckedAt = Date.now()
 
           const jwtToken = token as typeof token & { preferred_username?: string }
           const roleUserId = normalizeUsername(
@@ -397,8 +433,7 @@ export const authOptions: NextAuthOptions = {
 
             // Super admin (Entra Object ID) is always an admin; auto-grant on login.
             const superAdminObjectId = process.env.ENTRA_SUPER_ADMIN_OBJECT_ID?.trim()
-            const userObjectId = typeof token.sub === 'string' ? token.sub.trim() : ''
-            if (superAdminObjectId && userObjectId && superAdminObjectId === userObjectId) {
+            if (superAdminObjectId && superAdminObjectId === objectId) {
               await ensureAdminRoleAssignment(roleUserId)
             }
 
@@ -408,7 +443,7 @@ export const authOptions: NextAuthOptions = {
             }
           }
         } catch (error) {
-          console.error('Error fetching Microsoft groups:', error)
+          console.error('Error resolving Microsoft group membership:', error)
           captureError(error, {
             location: 'auth',
             type: 'azure_ad_groups_error',
