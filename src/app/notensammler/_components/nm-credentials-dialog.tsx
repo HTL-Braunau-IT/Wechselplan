@@ -9,6 +9,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { AlertCircle } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -30,6 +32,7 @@ export function NmCredentialsDialog({
   onSubmit,
   loading = false,
   submitLabel,
+  error,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -40,6 +43,7 @@ export function NmCredentialsDialog({
   onSubmit: () => void
   loading?: boolean
   submitLabel?: string
+  error?: string | null
 }) {
   const { t } = useTranslation()
   const canSubmit = Boolean(username && password) && !loading
@@ -84,6 +88,12 @@ export function NmCredentialsDialog({
               }}
             />
           </div>
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

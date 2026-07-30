@@ -163,6 +163,8 @@ export interface EntraGroupMember {
   mail?: string | null
   userPrincipalName?: string | null
   accountEnabled?: boolean | null
+  /** Sokrates person id (same value NM exposes as `Student_ID`). Null for staff/shared accounts. */
+  employeeId?: string | null
   '@odata.type'?: string
 }
 
@@ -201,6 +203,7 @@ export async function* listGroupMembers(
     'mail',
     'userPrincipalName',
     'accountEnabled',
+    'employeeId',
   ]
 
   const params = new URLSearchParams()

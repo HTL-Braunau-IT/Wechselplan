@@ -1,79 +1,23 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
-import { truncateAvgToNote } from '@/lib/utils'
-import { env } from '@/env'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
-import { truncateSubject } from '@/lib/subject-utils'
 import { denyUnlessAccess } from '@/lib/api-guard'
+import { deriveSubjectForClass, nmNoteFromEndnote } from '@/lib/notenmanagement/grade-mapping'
 
 type Semester = 'first' | 'second'
 
-type NotenmanagementTokenResponse = {
-  access_token?: string
-  token_type?: string
-  expires_in?: number
-  role?: string
-}
-
-type NotenmanagementStudent = {
-  Matrikelnummer?: number
-  Student_ID?: string
-  Vorname?: string
-  Nachname?: string
-  klasse?: string
-  Klasse?: string
-  EMailAdresse1?: string
-  EMailAdresse2?: string
-}
-
-function normalizeNamePart(v: string): string {
-  return v.trim().toLocaleLowerCase('de-DE')
-}
-
-async function getNotenmanagementAccessToken(
-  username: string,
-  password: string,
-): Promise<{ token: string; expiresIn: number }> {
-  const tokenUrl = new URL('Token', env.NOTENMANAGEMENT_BASE_URL).toString()
-  const body = new URLSearchParams({
-    grant_type: 'password',
-    username,
-    password,
-  })
-
-  const res = await fetch(tokenUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body,
-  })
-
-  const data = (await res.json()) as NotenmanagementTokenResponse
-  if (!res.ok || !data.access_token) {
-    throw new Error('Notenmanagement authentication failed')
-  }
-  return {
-    token: data.access_token,
-    expiresIn: data.expires_in ?? 3600, // Default to 1 hour if not provided
-  }
-}
-
-async function fetchNotenmanagementStudents(
-  accessToken: string,
-): Promise<NotenmanagementStudent[]> {
-  const url = new URL('api/Schueler', env.NOTENMANAGEMENT_BASE_URL).toString()
-  const res = await fetch(url, {
-    headers: { Authorization: `bearer ${accessToken}` },
-  })
-  if (!res.ok) {
-    throw new Error('Failed to fetch Notenmanagement students')
-  }
-  const data = (await res.json()) as NotenmanagementStudent[]
-  return Array.isArray(data) ? data : []
-}
-
+/**
+ * Builds the transfer preview for the Notensammler Endnote flow.
+ *
+ * Fully local: the Matrikelnummer is already cached on each student (link sync),
+ * and the grade to send is the reviewed FinalGrade (Endnote). No Notenmanagement
+ * login is needed to preview — credentials are only required for the actual
+ * write. This is the single source of truth for what will be transferred; the
+ * teacher can override individual notes in the dialog before sending.
+ */
 export async function POST(request: Request) {
   const denied = await denyUnlessAccess('staff')
   if (denied) return denied
@@ -81,8 +25,7 @@ export async function POST(request: Request) {
   let requestData: unknown
   try {
     const session = await getServerSession(authOptions)
-    const username = session?.user?.name
-    if (!username) {
+    if (!session?.user?.name) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
@@ -92,39 +35,51 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
     }
 
-    const body = (await request.json()) as {
-      classId?: unknown
-      semester?: unknown
-      username?: unknown
-      password?: unknown
-      token?: unknown
-    }
+    const body = (await request.json()) as { classId?: unknown; semester?: unknown; schoolYearId?: unknown }
     requestData = body
 
-    const classId = typeof body.classId === 'number' ? body.classId : parseInt(String(body.classId))
-    const semester =
-      body.semester === 'first' || body.semester === 'second' ? (body.semester as Semester) : null
-    const nmUsername = typeof body.username === 'string' ? body.username : null
-    const password = typeof body.password === 'string' ? body.password : null
-    const providedToken = typeof body.token === 'string' ? body.token : null
-
-    if (!classId || Number.isNaN(classId) || !semester || !nmUsername) {
+    const classId = typeof body.classId === 'number' ? body.classId : parseInt(String(body.classId), 10)
+    const semester: Semester | null =
+      body.semester === 'first' || body.semester === 'second' ? body.semester : null
+    if (!classId || Number.isNaN(classId) || !semester) {
       return NextResponse.json({ error: 'Missing or invalid parameters' }, { status: 400 })
     }
 
-    if (!providedToken && !password) {
-      return NextResponse.json({ error: 'Either token or password is required' }, { status: 400 })
+    let schoolYearId =
+      typeof body.schoolYearId === 'number' ? body.schoolYearId : parseInt(String(body.schoolYearId), 10)
+    if (!schoolYearId || Number.isNaN(schoolYearId)) {
+      const now = new Date()
+      const current = await prisma.schoolYear.findFirst({
+        where: { startDate: { lte: now }, endDate: { gte: now } },
+        select: { id: true },
+      })
+      const resolved =
+        current?.id ??
+        (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))
+          ?.id
+      if (!resolved) {
+        return NextResponse.json(
+          { error: 'No school year found. Create a school year in Admin / Data / School Years first.' },
+          { status: 400 },
+        )
+      }
+      schoolYearId = resolved
     }
 
     const classRecord = await prisma.class.findUnique({
       where: { id: classId },
       include: {
         students: {
-          // Nested relation loads are not covered by the active-by-default
-          // extension in lib/prisma, so the filter is spelled out here.
           where: { isActive: true },
           orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
-          select: { id: true, firstName: true, lastName: true, groupId: true },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            groupId: true,
+            matrikelnummer: true,
+            nmKlasse: true,
+          },
         },
       },
     })
@@ -134,193 +89,43 @@ export async function POST(request: Request) {
 
     const assignments = await prisma.teacherAssignment.findMany({
       where: { classId },
-      include: {
-        teacher: { select: { id: true, firstName: true, lastName: true } },
-        subject: { select: { name: true } },
-      },
+      include: { subject: { select: { name: true } } },
+    })
+    const subject = deriveSubjectForClass(assignments)
+
+    const finals = await prisma.finalGrade.findMany({
+      where: { classId, semester, schoolYearId },
+      select: { studentId: true, grade: true },
+    })
+    const finalGradeByStudent = new Map<number, number | null>()
+    for (const f of finals) finalGradeByStudent.set(f.studentId, f.grade)
+
+    const scoped = classRecord.students.filter(st => st.groupId !== null && st.groupId !== undefined)
+
+    const students = scoped.map(st => {
+      const endnote = finalGradeByStudent.get(st.id) ?? null
+      const mapped = nmNoteFromEndnote(endnote)
+      return {
+        studentId: st.id,
+        firstName: st.firstName,
+        lastName: st.lastName,
+        endnote,
+        note: mapped.note,
+        nullNoteLabel: mapped.nullNoteLabel,
+        hasEndnote: endnote != null,
+        linked: Boolean(st.matrikelnummer),
+        matrikelnummer: st.matrikelnummer ?? null,
+        nmKlasse: st.nmKlasse ?? null,
+      }
     })
 
-    const teacherIds = Array.from(new Set(assignments.map(a => a.teacherId)))
-    if (teacherIds.length === 0) {
-      return NextResponse.json({ error: 'No teachers assigned to class' }, { status: 400 })
-    }
+    const unlinkedStudents = students.filter(s => !s.linked).map(s => `${s.lastName} ${s.firstName}`)
+    const withoutEndnote = students.filter(s => s.linked && !s.hasEndnote).map(s => `${s.lastName} ${s.firstName}`)
 
-    // Determine subject to display (most common subject from assignments), same as notensammler
-    let subjectName: string | undefined
-    if (assignments.length > 0) {
-      const subjectCounts = new Map<string, number>()
-      for (const a of assignments) {
-        if (a.subject?.name)
-          subjectCounts.set(a.subject.name, (subjectCounts.get(a.subject.name) ?? 0) + 1)
-      }
-      let maxCount = 0
-      for (const [s, c] of subjectCounts.entries()) {
-        if (c > maxCount) {
-          maxCount = c
-          subjectName = s
-        }
-      }
-    }
-    if (!subjectName) {
-      return NextResponse.json(
-        { error: 'Could not determine subject for this class' },
-        { status: 400 },
-      )
-    }
-    const subjectTruncated = truncateSubject(subjectName)
-
-    const grades = await prisma.grade.findMany({
-      where: { classId, semester },
-      select: { studentId: true, teacherId: true, grade: true },
-    })
-
-    const gradeByStudentTeacher = new Map<string, number>()
-    for (const g of grades) {
-      if (typeof g.grade === 'number') {
-        gradeByStudentTeacher.set(`${g.studentId}:${g.teacherId}`, g.grade)
-      }
-    }
-
-    // Use provided token or get new one with password
-    let accessToken: string
-    let tokenExpiresIn: number | undefined
-    if (providedToken) {
-      accessToken = providedToken
-    } else {
-      if (!password) {
-        return NextResponse.json(
-          { error: 'Password required when token is not provided' },
-          { status: 400 },
-        )
-      }
-      const tokenData = await getNotenmanagementAccessToken(nmUsername, password)
-      accessToken = tokenData.token
-      tokenExpiresIn = tokenData.expiresIn
-    }
-
-    const nmStudents = await fetchNotenmanagementStudents(accessToken)
-
-    const nmIndex = new Map<string, number>() // key: class|lastname|firstname -> Matrikelnummer
-    for (const s of nmStudents) {
-      const matr = s.Matrikelnummer
-      const vor = s.Vorname
-      const nach = s.Nachname
-      const klasse = s.klasse ?? s.Klasse
-      if (!matr || !vor || !nach || !klasse) continue
-      const key = `${normalizeNamePart(klasse)}|${normalizeNamePart(nach)}|${normalizeNamePart(vor)}`
-      nmIndex.set(key, matr)
-    }
-
-    type PreviewStudent = {
-      studentId: number
-      firstName: string
-      lastName: string
-      avg: number | null
-      note: 1 | 2 | 3 | 4 | 5 | null
-      matched: boolean
-      matrikelnummer: number | null
-      hasNbOrGestunden?: boolean
-      /** When note is null and hasNbOrGestunden: display "Nicht beurteilt" or "Gestundet" */
-      nullNoteLabel?: 'Nicht beurteilt' | 'Gestundet'
-    }
-
-    const classNorm = normalizeNamePart(classRecord.name)
-
-    // Students with all teacher grades and no 6/7 (numeric note)
-    const completeStudents = classRecord.students
-      .filter(st => st.groupId !== null && st.groupId !== undefined)
-      .map((st): PreviewStudent | null => {
-        const teacherGrades: number[] = []
-        for (const tid of teacherIds) {
-          const g = gradeByStudentTeacher.get(`${st.id}:${tid}`)
-          if (typeof g !== 'number') return null
-          teacherGrades.push(g)
-        }
-        if (teacherGrades.length !== teacherIds.length) return null
-
-        if (teacherGrades.some(g => g === 6 || g === 7)) return null
-
-        const avg = teacherGrades.reduce((a, b) => a + b, 0) / teacherGrades.length
-        const note = truncateAvgToNote(avg)
-        const key = `${classNorm}|${normalizeNamePart(st.lastName)}|${normalizeNamePart(st.firstName)}`
-        const matrikelnummer = nmIndex.get(key) ?? null
-
-        return {
-          studentId: st.id,
-          firstName: st.firstName,
-          lastName: st.lastName,
-          avg,
-          note,
-          matched: matrikelnummer !== null,
-          matrikelnummer,
-        }
-      })
-      .filter((s): s is PreviewStudent => s !== null)
-
-    // Students with all teacher grades but at least one 6 or 7 (Keine Note by default)
-    const studentsWithNbOrGestunden = classRecord.students
-      .filter(st => st.groupId !== null && st.groupId !== undefined)
-      .map((st): PreviewStudent | null => {
-        const teacherGrades: number[] = []
-        for (const tid of teacherIds) {
-          const g = gradeByStudentTeacher.get(`${st.id}:${tid}`)
-          if (typeof g !== 'number') return null
-          teacherGrades.push(g)
-        }
-        if (teacherGrades.length !== teacherIds.length) return null
-
-        if (!teacherGrades.some(g => g === 6 || g === 7)) return null
-
-        const hasGestundet = teacherGrades.some(g => g === 7)
-        const nullNoteLabel = hasGestundet ? 'Gestundet' : ('Nicht beurteilt' as const)
-
-        const key = `${classNorm}|${normalizeNamePart(st.lastName)}|${normalizeNamePart(st.firstName)}`
-        const matrikelnummer = nmIndex.get(key) ?? null
-
-        return {
-          studentId: st.id,
-          firstName: st.firstName,
-          lastName: st.lastName,
-          avg: null,
-          note: null,
-          matched: matrikelnummer !== null,
-          matrikelnummer,
-          hasNbOrGestunden: true,
-          nullNoteLabel,
-        }
-      })
-      .filter((s): s is PreviewStudent => s !== null)
-
-    const students = [...completeStudents, ...studentsWithNbOrGestunden]
-
-    // Matrikelnummer of all matched students (will get an entry in transfer, numeric or Keine Note)
-    const matchedMatrikelnummer = new Set(
-      students.filter(s => s.matched && s.matrikelnummer != null).map(s => s.matrikelnummer!),
-    )
-
-    const nmStudentsWithoutGradeOrMatch = nmStudents
-      .filter(s => {
-        const matr = s.Matrikelnummer
-        const klasse = s.klasse ?? s.Klasse
-        if (!matr || !klasse) return false
-        return normalizeNamePart(klasse) === classNorm && !matchedMatrikelnummer.has(matr)
-      })
-      .map(s => ({
-        Matrikelnummer: s.Matrikelnummer!,
-        Student_ID: s.Student_ID,
-        Nachname: s.Nachname ?? '',
-        Vorname: s.Vorname ?? '',
-        Klasse: s.klasse ?? s.Klasse,
-        EMailAdresse1: s.EMailAdresse1,
-        EMailAdresse2: s.EMailAdresse2,
-      }))
-
-    // Fetch transfer status for this class
     const transfers = await prisma.notenmanagementTransfer.findMany({
       where: { classId },
       select: { semester: true, lfId: true },
     })
-
     const transferStatus = {
       first: {
         transferred: transfers.some(t => t.semester === 'first'),
@@ -335,21 +140,22 @@ export async function POST(request: Request) {
     return NextResponse.json({
       classId,
       className: classRecord.name,
-      subjectName,
-      subjectTruncated,
+      subjectName: subject?.subjectName ?? null,
+      subjectTruncated: subject?.subjectTruncated ?? null,
       semester,
-      teacherCount: teacherIds.length,
+      schoolYearId,
       students,
-      transferStatus,
       counts: {
-        totalStudents: classRecord.students.length,
-        completeStudents: completeStudents.length,
-        matchedCompleteStudents: students.filter(s => s.matched).length,
-        unmatchedCompleteStudents: students.filter(s => !s.matched).length,
+        totalScoped: scoped.length,
+        linked: students.filter(s => s.linked).length,
+        unlinked: unlinkedStudents.length,
+        withEndnote: students.filter(s => s.hasEndnote).length,
+        withoutEndnote: withoutEndnote.length,
+        readyToSend: students.filter(s => s.linked && s.hasEndnote).length,
       },
-      nmStudentsWithoutGradeOrMatch,
-      // Include token data if a new token was generated
-      ...(tokenExpiresIn && { token: accessToken, tokenExpiresIn }),
+      unlinkedStudents,
+      withoutEndnoteStudents: withoutEndnote,
+      transferStatus,
     })
   } catch (error) {
     captureError(error, {

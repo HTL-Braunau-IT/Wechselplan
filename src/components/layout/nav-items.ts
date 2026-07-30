@@ -7,6 +7,7 @@ import {
   ClipboardList,
   ListChecks,
   ShieldCheck,
+  GraduationCap,
   type LucideIcon,
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
@@ -56,6 +57,11 @@ export function useNavItems(): NavItem[] {
       href: '/class-settings',
       label: t('navigation.classSettings'),
       icon: School,
+    })
+    items.push({
+      href: '/admin/notenmanagement',
+      label: t('navigation.notenmanagement'),
+      icon: GraduationCap,
     })
   }
 

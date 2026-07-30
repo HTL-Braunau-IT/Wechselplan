@@ -16,7 +16,13 @@ import { assertDeactivationWithinLimit, resolveMaxDeactivationRatio } from '@/li
  */
 
 export type ClassChange = 'name' | 'description'
-export type StudentChange = 'firstName' | 'lastName' | 'email' | 'username' | 'class'
+export type StudentChange =
+  | 'firstName'
+  | 'lastName'
+  | 'email'
+  | 'username'
+  | 'class'
+  | 'sokratesId'
 
 export interface ClassRowSummary {
   id: number
@@ -39,6 +45,7 @@ export interface StudentRowSummary {
   groupId: number | null
   externalId: string | null
   externalSource: string | null
+  sokratesId: string | null
   isActive: boolean
   syncStatus: string | null
 }
@@ -286,6 +293,7 @@ function toStudentRowSummary(row: Student & { class: { name: string } | null }):
     groupId: row.groupId ?? null,
     externalId: row.externalId ?? null,
     externalSource: row.externalSource ?? null,
+    sokratesId: row.sokratesId ?? null,
     isActive: row.isActive,
     syncStatus: row.syncStatus ?? null,
   }
@@ -309,7 +317,7 @@ function computeClassChanges(existing: ClassRowSummary, next: EntraClassGroup): 
 }
 
 function computeStudentProfileChanges(
-  existing: Pick<Student, 'firstName' | 'lastName' | 'email' | 'username'>,
+  existing: Pick<Student, 'firstName' | 'lastName' | 'email' | 'username' | 'sokratesId'>,
   next: EntraUser,
 ): Array<Exclude<StudentChange, 'class'>> {
   const changes: Array<Exclude<StudentChange, 'class'>> = []
@@ -317,6 +325,11 @@ function computeStudentProfileChanges(
   if (existing.lastName !== next.lastName) changes.push('lastName')
   if ((existing.email ?? null) !== (next.email ?? null)) changes.push('email')
   if (existing.username !== next.username) changes.push('username')
+  // Only flag when Entra actually carries a Sokrates id: a transient null from
+  // Graph must not look like a change (and must not wipe a good stored value).
+  if (next.sokratesId && (existing.sokratesId ?? null) !== next.sokratesId) {
+    changes.push('sokratesId')
+  }
   return changes
 }
 
@@ -929,6 +942,7 @@ export async function applyClassStudentSync(
             lastName: entra.lastName,
             username: entra.username,
             email: entra.email,
+            sokratesId: entra.sokratesId,
             classId: classId ?? undefined,
             externalId: entra.oid,
             externalSource: EXTERNAL_SOURCE_ENTRA,
@@ -952,6 +966,9 @@ export async function applyClassStudentSync(
           lastSyncedAt: now,
           syncStatus: 'active',
         }
+        // Only write a Sokrates id Entra actually returned, so a transient null
+        // never wipes the value the NM link sync depends on.
+        if (update.entra.sokratesId) data.sokratesId = update.entra.sokratesId
         if (classId != null) {
           data.class = { connect: { id: classId } }
           // Rotation groups are numbered per class (GroupAssignment is keyed by
@@ -984,6 +1001,9 @@ export async function applyClassStudentSync(
             lastName: reactivate.entra.lastName,
             username: reactivate.entra.username,
             email: reactivate.entra.email,
+            ...(reactivate.entra.sokratesId
+              ? { sokratesId: reactivate.entra.sokratesId }
+              : {}),
             externalId: reactivate.entra.oid,
             externalSource: EXTERNAL_SOURCE_ENTRA,
             classId: classId ?? undefined,
@@ -1014,6 +1034,9 @@ export async function applyClassStudentSync(
               lastName: unassigned.entra.lastName,
               username: unassigned.entra.username,
               email: unassigned.entra.email,
+              ...(unassigned.entra.sokratesId
+                ? { sokratesId: unassigned.entra.sokratesId }
+                : {}),
               isActive: true,
               deactivatedAt: null,
               lastSyncedAt: now,
@@ -1027,6 +1050,7 @@ export async function applyClassStudentSync(
               lastName: unassigned.entra.lastName,
               username: unassigned.entra.username,
               email: unassigned.entra.email,
+              sokratesId: unassigned.entra.sokratesId,
               externalId: unassigned.entra.oid,
               externalSource: EXTERNAL_SOURCE_ENTRA,
               isActive: true,

@@ -2,7 +2,7 @@
 
 import { Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertCircle, Send } from 'lucide-react'
+import { AlertCircle, Info, Send } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -57,6 +57,7 @@ export function NmTransferDialog(props: NmTransferDialogProps) {
     excluded,
     saving,
     error,
+    skipped,
     showPasswordDialog,
     setShowPasswordDialog,
     username,
@@ -219,23 +220,60 @@ export function NmTransferDialog(props: NmTransferDialogProps) {
             </Alert>
           )}
 
-          <DialogFooter className="pt-2">
-            <Button variant="outline" size="sm" onClick={close}>
-              {t('common.cancel')}
-            </Button>
-            <Button
-              variant="default"
-              size="sm"
-              disabled={saving || totalSelected === 0}
-              onClick={() => void submit()}
-            >
-              <Send className="h-4 w-4" />
-              {saving
-                ? t('common.saving')
-                : t('noten.notenmanagementEintragSubmit', {
-                    defaultValue: 'An Notenmanagement übertragen',
+          {skipped && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription className="space-y-1">
+                <p>
+                  {t('noten.notenmanagementEintragDone', {
+                    defaultValue: 'Übertragung abgeschlossen.',
                   })}
-            </Button>
+                </p>
+                {skipped.unlinked.length > 0 && (
+                  <p>
+                    {t('noten.notenmanagementSkippedUnlinked', {
+                      defaultValue: 'Nicht verknüpft (übersprungen): {{names}}',
+                      names: skipped.unlinked.join(', '),
+                    })}
+                  </p>
+                )}
+                {skipped.noEndnote.length > 0 && (
+                  <p>
+                    {t('noten.notenmanagementSkippedNoEndnote', {
+                      defaultValue: 'Ohne Endnote (übersprungen): {{names}}',
+                      names: skipped.noEndnote.join(', '),
+                    })}
+                  </p>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <DialogFooter className="pt-2">
+            {skipped ? (
+              <Button variant="default" size="sm" onClick={close}>
+                {t('common.close')}
+              </Button>
+            ) : (
+              <>
+                <Button variant="outline" size="sm" onClick={close}>
+                  {t('common.cancel')}
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  disabled={saving || totalSelected === 0}
+                  onClick={() => void submit()}
+                >
+                  <Send className="h-4 w-4" />
+                  {saving
+                    ? t('common.saving')
+                    : t('noten.notenmanagementEintragSubmit', {
+                        defaultValue: 'An Notenmanagement übertragen',
+                      })}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
