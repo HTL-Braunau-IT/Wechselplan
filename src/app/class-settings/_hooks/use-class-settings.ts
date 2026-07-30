@@ -67,11 +67,13 @@ export function useUpdateAssignment(schoolYearId: number | undefined) {
         { [field === 'head' ? 'classHeadId' : 'classLeadId']: teacherId },
         { errorMessage: t('classSettings.error.update') },
       ),
-    onMutate: vars => {
+    onMutate: async vars => {
       const key = pendingKeyOf(vars.classId, vars.field)
       setPendingKeys(prev => new Set(prev).add(key))
 
       const qKey = classesKey(schoolYearId)
+      // Stop any in-flight list refetch so it can't overwrite the optimistic write.
+      await queryClient.cancelQueries({ queryKey: qKey })
       const previous = queryClient.getQueryData<Class[]>(qKey)
       const field = vars.field === 'head' ? 'classHeadId' : 'classLeadId'
       queryClient.setQueryData<Class[]>(qKey, old =>

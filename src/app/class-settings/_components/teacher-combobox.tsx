@@ -74,7 +74,7 @@ export function TeacherCombobox({
           role="combobox"
           aria-expanded={open}
           aria-label={ariaLabel}
-          disabled={disabled ?? loading}
+          disabled={!!disabled || !!loading}
           className={cn('w-full justify-between font-normal', !selected && 'text-muted-foreground')}
         >
           <span className="flex min-w-0 items-center gap-2">
