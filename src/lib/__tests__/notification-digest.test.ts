@@ -67,8 +67,12 @@ describe('runNotificationDigest', () => {
       failures: 0,
     })
     expect(sendEmail).toHaveBeenCalledTimes(2)
+    // Each digest goes to its own recipient's address.
+    const recipients = vi.mocked(sendEmail).mock.calls.map(([to]) => to)
+    expect(recipients).toEqual(['anna@example.at', 'ben@example.at'])
     // Anna's mail names her count and lists rendered lines.
-    const [, subject, body] = vi.mocked(sendEmail).mock.calls[0]!
+    const [to, subject, body] = vi.mocked(sendEmail).mock.calls[0]!
+    expect(to).toBe('anna@example.at')
     expect(subject).toContain('2')
     expect(body).toContain('Anna')
     expect(body).toContain('Note in 1AHIT eingetragen')

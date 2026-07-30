@@ -56,6 +56,12 @@ describe('/api/admin/notification-settings', () => {
     expect(setEmailDigestEnabled).not.toHaveBeenCalled()
   })
 
+  it('PUT rejects a null body without throwing', async () => {
+    const res = await PUT(put(null))
+    expect(res.status).toBe(400)
+    expect(setEmailDigestEnabled).not.toHaveBeenCalled()
+  })
+
   it('PUT is 403 for a non-admin', async () => {
     vi.mocked(requireAdmin).mockResolvedValue({ ok: false } as never)
     const res = await PUT(put({ emailDigestEnabled: true }))

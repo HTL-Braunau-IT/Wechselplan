@@ -8,10 +8,12 @@ import { recordDigestRun } from '@/lib/notification-settings'
  * Daily e-mail digest of unacknowledged in-app notifications (issue #96).
  *
  * A teacher who leaves bell entries unread past {@link DIGEST_AGE_HOURS} gets one
- * plain-text summary mail of what they missed. Rows are marked `digestedAt` once
- * mailed, so the same missed notification is never sent twice even while it
- * stays unread; a row read before the run simply drops out of the query. Wholly
- * best-effort per teacher — one bad address never blocks the rest.
+ * plain-text summary mail of what they missed. Rows are stamped `digestedAt` once
+ * mailed, so a still-unread miss is not mailed again on the next run; a row read
+ * before the run simply drops out of the query. Delivery is at-least-once: if the
+ * stamp fails after a successful send (rare), the row stays eligible and may be
+ * re-sent — never lost. Wholly best-effort per teacher — one bad address never
+ * blocks the rest.
  */
 
 /** How long a notification may sit unread before it lands in the next digest. */
@@ -116,11 +118,14 @@ export async function runNotificationDigest(now: Date = new Date()): Promise<Dig
 
     const shown = lines.slice(0, MAX_LINES_PER_EMAIL)
     const overflow = lines.length - shown.length
-    const subject = `Wechselplan: ${bucket.rows.length} ungelesene Benachrichtigung(en)`
+    // Count the *rendered* lines, not every fetched row: a bucket mixing known
+    // and unknown types would otherwise claim more items than it lists.
+    const count = lines.length
+    const subject = `Wechselplan: ${count} ungelesene Benachrichtigung(en)`
     const body = [
       `Hallo ${bucket.firstName},`,
       '',
-      `du hast ${bucket.rows.length} ungelesene Benachrichtigung(en) in Wechselplan, die seit mehr als ${DIGEST_AGE_HOURS} Stunden offen sind:`,
+      `du hast ${count} ungelesene Benachrichtigung(en) in Wechselplan, die seit mehr als ${DIGEST_AGE_HOURS} Stunden offen sind:`,
       '',
       ...shown,
       ...(overflow > 0 ? ['', `… und ${overflow} weitere.`] : []),
@@ -130,19 +135,27 @@ export async function runNotificationDigest(now: Date = new Date()): Promise<Dig
 
     try {
       await sendEmail(bucket.email, subject, body)
+    } catch (error) {
+      // Send failed → leave the rows un-digested so the next run retries them.
+      summary.failures += 1
+      captureError(error as Error, { location: 'lib/notification-digest', type: 'send-digest' })
+      continue
+    }
+
+    // The mail is out; count it whether or not the stamp below persists.
+    summary.teachersEmailed += 1
+    summary.notificationsIncluded += bucket.rows.length
+    try {
+      // Stamp every fetched row (including unrenderable ones) so they drop out of
+      // the next sweep. Best-effort by design: if this fails after a successful
+      // send, the rows stay eligible and the teacher may get the digest again —
+      // at-least-once delivery, never a lost notification.
       await markDigested(
         bucket.rows.map(r => r.id),
         now,
       )
-      summary.teachersEmailed += 1
-      summary.notificationsIncluded += bucket.rows.length
     } catch (error) {
-      // Leave the rows un-digested so the next run retries them.
-      summary.failures += 1
-      captureError(error as Error, {
-        location: 'lib/notification-digest',
-        type: 'send-digest',
-      })
+      captureError(error as Error, { location: 'lib/notification-digest', type: 'mark-digested' })
     }
   }
 

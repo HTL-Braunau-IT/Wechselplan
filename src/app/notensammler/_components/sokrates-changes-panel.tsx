@@ -15,16 +15,16 @@ type Props = {
   onAcknowledge: () => void
 }
 
-const formatDateTime = (iso: string): string => {
-  const d = new Date(iso)
-  return d.toLocaleString('de-AT', {
+// Format in the reader's locale, but keep the school's timezone so the day is
+// the one everyone in the building shares.
+const formatDateTime = (iso: string, locale: string): string =>
+  new Date(iso).toLocaleString(locale, {
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
     timeZone: 'Europe/Vienna',
   })
-}
 
 /**
  * The "what changed" rundown a grade notification links to (issue #96): the
@@ -36,7 +36,7 @@ const formatDateTime = (iso: string): string => {
  * clearing the markers and telling each teacher their change was seen.
  */
 export function SokratesChangesPanel({ changes, canAcknowledge, busy, onAcknowledge }: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   if (changes.length === 0) return null
 
   const semesterLabel = (semester: Semester) =>
@@ -95,7 +95,7 @@ export function SokratesChangesPanel({ changes, canAcknowledge, busy, onAcknowle
             <span className="text-muted-foreground w-full text-xs">
               {t('notensammler.changesBy', 'Geändert von {{name}} · {{when}}', {
                 name: change.changedByName,
-                when: formatDateTime(change.changedAt),
+                when: formatDateTime(change.changedAt, i18n.language),
               })}
             </span>
           </li>

@@ -5,7 +5,7 @@ import { denyUnlessAccess } from '@/lib/api-guard'
 import { captureError } from '@/lib/sentry'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { actorName } from '@/lib/current-teacher'
-import { clearSokratesChangeNotifications } from '@/lib/notifications'
+import { bestEffort, clearSokratesChangeNotifications } from '@/lib/notifications'
 import {
   acknowledgeSokratesChangeNotices,
   canManageSokrates,
@@ -89,10 +89,14 @@ export async function POST(request: Request) {
     })
 
     // Clear the lead's own bell entry for these scopes too, so acknowledging from
-    // the page and from the bell leave the same state.
-    for (const s of semesters) {
-      await clearSokratesChangeNotifications({ classId, schoolYearId, semester: s, readAt: now })
-    }
+    // the page and from the bell leave the same state. Best-effort: the
+    // acknowledgement above has already committed, so a failure here must not
+    // report a 500 for an action the caller can see took effect.
+    await bestEffort('acknowledge:sokrates-bell', async () => {
+      for (const s of semesters) {
+        await clearSokratesChangeNotifications({ classId, schoolYearId, semester: s, readAt: now })
+      }
+    })
 
     return NextResponse.json({ success: true, count })
   } catch (error) {

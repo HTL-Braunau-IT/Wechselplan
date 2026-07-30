@@ -20,7 +20,11 @@ vi.mock('@/lib/sokrates-lock', () => ({
   acknowledgeSokratesChangeNotices: vi.fn(),
   canManageSokrates: vi.fn(),
 }))
-vi.mock('@/lib/notifications', () => ({ clearSokratesChangeNotifications: vi.fn() }))
+vi.mock('@/lib/notifications', () => ({
+  clearSokratesChangeNotifications: vi.fn(),
+  // Run the wrapped block so the assertions on clearSokratesChangeNotifications hold.
+  bestEffort: async (_what: string, run: () => Promise<void>) => run(),
+}))
 
 const request = (body: unknown) =>
   new Request('http://localhost/api/notensammler/sokrates/changes/acknowledge', {

@@ -44,11 +44,12 @@ export function useSokratesChanges({
 
   const refresh = useCallback(
     async (signal?: AbortSignal) => {
-      if (classId == null || schoolYearId == null) {
-        setChanges([])
-        setCanAcknowledge(false)
-        return
-      }
+      // Drop the previous scope's rundown up front: never leave class A's changes
+      // on screen (with an acknowledge button now bound to class B) while B loads,
+      // or indefinitely if the request fails.
+      setChanges([])
+      setCanAcknowledge(false)
+      if (classId == null || schoolYearId == null) return
       try {
         const res = await fetch(
           `/api/notensammler/sokrates/changes?classId=${classId}&schoolYearId=${schoolYearId}`,

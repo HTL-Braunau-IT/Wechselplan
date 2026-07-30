@@ -281,22 +281,24 @@ export async function acknowledgeSokratesChangeNotices(params: {
     }
   }
 
-  if (acknowledgedGroups.size > 0) {
-    await bestEffort('sokrates-change-acknowledged', async () => {
-      for (const group of acknowledgedGroups.values()) {
-        await notify({
-          type: 'sokrates-change-acknowledged',
-          // The class lead is the actor; `notify` drops them from the recipients
-          // automatically, so a lead acknowledging their own edit tells no one.
-          recipientIds: [group.changedById],
-          actorId: recipientId,
-          actorName: acknowledgedByName,
-          params: { className: group.className, semester: group.semester, count: group.count },
-          link: notensammlerLink(group.className),
-          dedupeKey: `sokrates-change-acknowledged:${group.changedById}:${group.className}:${group.semester}`,
-        })
-      }
-    })
+  // One best-effort boundary *per teacher*, not one around the loop: a single
+  // failed delivery must not suppress the acknowledgements owed to everyone else.
+  for (const group of acknowledgedGroups.values()) {
+    await bestEffort('sokrates-change-acknowledged', () =>
+      notify({
+        type: 'sokrates-change-acknowledged',
+        // The class lead is the actor; `notify` drops them from the recipients
+        // automatically, so a lead acknowledging their own edit tells no one.
+        recipientIds: [group.changedById],
+        actorId: recipientId,
+        actorName: acknowledgedByName,
+        params: { className: group.className, semester: group.semester, count: group.count },
+        link: notensammlerLink(group.className),
+        // School year in the key: reusing class+semester across years would let a
+        // later year's acknowledgement overwrite an earlier unread one.
+        dedupeKey: `sokrates-change-acknowledged:${group.changedById}:${group.schoolYearId}:${group.className}:${group.semester}`,
+      }).then(() => undefined),
+    )
   }
 
   return total

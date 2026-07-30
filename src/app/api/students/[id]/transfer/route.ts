@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { denyUnlessAccess } from '@/lib/api-guard'
 import { resolveCurrentTeacher } from '@/lib/current-teacher'
+import { bestEffort } from '@/lib/notifications'
 import { notifyScheduleChange } from '../../../schedules/_notify'
 
 const transferSchema = z.object({
@@ -134,18 +135,22 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     // A student leaving one class and joining another is a schedule change for
     // both (issue #96): tell the source class its roster shrank and the target
-    // class it grew. Best-effort — the transfer has already committed.
-    const session = await getServerSession(authOptions)
-    const actor = await resolveCurrentTeacher(session)
-    for (const affectedClassId of [sourceClassId, targetClassId]) {
-      await notifyScheduleChange({
-        type: 'schedule-students-changed',
-        classId: affectedClassId,
-        schoolYearId,
-        actor,
-        session,
-      })
-    }
+    // class it grew. The whole block is best-effort, context lookups included —
+    // the transfer transaction has already committed, so nothing here may turn
+    // it into a 500.
+    await bestEffort('notify:student-transfer', async () => {
+      const session = await getServerSession(authOptions)
+      const actor = await resolveCurrentTeacher(session)
+      for (const affectedClassId of [sourceClassId, targetClassId]) {
+        await notifyScheduleChange({
+          type: 'schedule-students-changed',
+          classId: affectedClassId,
+          schoolYearId,
+          actor,
+          session,
+        })
+      }
+    })
 
     return NextResponse.json({
       success: true,

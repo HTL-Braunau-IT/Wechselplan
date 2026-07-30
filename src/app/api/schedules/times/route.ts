@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { denyUnlessAccess } from '@/lib/api-guard'
 import { resolveCurrentTeacher } from '@/lib/current-teacher'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import { bestEffort } from '@/lib/notifications'
 import { notifyScheduleChange } from '../_notify'
 
 /**
@@ -123,18 +124,24 @@ export async function POST(request: Request) {
     // schedule edit like any other — tell everyone attached to the class. Folds
     // into the class's existing bell entry via the shared schedule dedupe key,
     // so a wizard run that also touches times stays one line, not two.
-    const session = await getServerSession(authOptions)
-    const actor = await resolveCurrentTeacher(session)
-    const schoolYearId = await resolveSchoolYearId()
-    if (schoolYearId != null) {
-      await notifyScheduleChange({
-        type: 'schedule-updated',
-        classId,
-        schoolYearId,
-        actor,
-        session,
-      })
-    }
+    //
+    // The whole block is best-effort, recipient/context lookups included: the
+    // save has committed by now, so a lookup that throws must not turn it into a
+    // 500 the user would retry.
+    await bestEffort('notify:schedule-times', async () => {
+      const session = await getServerSession(authOptions)
+      const actor = await resolveCurrentTeacher(session)
+      const schoolYearId = await resolveSchoolYearId()
+      if (schoolYearId != null) {
+        await notifyScheduleChange({
+          type: 'schedule-updated',
+          classId,
+          schoolYearId,
+          actor,
+          session,
+        })
+      }
+    })
 
     return NextResponse.json(updatedSchedule)
   } catch (error) {

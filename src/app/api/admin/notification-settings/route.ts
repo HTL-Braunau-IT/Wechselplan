@@ -32,12 +32,22 @@ export async function PUT(request: Request) {
   }
 
   try {
-    const body = (await request.json().catch(() => ({}))) as { emailDigestEnabled?: unknown }
-    if (typeof body.emailDigestEnabled !== 'boolean') {
+    // `request.json()` happily parses a bare `null` (or an array) without
+    // throwing, so guard the shape before reading the property — otherwise a
+    // `null` body would throw on access and report a 500 for what is a 400.
+    const body: unknown = await request.json().catch(() => null)
+    if (
+      typeof body !== 'object' ||
+      body === null ||
+      Array.isArray(body) ||
+      typeof (body as { emailDigestEnabled?: unknown }).emailDigestEnabled !== 'boolean'
+    ) {
       return NextResponse.json({ error: 'emailDigestEnabled must be a boolean' }, { status: 400 })
     }
 
-    const settings = await setEmailDigestEnabled(body.emailDigestEnabled)
+    const settings = await setEmailDigestEnabled(
+      (body as { emailDigestEnabled: boolean }).emailDigestEnabled,
+    )
     return NextResponse.json(settings)
   } catch (error) {
     captureError(error, {
