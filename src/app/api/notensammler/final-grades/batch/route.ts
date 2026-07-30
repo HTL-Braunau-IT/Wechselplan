@@ -12,6 +12,7 @@ import {
   isEditBlocked,
   isFinalGradeEditBlocked,
   resolveCurrentTeacher,
+  withSokratesLock,
 } from '@/lib/sokrates-lock'
 
 export const dynamic = 'force-dynamic'
@@ -198,79 +199,91 @@ export async function POST(request: Request) {
     // batch does — an untouched semester in the same request still saves.
     //
     // This endpoint also mirrors each Endnote into the caller's own grade column
-    // (`gradeOps` below), so that half has to clear the column-level check too —
-    // otherwise saving an Endnote would be a way around a locked column.
-    const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId)
-    let writable = finalGrades
-    let columnWritable = finalGrades
-    let skippedLocked = 0
-    if (sokratesStatus.first.marked || sokratesStatus.second.marked) {
-      const currentTeacher = await resolveCurrentTeacher(session)
-      const canOverride = await canManageSokrates({
-        classId: classIdNum,
-        role: session.user?.role,
-        teacherId: currentTeacher?.id ?? null,
-      })
-      writable = finalGrades.filter(
-        fg => !isFinalGradeEditBlocked(sokratesStatus, fg.semester, canOverride),
-      )
-      columnWritable = writable.filter(
-        fg => !isEditBlocked(sokratesStatus, fg.semester, teacher.id, canOverride),
-      )
-      skippedLocked = finalGrades.length - writable.length
-    }
+    // (the second upsert loop below), so that half has to clear the column-level
+    // check too — otherwise saving an Endnote would be a way around a locked column.
+    //
+    // The mark state is re-read and every write applied under the shared
+    // advisory lock, so a mark committing mid-request cannot leave a hard-locked
+    // Zeugnisnote (or its mirrored column) written: whichever runs second sees
+    // the other's commit.
+    const currentTeacher = await resolveCurrentTeacher(session)
+    const canOverride = await canManageSokrates({
+      classId: classIdNum,
+      role: session.user?.role,
+      teacherId: currentTeacher?.id ?? null,
+    })
 
-    const finalGradeOps = writable.map(fg =>
-      prisma.finalGrade.upsert({
-        where: {
-          studentId_classId_semester_schoolYearId: {
-            studentId: fg.studentId,
-            classId: classIdNum,
-            semester: fg.semester,
-            schoolYearId,
-          },
-        },
-        update: {
-          grade: fg.grade,
-          conductNoteWish: fg.conductNoteWish,
-        },
-        create: {
-          studentId: fg.studentId,
-          classId: classIdNum,
-          semester: fg.semester,
-          schoolYearId,
-          grade: fg.grade,
-          conductNoteWish: fg.conductNoteWish,
-        },
-      }),
-    )
-    const gradeOps = columnWritable
-      .filter(fg => fg.grade != null)
-      .map(fg =>
-        prisma.grade.upsert({
-          where: {
-            studentId_teacherId_classId_semester_schoolYearId: {
+    const { count, skippedLocked } = await withSokratesLock(
+      classIdNum,
+      schoolYearId,
+      async tx => {
+        const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId, tx)
+        let writable = finalGrades
+        let columnWritable = finalGrades
+        let skippedLocked = 0
+        if (sokratesStatus.first.marked || sokratesStatus.second.marked) {
+          writable = finalGrades.filter(
+            fg => !isFinalGradeEditBlocked(sokratesStatus, fg.semester, canOverride),
+          )
+          columnWritable = writable.filter(
+            fg => !isEditBlocked(sokratesStatus, fg.semester, teacher.id, canOverride),
+          )
+          skippedLocked = finalGrades.length - writable.length
+        }
+
+        for (const fg of writable) {
+          await tx.finalGrade.upsert({
+            where: {
+              studentId_classId_semester_schoolYearId: {
+                studentId: fg.studentId,
+                classId: classIdNum,
+                semester: fg.semester,
+                schoolYearId,
+              },
+            },
+            update: {
+              grade: fg.grade,
+              conductNoteWish: fg.conductNoteWish,
+            },
+            create: {
+              studentId: fg.studentId,
+              classId: classIdNum,
+              semester: fg.semester,
+              schoolYearId,
+              grade: fg.grade,
+              conductNoteWish: fg.conductNoteWish,
+            },
+          })
+        }
+        for (const fg of columnWritable) {
+          if (fg.grade == null) continue
+          await tx.grade.upsert({
+            where: {
+              studentId_teacherId_classId_semester_schoolYearId: {
+                studentId: fg.studentId,
+                teacherId: teacher.id,
+                classId: classIdNum,
+                semester: fg.semester,
+                schoolYearId,
+              },
+            },
+            update: { grade: fg.grade },
+            create: {
               studentId: fg.studentId,
               teacherId: teacher.id,
               classId: classIdNum,
               semester: fg.semester,
               schoolYearId,
+              grade: fg.grade,
             },
-          },
-          update: { grade: fg.grade },
-          create: {
-            studentId: fg.studentId,
-            teacherId: teacher.id,
-            classId: classIdNum,
-            semester: fg.semester,
-            schoolYearId,
-            grade: fg.grade!,
-          },
-        }),
-      )
-    await prisma.$transaction([...finalGradeOps, ...gradeOps])
+          })
+        }
 
-    return NextResponse.json({ success: true, count: writable.length, skippedLocked })
+        return { count: writable.length, skippedLocked }
+      },
+    )
+
+    return NextResponse.json({ success: true, count, skippedLocked })
   } catch (error) {
     captureError(error as Error, {
       location: 'api/notensammler/final-grades/batch',

@@ -4,8 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { denyUnlessAccess } from '@/lib/api-guard'
 import { captureError } from '@/lib/sentry'
 import { isFeatureEnabled } from '@/lib/entitlements'
-import { prisma } from '@/lib/prisma'
-import { canManageSokrates } from '@/lib/sokrates-lock'
+import { canManageSokrates, withSokratesLock } from '@/lib/sokrates-lock'
 import { parseId, parseSemester, resolveCurrentTeacher, resolveSchoolYearId } from '../_shared'
 import { notifySokratesMarked } from '../_notify'
 
@@ -75,7 +74,9 @@ export async function POST(request: Request) {
     //
     // `lockedAll` is set here rather than left to a second click: marking means
     // the grades are in Sokrates, and from that moment every teacher is blocked.
-    const transfer = await prisma.$transaction(async tx => {
+    // Same advisory lock every grade-write path takes, so a mark can never slip
+    // its hard lock in between another request re-reading the state and writing.
+    const transfer = await withSokratesLock(classId, schoolYearId, async tx => {
       const t = await tx.sokratesTransfer.upsert({
         where: {
           classId_semester_schoolYearId: { classId, semester, schoolYearId },

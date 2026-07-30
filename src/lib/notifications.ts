@@ -42,6 +42,13 @@ export interface NotifyInput<T extends NotificationType> {
    * The key's prefix is what keeps unrelated concerns apart.
    */
   dedupeKey?: string
+  /**
+   * By default the actor is dropped from the recipients — you are not told about
+   * your own action. Set this when the person who caused the event explicitly
+   * wants a copy: a class lead who edits a grade after the Sokrates mark asked to
+   * be reminded that Sokrates now needs re-syncing, even for their own change.
+   */
+  includeActor?: boolean
 }
 
 /**
@@ -53,9 +60,10 @@ export interface NotifyInput<T extends NotificationType> {
 async function resolveRecipients(
   candidates: readonly (number | null | undefined)[],
   actorId: number | null,
+  includeActor = false,
 ): Promise<number[]> {
   const ids = [...new Set(candidates.filter((id): id is number => typeof id === 'number'))].filter(
-    id => id !== actorId,
+    id => includeActor || id !== actorId,
   )
   if (ids.length === 0) return []
 
@@ -74,7 +82,7 @@ async function resolveRecipients(
 export async function notify<T extends NotificationType>(input: NotifyInput<T>): Promise<number> {
   const { type, actorId, actorName, params, link, dedupeKey } = input
 
-  const recipients = await resolveRecipients(input.recipientIds, actorId)
+  const recipients = await resolveRecipients(input.recipientIds, actorId, input.includeActor)
   if (recipients.length === 0) return 0
 
   const now = new Date()

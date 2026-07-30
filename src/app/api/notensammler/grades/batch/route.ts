@@ -10,6 +10,7 @@ import {
   getSokratesStatus,
   isEditBlocked,
   recordSokratesChanges,
+  withSokratesLock,
   type GradeChange,
 } from '@/lib/sokrates-lock'
 import { actorName, resolveCurrentTeacher } from '@/lib/current-teacher'
@@ -179,69 +180,82 @@ export async function POST(request: Request) {
     const changed = grades.filter(g => (existingMap.get(gradeKey(g)) ?? null) !== g.grade)
 
     const currentTeacher = await resolveCurrentTeacher(session)
+    const canOverride = await canManageSokrates({
+      classId: classIdNum,
+      role: session.user?.role,
+      teacherId: currentTeacher?.id ?? null,
+    })
 
     // Sokrates lock: a hard-locked grade that would change is skipped (not
     // written) rather than failing the whole "Alle speichern" — unrelated edits
     // in the same batch still persist. Changes that land on a marked semester
     // are collected so we can notify the class lead after the write. Unchanged
     // cells are never blocked or reported.
-    const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId)
-    const anyMarked = sokratesStatus.first.marked || sokratesStatus.second.marked
-    const sokratesChanges: GradeChange[] = []
-    const blockedKeys = new Set<string>()
-    if (anyMarked) {
-      const canOverride = await canManageSokrates({
-        classId: classIdNum,
-        role: session.user?.role,
-        teacherId: currentTeacher?.id ?? null,
-      })
-      for (const g of changed) {
-        if (!sokratesStatus[g.semester].marked) continue
-        const key = gradeKey(g)
-        if (isEditBlocked(sokratesStatus, g.semester, g.teacherId, canOverride)) {
-          blockedKeys.add(key)
-        } else {
-          sokratesChanges.push({
-            studentId: g.studentId,
-            teacherId: g.teacherId,
-            semester: g.semester,
-            oldGrade: existingMap.get(key) ?? null,
-            newGrade: g.grade,
-          })
+    //
+    // The mark state is re-read and the write applied under the shared advisory
+    // lock, so a mark committing mid-request cannot leave a hard-locked cell
+    // written: whichever of the two runs second sees the other's commit.
+    const { sokratesStatus, anyMarked, sokratesChanges, blockedKeys, writtenCount } =
+      await withSokratesLock(classIdNum, schoolYearId, async tx => {
+        const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId, tx)
+        const anyMarked = sokratesStatus.first.marked || sokratesStatus.second.marked
+        const sokratesChanges: GradeChange[] = []
+        const blockedKeys = new Set<string>()
+        if (anyMarked) {
+          for (const g of changed) {
+            if (!sokratesStatus[g.semester].marked) continue
+            const key = gradeKey(g)
+            if (isEditBlocked(sokratesStatus, g.semester, g.teacherId, canOverride)) {
+              blockedKeys.add(key)
+            } else {
+              sokratesChanges.push({
+                studentId: g.studentId,
+                teacherId: g.teacherId,
+                semester: g.semester,
+                oldGrade: existingMap.get(key) ?? null,
+                newGrade: g.grade,
+              })
+            }
+          }
         }
-      }
-    }
 
-    // Locked-and-changed cells are dropped from the write; everything else saves.
-    const gradesToWrite =
-      blockedKeys.size === 0
-        ? grades
-        : grades.filter(g => !blockedKeys.has(`${g.studentId}:${g.teacherId}:${g.semester}`))
+        // Locked-and-changed cells are dropped from the write; everything else saves.
+        const gradesToWrite =
+          blockedKeys.size === 0
+            ? grades
+            : grades.filter(g => !blockedKeys.has(`${g.studentId}:${g.teacherId}:${g.semester}`))
 
-    await prisma.$transaction(
-      gradesToWrite.map(g =>
-        prisma.grade.upsert({
-          where: {
-            studentId_teacherId_classId_semester_schoolYearId: {
+        for (const g of gradesToWrite) {
+          await tx.grade.upsert({
+            where: {
+              studentId_teacherId_classId_semester_schoolYearId: {
+                studentId: g.studentId,
+                teacherId: g.teacherId,
+                classId: classIdNum,
+                semester: g.semester,
+                schoolYearId,
+              },
+            },
+            update: { grade: g.grade },
+            create: {
               studentId: g.studentId,
               teacherId: g.teacherId,
               classId: classIdNum,
               semester: g.semester,
               schoolYearId,
+              grade: g.grade,
             },
-          },
-          update: { grade: g.grade },
-          create: {
-            studentId: g.studentId,
-            teacherId: g.teacherId,
-            classId: classIdNum,
-            semester: g.semester,
-            schoolYearId,
-            grade: g.grade,
-          },
-        }),
-      ),
-    )
+          })
+        }
+
+        return {
+          sokratesStatus,
+          anyMarked,
+          sokratesChanges,
+          blockedKeys,
+          writtenCount: gradesToWrite.length,
+        }
+      })
 
     if (anyMarked && sokratesChanges.length > 0) {
       await recordSokratesChanges({
@@ -265,7 +279,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      count: gradesToWrite.length,
+      count: writtenCount,
       skippedLocked: blockedKeys.size,
     })
   } catch (error) {

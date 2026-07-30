@@ -10,6 +10,7 @@ import {
   getSokratesStatus,
   isEditBlocked,
   recordSokratesChanges,
+  withSokratesLock,
 } from '@/lib/sokrates-lock'
 import { actorName, resolveCurrentTeacher } from '@/lib/current-teacher'
 import { notifyGradesEntered } from './_notify'
@@ -319,105 +320,90 @@ export async function POST(request: Request) {
     // Sokrates, a hard lock blocks non-class-leads from changing it; a soft mark
     // allows the change but records it and notifies the class lead (below).
     const semesterTyped = semester as 'first' | 'second'
-    const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId)
-    const semesterMarked = sokratesStatus[semesterTyped].marked
     const currentTeacher = await resolveCurrentTeacher(session)
+    const canOverride = await canManageSokrates({
+      classId: classIdNum,
+      role: session.user?.role,
+      teacherId: currentTeacher?.id ?? null,
+    })
 
-    const existingGrade = await prisma.grade.findUnique({
-      where: {
-        studentId_teacherId_classId_semester_schoolYearId: {
+    // Re-read the mark state and gate the write under the shared advisory lock,
+    // so a mark that commits after the last read cannot slip its hard lock in
+    // ahead of this grade. The change-recording + notify below run afterwards,
+    // outside the lock — they are best-effort and must not hold it.
+    const write = await withSokratesLock(classIdNum, schoolYearId, async tx => {
+      const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId, tx)
+      const semesterMarked = sokratesStatus[semesterTyped].marked
+
+      const existingGrade = await tx.grade.findUnique({
+        where: {
+          studentId_teacherId_classId_semester_schoolYearId: {
+            studentId: studentIdNum,
+            teacherId: teacherIdNum,
+            classId: classIdNum,
+            semester: semesterTyped,
+            schoolYearId,
+          },
+        },
+        select: { grade: true },
+      })
+      const previousGrade = existingGrade?.grade ?? null
+      const gradeChanged = previousGrade !== gradeValue
+
+      // Re-saving the same value is a no-op — never block it (mirrors the batch
+      // route, and the documented contract). Only an actual change is gated.
+      if (
+        semesterMarked &&
+        gradeChanged &&
+        isEditBlocked(sokratesStatus, semesterTyped, teacherIdNum, canOverride)
+      ) {
+        return { blocked: true as const }
+      }
+
+      const result = await tx.grade.upsert({
+        where: {
+          studentId_teacherId_classId_semester_schoolYearId: {
+            studentId: studentIdNum,
+            teacherId: teacherIdNum,
+            classId: classIdNum,
+            semester: semesterTyped,
+            schoolYearId,
+          },
+        },
+        update: {
+          grade: gradeValue,
+        },
+        create: {
           studentId: studentIdNum,
           teacherId: teacherIdNum,
           classId: classIdNum,
           semester: semesterTyped,
           schoolYearId,
+          grade: gradeValue,
         },
-      },
-      select: { grade: true },
-    })
-    const previousGrade = existingGrade?.grade ?? null
-    const gradeChanged = previousGrade !== gradeValue
-
-    // Re-saving the same value is a no-op — never block it (mirrors the batch
-    // route, and the documented contract). Only an actual change is gated.
-    if (semesterMarked && gradeChanged) {
-      const canOverride = await canManageSokrates({
-        classId: classIdNum,
-        role: session.user?.role,
-        teacherId: currentTeacher?.id ?? null,
       })
-      if (isEditBlocked(sokratesStatus, semesterTyped, teacherIdNum, canOverride)) {
-        return NextResponse.json(
-          {
-            error:
-              'Diese Note wurde bereits in Sokrates eingetragen und ist gesperrt. Bitte den Klassenleiter kontaktieren.',
-          },
-          { status: 423 },
-        )
+
+      return {
+        blocked: false as const,
+        result,
+        previousGrade,
+        gradeChanged,
+        semesterMarked,
+        sokratesStatus,
       }
-    }
-
-    console.log(`[POST /api/notensammler/grades] Attempting to upsert grade:`, {
-      studentId: studentIdNum,
-      teacherId: teacherIdNum,
-      classId: classIdNum,
-      semester,
-      grade: gradeValue,
     })
 
-    const result = await prisma.grade.upsert({
-      where: {
-        studentId_teacherId_classId_semester_schoolYearId: {
-          studentId: studentIdNum,
-          teacherId: teacherIdNum,
-          classId: classIdNum,
-          semester: semester as 'first' | 'second',
-          schoolYearId,
+    if (write.blocked) {
+      return NextResponse.json(
+        {
+          error:
+            'Diese Note wurde bereits in Sokrates eingetragen und ist gesperrt. Bitte den Klassenleiter kontaktieren.',
         },
-      },
-      update: {
-        grade: gradeValue,
-      },
-      create: {
-        studentId: studentIdNum,
-        teacherId: teacherIdNum,
-        classId: classIdNum,
-        semester: semester as 'first' | 'second',
-        schoolYearId,
-        grade: gradeValue,
-      },
-    })
-
-    // Log for debugging
-    console.log(`[POST /api/notensammler/grades] Grade saved successfully:`, {
-      id: result.id,
-      studentId: result.studentId,
-      teacherId: result.teacherId,
-      classId: result.classId,
-      semester: result.semester,
-      grade: result.grade,
-    })
-
-    // Verify the grade was actually saved by reading it back
-    const verifyGrade = await prisma.grade.findUnique({
-      where: {
-        studentId_teacherId_classId_semester_schoolYearId: {
-          studentId: studentIdNum,
-          teacherId: teacherIdNum,
-          classId: classIdNum,
-          semester: semester as 'first' | 'second',
-          schoolYearId,
-        },
-      },
-    })
-
-    if (!verifyGrade) {
-      console.error(`[POST /api/notensammler/grades] WARNING: Grade was not found after upsert!`)
-    } else {
-      console.log(
-        `[POST /api/notensammler/grades] Verification: Grade exists in DB with value: ${verifyGrade.grade}`,
+        { status: 423 },
       )
     }
+
+    const { result, previousGrade, gradeChanged, semesterMarked, sokratesStatus } = write
 
     // Marked-then-changed → record + notify the class lead (no-op if unchanged
     // or if the class lead made the change themselves).

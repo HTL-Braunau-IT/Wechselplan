@@ -64,6 +64,25 @@ describe('notify', () => {
     expect(call?.[0].data).toHaveLength(2)
   })
 
+  it('tells the actor too when includeActor is set', async () => {
+    // The one exception to "never notify the actor": a class lead asked to be
+    // reminded of their own post-Sokrates edits (see recordSokratesChanges).
+    const notified = await notify({
+      type: 'sokrates-change',
+      recipientIds: [1, 42, 2],
+      actorId: 42,
+      actorName: 'A B',
+      params: { className: '1AHIT', semester: 'first', count: 1, classId: 1, schoolYearId: 1 },
+      includeActor: true,
+    })
+
+    expect(notified).toBe(3)
+    const [call] = vi.mocked(prisma.notification.createMany).mock.calls
+    expect(call?.[0].data).toEqual(
+      [1, 42, 2].map(recipientId => expect.objectContaining({ recipientId })),
+    )
+  })
+
   it('collapses duplicates and blanks in the candidate list', async () => {
     await scheduleCreated([1, 1, 2] as never)
     const [call] = vi.mocked(prisma.notification.createMany).mock.calls
