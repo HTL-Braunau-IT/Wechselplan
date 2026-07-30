@@ -76,11 +76,14 @@ export async function PATCH(request: Request) {
       )
     }
 
-    const updated = await prisma.errorLog.update({
+    const { count } = await prisma.errorLog.updateMany({
       where: { id: body.id },
       data: { acknowledgedAt: body.acknowledged ? new Date() : null },
     })
-    return NextResponse.json(updated)
+    if (count === 0) {
+      return NextResponse.json({ error: 'Error log entry not found' }, { status: 404 })
+    }
+    return NextResponse.json({ id: body.id, acknowledged: body.acknowledged })
   } catch (error) {
     captureError(error, { location: 'api/admin/error-logs', type: 'update-error' })
     return NextResponse.json({ error: 'Failed to update error log' }, { status: 500 })

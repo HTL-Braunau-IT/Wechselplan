@@ -58,7 +58,7 @@ CI (`.github/workflows/node.js.yaml`) runs typecheck → vitest → lint on the 
 
 **Stack:** Next.js 15 App Router + React 19, Prisma (PostgreSQL), NextAuth, Tailwind v4, shadcn/Radix UI, React Query, i18next. Scaffolded from create-t3-app.
 
-**The API is REST-only.** All server logic lives in **REST route handlers under `src/app/api/**/route.ts`**. (An unused tRPC scaffold was removed — do not reintroduce it.) The client calls these via `fetch` (often wrapped in hooks under `src/hooks/`, or the `apiFetch`/`apiSend` helpers in `src/lib/api-client.ts`).
+**The API is REST-only.** All server API endpoints live in **REST route handlers under `src/app/api/**/route.ts`** (shared logic lives in `src/lib/**`, not in the handlers). (An unused tRPC scaffold was removed — do not reintroduce it.) The client calls these via `fetch` (often wrapped in hooks under `src/hooks/`, or the `apiFetch`/`apiSend` helpers in `src/lib/api-client.ts`).
 
 **Authentication & authorization** is the most important cross-cutting concern:
 

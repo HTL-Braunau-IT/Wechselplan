@@ -237,10 +237,12 @@ export async function POST(request: Request) {
       validationErrors: errors.length > processed.length ? errors : undefined,
     })
   } catch (error: unknown) {
+    // Never persist the raw CSV body — it is student grade data. Record only its
+    // size so the log stays useful without leaking PII into the error store.
     captureError(error, {
       location: 'api/admin/grades/import',
       type: 'import-grades',
-      extra: { requestBody: rawBody },
+      extra: { requestBodyBytes: rawBody.length },
     })
     return NextResponse.json(
       {

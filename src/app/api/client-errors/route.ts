@@ -34,17 +34,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'location, type and message are required' }, { status: 400 })
   }
 
+  // This is an untrusted, any-signed-in-user endpoint: cap every field so a
+  // client cannot bloat the log. message/stack are additionally capped in
+  // recordError; here we also bound location/type and drop an oversized context.
+  let context: Record<string, unknown> | null = null
+  if (body.context && typeof body.context === 'object' && !Array.isArray(body.context)) {
+    const candidate = body.context as Record<string, unknown>
+    if (JSON.stringify(candidate).length <= 4000) context = candidate
+  }
+
   await recordError({
     source: 'client',
-    location: body.location,
-    type: body.type,
+    location: body.location.slice(0, 200),
+    type: body.type.slice(0, 200),
     message: body.message,
     stack: typeof body.stack === 'string' ? body.stack : null,
-    context:
-      body.context && typeof body.context === 'object'
-        ? (body.context as Record<string, unknown>)
-        : null,
-    path: typeof body.path === 'string' ? body.path : null,
+    context,
+    path: typeof body.path === 'string' ? body.path.slice(0, 500) : null,
     actorName: gate.session.user?.name ?? null,
   })
 
