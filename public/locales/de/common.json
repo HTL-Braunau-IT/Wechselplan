@@ -399,16 +399,37 @@
   },
   "classSettings": {
     "title": "Klasseneinstellungen",
+    "description": "Lege pro Klasse fest, wer Klassenvorstand und Klassenleiter ist.",
     "loading": "Klasseneinstellungen werden geladen...",
     "classHead": "Klassenvorstand",
     "classLead": "Klassenleiter",
     "selectClassHead": "Klassenvorstand auswählen",
     "selectClassLead": "Klassenleiter auswählen",
+    "searchPlaceholder": "Klasse suchen …",
+    "searchTeacher": "Lehrkraft suchen …",
+    "noTeachers": "Keine Lehrkräfte gefunden",
+    "onlyIncomplete": "Nur unvollständige",
     "none": "Keine",
     "updating": "Wird aktualisiert...",
     "success": "Klasse erfolgreich aktualisiert",
+    "stats": {
+      "total": "Klassen"
+    },
+    "status": {
+      "complete": "Vollständig",
+      "incomplete": "Unvollständig"
+    },
+    "empty": {
+      "title": "Keine Klassen vorhanden",
+      "description": "Für das ausgewählte Schuljahr gibt es keine Klassen."
+    },
+    "noResults": {
+      "title": "Keine Klassen gefunden",
+      "description": "Passe die Suche oder den Filter an."
+    },
     "error": {
       "load": "Daten konnten nicht geladen werden",
+      "loadHint": "Bitte lade die Seite neu oder versuche es später erneut.",
       "update": "Klasse konnte nicht aktualisiert werden"
     }
   },
