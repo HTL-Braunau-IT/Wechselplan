@@ -11,6 +11,7 @@ import {
   withSokratesLock,
 } from '@/lib/sokrates-lock'
 import { actorName, resolveCurrentTeacher } from '@/lib/current-teacher'
+import { resolveSchoolYearId } from '@/lib/school-year'
 import { notifyGradesEntered } from './_notify'
 
 // Force dynamic rendering - no caching
@@ -54,24 +55,7 @@ export async function GET(request: Request) {
     }
 
     // Resolve school year: from query or current
-    let schoolYearId: number | undefined = schoolYearIdParam
-      ? parseInt(schoolYearIdParam, 10)
-      : undefined
-    if (schoolYearId == null || Number.isNaN(schoolYearId)) {
-      const now = new Date()
-      const current = await prisma.schoolYear.findFirst({
-        where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true },
-      })
-      schoolYearId =
-        current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true },
-          })
-        )?.id
-    }
+    const schoolYearId = await resolveSchoolYearId(schoolYearIdParam)
     if (schoolYearId == null) {
       return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
     }
@@ -200,22 +184,7 @@ export async function POST(request: Request) {
     const { studentId, teacherId, classId, semester, grade, schoolYearId: bodySchoolYearId } = body
 
     // Resolve school year: from body or current
-    let schoolYearId = bodySchoolYearId
-    if (schoolYearId == null) {
-      const now = new Date()
-      const current = await prisma.schoolYear.findFirst({
-        where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true },
-      })
-      schoolYearId =
-        current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true },
-          })
-        )?.id
-    }
+    const schoolYearId = await resolveSchoolYearId(bodySchoolYearId)
     if (schoolYearId == null) {
       return NextResponse.json(
         {

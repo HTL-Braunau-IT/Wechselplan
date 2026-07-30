@@ -10,6 +10,7 @@ import {
 } from '@/lib/schedule-data-helpers'
 import { denyUnlessAccess, requireAccess } from '@/lib/api-guard'
 import { resolveCurrentTeacher } from '@/lib/current-teacher'
+import { resolveSchoolYearId } from '@/lib/school-year'
 import { notifyScheduleChange } from './_notify'
 
 const scheduleSchema = z.object({
@@ -120,22 +121,7 @@ export async function POST(req: Request) {
     const hasPmTurnInput = pmScheduleData !== undefined
 
     // Resolve school year: from body or current
-    let schoolYearId = bodySchoolYearId
-    if (schoolYearId == null) {
-      const now = new Date()
-      const current = await prisma.schoolYear.findFirst({
-        where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true },
-      })
-      schoolYearId =
-        current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true },
-          })
-        )?.id
-    }
+    const schoolYearId = await resolveSchoolYearId(bodySchoolYearId)
     if (schoolYearId == null) {
       return NextResponse.json(
         {
@@ -281,24 +267,7 @@ export async function GET(req: Request) {
     const className = searchParams.get('classId')
     const weekday = searchParams.get('weekday')
     const schoolYearIdParam = searchParams.get('schoolYearId')
-    let schoolYearId: number | undefined = schoolYearIdParam
-      ? parseInt(schoolYearIdParam, 10)
-      : undefined
-    if (schoolYearId == null || Number.isNaN(schoolYearId)) {
-      const now = new Date()
-      const current = await prisma.schoolYear.findFirst({
-        where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true },
-      })
-      schoolYearId =
-        current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true },
-          })
-        )?.id
-    }
+    const schoolYearId = await resolveSchoolYearId(schoolYearIdParam)
 
     if (!className) {
       return NextResponse.json({ error: 'Class ID is required' }, { status: 400 })

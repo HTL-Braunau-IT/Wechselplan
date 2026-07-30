@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
+import { resolveSchoolYearId } from '@/lib/school-year'
 
 /**
  * PATCH: Update student sitzplatz
@@ -49,16 +50,13 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ error: 'Teacher not found' }, { status: 403 })
       }
 
-      const currentYear = await prisma.schoolYear.findFirst({
-        where: { isCurrent: true },
-        select: { id: true },
-      })
-      if (!currentYear) {
+      const schoolYearId = await resolveSchoolYearId()
+      if (schoolYearId == null) {
         return NextResponse.json({ error: 'No active school year' }, { status: 403 })
       }
 
       const memberships = await prisma.classMembership.findMany({
-        where: { studentId, schoolYearId: currentYear.id },
+        where: { studentId, schoolYearId },
         select: { classId: true },
       })
       const isAssigned =
@@ -66,7 +64,7 @@ export async function PATCH(request: Request) {
         (await prisma.teacherAssignment.findFirst({
           where: {
             teacherId: teacher.id,
-            schoolYearId: currentYear.id,
+            schoolYearId,
             classId: { in: memberships.map(m => m.classId) },
           },
           select: { id: true },

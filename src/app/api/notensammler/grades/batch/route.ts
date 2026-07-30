@@ -12,6 +12,7 @@ import {
   type GradeChange,
 } from '@/lib/sokrates-lock'
 import { actorName, resolveCurrentTeacher } from '@/lib/current-teacher'
+import { resolveSchoolYearId } from '@/lib/school-year'
 import { notifyGradesEntered } from '../_notify'
 
 export const dynamic = 'force-dynamic'
@@ -75,22 +76,7 @@ export async function POST(request: Request) {
     }
 
     // Resolve school year once
-    let schoolYearId = bodySchoolYearId
-    if (schoolYearId == null) {
-      const now = new Date()
-      const current = await prisma.schoolYear.findFirst({
-        where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true },
-      })
-      schoolYearId =
-        current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true },
-          })
-        )?.id
-    }
+    const schoolYearId = await resolveSchoolYearId(bodySchoolYearId)
     if (schoolYearId == null) {
       return NextResponse.json(
         {

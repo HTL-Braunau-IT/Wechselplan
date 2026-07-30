@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
+import { resolveSchoolYearId } from '@/lib/school-year'
 
 type WeightConfig = {
   weightWiederholung: number
@@ -110,24 +111,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Invalid groupId' }, { status: 400 })
     }
 
-    let schoolYearId: number | undefined = schoolYearIdParam
-      ? parseInt(schoolYearIdParam, 10)
-      : undefined
-    if (schoolYearId == null || Number.isNaN(schoolYearId)) {
-      const now = new Date()
-      const current = await prisma.schoolYear.findFirst({
-        where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true, semesterChangeDate: true },
-      })
-      schoolYearId =
-        current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true, semesterChangeDate: true },
-          })
-        )?.id
-    }
+    const schoolYearId = await resolveSchoolYearId(schoolYearIdParam)
     if (schoolYearId == null) {
       return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
     }

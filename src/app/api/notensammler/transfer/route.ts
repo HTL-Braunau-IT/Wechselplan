@@ -4,6 +4,7 @@ import { captureError } from '@/lib/sentry'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { normalizeUsername } from '@/lib/username'
 import { requireAccess } from '@/lib/api-guard'
+import { resolveSchoolYearId } from '@/lib/school-year'
 import { extractLfId, getNmToken, NmApiError, nmSend } from '@/lib/notenmanagement/server-client'
 import {
   deriveSubjectForClass,
@@ -115,23 +116,7 @@ export async function POST(request: Request) {
     }
 
     // Resolve school year (body or current/latest).
-    let schoolYearId = parseOptionalInt(body.schoolYearId)
-    if (schoolYearId == null) {
-      const now = new Date()
-      const current = await prisma.schoolYear.findFirst({
-        where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true },
-      })
-      schoolYearId =
-        current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true },
-          })
-        )?.id ??
-        null
-    }
+    const schoolYearId = await resolveSchoolYearId(body.schoolYearId)
     if (schoolYearId == null) {
       return NextResponse.json(
         {

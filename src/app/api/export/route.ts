@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { generateSchedulePDF } from '@/lib/pdf-generator'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
 import { denyUnlessAccess } from '@/lib/api-guard'
+import { resolveSchoolYearId } from '@/lib/school-year'
 
 /**
  * Handles HTTP POST requests to generate and return a PDF schedule for a specified class.
@@ -12,22 +13,6 @@ import { denyUnlessAccess } from '@/lib/api-guard'
  *
  * @returns A PDF file as a response if successful, or a JSON error response with status 400 or 500 if an error occurs.
  */
-async function resolveSchoolYearId(param: string | null): Promise<number | null> {
-  const parsed = param ? parseInt(param, 10) : undefined
-  if (parsed != null && !Number.isNaN(parsed)) return parsed
-  const now = new Date()
-  const current = await prisma.schoolYear.findFirst({
-    where: { startDate: { lte: now }, endDate: { gte: now } },
-    select: { id: true },
-  })
-  return (
-    current?.id ??
-    (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))
-      ?.id ??
-    null
-  )
-}
-
 export async function POST(request: Request) {
   const denied = await denyUnlessAccess('staff')
   if (denied) return denied

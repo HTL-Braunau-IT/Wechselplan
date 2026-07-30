@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
+import { resolveSchoolYearId } from '@/lib/school-year'
 
 /**
  * GET: Returns students in the given class (and optionally group). If groupId is omitted, returns all students in the class (all groups).
@@ -36,24 +37,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Invalid classId or groupId' }, { status: 400 })
     }
 
-    let schoolYearId: number | undefined = schoolYearIdParam
-      ? parseInt(schoolYearIdParam, 10)
-      : undefined
-    if (schoolYearId == null || Number.isNaN(schoolYearId)) {
-      const now = new Date()
-      const current = await prisma.schoolYear.findFirst({
-        where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true },
-      })
-      schoolYearId =
-        current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true },
-          })
-        )?.id
-    }
+    const schoolYearId = await resolveSchoolYearId(schoolYearIdParam)
     if (schoolYearId == null) {
       return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
     }

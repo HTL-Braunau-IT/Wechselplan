@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
+import { resolveSchoolYearId } from '@/lib/school-year'
 import { denyUnlessAccess, requireAccess } from '@/lib/api-guard'
 import { resolveCurrentTeacher } from '@/lib/current-teacher'
 import { notifyScheduleChange } from '../_notify'
@@ -48,24 +49,7 @@ export async function GET(request: Request) {
     }
 
     // Resolve school year: from query or current
-    let schoolYearId: number | undefined = schoolYearIdParam
-      ? parseInt(schoolYearIdParam, 10)
-      : undefined
-    if (schoolYearId == null || Number.isNaN(schoolYearId)) {
-      const now = new Date()
-      const current = await prisma.schoolYear.findFirst({
-        where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true },
-      })
-      schoolYearId =
-        current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true },
-          })
-        )?.id
-    }
+    const schoolYearId = await resolveSchoolYearId(schoolYearIdParam)
     if (schoolYearId == null) {
       return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
     }
@@ -192,22 +176,9 @@ export async function POST(request: Request) {
     }
 
     // Resolve school year: from body or current
-    let schoolYearId = typeof bodySchoolYearId === 'number' ? bodySchoolYearId : undefined
-    if (schoolYearId == null) {
-      const now = new Date()
-      const current = await prisma.schoolYear.findFirst({
-        where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true },
-      })
-      schoolYearId =
-        current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true },
-          })
-        )?.id
-    }
+    const schoolYearId = await resolveSchoolYearId(
+      typeof bodySchoolYearId === 'number' ? bodySchoolYearId : undefined,
+    )
     if (schoolYearId == null) {
       return NextResponse.json(
         {

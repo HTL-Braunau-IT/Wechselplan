@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { getSubjectKey } from '@/lib/subject-utils'
 import { requireAccess } from '@/lib/api-guard'
+import { resolveSchoolYearId } from '@/lib/school-year'
 
 /**
  * Handles GET requests to retrieve class data with students and unique teachers.
@@ -40,24 +41,7 @@ export async function GET(
 
     const { searchParams } = new URL(request.url)
     const schoolYearIdParam = searchParams.get('schoolYearId')
-    let schoolYearId: number | undefined = schoolYearIdParam
-      ? parseInt(schoolYearIdParam, 10)
-      : undefined
-    if (schoolYearId == null || Number.isNaN(schoolYearId)) {
-      const now = new Date()
-      const current = await prisma.schoolYear.findFirst({
-        where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true },
-      })
-      schoolYearId =
-        current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true },
-          })
-        )?.id
-    }
+    const schoolYearId = await resolveSchoolYearId(schoolYearIdParam)
     if (schoolYearId == null) {
       return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
     }

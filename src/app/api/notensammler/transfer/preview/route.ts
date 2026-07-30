@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { requireAccess } from '@/lib/api-guard'
+import { resolveSchoolYearId } from '@/lib/school-year'
 import { deriveSubjectForClass, nmNoteFromEndnote } from '@/lib/notenmanagement/grade-mapping'
 
 type Semester = 'first' | 'second'
@@ -45,34 +46,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing or invalid parameters' }, { status: 400 })
     }
 
-    let schoolYearId =
-      typeof body.schoolYearId === 'number'
-        ? body.schoolYearId
-        : parseInt(String(body.schoolYearId), 10)
-    if (!schoolYearId || Number.isNaN(schoolYearId)) {
-      const now = new Date()
-      const current = await prisma.schoolYear.findFirst({
-        where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true },
-      })
-      const resolved =
-        current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true },
-          })
-        )?.id
-      if (!resolved) {
-        return NextResponse.json(
-          {
-            error:
-              'No school year found. Create a school year in Admin / Data / School Years first.',
-          },
-          { status: 400 },
-        )
-      }
-      schoolYearId = resolved
+    const schoolYearId = await resolveSchoolYearId(body.schoolYearId)
+    if (schoolYearId == null) {
+      return NextResponse.json(
+        {
+          error: 'No school year found. Create a school year in Admin / Data / School Years first.',
+        },
+        { status: 400 },
+      )
     }
 
     const classRecord = await prisma.class.findUnique({

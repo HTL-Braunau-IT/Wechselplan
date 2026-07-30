@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { resolveSchoolYearId } from '@/lib/school-year'
 import { captureError } from '@/lib/sentry'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { normalizeUsername } from '@/lib/username'
@@ -58,24 +59,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Teacher not found' }, { status: 200 })
     }
 
-    let schoolYearId: number | undefined = schoolYearIdParam
-      ? parseInt(schoolYearIdParam, 10)
-      : undefined
-    if (schoolYearId == null || Number.isNaN(schoolYearId)) {
-      const now = new Date()
-      const current = await prisma.schoolYear.findFirst({
-        where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true },
-      })
-      schoolYearId =
-        current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true },
-          })
-        )?.id
-    }
+    const schoolYearId = await resolveSchoolYearId(schoolYearIdParam)
 
     const ownAssignmentsWhere =
       schoolYearId != null ? { teacherId: teacher.id, schoolYearId } : { teacherId: teacher.id }

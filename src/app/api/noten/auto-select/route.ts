@@ -5,6 +5,7 @@ import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { toLocalDateString } from '@/lib/date-utils'
 import { requireAccess } from '@/lib/api-guard'
+import { resolveSchoolYearId } from '@/lib/school-year'
 
 function parseDateString(d: string): Date | null {
   const parts = d.split('.')
@@ -77,23 +78,7 @@ export async function GET(request: Request) {
     const periodParam = searchParams.get('period')
     const classIdParam = searchParams.get('classId')
     const now = new Date()
-    let schoolYearId: number | undefined = schoolYearIdParam
-      ? parseInt(schoolYearIdParam, 10)
-      : undefined
-    if (schoolYearId == null || Number.isNaN(schoolYearId)) {
-      const current = await prisma.schoolYear.findFirst({
-        where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true },
-      })
-      schoolYearId =
-        current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true },
-          })
-        )?.id
-    }
+    const schoolYearId = await resolveSchoolYearId(schoolYearIdParam)
     if (schoolYearId == null) {
       return NextResponse.json({ classId: null, groupId: null })
     }
