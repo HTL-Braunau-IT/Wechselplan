@@ -129,7 +129,13 @@ export async function POST(request: Request) {
       },
     })
 
-    const exportWeekday = requestedWeekday ?? schedule?.selectedWeekday ?? 1
+    if (!schedule) {
+      // Parity with the excel / notenliste / schedule-dates exporters, which 404
+      // rather than emit a near-empty PDF for a weekday with no plan.
+      return NextResponse.json({ error: 'Schedule not found' }, { status: 404 })
+    }
+
+    const exportWeekday = requestedWeekday ?? schedule.selectedWeekday ?? 1
 
     // Get teacher assignments (AM/PM) for this year on the exported weekday
     const teacherAssignments = await prisma.teacherAssignment.findMany({

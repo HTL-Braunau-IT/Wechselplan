@@ -87,26 +87,42 @@ export function TurnusEditor({
         setLoading(true)
         const yearQ = schoolYearId != null ? `&schoolYearId=${schoolYearId}` : ''
         const [shellRes, holRes] = await Promise.all([
-          fetch(`/api/schedules?classId=${className}&weekday=${weekday}${yearQ}`, {
-            cache: 'no-store',
-          }),
+          fetch(
+            `/api/schedules?classId=${encodeURIComponent(className)}&weekday=${weekday}${yearQ}`,
+            { cache: 'no-store' },
+          ),
           fetch('/api/settings/holidays'),
         ])
         if (!active) return
         if (shellRes.ok) {
           const shells = (await shellRes.json()) as (Shell & { additionalInfo?: string })[]
+          if (!active) return
           const s = shells[0]
           if (s) {
             setShell(s)
             setAdditionalInfo(s.additionalInfo ?? '')
-            const amCount = s.amScheduleData ? Object.keys(s.amScheduleData).length : 0
-            const pmCount = s.pmScheduleData ? Object.keys(s.pmScheduleData).length : 0
-            if (amCount > 0) setAm({ numberOfTerms: amCount, customLengths: {} })
-            if (pmCount > 0) setPm({ numberOfTerms: pmCount, customLengths: {} })
+            // Restore both the Turnus count AND any per-Turnus custom lengths, so
+            // revisiting the step and clicking Next doesn't silently drop them.
+            const toLane = (data?: Record<string, ScheduleTerm> | null): LaneState | null => {
+              if (!data) return null
+              const names = Object.keys(data)
+              if (names.length === 0) return null
+              const customLengths: Record<string, number> = {}
+              for (const name of names) {
+                const length = data[name]?.customLength
+                if (length && length > 0) customLengths[name] = length
+              }
+              return { numberOfTerms: names.length, customLengths }
+            }
+            const amLane = toLane(s.amScheduleData)
+            const pmLane = toLane(s.pmScheduleData)
+            if (amLane) setAm(amLane)
+            if (pmLane) setPm(pmLane)
           }
         }
         if (holRes.ok) {
           const data = (await holRes.json()) as Holiday[]
+          if (!active) return
           setHolidays(data)
         }
       } catch (err) {
@@ -172,7 +188,7 @@ export function TurnusEditor({
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch(`/api/classes/get-by-name?name=${className}`)
+      const res = await fetch(`/api/classes/get-by-name?name=${encodeURIComponent(className)}`)
       if (!res.ok) throw new Error('class lookup failed')
       const { id: classId } = (await res.json()) as { id: number }
 

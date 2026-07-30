@@ -142,6 +142,22 @@ describe('computePeriodTurns', () => {
     expect(terms[1]!.weeks.length).toBe(10)
   })
 
+  it('clamps custom lengths that exceed the available weeks (no negative/overlapping slices)', () => {
+    // 13 Mondays available, but the first Turnus asks for 99.
+    const terms = computePeriodTurns({
+      ...window,
+      numberOfTerms: 3,
+      holidays: [],
+      customLengths: { 'TURNUS 1': 99 },
+    })
+    const lengths = terms.map(t => t.weeks.length)
+    lengths.forEach(n => expect(n).toBeGreaterThanOrEqual(0))
+    // No week is assigned to more than one Turnus.
+    const allDates = terms.flatMap(t => t.weeks.map(w => w.date))
+    expect(new Set(allDates).size).toBe(allDates.length)
+    expect(allDates.length).toBeLessThanOrEqual(13)
+  })
+
   it('drops holiday weeks from teaching weeks but keeps biweekly parity stable across them', () => {
     // Make the 2nd Monday (2025-09-08, absolute index 1) a holiday.
     const holidays: Holiday[] = [

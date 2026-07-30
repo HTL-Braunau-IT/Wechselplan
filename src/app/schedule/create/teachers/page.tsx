@@ -429,23 +429,17 @@ export default function TeacherAssignmentPage() {
 
   async function handleNext() {
     try {
-      // Keep all assignments that have any field filled in
-      const validAmAssignments = amAssignments.filter(
-        a =>
-          a.teacherId !== 0 ||
-          a.subjectId !== 0 ||
-          a.learningContentId !== 0 ||
-          a.roomId !== 0 ||
-          (a.customSubject ?? a.customLearningContent ?? a.customRoom),
-      )
-      const validPmAssignments = pmAssignments.filter(
-        a =>
-          a.teacherId !== 0 ||
-          a.subjectId !== 0 ||
-          a.learningContentId !== 0 ||
-          a.roomId !== 0 ||
-          (a.customSubject ?? a.customLearningContent ?? a.customRoom),
-      )
+      // Keep all assignments that have any field filled in. A disabled lane
+      // contributes nothing — otherwise a switched-off period would re-save stale
+      // rows and could block "Next" on a lane the user cannot even see.
+      const hasAnyField = (a: TeacherAssignment) =>
+        a.teacherId !== 0 ||
+        a.subjectId !== 0 ||
+        a.learningContentId !== 0 ||
+        a.roomId !== 0 ||
+        Boolean(a.customSubject ?? a.customLearningContent ?? a.customRoom)
+      const validAmAssignments = amEnabled ? amAssignments.filter(hasAnyField) : []
+      const validPmAssignments = pmEnabled ? pmAssignments.filter(hasAnyField) : []
 
       // Check if any group in AM has assignments
       const hasAnyAmAssignments = validAmAssignments.length > 0

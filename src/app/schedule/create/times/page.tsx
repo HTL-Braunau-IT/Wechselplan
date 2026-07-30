@@ -16,7 +16,8 @@ export default function TimesPage() {
   const searchParams = useSearchParams()
   const className = searchParams.get('class')
   const weekdayParam = searchParams.get('weekday')
-  const weekday = weekdayParam ? parseInt(weekdayParam, 10) : null
+  const parsedWeekday = weekdayParam ? parseInt(weekdayParam, 10) : NaN
+  const weekday = Number.isInteger(parsedWeekday) ? parsedWeekday : null
 
   const handleSave = () => {
     const query = new URLSearchParams()

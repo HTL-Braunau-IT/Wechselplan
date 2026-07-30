@@ -101,7 +101,7 @@ export default function PeriodsPage() {
       try {
         setLoading(true)
         const yearQ = selectedYear?.id != null ? `&schoolYearId=${selectedYear.id}` : ''
-        const res = await fetch(`/api/schedules?classId=${className}${yearQ}`, {
+        const res = await fetch(`/api/schedules?classId=${encodeURIComponent(className)}${yearQ}`, {
           cache: 'no-store',
         })
         if (!active) return
@@ -136,11 +136,19 @@ export default function PeriodsPage() {
   const handlePickWeekday = (day: number) => {
     setWeekday(day)
     const shell = existing.find(s => s.selectedWeekday === day)
-    if (shell) applyShell(shell)
+    if (shell) {
+      applyShell(shell)
+    } else {
+      // A day with no plan yet starts fresh rather than inheriting the last day's
+      // cadence/semester.
+      setAm(DEFAULT_LANE)
+      setPm({ ...DEFAULT_LANE, enabled: false })
+      setSemester('full')
+    }
   }
 
   const resolveClassId = async (): Promise<number> => {
-    const res = await fetch(`/api/classes/get-by-name?name=${className}`)
+    const res = await fetch(`/api/classes/get-by-name?name=${encodeURIComponent(className ?? '')}`)
     if (!res.ok) throw new Error('Failed to resolve class')
     const data = (await res.json()) as { id: number }
     return data.id

@@ -43,6 +43,10 @@ UPDATE "Schedule" s SET
     WHERE ta."classId" = s."classId" AND ta."schoolYearId" = s."schoolYearId" AND ta."period" = 'PM'
   );
 
+-- 1b. Never leave a plan with both lanes off (e.g. a draft with no assignments,
+--     or assignments scoped to another year): fall back to the legacy AM lane.
+UPDATE "Schedule" SET "amEnabled" = true WHERE "amEnabled" = false AND "pmEnabled" = false;
+
 -- 2. PM-only plans: the shared Turnusse are tagged 'AM' by the column default;
 --    re-tag them to 'PM' so the (only) active lane owns them.
 UPDATE "ScheduleTurn" t SET "period" = 'PM'
@@ -87,6 +91,17 @@ FROM "Schedule" s
 WHERE s.id = (
   SELECT s2.id FROM "Schedule" s2 WHERE s2."classId" = r."classId" ORDER BY s2."updatedAt" DESC LIMIT 1
 );
+
+-- 4b. Any rotation row still without a year (its class has no schedule) falls back
+--     to the current, else most recent, school year — so schoolYearId is complete
+--     and can become NOT NULL, keeping the composite unique key meaningful.
+UPDATE "TeacherRotation" SET "schoolYearId" = (
+  SELECT id FROM "SchoolYear" ORDER BY "isCurrent" DESC NULLS LAST, "startDate" DESC LIMIT 1
+)
+WHERE "schoolYearId" IS NULL
+  AND EXISTS (SELECT 1 FROM "SchoolYear");
+
+ALTER TABLE "TeacherRotation" ALTER COLUMN "schoolYearId" SET NOT NULL;
 
 -- ---------------------------------------------------------------------------
 -- New, wider unique keys + supporting indexes.

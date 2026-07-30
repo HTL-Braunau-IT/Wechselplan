@@ -115,11 +115,11 @@ export async function POST(req: Request) {
       pmWeekOffset: pmWeekOffset ?? 0,
     }
 
-    // A metadata-only save (the "Tag & Perioden" step) sends no turn blobs — it
-    // must not wipe Turnusse saved later by the rotation step. Only when turn data
-    // is actually present do we replace the lanes.
-    const hasTurnInput =
-      amScheduleData !== undefined || pmScheduleData !== undefined || scheduleData !== undefined
+    // Turn replacement is per-lane. A metadata-only save (the "Tag & Perioden"
+    // step) sends no turn blobs and must not wipe Turnusse saved later; a save
+    // that carries only one lane's blob must not wipe the other lane.
+    const hasAmTurnInput = amScheduleData !== undefined || scheduleData !== undefined
+    const hasPmTurnInput = pmScheduleData !== undefined
 
     // Resolve school year: from body or current
     let schoolYearId = bodySchoolYearId
@@ -165,20 +165,16 @@ export async function POST(req: Request) {
 
     let newSchedule
     if (existingSchedule) {
-      if (hasTurnInput) {
-        // Full turn replacement (rotation step): drop every lane, recreate below.
-        await prisma.scheduleTurn.deleteMany({ where: { scheduleId: existingSchedule.id } })
-      } else {
-        // Metadata-only save: keep the enabled lanes' Turnusse, but drop any lane
-        // the user just switched off so a disabled period leaves nothing behind.
-        const disabledPeriods = [!amOn ? 'AM' : null, !pmOn ? 'PM' : null].filter(
-          (p): p is string => p !== null,
-        )
-        if (disabledPeriods.length > 0) {
-          await prisma.scheduleTurn.deleteMany({
-            where: { scheduleId: existingSchedule.id, period: { in: disabledPeriods } },
-          })
-        }
+      // Clear only the lanes whose turns were sent (to be recreated below), plus
+      // any lane just switched off so a disabled period leaves nothing behind.
+      const periodsToClear = [
+        hasAmTurnInput || !amOn ? 'AM' : null,
+        hasPmTurnInput || !pmOn ? 'PM' : null,
+      ].filter((p): p is string => p !== null)
+      if (periodsToClear.length > 0) {
+        await prisma.scheduleTurn.deleteMany({
+          where: { scheduleId: existingSchedule.id, period: { in: periodsToClear } },
+        })
       }
 
       // Update existing schedule, preserving times

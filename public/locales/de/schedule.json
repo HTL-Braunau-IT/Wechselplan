@@ -66,7 +66,9 @@
   "secondSemester": "2. Semester",
   "atLeastOnePeriod": "Mindestens eine Periode (Vormittag oder Nachmittag) muss aktiv sein.",
   "biweeklyBadge": "14-tägig",
-  "totalWeeks": "{{count}} Unterrichtswochen gesamt",
+  "totalWeeks_one": "{{count}} Unterrichtswoche gesamt",
+  "totalWeeks_other": "{{count}} Unterrichtswochen gesamt",
+  "rotationDescription": "Turnusse und individuelle Wochenlängen je Periode festlegen",
   "steps": {
     "class": "Klasse & Gruppen",
     "periods": "Tag & Perioden",

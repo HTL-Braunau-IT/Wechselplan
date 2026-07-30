@@ -52,6 +52,11 @@ export async function POST(request: Request) {
     ) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
+    if (amTurns.length === 0 && pmTurns.length === 0) {
+      // Without any turn labels there is nothing to write — refuse rather than
+      // silently wiping the weekday's rotation and returning success.
+      return NextResponse.json({ error: 'Missing turn labels' }, { status: 400 })
+    }
     const selectedWeekday = data.selectedWeekday
 
     const classData = await prisma.class.findUnique({
@@ -65,20 +70,25 @@ export async function POST(request: Request) {
     }
 
     // Rotation is scoped per weekday+year now (a class can hold a different plan
-    // on each day), so resolve the year before touching any rows.
+    // on each day), so resolve the year before touching any rows. A null year
+    // would drop the constraint from the delete below and wipe every year, so
+    // refuse it the same way POST /api/schedules and the clone route do.
     const schoolYearId = data.schoolYearId ?? (await resolveSchoolYearId())
+    if (schoolYearId == null) {
+      return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
+    }
 
     // Captured before the wipe below: a teacher dropped from this day's rotation
     // is exactly the person who most needs to hear that it changed.
     const previousTeachers = await prisma.teacherRotation.findMany({
-      where: { classId: classData.id, selectedWeekday, schoolYearId: schoolYearId ?? undefined },
+      where: { classId: classData.id, selectedWeekday, schoolYearId },
       select: { teacherId: true },
       distinct: ['teacherId'],
     })
 
     // Delete only THIS day's (and year's) rotations — never the sibling weekdays.
     await prisma.teacherRotation.deleteMany({
-      where: { classId: classData.id, selectedWeekday, schoolYearId: schoolYearId ?? undefined },
+      where: { classId: classData.id, selectedWeekday, schoolYearId },
     })
 
     const writePeriod = async (
@@ -110,16 +120,14 @@ export async function POST(request: Request) {
     await writePeriod('PM', pmRotation, pmTurns)
 
     const session = await getServerSession(authOptions)
-    if (schoolYearId != null) {
-      await notifyScheduleChange({
-        type: 'schedule-rotation-changed',
-        classId: classData.id,
-        schoolYearId,
-        actor: await resolveCurrentTeacher(session),
-        session,
-        alsoNotify: previousTeachers.map(rotation => rotation.teacherId),
-      })
-    }
+    await notifyScheduleChange({
+      type: 'schedule-rotation-changed',
+      classId: classData.id,
+      schoolYearId,
+      actor: await resolveCurrentTeacher(session),
+      session,
+      alsoNotify: previousTeachers.map(rotation => rotation.teacherId),
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

@@ -20,7 +20,9 @@ export default function RotationPage() {
   const { selectedYear } = useSchoolYear()
   const className = searchParams.get('class')
   const weekdayParam = searchParams.get('weekday')
-  const weekday = weekdayParam ? parseInt(weekdayParam, 10) : 1
+  const parsedWeekday = weekdayParam ? parseInt(weekdayParam, 10) : NaN
+  const weekday =
+    Number.isInteger(parsedWeekday) && parsedWeekday >= 0 && parsedWeekday <= 6 ? parsedWeekday : 1
 
   // Rotation dates are computed within the *selected* school year.
   const schoolYearStart = selectedYear ? new Date(selectedYear.startDate) : null
@@ -32,7 +34,7 @@ export default function RotationPage() {
       <PageHeader
         icon={RefreshCw}
         title={t('steps.rotation')}
-        description="Turnusse und individuelle Wochenlängen je Periode festlegen"
+        description={t('rotationDescription')}
       />
       {className ? (
         <TurnusEditor

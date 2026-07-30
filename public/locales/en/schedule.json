@@ -66,7 +66,9 @@
   "secondSemester": "2nd semester",
   "atLeastOnePeriod": "At least one period (morning or afternoon) must be active.",
   "biweeklyBadge": "biweekly",
-  "totalWeeks": "{{count}} teaching weeks total",
+  "totalWeeks_one": "{{count}} teaching week total",
+  "totalWeeks_other": "{{count}} teaching weeks total",
+  "rotationDescription": "Set the number of Turnusse and per-Turnus week lengths for each period",
   "steps": {
     "class": "Class & Groups",
     "periods": "Day & Periods",

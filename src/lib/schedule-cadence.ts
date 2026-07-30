@@ -133,12 +133,15 @@ export function computePeriodTurns(options: ComputePeriodTurnsOptions): Schedule
   let weeksLeft = teachingDates.length
   let turnsLeft = terms
 
-  // Fixed custom lengths first.
+  // Fixed custom lengths first — capped at the weeks still available so an
+  // over-long custom length can never drive weeksLeft negative (which would make
+  // later terms slice backwards over weeks already assigned).
   for (let i = 0; i < terms; i++) {
     const custom = customLengths[`TURNUS ${i + 1}`]
     if (custom && custom > 0) {
-      weeksPerTerm[i] = custom
-      weeksLeft -= custom
+      const capped = Math.min(custom, Math.max(0, weeksLeft))
+      weeksPerTerm[i] = capped
+      weeksLeft -= capped
       turnsLeft--
     }
   }
@@ -146,7 +149,7 @@ export function computePeriodTurns(options: ComputePeriodTurnsOptions): Schedule
   // Even split of the remainder over the terms without a custom length.
   for (let i = 0; i < terms; i++) {
     if (weeksPerTerm[i] === 0 && turnsLeft > 0) {
-      const base = Math.floor(weeksLeft / turnsLeft)
+      const base = Math.max(0, Math.floor(weeksLeft / turnsLeft))
       const extra = weeksLeft % turnsLeft > 0 ? 1 : 0
       weeksPerTerm[i] = base + extra
       weeksLeft -= weeksPerTerm[i]!

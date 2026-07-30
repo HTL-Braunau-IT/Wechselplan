@@ -41,8 +41,12 @@ export async function POST(request: Request) {
 
     if (
       typeof classId !== 'number' ||
-      typeof fromWeekday !== 'number' ||
-      typeof toWeekday !== 'number'
+      !Number.isInteger(fromWeekday) ||
+      !Number.isInteger(toWeekday) ||
+      fromWeekday < 0 ||
+      fromWeekday > 6 ||
+      toWeekday < 0 ||
+      toWeekday > 6
     ) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
