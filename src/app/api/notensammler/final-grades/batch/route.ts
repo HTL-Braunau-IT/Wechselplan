@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
+import { ALLOWED_FINAL_GRADES } from '@/lib/grades'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import {
   canManageSokrates,
@@ -16,8 +17,6 @@ import {
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-const ALLOWED_FINAL_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7]
 const ALLOWED_CONDUCT_NOTE_WISH = [
   'Sehr zufriedenstellend',
   'Zufriedenstellend',

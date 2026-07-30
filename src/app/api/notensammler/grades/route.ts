@@ -459,6 +459,14 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Invalid teacherId or classId format' }, { status: 400 })
     }
 
+    // Scope the delete to one school year — the client always sends it. Without
+    // this the deleteMany below would wipe the teacher's grades for the class in
+    // every year, not just the one on screen.
+    const schoolYearId = await resolveSchoolYearId(searchParams.get('schoolYearId'))
+    if (schoolYearId == null) {
+      return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
+    }
+
     // Verify teacher exists
     const teacher = await prisma.teacher.findUnique({
       where: { id: teacherId },
@@ -475,11 +483,12 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }
 
-    // Delete all grades for this teacher in this class
+    // Delete this teacher's grades for the class in the given school year.
     const result = await prisma.grade.deleteMany({
       where: {
         teacherId,
         classId,
+        schoolYearId,
       },
     })
 

@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import { ALLOWED_FINAL_GRADES } from '@/lib/grades'
 import {
   canManageSokrates,
   getSokratesStatus,
@@ -15,9 +16,6 @@ import {
 // Force dynamic rendering - no caching
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-// Endnote: integer grades only (no .5) plus 6 = nicht beurteilt, 7 = gestundet
-const ALLOWED_FINAL_GRADES = [1, 2, 3, 4, 5, 6, 7]
 
 // Betragensnote (Wunsch) allowed values
 const ALLOWED_CONDUCT_NOTE_WISH = [

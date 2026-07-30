@@ -84,38 +84,44 @@ export async function POST(request: Request) {
       distinct: ['teacherId'],
     })
 
-    // Delete only THIS day's (and year's) rotations — never the sibling weekdays.
-    await prisma.teacherRotation.deleteMany({
-      where: { classId: classData.id, selectedWeekday, schoolYearId },
-    })
-
-    const writePeriod = async (
+    const buildRows = (
       period: 'AM' | 'PM',
       rotationRows: GroupRotationRow[],
       turnLabels: string[],
-    ) => {
-      for (const groupRotation of rotationRows) {
-        for (let i = 0; i < turnLabels.length; i++) {
+    ) =>
+      rotationRows.flatMap(groupRotation =>
+        turnLabels.flatMap((turnLabel, i) => {
           const teacherId = groupRotation.turns[i]
-          if (teacherId != null) {
-            await prisma.teacherRotation.create({
-              data: {
-                classId: classData.id,
-                groupId: groupRotation.groupId,
-                teacherId,
-                turnId: turnLabels[i]!,
-                period,
-                selectedWeekday,
-                schoolYearId,
-              },
-            })
-          }
-        }
-      }
-    }
+          return teacherId != null
+            ? [
+                {
+                  classId: classData.id,
+                  groupId: groupRotation.groupId,
+                  teacherId,
+                  turnId: turnLabel,
+                  period,
+                  selectedWeekday,
+                  schoolYearId,
+                },
+              ]
+            : []
+        }),
+      )
 
-    await writePeriod('AM', amRotation, amTurns)
-    await writePeriod('PM', pmRotation, pmTurns)
+    const rowsToCreate = [
+      ...buildRows('AM', amRotation, amTurns),
+      ...buildRows('PM', pmRotation, pmTurns),
+    ]
+
+    // Replace only THIS day's (and year's) rotations — never the sibling
+    // weekdays — atomically, so a mid-write failure cannot leave the weekday
+    // half-wiped.
+    await prisma.$transaction([
+      prisma.teacherRotation.deleteMany({
+        where: { classId: classData.id, selectedWeekday, schoolYearId },
+      }),
+      prisma.teacherRotation.createMany({ data: rowsToCreate }),
+    ])
 
     const session = gate.session
     await notifyScheduleChange({
