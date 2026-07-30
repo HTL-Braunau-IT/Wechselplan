@@ -11,6 +11,12 @@ export interface EntraUser {
   email: string | null
   username: string
   displayName: string | null
+  /**
+   * Sokrates person id (Graph `employeeId`). Null for members without one
+   * (staff, shared class accounts). Notenmanagement exposes the same value as
+   * `Student_ID`, so it is what links a student to their NM Matrikelnummer.
+   */
+  sokratesId: string | null
 }
 
 /**
@@ -100,6 +106,8 @@ export function mapMemberToEntraUser(member: EntraGroupMember): {
     }
   }
 
+  const sokratesId = (member.employeeId ?? '').trim() || null
+
   return {
     user: {
       oid,
@@ -108,6 +116,7 @@ export function mapMemberToEntraUser(member: EntraGroupMember): {
       email: (member.mail ?? upn).trim() || null,
       username,
       displayName: member.displayName ?? null,
+      sokratesId,
     },
     issue: null,
   }

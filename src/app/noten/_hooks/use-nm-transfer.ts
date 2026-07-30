@@ -3,6 +3,7 @@ import { useSession } from 'next-auth/react'
 import { NmAuthRequiredError, nmRequest } from '@/lib/notenmanagement/client'
 import { getStoredToken } from '@/lib/notenmanagement-token'
 import { normalizeUsername } from '@/lib/username'
+import type { TransferResultResponse } from '@/lib/notenmanagement/types'
 import type { Student } from '../_lib/types'
 
 /**
@@ -47,6 +48,8 @@ export function useNmTransfer({ classId, schoolYearId, selectedGroupId, allGroup
   const [excluded, setExcluded] = useState<Set<number>>(new Set())
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** Names the backend skipped (not linked / no Endnote), surfaced after a send. */
+  const [skipped, setSkipped] = useState<{ unlinked: string[]; noEndnote: string[] } | null>(null)
   const [showPasswordDialog, setShowPasswordDialog] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -65,6 +68,7 @@ export function useNmTransfer({ classId, schoolYearId, selectedGroupId, allGroup
     setGrades({})
     setExcluded(new Set())
     setError(null)
+    setSkipped(null)
   }, [])
 
   /** Load proposed marks for every group in scope and move to the review step. */
@@ -177,12 +181,15 @@ export function useNmTransfer({ classId, schoolYearId, selectedGroupId, allGroup
 
     setSaving(true)
     setError(null)
+    setSkipped(null)
 
     const failed: number[] = []
+    const unlinked = new Set<string>()
+    const noEndnote = new Set<string>()
     try {
       for (const payload of payloads) {
         try {
-          await nmRequest(
+          const result = await nmRequest<TransferResultResponse>(
             '/api/notensammler/transfer',
             {
               classId,
@@ -190,10 +197,11 @@ export function useNmTransfer({ classId, schoolYearId, selectedGroupId, allGroup
               semester,
               schoolYearId,
               notes: payload.notes,
-              notesByMatrikelnummer: [],
             },
             { username: effectiveUsername, password: password || undefined },
           )
+          for (const name of result.unlinked ?? []) unlinked.add(name)
+          for (const name of result.noEndnote ?? []) noEndnote.add(name)
         } catch (e) {
           if (e instanceof NmAuthRequiredError) throw e
           failed.push(payload.groupId)
@@ -207,7 +215,14 @@ export function useNmTransfer({ classId, schoolYearId, selectedGroupId, allGroup
 
       setShowPasswordDialog(false)
       setPassword('')
-      close()
+
+      // Some students may have been skipped server-side; keep the dialog open so
+      // the teacher sees who, rather than closing on a silently partial send.
+      if (unlinked.size > 0 || noEndnote.size > 0) {
+        setSkipped({ unlinked: [...unlinked], noEndnote: [...noEndnote] })
+      } else {
+        close()
+      }
     } catch (e) {
       if (e instanceof NmAuthRequiredError) {
         setUsername(defaultUsername)
@@ -240,6 +255,7 @@ export function useNmTransfer({ classId, schoolYearId, selectedGroupId, allGroup
     excluded,
     saving,
     error,
+    skipped,
     showPasswordDialog,
     setShowPasswordDialog,
     username,

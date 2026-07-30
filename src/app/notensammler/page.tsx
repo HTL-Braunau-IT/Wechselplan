@@ -113,7 +113,13 @@ export default function NotensammlerPage() {
   // that window used to drop them without a word.
   useUnsavedWarning(hasUnsavedWork)
 
-  const transfer = useTransferFlow({ classData, schoolYearId, setError, refreshClassData })
+  const transfer = useTransferFlow({
+    classData,
+    schoolYearId,
+    currentSemester,
+    setError,
+    refreshClassData,
+  })
   const lfView = useLfView({ setError })
   const { downloadingPdf, downloadingAllPdf, downloadClassPdf, downloadAllClassesPdf } =
     usePdfDownload({
@@ -486,7 +492,7 @@ export default function NotensammlerPage() {
           </Card>
         )}
 
-        <TransferDialogs {...transfer} error={error} />
+        <TransferDialogs {...transfer} />
 
         <NmCredentialsDialog
           open={lfView.showPasswordDialog}

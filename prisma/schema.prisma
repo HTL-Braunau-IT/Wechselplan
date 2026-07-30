@@ -20,6 +20,16 @@ model Student {
   email           String?
   externalId      String?           @unique
   externalSource  String?
+  // Sokrates person id. In Entra this is the Graph `employeeId`; in
+  // Notenmanagement it is the `Student_ID`. Same value in both systems, so it is
+  // the deterministic key that links a student to their NM Matrikelnummer
+  // without any name/class matching. Captured by the directory sync.
+  sokratesId      String?           @unique
+  // Notenmanagement identity, resolved by the NM link sync (matching sokratesId
+  // against NM `Student_ID`). Cached so grade transfer never re-matches by name.
+  matrikelnummer  String?
+  nmKlasse        String?           // real NM class name for this student (LF Klasse)
+  nmLinkedAt      DateTime?         // when matrikelnummer was last confirmed against NM
   isActive        Boolean           @default(true)
   deactivatedAt   DateTime?
   lastSyncedAt    DateTime?
@@ -33,6 +43,7 @@ model Student {
   @@index([groupId])
   @@index([classId])
   @@index([isActive])
+  @@index([matrikelnummer])
 }
 
 model Teacher {
@@ -377,6 +388,22 @@ model DirectorySyncSettings {
   lastSyncSummary     Json?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+}
+
+// Admin-editable Notenmanagement integration settings. Singleton (id = 1).
+// Holds the service Lehrer account used for the unattended Matrikelnummer link
+// sync (reading /api/Schueler). The password is stored AES-256-GCM encrypted
+// (see src/lib/crypto.ts) — never in plaintext. The actual grade transfer still
+// authenticates as the individual teacher, so their credentials are never stored.
+model NotenmanagementSettings {
+  id                   Int       @id @default(1)
+  serviceUsername      String?
+  servicePasswordEnc   String?   // AES-256-GCM ciphertext (base64: iv|tag|data)
+  lastLinkSyncAt       DateTime?
+  lastLinkSyncStatus   String?
+  lastLinkSyncSummary  Json?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 }
 
 model Grade {

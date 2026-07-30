@@ -1,92 +1,80 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
-import { env } from '@/env'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
-import { truncateSubject } from '@/lib/subject-utils'
 import { normalizeUsername } from '@/lib/username'
 import { denyUnlessAccess } from '@/lib/api-guard'
+import {
+  extractLfId,
+  getNmToken,
+  NmApiError,
+  nmSend,
+} from '@/lib/notenmanagement/server-client'
+import {
+  deriveSubjectForClass,
+  lfTypeFor,
+  nmNoteFromEndnote,
+  toLfDate,
+  type NmNoteResult,
+} from '@/lib/notenmanagement/grade-mapping'
 
 type Semester = 'first' | 'second'
 
-type NotenmanagementTokenResponse = {
-  expires_in: number
-  access_token?: string
+interface NoteInput {
+  studentId: number
+  note: number | null
+  nullNoteReason?: 'Nicht beurteilt' | 'Gestundet'
 }
 
-type NotenmanagementStudent = {
-  Matrikelnummer?: number
-  Vorname?: string
-  Nachname?: string
-  klasse?: string
-  Klasse?: string
+interface NotenEntry {
+  Matrikelnummer: number
+  Note: number | null
+  Punkte: number
+  Kommentar: string
 }
 
-function normalizeNamePart(v: string): string {
-  return v.trim().toLocaleLowerCase('de-DE')
-}
-
-/**
- * Wechselplan class names embed the weekday of the schedule variant (e.g. "1AFELCMontag"),
- * but Notenmanagement only knows the base class name ("1AFELC"). Strip a trailing German
- * weekday so the LF Klasse and student class-match key use the name Notenmanagement expects.
- * Classes without a weekday suffix are returned unchanged.
- */
-function classNameForNotenmanagement(name: string): string {
-  return name
-    .replace(/\s*(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)$/u, '')
-    .trim()
-}
-
-async function getNotenmanagementAccessToken(
-  username: string,
-  password: string,
-): Promise<{ token: string; expiresIn: number }> {
-  const tokenUrl = new URL('Token', env.NOTENMANAGEMENT_BASE_URL).toString()
-  const body = new URLSearchParams({
-    grant_type: 'password',
-    username,
-    password,
-  })
-
-  const res = await fetch(tokenUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body,
-  })
-
-  const data = (await res.json()) as NotenmanagementTokenResponse
-  if (!res.ok || !data.access_token) {
-    throw new Error('Notenmanagement authentication failed')
+function parseOptionalInt(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isNaN(value) ? null : value
+  if (typeof value === 'string') {
+    const n = parseInt(value, 10)
+    return Number.isNaN(n) ? null : n
   }
-  return {
-    token: data.access_token,
-    expiresIn: data.expires_in ?? 3600, // Default to 1 hour if not provided
-  }
+  return null
 }
 
-async function fetchNotenmanagementStudents(
-  accessToken: string,
-): Promise<NotenmanagementStudent[]> {
-  const url = new URL('api/Schueler', env.NOTENMANAGEMENT_BASE_URL).toString()
-  const res = await fetch(url, {
-    headers: { Authorization: `bearer ${accessToken}` },
-  })
-  if (!res.ok) {
-    throw new Error('Failed to fetch Notenmanagement students')
+/** Parse the per-student notes/overrides payload into a lookup by studentId. */
+function parseNotes(raw: unknown): Map<number, NmNoteResult> {
+  const out = new Map<number, NmNoteResult>()
+  if (!Array.isArray(raw)) return out
+  for (const item of raw as NoteInput[]) {
+    const studentId = parseOptionalInt(item?.studentId)
+    if (studentId == null) continue
+    const reason =
+      item.nullNoteReason === 'Nicht beurteilt' || item.nullNoteReason === 'Gestundet'
+        ? item.nullNoteReason
+        : null
+    if (item.note === null || item.note === undefined) {
+      out.set(studentId, {
+        note: null,
+        kommentar: reason ?? '',
+        nullNoteLabel: reason,
+      })
+      continue
+    }
+    const rounded = Math.round(typeof item.note === 'number' ? item.note : parseFloat(String(item.note)))
+    if (![1, 2, 3, 4, 5].includes(rounded)) {
+      out.set(studentId, { note: null, kommentar: reason ?? '', nullNoteLabel: reason })
+      continue
+    }
+    out.set(studentId, {
+      note: rounded as 1 | 2 | 3 | 4 | 5,
+      kommentar: '',
+      nullNoteLabel: null,
+    })
   }
-  const data = (await res.json()) as NotenmanagementStudent[]
-  return Array.isArray(data) ? data : []
-}
-
-function toLfDate(d: Date): string {
-  // Notenmanagement examples use "YYYY-MM-DDT00:00:00"
-  const yyyy = d.getFullYear()
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  return `${yyyy}-${mm}-${dd}T00:00:00`
+  return out
 }
 
 export async function POST(request: Request) {
@@ -96,49 +84,46 @@ export async function POST(request: Request) {
   let requestData: unknown
   try {
     const session = await getServerSession(authOptions)
-    const username = session?.user?.name
-    if (!username) {
+    const sessionName = session?.user?.name
+    if (!sessionName) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    const body = (await request.json()) as {
-      classId?: unknown
-      groupId?: unknown
-      semester?: unknown
-      schoolYearId?: number
-      username?: unknown
-      password?: unknown
-      token?: unknown
-      notes?: unknown
-      notesByMatrikelnummer?: unknown
-    }
+
+    const body = (await request.json()) as Record<string, unknown>
     requestData = body
 
-    const groupIdParam =
-      body.groupId !== undefined && body.groupId !== null
-        ? typeof body.groupId === 'number'
-          ? body.groupId
-          : typeof body.groupId === 'string'
-            ? parseInt(body.groupId, 10)
-            : Number.NaN
-        : null
-    const groupId = groupIdParam !== null && !Number.isNaN(groupIdParam) ? groupIdParam : null
+    const groupId = parseOptionalInt(body.groupId)
+    const isGroup = groupId !== null
 
-    if (groupId !== null && !(await isFeatureEnabled('notenmgmt_htl'))) {
+    // Feature gates: group (Notenstand) needs the HTL feature; class (Endnote) the Notensammler.
+    if (isGroup && !(await isFeatureEnabled('notenmgmt_htl'))) {
       return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
     }
-    if (groupId === null && !(await isFeatureEnabled('notensammler'))) {
+    if (!isGroup && !(await isFeatureEnabled('notensammler'))) {
       return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
     }
 
-    const classId = typeof body.classId === 'number' ? body.classId : parseInt(String(body.classId))
-    const semester =
-      body.semester === 'first' || body.semester === 'second' ? (body.semester as Semester) : null
+    const classId = parseOptionalInt(body.classId)
+    const semester: Semester | null =
+      body.semester === 'first' || body.semester === 'second' ? body.semester : null
+    const nmUsername = typeof body.username === 'string' ? body.username : null
+    const password = typeof body.password === 'string' ? body.password : null
+    const providedToken = typeof body.token === 'string' ? body.token : null
+    // `notes` = explicit per-student values (group flow) or overrides (class flow).
+    const overrides = parseNotes(body.notes ?? body.overrides)
 
-    // Resolve school year: from body or current
-    let schoolYearId = body.schoolYearId
+    if (classId == null || semester == null || !nmUsername) {
+      return NextResponse.json({ error: 'Missing or invalid parameters' }, { status: 400 })
+    }
+    if (!providedToken && !password) {
+      return NextResponse.json({ error: 'Either token or password is required' }, { status: 400 })
+    }
+
+    // Resolve school year (body or current/latest).
+    let schoolYearId = parseOptionalInt(body.schoolYearId)
     if (schoolYearId == null) {
       const now = new Date()
       const current = await prisma.schoolYear.findFirst({
@@ -147,386 +132,184 @@ export async function POST(request: Request) {
       })
       schoolYearId =
         current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true },
-          })
-        )?.id
+        (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))
+          ?.id ??
+        null
     }
     if (schoolYearId == null) {
       return NextResponse.json(
-        {
-          error: 'No school year found. Create a school year in Admin / Data / School Years first.',
-        },
+        { error: 'No school year found. Create a school year in Admin / Data / School Years first.' },
         { status: 400 },
       )
-    }
-    const nmUsername = typeof body.username === 'string' ? body.username : null
-    const password = typeof body.password === 'string' ? body.password : null
-    const providedToken = typeof body.token === 'string' ? body.token : null
-    const notes = Array.isArray(body.notes) ? body.notes : null
-    const notesByMatrikelnummerRaw = Array.isArray(body.notesByMatrikelnummer)
-      ? body.notesByMatrikelnummer
-      : []
-
-    if (!classId || Number.isNaN(classId) || !semester || !nmUsername || !notes) {
-      return NextResponse.json({ error: 'Missing or invalid parameters' }, { status: 400 })
-    }
-
-    if (!providedToken && !password) {
-      return NextResponse.json({ error: 'Either token or password is required' }, { status: 400 })
-    }
-
-    const notesByStudentId = new Map<number, 1 | 2 | 3 | 4 | 5 | null>()
-    const nullNoteReasonByStudentId = new Map<number, 'Nicht beurteilt' | 'Gestundet'>()
-    for (const n of notes as Array<{
-      studentId?: unknown
-      note?: unknown
-      nullNoteReason?: unknown
-    }>) {
-      const studentId =
-        typeof n.studentId === 'number' ? n.studentId : parseInt(String(n.studentId))
-      if (!studentId || Number.isNaN(studentId)) continue
-      const reason =
-        n.nullNoteReason === 'Nicht beurteilt' || n.nullNoteReason === 'Gestundet'
-          ? n.nullNoteReason
-          : undefined
-      if (n.note === null || n.note === undefined) {
-        notesByStudentId.set(studentId, null)
-        if (reason) nullNoteReasonByStudentId.set(studentId, reason)
-        continue
-      }
-      // Notenmanagement only accepts integer grades 1-5. Prefill/half grades (e.g. 1.5) are
-      // rounded to the nearest whole grade instead of being dropped to "Keine Note".
-      const rawNote =
-        typeof n.note === 'number'
-          ? n.note
-          : typeof n.note === 'string'
-            ? parseFloat(n.note)
-            : Number.NaN
-      const noteNum = Number.isNaN(rawNote) ? Number.NaN : Math.round(rawNote)
-      if (Number.isNaN(noteNum) || ![1, 2, 3, 4, 5].includes(noteNum)) {
-        notesByStudentId.set(studentId, null)
-        if (reason) nullNoteReasonByStudentId.set(studentId, reason)
-        continue
-      }
-      notesByStudentId.set(studentId, noteNum as 1 | 2 | 3 | 4 | 5)
     }
 
     const classRecord = await prisma.class.findUnique({
       where: { id: classId },
       include: {
         students: {
-          // Nested relation loads are not covered by the active-by-default
-          // extension in lib/prisma, so the filter is spelled out here.
           where: { isActive: true },
           orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
-          select: { id: true, firstName: true, lastName: true, groupId: true },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            groupId: true,
+            matrikelnummer: true,
+            nmKlasse: true,
+          },
         },
       },
     })
     if (!classRecord) {
       return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }
-    // Name Notenmanagement knows (weekday suffix stripped); used for the LF Klasse and matching.
-    const nmClassName = classNameForNotenmanagement(classRecord.name)
-
-    // For group transfer (Notenstand): filter students to this group only
-    const classStudents =
-      groupId !== null
-        ? classRecord.students.filter(st => st.groupId === groupId)
-        : classRecord.students
 
     const assignments = await prisma.teacherAssignment.findMany({
       where: { classId },
-      include: {
-        subject: { select: { name: true } },
-      },
+      include: { subject: { select: { name: true } } },
     })
-    const teacherIds = Array.from(
-      new Set(assignments.map((a: { teacherId: number }) => a.teacherId)),
-    )
-    if (teacherIds.length === 0) {
+    if (assignments.length === 0) {
       return NextResponse.json({ error: 'No teachers assigned to class' }, { status: 400 })
     }
-
-    let subjectName: string | undefined
-    if (assignments.length > 0) {
-      const subjectCounts = new Map<string, number>()
-      for (const a of assignments) {
-        if (a.subject?.name)
-          subjectCounts.set(a.subject.name, (subjectCounts.get(a.subject.name) ?? 0) + 1)
-      }
-      let maxCount = 0
-      for (const [s, c] of subjectCounts.entries()) {
-        if (c > maxCount) {
-          maxCount = c
-          subjectName = s
-        }
-      }
-    }
-    if (!subjectName) {
+    const subject = deriveSubjectForClass(assignments)
+    if (!subject) {
       return NextResponse.json(
         { error: 'Could not determine subject for this class' },
         { status: 400 },
       )
     }
-    const subjectTruncated = truncateSubject(subjectName)
 
-    const grades = await prisma.grade.findMany({
-      where: { classId, semester },
-      select: { studentId: true, teacherId: true, grade: true },
-    })
-    const gradeByStudentTeacher = new Map<string, number>()
-    for (const g of grades) {
-      if (typeof g.grade === 'number') {
-        gradeByStudentTeacher.set(`${g.studentId}:${g.teacherId}`, g.grade)
-      }
+    // Scope: group flow → only that rotation group; class flow → group-assigned students.
+    const scopedStudents = classRecord.students.filter(st =>
+      isGroup ? st.groupId === groupId : st.groupId !== null && st.groupId !== undefined,
+    )
+
+    // Base Endnote (class flow only) from the reviewed FinalGrade — the single source of truth.
+    const finalGradeByStudent = new Map<number, number | null>()
+    if (!isGroup) {
+      const finals = await prisma.finalGrade.findMany({
+        where: { classId, semester, schoolYearId },
+        select: { studentId: true, grade: true },
+      })
+      for (const f of finals) finalGradeByStudent.set(f.studentId, f.grade)
     }
 
-    // For group transfer: resolve current teacher name for Kommentar
-    let teacherFirstName = ''
-    let teacherLastName = ''
-    if (groupId !== null) {
-      const currentTeacher = await prisma.teacher.findUnique({
-        where: { username: normalizeUsername(username) },
+    // Group teacher name for the Notenstand comment.
+    let teacherLabel = ''
+    if (isGroup) {
+      const teacher = await prisma.teacher.findUnique({
+        where: { username: normalizeUsername(sessionName) },
         select: { firstName: true, lastName: true },
       })
-      if (currentTeacher) {
-        teacherFirstName = currentTeacher.firstName
-        teacherLastName = currentTeacher.lastName
-      }
+      if (teacher) teacherLabel = `${teacher.firstName} ${teacher.lastName}`.trim()
     }
 
-    // Use provided token or get new one with password
-    let accessToken: string
-    let tokenExpiresIn: number | undefined
-    if (providedToken) {
-      accessToken = providedToken
-    } else {
-      if (!password) {
-        return NextResponse.json(
-          { error: 'Password required when token is not provided' },
-          { status: 400 },
-        )
-      }
-      const tokenData = await getNotenmanagementAccessToken(nmUsername, password)
-      accessToken = tokenData.token
-      tokenExpiresIn = tokenData.expiresIn
-    }
-
-    const nmStudents = await fetchNotenmanagementStudents(accessToken)
-    // Each match carries the student's real Notenmanagement class, so combined Wechselplan
-    // classes can be split into one LF per real class.
-    type NmMatch = { matr: number; klasse: string }
-    const nmIndex = new Map<string, NmMatch>()
-    // Secondary index by name only (no class), to recover matches when the Notenmanagement
-    // "klasse" differs from the Wechselplan class name (combined or cross-homeroom groups).
-    // Only used when the class-qualified match misses AND the name is unique across NM.
-    const nmByName = new Map<string, NmMatch[]>()
-    for (const s of nmStudents) {
-      const matr = s.Matrikelnummer
-      const vor = s.Vorname
-      const nach = s.Nachname
-      const klasse = (s.klasse ?? s.Klasse ?? '').trim()
-      if (!matr || !vor || !nach) continue
-      const nameKey = `${normalizeNamePart(nach)}|${normalizeNamePart(vor)}`
-      const match: NmMatch = { matr, klasse }
-      const list = nmByName.get(nameKey) ?? []
-      list.push(match)
-      nmByName.set(nameKey, list)
-      if (!klasse) continue
-      nmIndex.set(`${normalizeNamePart(klasse)}|${nameKey}`, match)
-    }
-
-    // Group transfer: use only group students (notes from payload). Class transfer: all students with all teacher grades.
-    const completeStudents =
-      groupId !== null
-        ? classStudents
-        : classRecord.students
-            .filter(
-              (st: (typeof classRecord.students)[number]) =>
-                st.groupId !== null && st.groupId !== undefined,
-            )
-            .filter(
-              (
-                st: (typeof classRecord.students)[number],
-              ): st is (typeof classRecord.students)[number] => {
-                return teacherIds.every(tid => {
-                  const g = gradeByStudentTeacher.get(`${st.id}:${tid}`)
-                  return typeof g === 'number'
-                })
-              },
-            )
-
-    type NotenEntry = {
-      Matrikelnummer: number
-      Note: number | null
-      Punkte: number
-      Kommentar: string
-    }
-
-    // When Note is null, set Kommentar: use payload nullNoteReason if provided, else infer from student grades (6 or 7)
-    function commentForNullNote(st: { id: number }): string {
-      const fromPayload = nullNoteReasonByStudentId.get(st.id)
-      if (fromPayload) return fromPayload
-      let hasGestundet = false
-      let hasNichtBeurteilt = false
-      for (const tid of teacherIds) {
-        const g = gradeByStudentTeacher.get(`${st.id}:${tid}`)
-        if (g === 7) hasGestundet = true
-        if (g === 6) hasNichtBeurteilt = true
-      }
-      if (hasGestundet) return 'Gestundet'
-      if (hasNichtBeurteilt) return 'Nicht beurteilt'
-      return ''
-    }
-
-    // Map Matrikelnummer -> real Notenmanagement class, for grouping NM-only payload entries.
-    const klasseByMatr = new Map<number, string>()
-    for (const s of nmStudents) {
-      if (s.Matrikelnummer) klasseByMatr.set(s.Matrikelnummer, (s.klasse ?? s.Klasse ?? '').trim())
-    }
-
-    // Build Noten entries grouped by the student's real Notenmanagement class. A combined
-    // Wechselplan class yields one bucket per real class, each becoming its own LF.
-    const unmatched: string[] = []
+    // Resolve the note to send per student.
+    const unlinked: string[] = []
+    const noEndnote: string[] = []
     const notenByKlasse = new Map<string, NotenEntry[]>()
-    const pushNote = (klasse: string, entry: NotenEntry) => {
-      const list = notenByKlasse.get(klasse) ?? []
-      list.push(entry)
-      notenByKlasse.set(klasse, list)
-    }
-    let notenCount = 0
-    for (const st of completeStudents) {
-      if (!notesByStudentId.has(st.id)) continue
-      const nameKey = `${normalizeNamePart(st.lastName)}|${normalizeNamePart(st.firstName)}`
-      let match = nmIndex.get(`${normalizeNamePart(nmClassName)}|${nameKey}`) ?? null
-      if (match === null) {
-        // Fallback: match by name only when it is unambiguous across Notenmanagement.
-        const candidates = nmByName.get(nameKey)
-        if (candidates?.length === 1) match = candidates[0]!
-      }
-      if (!match?.klasse) {
-        unmatched.push(`${st.lastName} ${st.firstName}`)
+    let sentCount = 0
+
+    for (const st of scopedStudents) {
+      const name = `${st.lastName} ${st.firstName}`
+      const matrikel = Number(st.matrikelnummer)
+      if (!st.matrikelnummer || !Number.isFinite(matrikel)) {
+        unlinked.push(name)
         continue
       }
-      const note = notesByStudentId.get(st.id) ?? null
-      const kommentar = note === null ? commentForNullNote(st) : ''
-      pushNote(match.klasse, {
-        Matrikelnummer: match.matr,
-        Note: note,
-        Punkte: 0.0,
-        Kommentar: kommentar,
-      })
-      notenCount++
-    }
 
-    // Add entries for NM-only students (in Notenmanagement but not locally matched)
-    for (const item of notesByMatrikelnummerRaw as Array<{
-      matrikelnummer?: unknown
-      note?: unknown
-    }>) {
-      const matr =
-        typeof item.matrikelnummer === 'number'
-          ? item.matrikelnummer
-          : parseInt(String(item.matrikelnummer))
-      if (!matr || Number.isNaN(matr)) continue
-      let note: number | null = null
-      if (item.note !== null && item.note !== undefined) {
-        const n =
-          typeof item.note === 'number'
-            ? item.note
-            : typeof item.note === 'string'
-              ? parseInt(item.note, 10)
-              : Number.NaN
-        if (!Number.isNaN(n) && [1, 2, 3, 4, 5].includes(n)) note = n as 1 | 2 | 3 | 4 | 5
+      let resolved: NmNoteResult | undefined = overrides.get(st.id)
+      if (!resolved) {
+        if (isGroup) {
+          // Notenstand: only students the client provided a value for are sent.
+          continue
+        }
+        const finalGrade = finalGradeByStudent.get(st.id)
+        if (finalGrade == null) {
+          noEndnote.push(name)
+          continue
+        }
+        resolved = nmNoteFromEndnote(finalGrade)
       }
-      // A blank class on the Notenmanagement side is as good as missing — `??`
-      // would keep it and group the notes under an empty key.
-      const mappedKlasse = klasseByMatr.get(matr)
-      const klasse = mappedKlasse != null && mappedKlasse.length > 0 ? mappedKlasse : nmClassName
-      pushNote(klasse, { Matrikelnummer: matr, Note: note, Punkte: 0.0, Kommentar: '' })
-      notenCount++
+
+      const trimmedNmKlasse = st.nmKlasse?.trim()
+      const klasse = trimmedNmKlasse && trimmedNmKlasse.length > 0 ? trimmedNmKlasse : classRecord.name
+      const list = notenByKlasse.get(klasse) ?? []
+      list.push({
+        Matrikelnummer: matrikel,
+        Note: resolved.note,
+        Punkte: 0.0,
+        Kommentar: resolved.kommentar,
+      })
+      notenByKlasse.set(klasse, list)
+      sentCount++
     }
 
-    if (notenCount === 0) {
-      const sample = unmatched.slice(0, 8)
-      const more = unmatched.length > sample.length ? ` (+${unmatched.length - sample.length})` : ''
+    if (sentCount === 0) {
+      const reasonParts: string[] = []
+      if (unlinked.length) reasonParts.push(`${unlinked.length} nicht verknüpft`)
+      if (noEndnote.length) reasonParts.push(`${noEndnote.length} ohne Endnote`)
       return NextResponse.json(
         {
           error:
-            unmatched.length > 0
-              ? `Keine Schüler konnten Notenmanagement zugeordnet werden (Klasse "${nmClassName}"). Nicht gefunden: ${sample.join(', ')}${more}`
-              : 'No matched students with notes to transfer',
-          diagnostics: {
-            class: nmClassName,
-            payloadStudents: completeStudents.filter(st => notesByStudentId.has(st.id)).length,
-            unmatched,
-          },
+            reasonParts.length > 0
+              ? `Keine Noten zum Übertragen (${reasonParts.join(', ')}).`
+              : 'Keine Noten zum Übertragen.',
+          unlinked,
+          noEndnote,
         },
         { status: 400 },
       )
     }
 
+    // Authenticate as the teacher (LFs are attributed to them).
+    let accessToken: string
+    let tokenExpiresIn: number | undefined
+    if (providedToken) {
+      accessToken = providedToken
+    } else {
+      const tokenData = await getNmToken(nmUsername, password!)
+      accessToken = tokenData.token
+      tokenExpiresIn = tokenData.expiresIn
+    }
+
     const semesterLabel = semester === 'first' ? '1. Semester' : '2. Semester'
     const semesterN = semester === 'first' ? '1' : '2'
-    const typ =
-      groupId !== null ? 'Notenstand' : semester === 'first' ? 'Semesternote' : 'Jahresnote'
-    const kommentar =
-      groupId !== null
-        ? `Notenstand Semester ${semesterN} Gruppe ${groupId} ${teacherFirstName} ${teacherLastName}`
-        : `Übertrag aus Wechselplan APP, ${semesterLabel}`
+    const typ = lfTypeFor(semester, isGroup)
+    const kommentar = isGroup
+      ? `Notenstand Semester ${semesterN} Gruppe ${groupId} ${teacherLabel}`.trim()
+      : `Übertrag aus Wechselplan APP, ${semesterLabel}`
 
-    function extractLfId(body: unknown): string | null {
-      const id =
-        typeof body === 'object' && body !== null
-          ? ((body as Record<string, unknown>).LF_ID ??
-            (body as Record<string, unknown>).Lf_ID ??
-            (body as Record<string, unknown>).id ??
-            (body as Record<string, unknown>).Id)
-          : null
-      return typeof id === 'number' || typeof id === 'string' ? String(id) : null
-    }
+    const buildPayload = (klasse: string, entries: NotenEntry[]) => ({
+      LF: {
+        Datum: toLfDate(new Date()),
+        Klasse: klasse,
+        Fach: subject.subjectTruncated,
+        Typ: typ,
+        MaxPunkte: 0.0,
+        Kommentar: kommentar,
+      },
+      Noten: entries,
+    })
 
-    function buildPayload(klasse: string, entries: NotenEntry[]) {
-      return {
-        LF: {
-          Datum: toLfDate(new Date()),
-          Klasse: klasse,
-          Fach: subjectTruncated,
-          Typ: typ,
-          MaxPunkte: 0.0,
-          Kommentar: kommentar,
-        },
-        Noten: entries,
-      }
-    }
-
-    // POST a new LF. Returns the new LF id, or a NextResponse error.
-    async function postLf(payload: unknown): Promise<{ lfId: string } | { error: NextResponse }> {
-      const postUrl = new URL('api/LFs', env.NOTENMANAGEMENT_BASE_URL).toString()
-      const postRes = await fetch(postUrl, {
-        method: 'POST',
-        headers: { Authorization: `bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const ct = postRes.headers.get('content-type') ?? ''
-      const postBody = ct.includes('application/json') ? await postRes.json() : await postRes.text()
-      if (!postRes.ok) {
+    // POST a fresh LF, returning its id or an error response.
+    const postLf = async (
+      payload: unknown,
+    ): Promise<{ lfId: string } | { error: NextResponse }> => {
+      const res = await nmSend('POST', 'api/LFs', accessToken, payload)
+      if (!res.ok) {
         return {
           error: NextResponse.json(
-            { error: 'Notenmanagement /api/LFs POST failed', details: postBody },
+            { error: 'Notenmanagement /api/LFs POST failed', details: res.body },
             { status: 502 },
           ),
         }
       }
-      const lfId = extractLfId(postBody)
+      const lfId = extractLfId(res.body)
       if (lfId === null) {
         return {
           error: NextResponse.json(
-            { error: 'LF created but no LF_ID returned', response: postBody },
+            { error: 'LF created but no LF_ID returned', response: res.body },
             { status: 502 },
           ),
         }
@@ -534,42 +317,25 @@ export async function POST(request: Request) {
       return { lfId }
     }
 
-    // PUT an existing LF; returns the (possibly new) LF id, or null when the LF could not be updated.
-    async function putLf(lfId: string, payload: unknown): Promise<string | null> {
-      const putUrl = new URL(
-        `api/LFs/${encodeURIComponent(lfId)}`,
-        env.NOTENMANAGEMENT_BASE_URL,
-      ).toString()
-      const putRes = await fetch(putUrl, {
-        method: 'PUT',
-        headers: { Authorization: `bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const ct = putRes.headers.get('content-type') ?? ''
-      const putBody = ct.includes('application/json') ? await putRes.json() : await putRes.text()
-      if (!putRes.ok) {
+    // PUT an existing LF; null when the stored LF is gone (caller self-heals with a POST).
+    const putLf = async (lfId: string, payload: unknown): Promise<string | null> => {
+      const res = await nmSend('PUT', `api/LFs/${encodeURIComponent(lfId)}`, accessToken, payload)
+      if (!res.ok) {
         console.warn(
-          `[Notenmanagement] PUT /api/LFs/${lfId} failed (status ${putRes.status}); will create a new LF instead.`,
-          typeof putBody === 'string' ? putBody : JSON.stringify(putBody),
+          `[Notenmanagement] PUT /api/LFs/${lfId} failed (status ${res.status}); creating a new LF instead.`,
         )
         return null
       }
-      return extractLfId(putBody) ?? lfId
+      return extractLfId(res.body) ?? lfId
     }
 
-    // One LF per real Notenmanagement class (combined classes split here).
+    // One LF per real NM class (combined Wechselplan classes split by nmKlasse).
     const klassen = [...notenByKlasse.keys()]
     const results: Array<{ klasse: string; lfId: string; count: number }> = []
     for (const klasse of klassen) {
       const entries = notenByKlasse.get(klasse)!
       const payload = buildPayload(klasse, entries)
-      console.log(
-        `[Notenmanagement] transfer class "${klasse}" (${entries.length} Noten):`,
-        JSON.stringify(payload, null, 2),
-      )
 
-      // Find the record for this real class. For a single-class transfer also accept the
-      // legacy record written before nmKlasse existed (nmKlasse = null) and adopt it.
       let existing = await prisma.notenmanagementTransfer.findFirst({
         where: { classId, groupId, semester, schoolYearId, nmKlasse: klasse },
       })
@@ -585,7 +351,6 @@ export async function POST(request: Request) {
         if (updated) {
           lfIdStr = updated
         } else {
-          // Stored LF gone in Notenmanagement: self-heal by creating a fresh one.
           const created = await postLf(payload)
           if ('error' in created) return created.error
           lfIdStr = created.lfId
@@ -608,12 +373,14 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       transfers: results,
-      lfId: results[0]?.lfId, // backward-compatible single id
-      sentCount: notenCount,
-      // Include token data if a new token was generated
+      lfId: results[0]?.lfId,
+      sentCount,
+      unlinked,
+      noEndnote,
       ...(tokenExpiresIn && { token: accessToken, tokenExpiresIn }),
     })
   } catch (error) {
+    const status = error instanceof NmApiError ? error.status : 500
     captureError(error, {
       location: 'api/notensammler/transfer',
       type: 'transfer',
@@ -621,7 +388,7 @@ export async function POST(request: Request) {
     })
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Transfer failed' },
-      { status: 500 },
+      { status: status === 401 ? 401 : status >= 500 ? 500 : status },
     )
   }
 }

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Database, Menu, Settings } from 'lucide-react'
+import { Database, GraduationCap, Menu, Settings } from 'lucide-react'
 import {
   adminDataSectionGroups,
   adminDataSections,
@@ -14,7 +14,10 @@ import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
 
-const SETTINGS_LINKS = [{ href: '/admin/settings/entra-sync', label: 'Entra Sync', icon: Settings }]
+const SETTINGS_LINKS = [
+  { href: '/admin/settings/entra-sync', label: 'Entra Sync', icon: Settings },
+  { href: '/admin/notenmanagement', label: 'Notenmanagement', icon: GraduationCap },
+]
 
 function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()

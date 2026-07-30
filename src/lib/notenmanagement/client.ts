@@ -23,11 +23,14 @@ type NmEnvelope = {
 
 export class NmError extends Error {
   readonly details: unknown
+  /** HTTP status of the rejected response, when one was received. */
+  readonly status?: number
 
-  constructor(message: string, details?: unknown) {
+  constructor(message: string, details?: unknown, status?: number) {
     super(message)
     this.name = 'NmError'
     this.details = details
+    this.status = status
   }
 }
 
@@ -128,11 +131,11 @@ export async function nmRequest<T>(
       password: credentials.password,
     })
     if (!retry.res.ok) {
-      throw new NmError(formatNmError(retry.data), retry.data.details)
+      throw new NmError(formatNmError(retry.data), retry.data.details, retry.res.status)
     }
     persist(retry.data)
     return retry.data as T
   }
 
-  throw new NmError(formatNmError(data), data.details)
+  throw new NmError(formatNmError(data), data.details, res.status)
 }
