@@ -647,9 +647,30 @@ model Notification {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   readAt      DateTime?
+  /// Set once this row has been rolled into a sent e-mail digest, so the daily
+  /// digest run never mails the same missed notification twice. Null means it is
+  /// still eligible for the next digest (if it stays unread past the threshold).
+  digestedAt  DateTime?
 
   recipient Teacher @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
 
   @@index([recipientId, readAt, createdAt])
   @@index([dedupeKey, readAt])
+  /// Serves the digest sweep: unread, not-yet-digested rows older than the cutoff.
+  @@index([readAt, digestedAt, createdAt])
+}
+
+// Admin-editable notification settings. Singleton (id = 1). Currently just the
+// master switch for the daily e-mail digest of unacknowledged notifications
+// (issue #96): a teacher who leaves new bell entries unread past
+// DIGEST_AGE_HOURS gets one plain summary mail, but only while this is on.
+model NotificationSettings {
+  id                 Int       @id @default(1)
+  /// Master switch for the unacknowledged-notification e-mail digest.
+  emailDigestEnabled Boolean   @default(false)
+  lastDigestRunAt    DateTime?
+  lastDigestStatus   String?
+  lastDigestSummary  Json?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 }

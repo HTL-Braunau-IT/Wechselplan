@@ -205,6 +205,105 @@ export function isFinalGradeEditBlocked(
 const formatGrade = (grade: number | null): string =>
   grade === null ? '—' : getGradeDisplayText(grade)
 
+/** One class+semester whose open change notices should be acknowledged. */
+export interface SokratesChangeScope {
+  classId: number
+  schoolYearId: number
+  semester: Semester
+}
+
+/**
+ * Marks a class lead's open {@link SokratesChangeNotice} rows as acknowledged and
+ * closes the loop for whoever made the changes: each subject teacher whose edit
+ * the lead just acknowledged gets a `sokrates-change-acknowledged` bell entry —
+ * the proof the issue asks for that the lead has actually seen the drift.
+ *
+ * Scoped to the caller: only notices addressed to `recipientId` (the class lead)
+ * are touched, so an admin override or a stray id clears nothing that is not
+ * theirs. Called from both the bell (dismissing a `sokrates-change` row) and the
+ * notensammler rundown panel (an explicit "Gesehen" button), so the two stay in
+ * lock-step. The notify half is best-effort — the acknowledgement has committed.
+ *
+ * @returns the number of notices acknowledged.
+ */
+export async function acknowledgeSokratesChangeNotices(params: {
+  scopes: readonly SokratesChangeScope[]
+  recipientId: number
+  acknowledgedByName: string
+  now: Date
+}): Promise<number> {
+  const { scopes, recipientId, acknowledgedByName, now } = params
+  if (scopes.length === 0) return 0
+
+  // One notify entry per (teacher who changed, class, semester). Snapshots the
+  // class name and school year off the notices so the message renders without a
+  // second lookup, and counts the acknowledged changes for the singular/plural.
+  const acknowledgedGroups = new Map<
+    string,
+    { changedById: number; className: string; schoolYearId: number; semester: Semester; count: number }
+  >()
+  let total = 0
+
+  for (const scope of scopes) {
+    const open = await prisma.sokratesChangeNotice.findMany({
+      where: {
+        classId: scope.classId,
+        schoolYearId: scope.schoolYearId,
+        semester: scope.semester,
+        recipientId,
+        acknowledgedAt: null,
+      },
+      select: { id: true, changedById: true, className: true },
+    })
+    if (open.length === 0) continue
+
+    await prisma.sokratesChangeNotice.updateMany({
+      where: { id: { in: open.map(n => n.id) } },
+      data: { acknowledgedAt: now },
+    })
+    total += open.length
+
+    for (const notice of open) {
+      if (notice.changedById == null) continue
+      const key = `${notice.changedById}:${scope.classId}:${scope.semester}`
+      const group = acknowledgedGroups.get(key)
+      if (group) {
+        group.count += 1
+      } else {
+        acknowledgedGroups.set(key, {
+          changedById: notice.changedById,
+          className: notice.className,
+          schoolYearId: scope.schoolYearId,
+          semester: scope.semester,
+          count: 1,
+        })
+      }
+    }
+  }
+
+  // One best-effort boundary *per teacher*, not one around the loop: a single
+  // failed delivery must not suppress the acknowledgements owed to everyone else.
+  for (const group of acknowledgedGroups.values()) {
+    await bestEffort('sokrates-change-acknowledged', () =>
+      notify({
+        type: 'sokrates-change-acknowledged',
+        // The class lead is the actor; `notify` drops them from the recipients
+        // automatically, so a lead acknowledging their own edit tells no one.
+        recipientIds: [group.changedById],
+        actorId: recipientId,
+        actorName: acknowledgedByName,
+        params: { className: group.className, semester: group.semester, count: group.count },
+        link: notensammlerLink(group.className),
+        // School year in the key: reusing class+semester across years would let a
+        // later year's acknowledgement overwrite an earlier unread one.
+        dedupeKey: `sokrates-change-acknowledged:${group.changedById}:${group.schoolYearId}:${group.className}:${group.semester}`,
+      }).then(() => undefined),
+    )
+  }
+
+  return total
+}
+
 /**
  * Records each grade change that lands on an already-marked class+semester as a
  * {@link SokratesChangeNotice} and emails the class lead a summary. Best-effort:

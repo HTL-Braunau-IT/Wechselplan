@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { denyUnlessAccess } from '@/lib/api-guard'
+import { resolveCurrentTeacher } from '@/lib/current-teacher'
+import { resolveSchoolYearId } from '@/lib/school-year'
+import { bestEffort } from '@/lib/notifications'
+import { notifyScheduleChange } from '../_notify'
 
 interface Assignment {
   groupId: number
@@ -302,6 +308,26 @@ export async function POST(request: Request) {
         },
       })
     }
+
+    // A group re-shuffle is a schedule change everyone attached to the class
+    // cares about (issue #96). Folded into the class's bell entry, so re-saving
+    // the group grid does not stack notifications. The whole block is
+    // best-effort, context lookups included: the group writes have committed, so
+    // a failing lookup must not surface as a 500.
+    await bestEffort('notify:schedule-assignments', async () => {
+      const session = await getServerSession(authOptions)
+      const actor = await resolveCurrentTeacher(session)
+      const schoolYearId = await resolveSchoolYearId()
+      if (schoolYearId != null) {
+        await notifyScheduleChange({
+          type: 'schedule-students-changed',
+          classId,
+          schoolYearId,
+          actor,
+          session,
+        })
+      }
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

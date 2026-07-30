@@ -520,6 +520,11 @@
     "sokratesCellLocked": "In Sokrates eingetragen und gesperrt.",
     "sokratesDrift": "Nach Sokrates-Übertragung geändert — der Klassenleiter wurde informiert.",
     "sokratesExplainerLabel": "Was ist Sokrates?",
+    "changesTitle": "Notenänderungen nach der Sokrates-Übertragung",
+    "changesAcknowledge": "Alle gesehen",
+    "changesHintLead": "Diese Noten wurden nach der Sokrates-Übertragung geändert. Prüfe, ob sie in Sokrates nachgezogen werden müssen, und bestätige mit „Alle gesehen“.",
+    "changesHintTeacher": "Deine Änderungen nach der Sokrates-Übertragung. Der Klassenvorstand wird informiert, sobald er sie gesehen hat.",
+    "changesBy": "Geändert von {{name}} · {{when}}",
     "currentSemesterLabel": "Aktuelles Semester"
   },
   "schedules": {
@@ -556,6 +561,7 @@
     "scheduleUpdated": "Wechselplan für {{className}} geändert",
     "scheduleAssignmentsChanged": "Lehrerzuteilung für {{className}} geändert",
     "scheduleRotationChanged": "Lehrerrotation für {{className}} geändert",
+    "scheduleStudentsChanged": "Schüleränderung in {{className}} (Ein-/Austritt oder Gruppenwechsel)",
     "gradesEntered_one": "1 Note in {{className}} eingetragen",
     "gradesEntered_other": "{{count}} Noten in {{className}} eingetragen",
     "sokratesMarked": "{{className}} ({{semester}}) ist in Sokrates eingetragen — Noten gesperrt",
@@ -565,6 +571,8 @@
     "sokratesUnlockedAll": "Noten in {{className}} ({{semester}}) sind wieder bearbeitbar",
     "sokratesUnlockedMine": "Deine Noten in {{className}} ({{semester}}) sind wieder bearbeitbar",
     "sokratesChange_one": "1 Notenänderung in {{className}} ({{semester}}) nach der Sokrates-Übertragung",
-    "sokratesChange_other": "{{count}} Notenänderungen in {{className}} ({{semester}}) nach der Sokrates-Übertragung"
+    "sokratesChange_other": "{{count}} Notenänderungen in {{className}} ({{semester}}) nach der Sokrates-Übertragung",
+    "sokratesChangeAcknowledged_one": "Klassenvorstand hat 1 Notenänderung in {{className}} ({{semester}}) bestätigt",
+    "sokratesChangeAcknowledged_other": "Klassenvorstand hat {{count}} Notenänderungen in {{className}} ({{semester}}) bestätigt"
   }
 }

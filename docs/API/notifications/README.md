@@ -63,12 +63,29 @@ exception: its `count` is re-read from the still-open notices, so it accumulates
 | `schedule-updated`             | Class audience + plan authors            | `POST /api/schedules`                     |
 | `schedule-assignments-changed` | …plus the previous assignment holders    | `POST /api/schedules/teacher-assignments` |
 | `schedule-rotation-changed`    | …plus the previous rotation holders      | `POST /api/schedules/rotation`            |
+| `schedule-students-changed`    | Class audience of the affected class(es) | times / group-assignments / transfer      |
 | `grades-entered`               | The class's Klassenleiter                | `POST /api/notensammler/grades[/batch]`   |
 | `sokrates-marked`              | Everyone with a column in the sheet      | `POST /api/notensammler/sokrates/mark`    |
 | `sokrates-unmarked`            | Everyone with a column in the sheet      | `POST /api/notensammler/sokrates/unmark`  |
 | `sokrates-locked`              | Whole sheet, or the one locked teacher   | `POST /api/notensammler/sokrates/lock`    |
 | `sokrates-unlocked`            | Whole sheet, or the one unlocked teacher | `POST /api/notensammler/sokrates/lock`    |
-| `sokrates-change`              | The class's Klassenleiter                | `src/lib/sokrates-lock.ts`                |
+| `sokrates-change`              | The class's Klassenleiter + the changer  | `src/lib/sokrates-lock.ts`                |
+| `sokrates-change-acknowledged` | The teacher(s) who made the changes      | acknowledge (bell or rundown panel)       |
+
+`schedule-students-changed` is raised whenever a class's roster or group layout
+moves: `POST /api/schedules/times` (turn usage / breaks), `POST
+/api/schedules/assignments` (group re-shuffle) and `POST
+/api/students/[id]/transfer` (a student leaving one class and joining another —
+both classes are notified). It shares the `schedule:<classId>:<schoolYearId>`
+dedupe key with the other schedule types, so a burst of edits to one class stays
+one bell line. Bulk directory sync does **not** raise it, to avoid a storm of
+per-class rows on the nightly run.
+
+`sokrates-change-acknowledged` closes the loop the issue asked for: when the
+class lead acknowledges the post-Sokrates changes (from the bell or the
+Notensammler rundown panel), each teacher whose edit was acknowledged gets one
+row, so they know the lead has actually seen it. `count` is how many of *their*
+changes were cleared.
 
 "Class audience" is everyone holding a `TeacherAssignment` or `TeacherRotation`
 in that class, plus its `classHead` and `classLead`. "Plan authors" are the
@@ -144,3 +161,73 @@ the two views would otherwise disagree about whether the drift had been handled.
 
 The reverse direction is covered as well: re-marking a semester as entered into
 Sokrates resolves the notices _and_ marks the matching bell entries read.
+
+Acknowledging also **notifies the teachers back**: each subject teacher whose
+change the lead just acknowledged gets a `sokrates-change-acknowledged` row
+(`acknowledgeSokratesChangeNotices` in `src/lib/sokrates-lock.ts`, shared with
+the rundown panel's endpoint below).
+
+---
+
+## GET `/api/notensammler/sokrates/changes?classId=&schoolYearId=`
+
+The "what changed" rundown a grade notification links to. Access tier:
+**staff**. Returns the still-open (unacknowledged) `SokratesChangeNotice` rows
+for the class — student, subject column, old → new grade (already formatted),
+who changed it and when. Scoped to the reader: the class lead sees every open
+change in their class; a subject teacher sees only their own. `canAcknowledge`
+is true only for the class lead.
+
+```jsonc
+{
+  "changes": [
+    {
+      "id": 5,
+      "studentName": "Berger Anna",
+      "subjectTeacherName": "Max Muster",
+      "oldGrade": "3",
+      "newGrade": "2",
+      "semester": "first",
+      "changedByName": "Max Muster",
+      "changedAt": "2026-07-29T09:12:00.000Z",
+    },
+  ],
+  "canAcknowledge": true,
+}
+```
+
+## POST `/api/notensammler/sokrates/changes/acknowledge`
+
+The class lead's "Gesehen" action on the rundown panel. Access tier: **staff**,
+but the handler additionally requires the caller to be the class lead
+(`canManageSokrates`) — **403** otherwise. Body: `{ classId, schoolYearId?,
+semester? }`; an absent `semester` acknowledges both. Marks the notices
+acknowledged (clearing the grid drift markers), dismisses the lead's own
+`sokrates-change` bell entry, and raises `sokrates-change-acknowledged` for the
+teachers who made the changes.
+
+**200 Response:** `{ "success": true, "count": 3 }`
+
+---
+
+## POST `/api/notifications/digest/run`
+
+Unattended daily e-mail digest of unacknowledged notifications. Machine
+endpoint: authenticated by the same shared secret as the directory-sync trigger
+(`SYNC_TRIGGER_SECRET`, header `x-sync-secret` or `Authorization: Bearer …`),
+declared `public` in `api-access.ts` so the session check does not reject the
+cron caller. An external scheduler calls it once a day.
+
+- **503** when `SYNC_TRIGGER_SECRET` is unset (feature stays off).
+- **401** without the right secret.
+- **200** `{ "skipped": true, "reason": "email digest disabled" }` when the admin
+  master switch (`NotificationSettings.emailDigestEnabled`) is off.
+- **200 / 207** `{ "skipped": false, "summary": { … } }` on a run — 207 if some
+  sends failed.
+
+Each teacher with in-app notifications left unread for more than 24 hours
+(`DIGEST_AGE_HOURS`) gets one plain-text German summary of what they missed;
+those rows are then stamped `digestedAt` so the same miss is never mailed twice
+even while it stays unread. Deactivated teachers and those without an address are
+skipped. The master switch lives under **Admin → Benachrichtigungen**
+(`GET`/`PUT /api/admin/notification-settings`, admin-only).

@@ -4,8 +4,9 @@ import { authOptions } from '@/lib/auth'
 import { denyUnlessAccess } from '@/lib/api-guard'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
-import { resolveCurrentTeacher } from '@/lib/current-teacher'
+import { actorName, resolveCurrentTeacher } from '@/lib/current-teacher'
 import { bestEffort } from '@/lib/notifications'
+import { acknowledgeSokratesChangeNotices, type SokratesChangeScope } from '@/lib/sokrates-lock'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -21,37 +22,39 @@ interface SokratesChangeParams {
  * A `sokrates-change` entry is a pointer at open SokratesChangeNotice rows, and
  * the Notensammler grid flags the same rows as drifted cells. Dismissing the
  * bell entry has always meant "I have dealt with this", so it resolves those
- * notices too — otherwise the grid would keep the markers forever.
+ * notices too — otherwise the grid would keep the markers forever — and, via
+ * {@link acknowledgeSokratesChangeNotices}, tells whoever made each change that
+ * the class lead has now seen it.
  *
  * Scoped to the caller: only notices addressed to them are touched.
  */
 async function resolveLinkedSokratesNotices(
   rows: Array<{ type: string; params: unknown }>,
   recipientId: number,
+  recipientName: string,
   now: Date,
 ): Promise<void> {
-  const scopes = rows
+  const scopes: SokratesChangeScope[] = rows
     .filter(row => row.type === 'sokrates-change')
     .map(row => (row.params ?? {}) as SokratesChangeParams)
     .filter(
-      (params): params is { classId: number; schoolYearId: number; semester: string } =>
+      (params): params is { classId: number; schoolYearId: number; semester: 'first' | 'second' } =>
         typeof params.classId === 'number' &&
         typeof params.schoolYearId === 'number' &&
         (params.semester === 'first' || params.semester === 'second'),
     )
+    .map(params => ({
+      classId: params.classId,
+      schoolYearId: params.schoolYearId,
+      semester: params.semester,
+    }))
 
-  for (const scope of scopes) {
-    await prisma.sokratesChangeNotice.updateMany({
-      where: {
-        classId: scope.classId,
-        schoolYearId: scope.schoolYearId,
-        semester: scope.semester,
-        recipientId,
-        acknowledgedAt: null,
-      },
-      data: { acknowledgedAt: now },
-    })
-  }
+  await acknowledgeSokratesChangeNotices({
+    scopes,
+    recipientId,
+    acknowledgedByName: recipientName,
+    now,
+  })
 }
 
 /**
@@ -99,7 +102,7 @@ export async function POST(request: Request) {
     // notices is best-effort: failing it would report a 500 for a dismissal the
     // user can already see took effect, and re-marking would be a no-op.
     await bestEffort('acknowledge:sokrates-notices', () =>
-      resolveLinkedSokratesNotices(affected, teacher.id, now),
+      resolveLinkedSokratesNotices(affected, teacher.id, actorName(teacher, session), now),
     )
 
     return NextResponse.json({ success: true, count: result.count })

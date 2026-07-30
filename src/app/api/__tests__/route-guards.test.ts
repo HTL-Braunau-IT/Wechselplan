@@ -20,6 +20,7 @@ const EXEMPT = new Map<string, string>([
   ['/api/trpc/[trpc]', 'authorisation lives in the tRPC procedure middleware'],
   ['/api/github/releases', 'public release metadata, shown to signed-out visitors'],
   ['/api/sync/run', 'authenticated by a shared secret header, not a session'],
+  ['/api/notifications/digest/run', 'authenticated by a shared secret header, not a session'],
 ])
 
 const GUARD_PATTERNS = [

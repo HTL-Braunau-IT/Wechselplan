@@ -20,6 +20,7 @@ import type { Period, SemesterView, SortDirection, SortField, Teacher } from './
 import { useNotensammlerData } from './_hooks/use-notensammler-data'
 import { useGradeEditing } from './_hooks/use-grade-editing'
 import { useSokrates } from './_hooks/use-sokrates'
+import { useSokratesChanges } from './_hooks/use-sokrates-changes'
 import { useTransferFlow } from './_hooks/use-transfer-flow'
 import { useLfView } from './_hooks/use-lf-view'
 import { usePdfDownload } from './_hooks/use-pdf-download'
@@ -29,6 +30,7 @@ import { PeriodTabs } from './_components/period-tabs'
 import { MyProgress } from './_components/my-progress'
 import { GradeTable } from './_components/grade-table'
 import { SokratesPanel } from './_components/sokrates-panel'
+import { SokratesChangesPanel } from './_components/sokrates-changes-panel'
 import { TransferDialogs } from './_components/transfer-dialogs'
 import { NmCredentialsDialog } from './_components/nm-credentials-dialog'
 import { LfViewDialog } from './_components/lf-view-dialog'
@@ -81,6 +83,15 @@ export default function NotensammlerPage() {
 
   const sokrates = useSokrates({ classId: classData?.id, schoolYearId, setError })
   const { refresh: refreshSokrates } = sokrates
+
+  // The "what changed" rundown for the open class. Acknowledging clears the
+  // grid's drift rings, so it re-reads the Sokrates status afterwards.
+  const sokratesChanges = useSokratesChanges({
+    classId: classData?.id,
+    schoolYearId,
+    setError,
+    onAfterAcknowledge: () => void refreshSokrates(),
+  })
 
   const {
     savingAll,
@@ -419,6 +430,13 @@ export default function NotensammlerPage() {
                 onMark={semester => void sokrates.mark(semester)}
                 onUnmark={semester => void sokrates.unmark(semester)}
                 onSetLockAll={(semester, locked) => void sokrates.setLockAll(semester, locked)}
+              />
+
+              <SokratesChangesPanel
+                changes={sokratesChanges.changes}
+                canAcknowledge={sokratesChanges.canAcknowledge}
+                busy={sokratesChanges.busy}
+                onAcknowledge={() => void sokratesChanges.acknowledge()}
               />
 
               {classData.hasSeparateAmPmSubjects && (
