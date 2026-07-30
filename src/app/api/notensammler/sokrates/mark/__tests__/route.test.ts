@@ -88,6 +88,19 @@ describe('POST /api/notensammler/sokrates/mark', () => {
     )
   })
 
+  it('forwards the admin override flag from the body to the authorization check', async () => {
+    await post({ classId: 3, semester: 'first', adminOverride: true })
+    expect(mockCanManageSokrates).toHaveBeenCalledWith(
+      expect.objectContaining({ adminOverride: true }),
+    )
+
+    mockCanManageSokrates.mockClear()
+    await post({ classId: 3, semester: 'first' })
+    expect(mockCanManageSokrates).toHaveBeenCalledWith(
+      expect.objectContaining({ adminOverride: false }),
+    )
+  })
+
   it('rejects a request without a semester', async () => {
     const response = await post({ classId: 3 })
 

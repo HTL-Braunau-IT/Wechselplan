@@ -43,7 +43,16 @@ export function useSokrates({ classId, schoolYearId, setError }: Params) {
   const [status, setStatus] = useState<SokratesStatus>(emptyStatus())
   const [driftedCells, setDriftedCells] = useState<Set<string>>(new Set())
   const [canManage, setCanManage] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+  // An admin who is not the class lead has no Sokrates power until they flip this
+  // on — a deliberate, one-off override, reset whenever the open class changes so
+  // it never silently follows them from one class to the next.
+  const [adminOverride, setAdminOverride] = useState(false)
   const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    setAdminOverride(false)
+  }, [classId, schoolYearId])
 
   const refresh = useCallback(
     async (signal?: AbortSignal) => {
@@ -51,6 +60,7 @@ export function useSokrates({ classId, schoolYearId, setError }: Params) {
         setStatus(emptyStatus())
         setDriftedCells(new Set())
         setCanManage(false)
+        setIsAdmin(false)
         return
       }
       try {
@@ -62,10 +72,12 @@ export function useSokrates({ classId, schoolYearId, setError }: Params) {
         const data = (await res.json()) as {
           status: SokratesStatus
           canManage: boolean
+          isAdmin?: boolean
           driftedCells: string[]
         }
         setStatus(data.status ?? emptyStatus())
         setCanManage(Boolean(data.canManage))
+        setIsAdmin(Boolean(data.isAdmin))
         setDriftedCells(new Set(data.driftedCells ?? []))
       } catch (e) {
         // A superseded request (class switched mid-flight) is aborted, not an error.
@@ -90,7 +102,14 @@ export function useSokrates({ classId, schoolYearId, setError }: Params) {
         const res = await fetch(`/api/notensammler/sokrates/${path}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ classId, schoolYearId, ...body }),
+          // The override flag rides along only when an admin has switched it on;
+          // the server ignores it for anyone who is not an admin.
+          body: JSON.stringify({
+            classId,
+            schoolYearId,
+            ...(adminOverride && { adminOverride: true }),
+            ...body,
+          }),
         })
         if (!res.ok) {
           const err = (await res.json()) as { error?: string }
@@ -106,7 +125,7 @@ export function useSokrates({ classId, schoolYearId, setError }: Params) {
         setBusy(false)
       }
     },
-    [classId, schoolYearId, refresh, setError],
+    [classId, schoolYearId, adminOverride, refresh, setError],
   )
 
   const mark = useCallback((semester: Semester) => post('mark', { semester }), [post])
@@ -148,7 +167,18 @@ export function useSokrates({ classId, schoolYearId, setError }: Params) {
 
   return {
     status,
+    /** Whether the current user is the class lead (the standing manager). */
     canManage,
+    /** Whether the current user is an admin (eligible for the override toggle). */
+    isAdmin,
+    /** Whether the admin has switched the one-time override on for this class. */
+    adminOverride,
+    setAdminOverride,
+    /**
+     * The class lead, or an admin who has switched the override on: whoever may
+     * mark/lock and edit locked cells right now.
+     */
+    canManageEffective: canManage || (isAdmin && adminOverride),
     busy,
     refresh,
     mark,

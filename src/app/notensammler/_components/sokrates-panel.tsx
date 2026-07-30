@@ -1,7 +1,7 @@
 'use client'
 
 import { useTranslation } from 'react-i18next'
-import { CheckCircle2, Info, Lock, LockOpen, ShieldCheck } from 'lucide-react'
+import { CheckCircle2, Info, Lock, LockOpen, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
@@ -11,7 +11,13 @@ import type { SokratesSemesterStatus, SokratesStatus } from '../_hooks/use-sokra
 
 type Props = {
   status: SokratesStatus
+  /** The class lead — the standing manager, always allowed. */
   canManage: boolean
+  /** The current user is an admin, so the one-time override button is offered. */
+  isAdmin: boolean
+  /** The admin has switched the one-time override on for this class. */
+  adminOverride: boolean
+  onToggleAdminOverride: () => void
   busy: boolean
   onMark: (semester: Semester) => void
   onUnmark: (semester: Semester) => void
@@ -42,7 +48,9 @@ function SemesterRow({
 }: {
   semester: Semester
   s: SokratesSemesterStatus
-} & Omit<Props, 'status'>) {
+  /** Effective right to act: the class lead, or an admin with the override on. */
+  canManage: boolean
+} & Pick<Props, 'busy' | 'onMark' | 'onUnmark' | 'onSetLockAll'>) {
   const { t } = useTranslation()
   const semesterLabel =
     semester === 'first'
@@ -150,11 +158,26 @@ function SemesterRow({
  * the mark in place and drops back to reporting changes instead of blocking
  * them, with individual columns still lockable.
  */
-export function SokratesPanel({ status, canManage, busy, onMark, onUnmark, onSetLockAll }: Props) {
+export function SokratesPanel({
+  status,
+  canManage,
+  isAdmin,
+  adminOverride,
+  onToggleAdminOverride,
+  busy,
+  onMark,
+  onUnmark,
+  onSetLockAll,
+}: Props) {
   const { t } = useTranslation()
 
-  // Nothing to show to a plain teacher until something is marked.
-  const anythingToShow = canManage || status.first.marked || status.second.marked
+  // The class lead manages by right; an admin who is not the lead may take the
+  // controls only while their one-time override is switched on.
+  const canManageEffective = canManage || (isAdmin && adminOverride)
+
+  // A plain teacher sees nothing until something is marked. The lead and any
+  // admin always see the panel — the admin needs it to reach the override.
+  const anythingToShow = canManage || isAdmin || status.first.marked || status.second.marked
   if (!anythingToShow) return null
 
   return (
@@ -185,12 +208,49 @@ export function SokratesPanel({ status, canManage, busy, onMark, onUnmark, onSet
           </TooltipContent>
         </Tooltip>
         {busy && <Spinner size="sm" />}
+
+        {/* Admins are not the Klassenleiter of most classes, so they get no
+            standing power here — only this deliberate, one-off override. It is
+            reset whenever the open class changes. */}
+        {isAdmin && !canManage && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                size="sm"
+                variant={adminOverride ? 'destructive' : 'outline'}
+                disabled={busy}
+                onClick={onToggleAdminOverride}
+                className="ml-auto"
+                aria-pressed={adminOverride}
+              >
+                {adminOverride ? (
+                  <>
+                    <ShieldAlert className="mr-1.5 h-4 w-4" />
+                    {t('notensammler.sokratesAdminOverrideOn', 'Admin-Override aktiv')}
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="mr-1.5 h-4 w-4" />
+                    {t('notensammler.sokratesAdminOverride', 'Als Admin überschreiben')}
+                  </>
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {t(
+                'notensammler.sokratesAdminOverrideHint',
+                'Als Administrator kannst du die Sokrates-Sperre dieser Klasse einmalig übergehen (markieren, sperren, Noten ändern). Beim Klassenwechsel wird das wieder deaktiviert.',
+              )}
+            </TooltipContent>
+          </Tooltip>
+        )}
       </div>
       <div className="flex flex-col gap-2.5">
         <SemesterRow
           semester="first"
           s={status.first}
-          canManage={canManage}
+          canManage={canManageEffective}
           busy={busy}
           onMark={onMark}
           onUnmark={onUnmark}
@@ -199,7 +259,7 @@ export function SokratesPanel({ status, canManage, busy, onMark, onUnmark, onSet
         <SemesterRow
           semester="second"
           s={status.second}
-          canManage={canManage}
+          canManage={canManageEffective}
           busy={busy}
           onMark={onMark}
           onUnmark={onUnmark}

@@ -48,21 +48,34 @@ export interface SokratesStatus {
 }
 
 /**
- * Only a class's Klassenleiter (class lead) or an admin may mark, unmark or
- * lock its grades. Everyone else can read the state but not change it.
+ * Who may mark, unmark, lock or override the Sokrates state of a class.
+ *
+ * By default that is *only* the class's Klassenleiter (class lead). An admin has
+ * no standing Sokrates power over a class they do not lead — being admin used to
+ * silently override every class's lock, which made "the lock" meaningless for
+ * anyone who also held the admin role. An admin may still act, but only by
+ * opting into a deliberate, per-request override (`adminOverride`), surfaced in
+ * the UI as an admin-only button. A non-admin passing the flag gets nothing.
  */
 export async function canManageSokrates(params: {
   classId: number
   role: unknown
   teacherId: number | null
+  /** Honoured only for `role === 'admin'`: a one-off, explicitly-requested override. */
+  adminOverride?: boolean
 }): Promise<boolean> {
-  if (params.role === 'admin') return true
-  if (params.teacherId == null) return false
-  const classRecord = await prisma.class.findUnique({
-    where: { id: params.classId },
-    select: { classLeadId: true },
-  })
-  return classRecord?.classLeadId != null && classRecord.classLeadId === params.teacherId
+  // The class lead always manages their own class, no override needed.
+  if (params.teacherId != null) {
+    const classRecord = await prisma.class.findUnique({
+      where: { id: params.classId },
+      select: { classLeadId: true },
+    })
+    if (classRecord?.classLeadId != null && classRecord.classLeadId === params.teacherId) {
+      return true
+    }
+  }
+  // An admin may override any class, but only when they ask for it explicitly.
+  return params.role === 'admin' && params.adminOverride === true
 }
 
 /**

@@ -54,6 +54,7 @@ export async function POST(request: Request) {
       classId: unknown
       schoolYearId?: number
       grades: Array<{ studentId: unknown; teacherId: unknown; semester: unknown; grade: unknown }>
+      adminOverride?: unknown
     }
     requestData = body
     const { classId, schoolYearId: bodySchoolYearId, grades: rawGrades } = body
@@ -184,6 +185,7 @@ export async function POST(request: Request) {
       classId: classIdNum,
       role: session.user?.role,
       teacherId: currentTeacher?.id ?? null,
+      adminOverride: body.adminOverride === true,
     })
 
     // Sokrates lock: a hard-locked grade that would change is skipped (not

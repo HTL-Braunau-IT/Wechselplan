@@ -202,6 +202,7 @@ export async function POST(request: Request) {
       semester: unknown
       grade: unknown
       schoolYearId?: number
+      adminOverride?: unknown
     }
     requestData = body
     const { studentId, teacherId, classId, semester, grade, schoolYearId: bodySchoolYearId } = body
@@ -325,6 +326,7 @@ export async function POST(request: Request) {
       classId: classIdNum,
       role: session.user?.role,
       teacherId: currentTeacher?.id ?? null,
+      adminOverride: body.adminOverride === true,
     })
 
     // Re-read the mark state and gate the write under the shared advisory lock,

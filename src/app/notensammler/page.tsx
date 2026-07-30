@@ -104,6 +104,9 @@ export default function NotensammlerPage() {
     setNotice,
     refreshTeacherClasses,
     refreshSokrates,
+    // When an admin has the override on, grade writes carry the flag so the
+    // server lets them through the Sokrates lock too.
+    adminOverride: sokrates.isAdmin && sokrates.adminOverride,
   })
 
   // Marks autosave half a second after they are typed; closing the tab inside
@@ -403,6 +406,9 @@ export default function NotensammlerPage() {
               <SokratesPanel
                 status={sokrates.status}
                 canManage={sokrates.canManage}
+                isAdmin={sokrates.isAdmin}
+                adminOverride={sokrates.adminOverride}
+                onToggleAdminOverride={() => sokrates.setAdminOverride(prev => !prev)}
                 busy={sokrates.busy}
                 onMark={semester => void sokrates.mark(semester)}
                 onUnmark={semester => void sokrates.unmark(semester)}
@@ -466,7 +472,7 @@ export default function NotensammlerPage() {
                   onFinalGradeChange={handleFinalGradeChange}
                   onConductWishChange={handleConductWishChange}
                   onDeleteTeacher={setTeacherToDelete}
-                  canManageSokrates={sokrates.canManage}
+                  canManageSokrates={sokrates.canManageEffective}
                   isSemesterMarked={semester => sokrates.status[semester].marked}
                   isSemesterLocked={sokrates.isSemesterLocked}
                   isCellLocked={sokrates.isCellLocked}
