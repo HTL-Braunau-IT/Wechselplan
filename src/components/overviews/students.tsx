@@ -440,7 +440,7 @@ function ScheduleOverviewWrapper({
   }
 
   return (
-    <>
+    <div className="space-y-6">
       <StudentCurrentAssignments
         amAssignments={amAssignments}
         pmAssignments={pmAssignments}
@@ -459,9 +459,7 @@ function ScheduleOverviewWrapper({
         classLead={classLead}
         additionalInfo={additionalInfo}
         weekday={weekday}
-        className={className}
-        showExportButtons={false}
       />
-    </>
+    </div>
   )
 }

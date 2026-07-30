@@ -269,8 +269,6 @@ export default function OverviewPage() {
         classLead={classLead}
         additionalInfo={additionalInfo}
         weekday={weekday}
-        className={classId ?? undefined}
-        showExportButtons={true}
       />
 
       <Dialog open={showPdfDialog} onOpenChange={setShowPdfDialog}>
