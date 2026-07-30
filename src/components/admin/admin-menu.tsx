@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Database, GraduationCap, Menu, Settings } from 'lucide-react'
+import { Bell, Database, GraduationCap, Menu, Settings } from 'lucide-react'
 import {
   adminDataSectionGroups,
   adminDataSections,
@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils'
 const SETTINGS_LINKS = [
   { href: '/admin/settings/entra-sync', label: 'Entra Sync', icon: Settings },
   { href: '/admin/notenmanagement', label: 'Notenmanagement', icon: GraduationCap },
+  { href: '/admin/settings/notifications', label: 'Benachrichtigungen', icon: Bell },
 ]
 
 function AdminNav({ onNavigate }: { onNavigate?: () => void }) {

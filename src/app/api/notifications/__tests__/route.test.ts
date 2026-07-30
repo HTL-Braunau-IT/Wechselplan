@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getServerSession } from 'next-auth'
 import { prisma } from '@/lib/prisma'
+import { acknowledgeSokratesChangeNotices } from '@/lib/sokrates-lock'
 import { GET } from '../route'
 import { POST } from '../acknowledge/route'
 
@@ -10,6 +11,12 @@ vi.mock('@/lib/prisma', () => ({
     notification: { findMany: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
     sokratesChangeNotice: { updateMany: vi.fn() },
   },
+}))
+
+// The route delegates the notice resolution + notify-back to this lib helper;
+// its own logic is tested in sokrates-lock's own suite.
+vi.mock('@/lib/sokrates-lock', () => ({
+  acknowledgeSokratesChangeNotices: vi.fn().mockResolvedValue(0),
 }))
 
 vi.mock('next-auth', () => ({ getServerSession: vi.fn() }))
@@ -116,6 +123,7 @@ describe('POST /api/notifications/acknowledge', () => {
     vi.mocked(prisma.notification.findMany).mockResolvedValue([] as never)
     vi.mocked(prisma.notification.updateMany).mockResolvedValue({ count: 1 } as never)
     vi.mocked(prisma.sokratesChangeNotice.updateMany).mockResolvedValue({ count: 0 } as never)
+    vi.mocked(acknowledgeSokratesChangeNotices).mockResolvedValue(0)
   })
 
   it('scopes a single acknowledgement to the caller', async () => {
@@ -154,16 +162,12 @@ describe('POST /api/notifications/acknowledge', () => {
 
     await POST(request({ id: 5 }))
 
-    expect(prisma.sokratesChangeNotice.updateMany).toHaveBeenCalledWith({
-      where: {
-        classId: 3,
-        schoolYearId: 2,
-        semester: 'first',
+    expect(acknowledgeSokratesChangeNotices).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scopes: [{ classId: 3, schoolYearId: 2, semester: 'first' }],
         recipientId: 7,
-        acknowledgedAt: null,
-      },
-      data: { acknowledgedAt: expect.any(Date) },
-    })
+      }),
+    )
   })
 
   it('leaves the Sokrates notices alone for other notification types', async () => {
@@ -173,7 +177,10 @@ describe('POST /api/notifications/acknowledge', () => {
 
     await POST(request({ id: 5 }))
 
-    expect(prisma.sokratesChangeNotice.updateMany).not.toHaveBeenCalled()
+    // The helper is still called, but with nothing to resolve.
+    expect(acknowledgeSokratesChangeNotices).toHaveBeenCalledWith(
+      expect.objectContaining({ scopes: [] }),
+    )
   })
 
   it('ignores a sokrates-change entry whose params lost their scope', async () => {
@@ -183,7 +190,9 @@ describe('POST /api/notifications/acknowledge', () => {
 
     await POST(request({ id: 5 }))
 
-    expect(prisma.sokratesChangeNotice.updateMany).not.toHaveBeenCalled()
+    expect(acknowledgeSokratesChangeNotices).toHaveBeenCalledWith(
+      expect.objectContaining({ scopes: [] }),
+    )
   })
 
   it('still reports success when resolving the linked notices fails', async () => {
@@ -195,7 +204,7 @@ describe('POST /api/notifications/acknowledge', () => {
         params: { classId: 3, schoolYearId: 2, semester: 'first', className: '1AHIT', count: 2 },
       },
     ] as never)
-    vi.mocked(prisma.sokratesChangeNotice.updateMany).mockRejectedValue(new Error('db down'))
+    vi.mocked(acknowledgeSokratesChangeNotices).mockRejectedValue(new Error('db down'))
 
     const response = await POST(request({ id: 5 }))
 

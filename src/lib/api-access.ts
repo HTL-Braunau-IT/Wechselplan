@@ -72,6 +72,11 @@ export const API_ACCESS_RULES: readonly ApiAccessRule[] = [
   // session check does not reject the cron caller; the handler enforces the
   // secret itself.
   { prefix: '/api/sync/run', tier: 'public' },
+  // Unattended notification e-mail digest, same shared-secret model as the sync
+  // trigger above (issue #96). Public only so the cron caller is not rejected by
+  // the session check; the handler verifies the secret itself. Listed before the
+  // default so it wins over the staff tier the rest of /api/notifications uses.
+  { prefix: '/api/notifications/digest/run', tier: 'public' },
 ]
 
 /**

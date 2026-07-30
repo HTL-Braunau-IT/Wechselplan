@@ -520,6 +520,11 @@
     "sokratesCellLocked": "Entered in Sokrates and locked.",
     "sokratesDrift": "Changed after the Sokrates transfer — the class lead has been notified.",
     "sokratesExplainerLabel": "What is Sokrates?",
+    "changesTitle": "Grade changes after the Sokrates transfer",
+    "changesAcknowledge": "Mark all seen",
+    "changesHintLead": "These grades were changed after the Sokrates transfer. Check whether they need to be updated in Sokrates, then confirm with “Mark all seen”.",
+    "changesHintTeacher": "Your changes after the Sokrates transfer. The class lead will be told once they have seen them.",
+    "changesBy": "Changed by {{name}} · {{when}}",
     "currentSemesterLabel": "Current semester"
   },
   "schedules": {
@@ -556,6 +561,7 @@
     "scheduleUpdated": "Rotation plan for {{className}} changed",
     "scheduleAssignmentsChanged": "Teacher assignments for {{className}} changed",
     "scheduleRotationChanged": "Teacher rotation for {{className}} changed",
+    "scheduleStudentsChanged": "Student change in {{className}} (joined/left or moved group)",
     "gradesEntered_one": "1 grade entered in {{className}}",
     "gradesEntered_other": "{{count}} grades entered in {{className}}",
     "sokratesMarked": "{{className}} ({{semester}}) has been entered into Sokrates — grades locked",
@@ -565,6 +571,8 @@
     "sokratesUnlockedAll": "Grades in {{className}} ({{semester}}) are editable again",
     "sokratesUnlockedMine": "Your grades in {{className}} ({{semester}}) are editable again",
     "sokratesChange_one": "1 grade changed in {{className}} ({{semester}}) after the Sokrates transfer",
-    "sokratesChange_other": "{{count}} grades changed in {{className}} ({{semester}}) after the Sokrates transfer"
+    "sokratesChange_other": "{{count}} grades changed in {{className}} ({{semester}}) after the Sokrates transfer",
+    "sokratesChangeAcknowledged_one": "Class lead acknowledged 1 grade change in {{className}} ({{semester}})",
+    "sokratesChangeAcknowledged_other": "Class lead acknowledged {{count}} grade changes in {{className}} ({{semester}})"
   }
 }

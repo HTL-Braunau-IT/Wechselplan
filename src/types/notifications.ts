@@ -28,6 +28,11 @@ export interface NotificationParams {
   'schedule-assignments-changed': { className: string }
   /** The per-turn teacher rotation behind a plan changed. */
   'schedule-rotation-changed': { className: string }
+  /**
+   * The students behind a plan changed: someone entered or left the class, or
+   * was moved into a different group.
+   */
+  'schedule-students-changed': { className: string }
   /** A subject teacher saved grades in the Notensammler. */
   'grades-entered': { className: string; count: number }
   /** The class lead marked a class+semester as entered into Sokrates. */
@@ -51,6 +56,17 @@ export interface NotificationParams {
     classId: number
     schoolYearId: number
   }
+  /**
+   * The class lead acknowledged the post-Sokrates grade changes a teacher made,
+   * closing the loop for the person who made them: proof the lead has actually
+   * seen the drift. `count` is how many of the acknowledger's changes were
+   * cleared, so the message can read in singular or plural.
+   */
+  'sokrates-change-acknowledged': {
+    className: string
+    semester: Semester
+    count: number
+  }
 }
 
 export type NotificationType = keyof NotificationParams
@@ -60,12 +76,14 @@ export const NOTIFICATION_TYPES = [
   'schedule-updated',
   'schedule-assignments-changed',
   'schedule-rotation-changed',
+  'schedule-students-changed',
   'grades-entered',
   'sokrates-marked',
   'sokrates-unmarked',
   'sokrates-locked',
   'sokrates-unlocked',
   'sokrates-change',
+  'sokrates-change-acknowledged',
 ] as const satisfies readonly NotificationType[]
 
 export function isKnownNotificationType(type: string): type is NotificationType {
@@ -89,6 +107,7 @@ export const NOTIFICATION_MESSAGE_KEYS = {
   'schedule-updated': [{ key: 'notifications.scheduleUpdated' }],
   'schedule-assignments-changed': [{ key: 'notifications.scheduleAssignmentsChanged' }],
   'schedule-rotation-changed': [{ key: 'notifications.scheduleRotationChanged' }],
+  'schedule-students-changed': [{ key: 'notifications.scheduleStudentsChanged' }],
   'grades-entered': [{ key: 'notifications.gradesEntered', plural: true }],
   'sokrates-marked': [{ key: 'notifications.sokratesMarked' }],
   'sokrates-unmarked': [{ key: 'notifications.sokratesUnmarked' }],
@@ -101,6 +120,9 @@ export const NOTIFICATION_MESSAGE_KEYS = {
     { key: 'notifications.sokratesUnlockedMine' },
   ],
   'sokrates-change': [{ key: 'notifications.sokratesChange', plural: true }],
+  'sokrates-change-acknowledged': [
+    { key: 'notifications.sokratesChangeAcknowledged', plural: true },
+  ],
 } as const satisfies Record<NotificationType, readonly { key: string; plural?: boolean }[]>
 
 /** The keys one notification type may render through. */

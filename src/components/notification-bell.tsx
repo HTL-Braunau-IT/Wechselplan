@@ -48,6 +48,10 @@ const MESSAGES: {
     key: 'notifications.scheduleRotationChanged',
     values: { ...p },
   }),
+  'schedule-students-changed': p => ({
+    key: 'notifications.scheduleStudentsChanged',
+    values: { ...p },
+  }),
   'grades-entered': p => ({ key: 'notifications.gradesEntered', values: { ...p } }),
   'sokrates-marked': (p, semesterLabel) => ({
     key: 'notifications.sokratesMarked',
@@ -70,6 +74,10 @@ const MESSAGES: {
   }),
   'sokrates-change': (p, semesterLabel) => ({
     key: 'notifications.sokratesChange',
+    values: { className: p.className, semester: semesterLabel(p.semester), count: p.count },
+  }),
+  'sokrates-change-acknowledged': (p, semesterLabel) => ({
+    key: 'notifications.sokratesChangeAcknowledged',
     values: { className: p.className, semester: semesterLabel(p.semester), count: p.count },
   }),
 }

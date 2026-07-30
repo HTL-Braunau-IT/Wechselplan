@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { denyUnlessAccess } from '@/lib/api-guard'
+import { resolveCurrentTeacher } from '@/lib/current-teacher'
+import { resolveSchoolYearId } from '@/lib/school-year'
+import { notifyScheduleChange } from '../_notify'
 
 /**
  * Handles HTTP OPTIONS requests for the schedule times API route.
@@ -113,6 +118,23 @@ export async function POST(request: Request) {
         breakTimes: true,
       },
     })
+
+    // Changing the times/breaks (and thus turn usage) of a class's plan is a
+    // schedule edit like any other — tell everyone attached to the class. Folds
+    // into the class's existing bell entry via the shared schedule dedupe key,
+    // so a wizard run that also touches times stays one line, not two.
+    const session = await getServerSession(authOptions)
+    const actor = await resolveCurrentTeacher(session)
+    const schoolYearId = await resolveSchoolYearId()
+    if (schoolYearId != null) {
+      await notifyScheduleChange({
+        type: 'schedule-updated',
+        classId,
+        schoolYearId,
+        actor,
+        session,
+      })
+    }
 
     return NextResponse.json(updatedSchedule)
   } catch (error) {
