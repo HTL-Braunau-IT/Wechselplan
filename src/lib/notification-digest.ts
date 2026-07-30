@@ -107,12 +107,10 @@ export async function runNotificationDigest(now: Date = new Date()): Promise<Dig
       if (text) lines.push(`• ${text} (${formatDate(row.createdAt)})`)
     }
     // Nothing renderable (all rows were unknown types) → skip, but mark them
-    // digested so we do not re-scan them forever.
+    // digested so we do not re-scan them forever. Contained like the send below:
+    // a failed stamp must count as a failure, not abort the remaining teachers.
     if (lines.length === 0) {
-      await markDigested(
-        bucket.rows.map(r => r.id),
-        now,
-      )
+      await stampDigested(bucket.rows.map(r => r.id), now, summary)
       continue
     }
 
@@ -145,18 +143,11 @@ export async function runNotificationDigest(now: Date = new Date()): Promise<Dig
     // The mail is out; count it whether or not the stamp below persists.
     summary.teachersEmailed += 1
     summary.notificationsIncluded += bucket.rows.length
-    try {
-      // Stamp every fetched row (including unrenderable ones) so they drop out of
-      // the next sweep. Best-effort by design: if this fails after a successful
-      // send, the rows stay eligible and the teacher may get the digest again —
-      // at-least-once delivery, never a lost notification.
-      await markDigested(
-        bucket.rows.map(r => r.id),
-        now,
-      )
-    } catch (error) {
-      captureError(error as Error, { location: 'lib/notification-digest', type: 'mark-digested' })
-    }
+    // Stamp every fetched row (including unrenderable ones) so they drop out of
+    // the next sweep. Contained: if this fails after a successful send, the rows
+    // stay eligible and the teacher may get the digest again — at-least-once
+    // delivery, never a lost notification — and the run is flagged partial.
+    await stampDigested(bucket.rows.map(r => r.id), now, summary)
   }
 
   await recordDigestRun({
@@ -168,10 +159,20 @@ export async function runNotificationDigest(now: Date = new Date()): Promise<Dig
   return summary
 }
 
-async function markDigested(ids: number[], now: Date): Promise<void> {
+/**
+ * Stamps rows `digestedAt`, containing any failure: it is recorded and counted
+ * as a failure (so the run reports `partial`) rather than propagating and
+ * aborting the teachers still to process.
+ */
+async function stampDigested(ids: number[], now: Date, summary: DigestSummary): Promise<void> {
   if (ids.length === 0) return
-  await prisma.notification.updateMany({
-    where: { id: { in: ids } },
-    data: { digestedAt: now },
-  })
+  try {
+    await prisma.notification.updateMany({
+      where: { id: { in: ids } },
+      data: { digestedAt: now },
+    })
+  } catch (error) {
+    summary.failures += 1
+    captureError(error as Error, { location: 'lib/notification-digest', type: 'mark-digested' })
+  }
 }

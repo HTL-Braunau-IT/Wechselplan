@@ -110,6 +110,22 @@ describe('runNotificationDigest', () => {
     expect(prisma.notification.updateMany).not.toHaveBeenCalled()
   })
 
+  it('still counts the mail but reports partial when stamping fails after a send', async () => {
+    vi.mocked(prisma.notification.findMany).mockResolvedValue([
+      row(1, 10, { email: 'anna@example.at', isActive: true, firstName: 'Anna' }),
+    ] as never)
+    vi.mocked(prisma.notification.updateMany).mockRejectedValue(new Error('db down'))
+
+    const summary = await runNotificationDigest(now)
+
+    expect(sendEmail).toHaveBeenCalledTimes(1)
+    expect(summary.teachersEmailed).toBe(1)
+    expect(summary.failures).toBe(1)
+    expect(recordDigestRun).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'partial' }),
+    )
+  })
+
   it('leaves a failed teacher un-digested and reports the run as partial', async () => {
     vi.mocked(prisma.notification.findMany).mockResolvedValue([
       row(1, 10, { email: 'anna@example.at', isActive: true, firstName: 'Anna' }),
