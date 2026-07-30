@@ -79,11 +79,16 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
   const [dirtyCount, setDirtyCount] = useState(0)
 
   const inFlightRef = useRef(0)
+  // A failure inside a batch of concurrent saves must not be papered over by a
+  // sibling that happens to finish afterwards — it stays latched until the next
+  // batch starts (beginSave) so the pill keeps reporting the error.
+  const erroredRef = useRef(false)
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const { schedule, flushAll, pendingCount } = useKeyedDebounce(SITZPLATZ_DEBOUNCE_MS)
 
   const beginSave = useCallback(() => {
+    if (inFlightRef.current === 0) erroredRef.current = false
     inFlightRef.current += 1
     if (savedTimerRef.current) clearTimeout(savedTimerRef.current)
     setSaveState('saving')
@@ -91,12 +96,13 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
 
   const endSave = useCallback((ok: boolean) => {
     inFlightRef.current = Math.max(0, inFlightRef.current - 1)
-    if (!ok) {
+    if (!ok) erroredRef.current = true
+    // Another request may still be running; let the last one report.
+    if (inFlightRef.current > 0) return
+    if (erroredRef.current) {
       setSaveState('error')
       return
     }
-    // Another request may still be running; let the last one report.
-    if (inFlightRef.current > 0) return
     setSaveState(dirtyRef.current.size > 0 ? 'pending' : 'saved')
     savedTimerRef.current = setTimeout(
       () => setSaveState(current => (current === 'saved' ? 'idle' : current)),
@@ -135,11 +141,13 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
     let cancelled = false
     setLoading(true)
     setLoadError(null)
-    // Anything still queued belongs to the group being left behind, and is
-    // written for it rather than dropped — switching groups is not a discard.
-    flushAll()
-    dirtyRef.current.clear()
-    setDirtyCount(0)
+    // Don't render the previous group's rows under the spinner, and — since the
+    // collapse-state seed reads teachingDays — don't let its future-day keys
+    // seed this group's collapsed set. The leaving group's edits are persisted
+    // in this effect's cleanup, before the switch, not dropped here.
+    setTeachingDays([])
+    setStudents([])
+    setEntries({})
     const query = `classId=${classId}&groupId=${groupId}&schoolYearId=${schoolYearId}`
 
     void Promise.all([
@@ -189,8 +197,29 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
         if (!cancelled) setLoading(false)
       })
 
+    // Leaving (classId, groupId): the cleanup closure still holds this group's
+    // ids and, through the ref, its entries. Flush the seat-plan debounce and
+    // POST anything still outstanding — including a failed autosave sitting in
+    // the retry set — to *this* group before its dirty set is cleared. Without
+    // it, switching group silently dropped unsaved marks.
     return () => {
       cancelled = true
+      flushAll()
+      const outstanding = [...dirtyRef.current]
+        .map(key => entriesRef.current[key])
+        .filter((entry): entry is NotenEntryRow => entry != null)
+      dirtyRef.current.clear()
+      setDirtyCount(0)
+      for (const part of chunk(outstanding, ENTRY_CHUNK_SIZE)) {
+        void fetch('/api/noten/entries', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ classId, groupId, schoolYearId, entries: part }),
+        }).catch(() => {
+          // Best effort on the way out; the group is no longer on screen to
+          // report against, and the beforeunload guard covers a hard close.
+        })
+      }
     }
   }, [classId, groupId, schoolYearId, flushAll])
 

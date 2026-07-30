@@ -646,7 +646,17 @@ export function NotenGrid(props: NotenGridProps) {
 
                   return (
                     <Fragment key={key}>
-                      <td className={cn('w-14 min-w-14 p-1 align-top', CELL_BORDER, attendanceBg)}>
+                      <td
+                        className={cn(
+                          'w-14 min-w-14 p-1 align-top',
+                          CELL_BORDER,
+                          // The recorded-attendance tint wins over the focus-day
+                          // wash; without the fallback the today column had a
+                          // gap wherever attendance was still blank.
+                          isToday && TODAY_BG,
+                          attendanceBg,
+                        )}
+                      >
                         <Select
                           value={entry.attendance ?? ''}
                           onValueChange={v => onEntryChange(entry, { attendance: v })}

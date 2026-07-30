@@ -53,7 +53,13 @@ function mockLoad(ok = true) {
   )
 }
 
-const setup = () => renderHook(() => useNotenData({ classId: 1, groupId: 2, schoolYearId: 3 }))
+const setup = (props: { classId: number; groupId: number; schoolYearId: number }) =>
+  renderHook(
+    ({ classId, groupId, schoolYearId }) => useNotenData({ classId, groupId, schoolYearId }),
+    {
+      initialProps: props,
+    },
+  )
 
 describe('useNotenData', () => {
   beforeEach(() => {
@@ -67,7 +73,7 @@ describe('useNotenData', () => {
    * all of them creating empty rows.
    */
   it('sends only outstanding entries, not every student × day', async () => {
-    const { result } = setup()
+    const { result } = setup({ classId: 1, groupId: 2, schoolYearId: 3 })
     await waitFor(() => expect(result.current.students).toHaveLength(12))
 
     const entry = emptyEntry(1, TEACHING_DAYS[0]!.date, 'AM')
@@ -87,7 +93,7 @@ describe('useNotenData', () => {
   })
 
   it('chunks a large save so one request cannot carry the whole term', async () => {
-    const { result } = setup()
+    const { result } = setup({ classId: 1, groupId: 2, schoolYearId: 3 })
     await waitFor(() => expect(result.current.students).toHaveLength(12))
 
     await act(async () => {
@@ -113,7 +119,7 @@ describe('useNotenData', () => {
    * handled, so a failed write left the mark on screen looking entered.
    */
   it('surfaces a failed entry save instead of dropping it silently', async () => {
-    const { result } = setup()
+    const { result } = setup({ classId: 1, groupId: 2, schoolYearId: 3 })
     await waitFor(() => expect(result.current.students).toHaveLength(12))
 
     vi.mocked(fetch).mockResolvedValue(new Response('{}', { status: 500 }))
@@ -129,7 +135,7 @@ describe('useNotenData', () => {
 
   /** A failed autosave has to stay retryable, which is what dirty tracking is for. */
   it('keeps a failed entry outstanding so the save button retries it', async () => {
-    const { result } = setup()
+    const { result } = setup({ classId: 1, groupId: 2, schoolYearId: 3 })
     await waitFor(() => expect(result.current.students).toHaveLength(12))
 
     const entry = emptyEntry(7, TEACHING_DAYS[0]!.date, 'AM')
@@ -158,8 +164,45 @@ describe('useNotenData', () => {
    */
   it('reports a failed load rather than rendering an empty group', async () => {
     mockLoad(false)
-    const { result } = setup()
+    const { result } = setup({ classId: 1, groupId: 2, schoolYearId: 3 })
     await waitFor(() => expect(result.current.loadError).toBeTruthy())
     expect(result.current.students).toHaveLength(0)
+  })
+
+  /**
+   * Switching group used to clear the dirty set outright, dropping a failed
+   * autosave. It is now flushed to the group being left — with that group's
+   * ids, not the newly selected one's.
+   */
+  it('persists outstanding edits to the group being left on switch', async () => {
+    const { result, rerender } = setup({ classId: 1, groupId: 2, schoolYearId: 3 })
+    await waitFor(() => expect(result.current.students).toHaveLength(12))
+
+    // A failed autosave leaves its key outstanding.
+    const entry = emptyEntry(3, TEACHING_DAYS[0]!.date, 'AM')
+    vi.mocked(fetch).mockResolvedValue(new Response('{}', { status: 500 }))
+    await act(async () => {
+      result.current.updateEntry(3, entry.date, 'AM', { attendance: 'Anwesend' })
+      await result.current.saveEntries([{ ...entry, attendance: 'Anwesend' }])
+    })
+    expect(result.current.hasUnsavedWork).toBe(true)
+
+    mockLoad()
+    vi.mocked(fetch).mockClear()
+    await act(async () => {
+      rerender({ classId: 1, groupId: 9, schoolYearId: 3 })
+    })
+
+    const leaveWrites = vi
+      .mocked(fetch)
+      .mock.calls.filter(call => String(call[0]) === '/api/noten/entries')
+      .map(call => JSON.parse(String((call[1] as RequestInit).body)) as { groupId?: number } & Body)
+    const flushed = leaveWrites.flatMap(body =>
+      (body.entries ?? []).map(row => ({ groupId: body.groupId, row })),
+    )
+    // Written for the group being left (2), not the one switched to (9).
+    expect(flushed).toEqual([
+      { groupId: 2, row: expect.objectContaining({ studentId: 3, attendance: 'Anwesend' }) },
+    ])
   })
 })

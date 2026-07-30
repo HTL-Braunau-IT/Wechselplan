@@ -95,6 +95,7 @@ export function useNotenClasses(schoolYearId: number | null) {
         const res = await fetch(
           `/api/noten/auto-select?schoolYearId=${schoolYearId}&date=${todayLocalYmd(now)}&period=${period}`,
         )
+        if (cancelled) return
         if (!res.ok) return applyFallback()
         const data = (await res.json()) as AutoSelect
         if (cancelled) return

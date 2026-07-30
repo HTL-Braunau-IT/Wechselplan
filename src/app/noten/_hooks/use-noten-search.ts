@@ -30,7 +30,9 @@ export function useNotenSearch({ schoolYearId, onNavigate }: Params) {
   const [studentsByGroup, setStudentsByGroup] = useState<Record<string, Student[]>>({})
 
   const studentRowRefs = useRef<Record<number, HTMLTableRowElement | null>>({})
-  // A slow date search must not overwrite the results of a later one.
+  // A slow search must not overwrite the results of a later one, nor undo a
+  // clear that happened while it was in flight.
+  const nameTokenRef = useRef(0)
   const dateTokenRef = useRef(0)
 
   const gotoNameMatch = useCallback(
@@ -46,6 +48,7 @@ export function useNotenSearch({ schoolYearId, onNavigate }: Params) {
   const performNameSearch = useCallback(async () => {
     const query = searchText.trim()
     if (!query || !schoolYearId) return
+    const token = ++nameTokenRef.current
 
     setDateMatches([])
     setStudentsByGroup({})
@@ -57,6 +60,8 @@ export function useNotenSearch({ schoolYearId, onNavigate }: Params) {
       if (!res.ok) throw new Error('Search failed')
 
       const data = (await res.json()) as { byName?: SearchByNameMatch[] }
+      // A newer search — or a clear — has superseded this response.
+      if (nameTokenRef.current !== token) return
       const matches = data.byName ?? []
       setNameMatches(matches)
       setActiveNameMatchIndex(0)
@@ -73,7 +78,9 @@ export function useNotenSearch({ schoolYearId, onNavigate }: Params) {
       setOpen(false)
     } catch (err) {
       captureFrontendError(err, { location: 'noten', type: 'search-by-name' })
-      setMessage(t('noten.searchError', { defaultValue: 'Suche fehlgeschlagen.' }))
+      if (nameTokenRef.current === token) {
+        setMessage(t('noten.searchError', { defaultValue: 'Suche fehlgeschlagen.' }))
+      }
     }
   }, [searchText, schoolYearId, t, gotoNameMatch])
 
@@ -139,6 +146,8 @@ export function useNotenSearch({ schoolYearId, onNavigate }: Params) {
 
   /** Drop the name result chip and the row highlight it points at. */
   const clearNameSearch = useCallback(() => {
+    // Invalidate any in-flight search so it can't re-populate what we clear.
+    nameTokenRef.current += 1
     setNameMatches([])
     setActiveNameMatchIndex(0)
     setHighlightedStudentId(null)
