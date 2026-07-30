@@ -212,7 +212,8 @@ export async function POST(request: Request) {
 
     for (const st of scopedStudents) {
       const name = `${st.lastName} ${st.firstName}`
-      if (!st.matrikelnummer) {
+      const matrikel = Number(st.matrikelnummer)
+      if (!st.matrikelnummer || !Number.isFinite(matrikel)) {
         unlinked.push(name)
         continue
       }
@@ -235,7 +236,7 @@ export async function POST(request: Request) {
       const klasse = trimmedNmKlasse && trimmedNmKlasse.length > 0 ? trimmedNmKlasse : classRecord.name
       const list = notenByKlasse.get(klasse) ?? []
       list.push({
-        Matrikelnummer: Number(st.matrikelnummer),
+        Matrikelnummer: matrikel,
         Note: resolved.note,
         Punkte: 0.0,
         Kommentar: resolved.kommentar,

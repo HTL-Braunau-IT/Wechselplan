@@ -209,7 +209,10 @@ export function TransferDialogs(props: TransferDialogsProps) {
                                 )
                               }
                             >
-                              <SelectTrigger className="w-48">
+                              <SelectTrigger
+                                className="w-48"
+                                aria-label={`${t('notensammler.nmNoteFor', 'Note für')} ${student.lastName} ${student.firstName}`}
+                              >
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>

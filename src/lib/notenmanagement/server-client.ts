@@ -14,6 +14,13 @@ import { env } from '@/env'
  *  - the stored service account (Matrikelnummer link sync — reads /api/Schueler).
  */
 
+/**
+ * Bound every outbound call so a slow/unresponsive Notenmanagement endpoint can
+ * never hang the request handler indefinitely (these run synchronously inside the
+ * transfer/preview/view/link-sync/test-connection routes).
+ */
+const NM_TIMEOUT_MS = 20_000
+
 /** Ensure the configured base URL ends in a slash so `new URL(path, base)` keeps the `/work/rest/` prefix. */
 function baseUrl(): string {
   const raw = env.NOTENMANAGEMENT_BASE_URL
@@ -66,6 +73,7 @@ export async function getNmToken(username: string, password: string): Promise<Nm
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ grant_type: 'password', username, password }),
+    signal: AbortSignal.timeout(NM_TIMEOUT_MS),
   })
   const data = (await res.json().catch(() => ({}))) as NmTokenResponse
   if (!res.ok || !data.access_token) {
@@ -89,7 +97,10 @@ async function parseBody(res: Response): Promise<unknown> {
 
 /** Authenticated GET returning parsed JSON. Throws {@link NmApiError} on non-2xx. */
 export async function nmGet<T>(path: string, token: string): Promise<T> {
-  const res = await fetch(nmUrl(path), { headers: { Authorization: `bearer ${token}` } })
+  const res = await fetch(nmUrl(path), {
+    headers: { Authorization: `bearer ${token}` },
+    signal: AbortSignal.timeout(NM_TIMEOUT_MS),
+  })
   const body = await parseBody(res)
   if (!res.ok) {
     throw new NmApiError(`Notenmanagement GET ${path} failed (${res.status})`, res.status, body)
@@ -114,6 +125,7 @@ export async function nmSend(
     method,
     headers: { Authorization: `bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(NM_TIMEOUT_MS),
   })
   return { ok: res.ok, status: res.status, body: await parseBody(res) }
 }

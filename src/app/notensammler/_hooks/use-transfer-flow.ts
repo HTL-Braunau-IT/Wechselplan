@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { captureFrontendError } from '@/lib/frontend-error'
 import { NmAuthRequiredError, NmError, nmRequest, type NmCredentials } from '@/lib/notenmanagement/client'
@@ -58,10 +58,15 @@ export function useTransferFlow({
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [credentialsError, setCredentialsError] = useState<string | null>(null)
+  // Guards against overlapping preview fetches: rapid semester toggling starts
+  // multiple requests, and without this the last one to *resolve* (not the last
+  // requested) would win, leaving previewData on the wrong semester.
+  const previewReqRef = useRef(0)
 
   const fetchPreview = useCallback(
     async (forSemester: Semester) => {
       if (!classData) return
+      const reqId = ++previewReqRef.current
       try {
         setPreviewLoading(true)
         setError(null)
@@ -82,15 +87,18 @@ export function useTransferFlow({
         }
         const preview = (await res.json()) as TransferPreviewResponse
 
+        // A newer toggle superseded this request — drop its (stale) result.
+        if (reqId !== previewReqRef.current) return
         setPreviewData(preview)
         // Switching semester discards any overrides from the previous one, since
         // they were relative to a different set of previewed marks.
         setOverrides({})
       } catch (e) {
+        if (reqId !== previewReqRef.current) return
         captureFrontendError(e, { location: 'notensammler', type: 'notenmanagement-preview' })
         setError(e instanceof Error ? e.message : 'Failed to build transfer preview')
       } finally {
-        setPreviewLoading(false)
+        if (reqId === previewReqRef.current) setPreviewLoading(false)
       }
     },
     [classData, schoolYearId, setError],
