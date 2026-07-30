@@ -10,6 +10,7 @@ import {
   getSokratesStatus,
   isFinalGradeEditBlocked,
   resolveCurrentTeacher,
+  withSokratesLock,
 } from '@/lib/sokrates-lock'
 
 // Force dynamic rendering - no caching
@@ -165,29 +166,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }
 
-    // Sokrates lock: the Zeugnisnote is the number that was typed into Sokrates,
-    // so a locked semester freezes it for everyone but the class lead and admins.
-    // Unlike a teacher column there is nothing to scope a per-subject lock to —
-    // only the blanket lock applies (see isFinalGradeEditBlocked).
     const semesterTyped = semester as 'first' | 'second'
-    const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId)
-    if (sokratesStatus[semesterTyped].marked) {
-      const currentTeacher = await resolveCurrentTeacher(session)
-      const canOverride = await canManageSokrates({
-        classId: classIdNum,
-        role: session.user?.role,
-        teacherId: currentTeacher?.id ?? null,
-      })
-      if (isFinalGradeEditBlocked(sokratesStatus, semesterTyped, canOverride)) {
-        return NextResponse.json(
-          {
-            error:
-              'Die Noten dieser Klasse sind nach der Sokrates-Übertragung gesperrt. Bitte wende dich an den Klassenleiter.',
-          },
-          { status: 403 },
-        )
-      }
-    }
 
     // Parse grade value
     const gradeValue =
@@ -221,30 +200,63 @@ export async function POST(request: Request) {
       }
     }
 
-    const result = await prisma.finalGrade.upsert({
-      where: {
-        studentId_classId_semester_schoolYearId: {
-          studentId: studentIdNum,
-          classId: classIdNum,
-          semester: semester as 'first' | 'second',
-          schoolYearId,
-        },
-      },
-      update: {
-        ...(grade !== undefined && { grade: gradeValue }),
-        ...(conductNoteWish !== undefined && { conductNoteWish: conductNoteWishValue }),
-      },
-      create: {
-        studentId: studentIdNum,
-        classId: classIdNum,
-        semester: semester as 'first' | 'second',
-        schoolYearId,
-        grade: gradeValue,
-        conductNoteWish: conductNoteWishValue,
-      },
+    // Sokrates lock: the Zeugnisnote is the number that was typed into Sokrates,
+    // so a locked semester freezes it for everyone but the class lead and admins.
+    // Unlike a teacher column there is nothing to scope a per-subject lock to —
+    // only the blanket lock applies (see isFinalGradeEditBlocked).
+    //
+    // The mark state is re-read and the write applied under the shared advisory
+    // lock, so a mark committing mid-request cannot land its hard lock after
+    // this endpoint decided the semester was still editable.
+    const currentTeacher = await resolveCurrentTeacher(session)
+    const canOverride = await canManageSokrates({
+      classId: classIdNum,
+      role: session.user?.role,
+      teacherId: currentTeacher?.id ?? null,
     })
 
-    return NextResponse.json({ success: true, finalGrade: result })
+    const write = await withSokratesLock(classIdNum, schoolYearId, async tx => {
+      const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId, tx)
+      if (isFinalGradeEditBlocked(sokratesStatus, semesterTyped, canOverride)) {
+        return { blocked: true as const }
+      }
+
+      const result = await tx.finalGrade.upsert({
+        where: {
+          studentId_classId_semester_schoolYearId: {
+            studentId: studentIdNum,
+            classId: classIdNum,
+            semester: semesterTyped,
+            schoolYearId,
+          },
+        },
+        update: {
+          ...(grade !== undefined && { grade: gradeValue }),
+          ...(conductNoteWish !== undefined && { conductNoteWish: conductNoteWishValue }),
+        },
+        create: {
+          studentId: studentIdNum,
+          classId: classIdNum,
+          semester: semesterTyped,
+          schoolYearId,
+          grade: gradeValue,
+          conductNoteWish: conductNoteWishValue,
+        },
+      })
+      return { blocked: false as const, result }
+    })
+
+    if (write.blocked) {
+      return NextResponse.json(
+        {
+          error:
+            'Die Noten dieser Klasse sind nach der Sokrates-Übertragung gesperrt. Bitte wende dich an den Klassenleiter.',
+        },
+        { status: 403 },
+      )
+    }
+
+    return NextResponse.json({ success: true, finalGrade: write.result })
   } catch (error) {
     captureError(error, {
       location: 'api/notensammler/final-grades',

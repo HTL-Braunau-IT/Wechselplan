@@ -26,17 +26,17 @@ vi.mock('@/lib/current-teacher', () => ({
 vi.mock('@/lib/sokrates-lock', () => ({
   canManageSokrates: mockCanManageSokrates,
   resolveCurrentTeacher: mockResolveCurrentTeacher,
+  // The route now serialises through withSokratesLock; stand in for it by
+  // running the callback against a fake transaction client exposing exactly the
+  // models the mark touches. The real advisory-lock acquisition is a lib
+  // concern, covered by the sokrates-lock unit tests.
+  withSokratesLock: (_classId: number, _schoolYearId: number, fn: (tx: unknown) => unknown) =>
+    fn({
+      sokratesTransfer: { upsert: mockUpsert },
+      sokratesChangeNotice: { updateMany: mockUpdateManyNotices },
+    }),
 }))
 vi.mock('../../_notify', () => ({ notifySokratesMarked: vi.fn(async () => undefined) }))
-vi.mock('@/lib/prisma', () => ({
-  prisma: {
-    $transaction: async (fn: (tx: unknown) => unknown) =>
-      fn({
-        sokratesTransfer: { upsert: mockUpsert },
-        sokratesChangeNotice: { updateMany: mockUpdateManyNotices },
-      }),
-  },
-}))
 
 const post = (body: unknown) =>
   POST(

@@ -65,6 +65,50 @@ export async function canManageSokrates(params: {
   return classRecord?.classLeadId != null && classRecord.classLeadId === params.teacherId
 }
 
+/**
+ * A Prisma client scoped to an interactive transaction — what
+ * {@link withSokratesLock} hands its callback. The full `prisma` client is
+ * assignable to it, so helpers default to `prisma` and callers pass `tx` when
+ * they want a read to sit inside the locked transaction.
+ */
+export type SokratesTx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
+
+/**
+ * Serialise Sokrates marking against every grade write for a class + year.
+ *
+ * The mark route and all four grade-write routes funnel their read-then-write
+ * through this one critical section, so a grade can never commit into the gap
+ * between a request reading a still-unmarked lock state and a concurrent
+ * `mark` committing its hard lock: the second transaction to
+ * ask for the lock blocks until the first commits, then re-reads and sees it.
+ *
+ * There is no row to `SELECT ... FOR UPDATE` while a semester is unmarked — the
+ * `SokratesTransfer` is created by the mark itself — so the coordination point
+ * is a Postgres transaction-scoped advisory lock keyed by class + school year
+ * rather than a row. It exists whether or not the class has been marked and
+ * releases automatically when the transaction commits or rolls back. Keying on
+ * class + year (not per semester) keeps every request one lock deep, so the
+ * protocol cannot deadlock, at the cost of briefly serialising the two
+ * semesters of one class — which marking, a rare act, never makes felt.
+ *
+ * Re-read the lock state inside `fn` with {@link getSokratesStatus}, passing the
+ * `tx` it receives, so the re-check reflects any mark that just committed. Keep
+ * best-effort work (change notices, notifications) *outside* `fn`: they must not
+ * hold the lock and must never fail the save.
+ */
+export async function withSokratesLock<T>(
+  classId: number,
+  schoolYearId: number,
+  fn: (tx: SokratesTx) => Promise<T>,
+): Promise<T> {
+  return prisma.$transaction(async tx => {
+    // hashtext() folds the namespaced key into the single int8 advisory slot, so
+    // the string prefix keeps it from colliding with any other advisory lock.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`sokrates:${classId}:${schoolYearId}`}))`
+    return fn(tx)
+  })
+}
+
 const emptySemesterStatus = (): SemesterLockStatus => ({
   marked: false,
   markedAt: null,
@@ -89,8 +133,9 @@ export interface GradeChange {
 export async function getSokratesStatus(
   classId: number,
   schoolYearId: number,
+  client: SokratesTx = prisma,
 ): Promise<SokratesStatus> {
-  const transfers = await prisma.sokratesTransfer.findMany({
+  const transfers = await client.sokratesTransfer.findMany({
     where: { classId, schoolYearId },
     include: { subjectLocks: true },
   })
@@ -180,8 +225,15 @@ export async function recordSokratesChanges(params: {
   if (!classRecord) return 0
 
   const recipientId = classRecord.classLead?.id ?? null
-  // The class lead editing their own class doesn't need to be told.
-  if (recipientId != null && recipientId === changedById) return 0
+
+  // Who hears about the change on the bell: the class lead (so they know to
+  // re-sync Sokrates) *and* the person who made it — including when that person
+  // is the class lead editing their own class. The class lead specifically asked
+  // to be reminded of their own post-mark edits, so unlike the rest of the app
+  // the actor is not excluded here (`includeActor` below).
+  const bellRecipients = [
+    ...new Set([recipientId, changedById].filter((id): id is number => id != null)),
+  ]
 
   const studentIds = [...new Set(relevant.map(c => c.studentId))]
   const teacherIds = [...new Set(relevant.map(c => c.teacherId))]
@@ -217,25 +269,28 @@ export async function recordSokratesChanges(params: {
     })),
   })
 
-  // Raise the bell for the class lead, one entry per affected semester. The
-  // count is read back from the still-open notices rather than from this batch,
-  // so a second change collapsing onto the same unread entry reports the total
-  // rather than overwriting it with the latest batch size.
+  // Raise the bell for the class lead and the changer, one entry per affected
+  // semester. The count is read back from the still-open notices for the whole
+  // class+semester (not scoped to one recipient) so both people see the same
+  // running total, and a second change collapsing onto an existing unread entry
+  // reports that total rather than overwriting it with the latest batch size.
   //
   // The count query sits inside the bestEffort block on purpose: the grades are
   // already written by the time we get here, so a failure must not surface as a
   // failed save.
-  if (recipientId != null) {
+  if (bellRecipients.length > 0) {
     await bestEffort('sokrates-change', async () => {
       for (const semester of [...new Set(relevant.map(change => change.semester))]) {
         const open = await prisma.sokratesChangeNotice.count({
-          where: { classId, schoolYearId, semester, recipientId, acknowledgedAt: null },
+          where: { classId, schoolYearId, semester, acknowledgedAt: null },
         })
         await notify({
           type: 'sokrates-change',
-          recipientIds: [recipientId],
+          recipientIds: bellRecipients,
           actorId: changedById,
           actorName: changedByName,
+          // The changer is one of the recipients on purpose — see bellRecipients.
+          includeActor: true,
           params: { className: classRecord.name, semester, count: open, classId, schoolYearId },
           link: notensammlerLink(classRecord.name),
           dedupeKey: sokratesChangeDedupeKey({ classId, schoolYearId, semester }),
@@ -245,7 +300,9 @@ export async function recordSokratesChanges(params: {
   }
 
   // Email the class lead (best-effort). No lead or no address → in-app only.
-  const email = classRecord.classLead?.email
+  // A lead editing their own class already gets the in-app reminder; don't also
+  // email them about their own change.
+  const email = recipientId === changedById ? undefined : classRecord.classLead?.email
   if (email) {
     const semesterLabel = (semester: Semester) =>
       semester === 'first' ? '1. Semester' : '2. Semester'
