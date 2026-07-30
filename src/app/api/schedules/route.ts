@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
-import { authOptions } from '@/lib/auth'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import {
@@ -10,7 +8,7 @@ import {
   createScheduleTurnData,
   normalizeToJsonFormat,
 } from '@/lib/schedule-data-helpers'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { denyUnlessAccess, requireAccess } from '@/lib/api-guard'
 import { resolveCurrentTeacher } from '@/lib/current-teacher'
 import { notifyScheduleChange } from './_notify'
 
@@ -50,8 +48,8 @@ const scheduleSchema = z.object({
  * @returns A JSON response containing the newly created schedule, or an error response with details if validation fails.
  */
 export async function POST(req: Request) {
-  const denied = await denyUnlessAccess('staff')
-  if (denied) return denied
+  const gate = await requireAccess('staff')
+  if (!gate.ok) return gate.response
 
   try {
     const body = await req.json()
@@ -160,7 +158,7 @@ export async function POST(req: Request) {
       },
     })
 
-    const session = await getServerSession(authOptions)
+    const session = gate.session
     const author = await resolveCurrentTeacher(session)
 
     let newSchedule

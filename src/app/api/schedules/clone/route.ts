@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
 import { Prisma } from '@prisma/client'
 
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { requireAccess } from '@/lib/api-guard'
 import { resolveCurrentTeacher } from '@/lib/current-teacher'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { createScheduleTurnData } from '@/lib/schedule-data-helpers'
@@ -32,8 +30,8 @@ interface CloneRequest {
  * so they are already shared and are not touched here.
  */
 export async function POST(request: Request) {
-  const denied = await denyUnlessAccess('staff')
-  if (denied) return denied
+  const gate = await requireAccess('staff')
+  if (!gate.ok) return gate.response
 
   try {
     const body = (await request.json()) as CloneRequest
@@ -82,7 +80,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'TARGET_EXISTS' }, { status: 409 })
     }
 
-    const session = await getServerSession(authOptions)
+    const session = gate.session
     const author = await resolveCurrentTeacher(session)
 
     // Rebuild the nested turn creates for both lanes from the source turns.

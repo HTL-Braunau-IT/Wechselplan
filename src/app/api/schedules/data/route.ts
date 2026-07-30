@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { normalizeUsername } from '@/lib/username'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { requireAccess } from '@/lib/api-guard'
 
 /**
  * Handles HTTP GET requests to retrieve schedule, student, rotation, assignment, and class information for a specified teacher and weekday.
@@ -17,8 +15,8 @@ import { denyUnlessAccess } from '@/lib/api-guard'
  * @remark All error conditions except internal server errors return HTTP 200 with an error message in the JSON payload. Only unexpected exceptions result in a 500 status code.
  */
 export async function GET(req: Request) {
-  const denied = await denyUnlessAccess('session')
-  if (denied) return denied
+  const gate = await requireAccess('session')
+  if (!gate.ok) return gate.response
 
   const { searchParams } = new URL(req.url)
   try {
@@ -46,7 +44,7 @@ export async function GET(req: Request) {
     // signed-in user, fall back to the robust session resolver. Gated on the
     // names matching so this can never return a different teacher's schedule.
     if (!teacher) {
-      const session = await getServerSession(authOptions)
+      const session = gate.session
       if (session?.user?.name && normalizeUsername(session.user.name) === teacherUsername) {
         teacher = await resolveSessionTeacher(session)
       }

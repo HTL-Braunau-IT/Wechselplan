@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { getEnabledFeatures } from '@/lib/entitlements'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { requireAccess } from '@/lib/api-guard'
 
 /**
  * GET /api/entitlements
@@ -10,10 +8,10 @@ import { denyUnlessAccess } from '@/lib/api-guard'
  * No secrets are exposed. Optionally only for authenticated users.
  */
 export async function GET() {
-  const denied = await denyUnlessAccess('session')
-  if (denied) return denied
+  const gate = await requireAccess('session')
+  if (!gate.ok) return gate.response
 
-  const session = await getServerSession(authOptions)
+  const session = gate.session
   if (!session?.user?.name) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

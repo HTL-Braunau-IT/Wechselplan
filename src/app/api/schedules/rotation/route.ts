@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { requireAccess } from '@/lib/api-guard'
 import { resolveCurrentTeacher } from '@/lib/current-teacher'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { notifyScheduleChange } from '../_notify'
@@ -34,8 +32,8 @@ interface TeacherRotationRequest {
  * @returns A JSON response indicating success or providing an error message.
  */
 export async function POST(request: Request) {
-  const denied = await denyUnlessAccess('staff')
-  if (denied) return denied
+  const gate = await requireAccess('staff')
+  if (!gate.ok) return gate.response
 
   try {
     const data = (await request.json()) as TeacherRotationRequest
@@ -119,7 +117,7 @@ export async function POST(request: Request) {
     await writePeriod('AM', amRotation, amTurns)
     await writePeriod('PM', pmRotation, pmTurns)
 
-    const session = await getServerSession(authOptions)
+    const session = gate.session
     await notifyScheduleChange({
       type: 'schedule-rotation-changed',
       classId: classData.id,

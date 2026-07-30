@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextResponse } from 'next/server'
 import { GET } from '../route'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { requireAccess } from '@/lib/api-guard'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 
 /**
@@ -21,7 +21,11 @@ vi.mock('@/lib/session-teacher', () => ({ resolveSessionTeacher: vi.fn() }))
 describe('GET /api/teachers/me', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(denyUnlessAccess).mockResolvedValue(null)
+    vi.mocked(requireAccess).mockResolvedValue({
+      ok: true,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      session: { user: { id: 'oid-1' } } as any,
+    })
   })
 
   it('requires the staff tier', async () => {
@@ -29,13 +33,14 @@ describe('GET /api/teachers/me', () => {
 
     await GET()
 
-    expect(denyUnlessAccess).toHaveBeenCalledWith('staff')
+    expect(requireAccess).toHaveBeenCalledWith('staff')
   })
 
   it('does not resolve a teacher when the guard refuses', async () => {
-    vi.mocked(denyUnlessAccess).mockResolvedValue(
-      NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
-    )
+    vi.mocked(requireAccess).mockResolvedValue({
+      ok: false,
+      response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
+    })
 
     const response = await GET()
 

@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { denyUnlessAccess, requireAccess } from '@/lib/api-guard'
 import { resolveCurrentTeacher } from '@/lib/current-teacher'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { bestEffort } from '@/lib/notifications'
@@ -162,8 +160,8 @@ export async function GET(request: Request) {
  * @returns A JSON response indicating success, or an error message with HTTP status 400, 404, or 500.
  */
 export async function POST(request: Request) {
-  const denied = await denyUnlessAccess('staff')
-  if (denied) return denied
+  const gate = await requireAccess('staff')
+  if (!gate.ok) return gate.response
 
   let rawBody = ''
   try {
@@ -315,7 +313,7 @@ export async function POST(request: Request) {
     // best-effort, context lookups included: the group writes have committed, so
     // a failing lookup must not surface as a 500.
     await bestEffort('notify:schedule-assignments', async () => {
-      const session = await getServerSession(authOptions)
+      const session = gate.session
       const actor = await resolveCurrentTeacher(session)
       const schoolYearId = await resolveSchoolYearId()
       if (schoolYearId != null) {

@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { requireAccess } from '@/lib/api-guard'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { resolveCurrentTeacher } from '@/lib/current-teacher'
@@ -23,11 +21,11 @@ const MAX_NOTIFICATIONS = 100
  * written months ago still renders in the reader's language.
  */
 export async function GET() {
-  const denied = await denyUnlessAccess('staff')
-  if (denied) return denied
+  const gate = await requireAccess('staff')
+  if (!gate.ok) return gate.response
 
   try {
-    const session = await getServerSession(authOptions)
+    const session = gate.session
     // Admins without a Teacher row have no inbox; that is not an error.
     const teacher = await resolveCurrentTeacher(session)
     if (!teacher) return NextResponse.json({ notifications: [], unreadCount: 0 })

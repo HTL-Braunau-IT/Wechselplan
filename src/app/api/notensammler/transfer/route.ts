@@ -1,17 +1,10 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { normalizeUsername } from '@/lib/username'
-import { denyUnlessAccess } from '@/lib/api-guard'
-import {
-  extractLfId,
-  getNmToken,
-  NmApiError,
-  nmSend,
-} from '@/lib/notenmanagement/server-client'
+import { requireAccess } from '@/lib/api-guard'
+import { extractLfId, getNmToken, NmApiError, nmSend } from '@/lib/notenmanagement/server-client'
 import {
   deriveSubjectForClass,
   lfTypeFor,
@@ -63,7 +56,9 @@ function parseNotes(raw: unknown): Map<number, NmNoteResult> {
       })
       continue
     }
-    const rounded = Math.round(typeof item.note === 'number' ? item.note : parseFloat(String(item.note)))
+    const rounded = Math.round(
+      typeof item.note === 'number' ? item.note : parseFloat(String(item.note)),
+    )
     if (![1, 2, 3, 4, 5].includes(rounded)) {
       out.set(studentId, { note: null, kommentar: reason ?? '', nullNoteLabel: reason })
       continue
@@ -78,18 +73,15 @@ function parseNotes(raw: unknown): Map<number, NmNoteResult> {
 }
 
 export async function POST(request: Request) {
-  const denied = await denyUnlessAccess('staff')
-  if (denied) return denied
+  const gate = await requireAccess('staff')
+  if (!gate.ok) return gate.response
 
   let requestData: unknown
   try {
-    const session = await getServerSession(authOptions)
+    const session = gate.session
     const sessionName = session?.user?.name
     if (!sessionName) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const body = (await request.json()) as Record<string, unknown>
@@ -132,13 +124,19 @@ export async function POST(request: Request) {
       })
       schoolYearId =
         current?.id ??
-        (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))
-          ?.id ??
+        (
+          await prisma.schoolYear.findFirst({
+            orderBy: { startDate: 'desc' },
+            select: { id: true },
+          })
+        )?.id ??
         null
     }
     if (schoolYearId == null) {
       return NextResponse.json(
-        { error: 'No school year found. Create a school year in Admin / Data / School Years first.' },
+        {
+          error: 'No school year found. Create a school year in Admin / Data / School Years first.',
+        },
         { status: 400 },
       )
     }
@@ -233,7 +231,8 @@ export async function POST(request: Request) {
       }
 
       const trimmedNmKlasse = st.nmKlasse?.trim()
-      const klasse = trimmedNmKlasse && trimmedNmKlasse.length > 0 ? trimmedNmKlasse : classRecord.name
+      const klasse =
+        trimmedNmKlasse && trimmedNmKlasse.length > 0 ? trimmedNmKlasse : classRecord.name
       const list = notenByKlasse.get(klasse) ?? []
       list.push({
         Matrikelnummer: matrikel,

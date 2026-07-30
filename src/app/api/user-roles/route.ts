@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server'
+import { type Session } from 'next-auth'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { requireAccess } from '@/lib/api-guard'
 
-async function requireSuperAdmin() {
-  const session = await getServerSession(authOptions)
+function requireSuperAdmin(session: Session) {
   const superAdminObjectId = process.env.ENTRA_SUPER_ADMIN_OBJECT_ID?.trim()
   const userObjectId = session?.user?.id?.trim()
 
@@ -25,11 +23,11 @@ async function requireSuperAdmin() {
  * @returns A JSON response with the list of user-role assignments, or an error message if the `userId` is missing or an error occurs.
  */
 export async function GET(request: Request) {
-  const denied = await denyUnlessAccess('admin')
-  if (denied) return denied
+  const gate = await requireAccess('admin')
+  if (!gate.ok) return gate.response
 
   try {
-    const isSuperAdmin = await requireSuperAdmin()
+    const isSuperAdmin = requireSuperAdmin(gate.session)
     if (!isSuperAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
@@ -69,11 +67,11 @@ export async function GET(request: Request) {
  * Parses the request body for `userId` and `roleId`, validates their presence, checks for the existence of the specified role and user (as either a teacher or student), and creates the user-role assignment if all checks pass. Returns the created user-role assignment with role details as JSON. Responds with appropriate error messages and status codes for invalid input, missing entities, or unexpected failures.
  */
 export async function POST(request: Request) {
-  const denied = await denyUnlessAccess('admin')
-  if (denied) return denied
+  const gate = await requireAccess('admin')
+  if (!gate.ok) return gate.response
 
   try {
-    const isSuperAdmin = await requireSuperAdmin()
+    const isSuperAdmin = requireSuperAdmin(gate.session)
     if (!isSuperAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
@@ -141,11 +139,11 @@ export async function POST(request: Request) {
  * Expects `userId` and `roleId` as query parameters in the request URL. Returns a success message upon successful deletion, or an error message with an appropriate status code if validation fails or an error occurs.
  */
 export async function DELETE(request: Request) {
-  const denied = await denyUnlessAccess('admin')
-  if (denied) return denied
+  const gate = await requireAccess('admin')
+  if (!gate.ok) return gate.response
 
   try {
-    const isSuperAdmin = await requireSuperAdmin()
+    const isSuperAdmin = requireSuperAdmin(gate.session)
     if (!isSuperAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }

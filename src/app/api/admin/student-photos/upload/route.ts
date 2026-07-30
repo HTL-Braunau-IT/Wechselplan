@@ -1,12 +1,10 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
 import path from 'path'
 import fs from 'fs'
-import { authOptions, hasRole } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { requireAccess } from '@/lib/api-guard'
 
 const PHOTO_DIR = path.join(process.cwd(), 'data', 'student-photos')
 const ALLOWED_MIMES = ['image/jpeg', 'image/png', 'image/jpg'] as const
@@ -30,19 +28,13 @@ export type UploadResultItem = {
  * Filenames must be LastName_FirstName.ext. Matches to students in that class and saves as data/student-photos/<studentId>.<ext> (overwrite).
  */
 export async function POST(request: Request) {
-  const denied = await denyUnlessAccess('staff')
-  if (denied) return denied
+  const gate = await requireAccess('staff')
+  if (!gate.ok) return gate.response
 
   try {
-    const session = await getServerSession(authOptions)
+    const session = gate.session
     if (!session?.user?.name) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    const isAdmin = session.user?.role === 'admin' || (await hasRole(session.user.name, 'admin'))
-    const isTeacher =
-      session.user?.role === 'teacher' || (await hasRole(session.user.name, 'teacher'))
-    if (!isAdmin && !isTeacher) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     if (!(await isFeatureEnabled('student_photos'))) {
       return NextResponse.json({ error: 'Feature not available' }, { status: 403 })

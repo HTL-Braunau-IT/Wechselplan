@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { requireAccess } from '@/lib/api-guard'
 import { deriveSubjectForClass, nmNoteFromEndnote } from '@/lib/notenmanagement/grade-mapping'
 
 type Semester = 'first' | 'second'
@@ -19,26 +17,28 @@ type Semester = 'first' | 'second'
  * teacher can override individual notes in the dialog before sending.
  */
 export async function POST(request: Request) {
-  const denied = await denyUnlessAccess('staff')
-  if (denied) return denied
+  const gate = await requireAccess('staff')
+  if (!gate.ok) return gate.response
 
   let requestData: unknown
   try {
-    const session = await getServerSession(authOptions)
+    const session = gate.session
     if (!session?.user?.name) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     if (!(await isFeatureEnabled('notensammler'))) {
       return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
     }
 
-    const body = (await request.json()) as { classId?: unknown; semester?: unknown; schoolYearId?: unknown }
+    const body = (await request.json()) as {
+      classId?: unknown
+      semester?: unknown
+      schoolYearId?: unknown
+    }
     requestData = body
 
-    const classId = typeof body.classId === 'number' ? body.classId : parseInt(String(body.classId), 10)
+    const classId =
+      typeof body.classId === 'number' ? body.classId : parseInt(String(body.classId), 10)
     const semester: Semester | null =
       body.semester === 'first' || body.semester === 'second' ? body.semester : null
     if (!classId || Number.isNaN(classId) || !semester) {
@@ -46,7 +46,9 @@ export async function POST(request: Request) {
     }
 
     let schoolYearId =
-      typeof body.schoolYearId === 'number' ? body.schoolYearId : parseInt(String(body.schoolYearId), 10)
+      typeof body.schoolYearId === 'number'
+        ? body.schoolYearId
+        : parseInt(String(body.schoolYearId), 10)
     if (!schoolYearId || Number.isNaN(schoolYearId)) {
       const now = new Date()
       const current = await prisma.schoolYear.findFirst({
@@ -55,11 +57,18 @@ export async function POST(request: Request) {
       })
       const resolved =
         current?.id ??
-        (await prisma.schoolYear.findFirst({ orderBy: { startDate: 'desc' }, select: { id: true } }))
-          ?.id
+        (
+          await prisma.schoolYear.findFirst({
+            orderBy: { startDate: 'desc' },
+            select: { id: true },
+          })
+        )?.id
       if (!resolved) {
         return NextResponse.json(
-          { error: 'No school year found. Create a school year in Admin / Data / School Years first.' },
+          {
+            error:
+              'No school year found. Create a school year in Admin / Data / School Years first.',
+          },
           { status: 400 },
         )
       }
@@ -100,7 +109,9 @@ export async function POST(request: Request) {
     const finalGradeByStudent = new Map<number, number | null>()
     for (const f of finals) finalGradeByStudent.set(f.studentId, f.grade)
 
-    const scoped = classRecord.students.filter(st => st.groupId !== null && st.groupId !== undefined)
+    const scoped = classRecord.students.filter(
+      st => st.groupId !== null && st.groupId !== undefined,
+    )
 
     const students = scoped.map(st => {
       const endnote = finalGradeByStudent.get(st.id) ?? null
@@ -119,8 +130,12 @@ export async function POST(request: Request) {
       }
     })
 
-    const unlinkedStudents = students.filter(s => !s.linked).map(s => `${s.lastName} ${s.firstName}`)
-    const withoutEndnote = students.filter(s => s.linked && !s.hasEndnote).map(s => `${s.lastName} ${s.firstName}`)
+    const unlinkedStudents = students
+      .filter(s => !s.linked)
+      .map(s => `${s.lastName} ${s.firstName}`)
+    const withoutEndnote = students
+      .filter(s => s.linked && !s.hasEndnote)
+      .map(s => `${s.lastName} ${s.firstName}`)
 
     const transfers = await prisma.notenmanagementTransfer.findMany({
       where: { classId },

@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { captureError } from '@/lib/sentry'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { requireAccess } from '@/lib/api-guard'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 
 /**
@@ -19,11 +17,11 @@ import { resolveSessionTeacher } from '@/lib/session-teacher'
  * Teacher row is a normal state, not an error the caller must handle.
  */
 export async function GET() {
-  const denied = await denyUnlessAccess('staff')
-  if (denied) return denied
+  const gate = await requireAccess('staff')
+  if (!gate.ok) return gate.response
 
   try {
-    const session = await getServerSession(authOptions)
+    const session = gate.session
     const teacher = await resolveSessionTeacher(session)
 
     if (!teacher) return NextResponse.json({ teacher: null })
