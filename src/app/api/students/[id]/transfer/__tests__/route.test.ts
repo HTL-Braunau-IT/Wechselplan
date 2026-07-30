@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { prisma } from '@/lib/prisma'
 import { resolveCurrentTeacher } from '@/lib/current-teacher'
@@ -23,7 +24,7 @@ const request = (body: unknown) =>
   new Request('http://localhost/api/students/5/transfer', {
     method: 'POST',
     body: JSON.stringify(body),
-  })
+  }) as unknown as NextRequest
 
 const context = { params: Promise.resolve({ id: '5' }) }
 
@@ -36,14 +37,16 @@ describe('POST /api/students/[id]/transfer', () => {
     vi.mocked(prisma.student.findUnique).mockResolvedValue({ id: 5, classId: 1 } as never)
     vi.mocked(prisma.class.findUnique).mockResolvedValue({ id: 2, name: '2BHIT' } as never)
     vi.mocked(prisma.schoolYear.findUnique).mockResolvedValue({ id: 9 } as never)
-    vi.mocked(prisma.$transaction).mockImplementation(async (fn: never) => {
+    vi.mocked(prisma.$transaction).mockImplementation((async (
+      fn: (tx: unknown) => Promise<unknown>,
+    ) => {
       const tx = {
         student: { update: vi.fn() },
         classMembership: { upsert: vi.fn() },
         groupAssignment: { upsert: vi.fn() },
       }
-      return (fn as unknown as (tx: unknown) => Promise<unknown>)(tx)
-    })
+      return fn(tx)
+    }) as never)
   })
 
   it('notifies both the source and the target class', async () => {
