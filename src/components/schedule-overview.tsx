@@ -1,3 +1,6 @@
+import type { ReactNode } from 'react'
+import type { LucideIcon } from 'lucide-react'
+import { CalendarRange, Clock, GraduationCap, Info, Users } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type {
   Group,
@@ -6,12 +9,7 @@ import type {
   BreakTime,
   TurnSchedule,
 } from '@/types/types'
-import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
-import { Spinner } from '@/components/ui/spinner'
-import { Button } from '@/components/ui/button'
-import { Download, FileSpreadsheet } from 'lucide-react'
-import { generateExcel, generatePdf, generateSchedulePDF } from '@/lib/export-utils'
+import { cn } from '@/lib/utils'
 import { rotatedGroupIndex } from '@/lib/rotation'
 
 interface ScheduleOverviewProps {
@@ -25,33 +23,21 @@ interface ScheduleOverviewProps {
   classLead: string
   additionalInfo: string
   weekday: number
-  className?: string
-  showExportButtons?: boolean
 }
 
+/** Soft, theme-aware tint per group, used on both the group columns and the rotation cells. */
 const GROUP_COLORS = [
-  'bg-yellow-200', // Gruppe 1
-  'bg-green-200', // Gruppe 2
-  'bg-blue-200', // Gruppe 3
-  'bg-red-200', // Gruppe 4
+  'bg-amber-100 text-amber-900 dark:bg-amber-400/15 dark:text-amber-100',
+  'bg-emerald-100 text-emerald-900 dark:bg-emerald-400/15 dark:text-emerald-100',
+  'bg-sky-100 text-sky-900 dark:bg-sky-400/15 dark:text-sky-100',
+  'bg-rose-100 text-rose-900 dark:bg-rose-400/15 dark:text-rose-100',
 ]
 
-const DARK_GROUP_COLORS = [
-  'dark:bg-yellow-900/60',
-  'dark:bg-green-900/60',
-  'dark:bg-blue-900/60',
-  'dark:bg-red-900/60',
-]
+const groupColor = (idx: number) => GROUP_COLORS[idx % GROUP_COLORS.length]
 
 /**
  * Determines the group assigned to a teacher for a given turn, using the shared
  * round-robin formula so this preview always matches the persisted rotation.
- *
- * @param groups - List of groups to assign.
- * @param teacherIdx - Index of the teacher in the unique teachers list.
- * @param turnIdx - Index of the current turn.
- * @param uniqueTeachers - List of unique teacher assignments.
- * @returns The assigned group for the teacher and turn, or null if inputs are invalid.
  */
 function getGroupForTeacherAndTurn(
   groups: Group[],
@@ -63,50 +49,53 @@ function getGroupForTeacherAndTurn(
   return groups[rotatedGroupIndex(teacherIdx, turnIdx, groups.length)]
 }
 
-/**
- * Retrieves the start date, end date, and number of days for a given turn from the turn schedule.
- *
- * @param turnKey - The key identifying the turn in the schedule.
- * @param turns - The turn schedule object containing week data.
- * @returns An object with the start date, end date, and total number of days for the specified turn. Returns empty strings and zero if no weeks are found.
- */
+/** Start and end date of a turnus, read from its weeks. */
 function getTurnusInfo(turnKey: string, turns: TurnSchedule) {
   const entry = turns[turnKey] as { weeks?: { date: string }[] }
-  if (!entry?.weeks?.length) return { start: '', end: '', days: 0 }
+  if (!entry?.weeks?.length) return { start: '', end: '' }
   const start = entry.weeks[0]?.date ?? ''
   const end = entry.weeks[entry.weeks.length - 1]?.date ?? ''
-  const days = entry.weeks.length
-  return { start, end, days }
+  return { start, end }
 }
 
-/**
- * Returns the German name of the weekday for a given numeric value.
- *
- * @param weekday - Numeric representation of the weekday (0 for Sunday, 1 for Monday, etc.).
- * @returns The German name of the weekday, or an empty string if {@link weekday} is undefined.
- */
 function getWeekday(weekday: number) {
   const days = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag']
   return weekday === undefined ? '' : days[weekday]
 }
 
+/** A card with an icon-led title, matching the app's section styling. */
+function SectionCard({
+  icon: Icon,
+  title,
+  children,
+}: {
+  icon: LucideIcon
+  title: string
+  children: ReactNode
+}) {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Icon className="text-muted-foreground h-4 w-4" />
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
+  )
+}
+
+/** Shared header-cell styling for the overview's tables. */
+const thClass =
+  'border-b px-3 py-2 text-left text-xs font-medium tracking-wide text-muted-foreground'
+const tdClass = 'border-b px-3 py-2 align-middle'
+
 /**
- * Renders a detailed overview of a school schedule, including group membership, class leadership, period times with breaks, teacher assignments per turn, turnus data, and optional additional notes.
- *
- * Displays color-coded tables for groups and teacher assignments, a summary of class head and lead, period and break times, a turnus schedule, and any extra information provided. Designed for clarity and comprehensive schedule visualization.
- *
- * @param groups - The list of groups with their students.
- * @param amAssignments - Teacher assignments for the morning period.
- * @param pmAssignments - Teacher assignments for the afternoon period.
- * @param scheduleTimes - Start and end times for AM and PM periods.
- * @param breakTimes - Break and lunch times for each period.
- * @param turns - Turn schedule data with weeks and dates.
- * @param classHead - Name of the class head.
- * @param classLead - Name of the class lead.
- * @param additionalInfo - Optional extra information to display.
- * @param weekday - Numeric representation of the weekday (0=Sunday).
- *
- * @returns The rendered schedule overview interface as a React element.
+ * Read-only overview of a class's rotation plan: group membership, class
+ * leadership, period times, the teacher rotation per turnus, the turnus
+ * calendar, and any notes. Purely presentational — the exports and the
+ * teacher-assignment lookup that used to live here now belong to the page.
  */
 export function ScheduleOverview({
   groups,
@@ -119,414 +108,238 @@ export function ScheduleOverview({
   classLead,
   additionalInfo,
   weekday,
-  className,
-  showExportButtons = false,
 }: ScheduleOverviewProps) {
-  const { data: session } = useSession()
-  const [isTeacherForAM, setIsTeacherForAM] = useState(false)
-  const [isTeacherForPM, setIsTeacherForPM] = useState(false)
-  const [savingPdf, setSavingPdf] = useState(false)
-  const [savingPdfDatum, setSavingPdfDatum] = useState(false)
-  const [savingExcelAM, setSavingExcelAM] = useState(false)
-  const [savingExcelPM, setSavingExcelPM] = useState(false)
-
-  // Find the max number of students in any group for row rendering
   const maxStudents = Math.max(...groups.map(g => g.students.length), 0)
 
-  // Get unique teachers for AM and PM
-  const uniqueAmTeachers = amAssignments
-    .filter(a => a.teacherId !== 0)
-    .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx)
+  const uniqueTeachers = (assignments: TeacherAssignmentResponse[]) =>
+    assignments
+      .filter(a => a.teacherId !== 0)
+      .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx)
 
-  const uniquePmTeachers = pmAssignments
-    .filter(a => a.teacherId !== 0)
-    .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx)
+  const uniqueAmTeachers = uniqueTeachers(amAssignments)
+  const uniquePmTeachers = uniqueTeachers(pmAssignments)
 
-  // Check if user is a teacher for the class
-  useEffect(() => {
-    async function checkTeacherAssignment() {
-      if (!session?.user?.name || !className || !showExportButtons) {
-        setIsTeacherForAM(false)
-        setIsTeacherForPM(false)
-        return
-      }
-
-      try {
-        // First, get the teacher record for the current user. Resolved from the
-        // session server-side — the display name in `session.user.name` is not a
-        // username post-Entra, so looking it up by name silently finds nobody.
-        const teacherResponse = await fetch('/api/teachers/me', { cache: 'no-store' })
-        if (!teacherResponse.ok) {
-          console.log('Failed to fetch teacher record:', teacherResponse.status)
-          setIsTeacherForAM(false)
-          setIsTeacherForPM(false)
-          return
-        }
-
-        const { teacher } = (await teacherResponse.json()) as { teacher: { id: number } | null }
-        if (!teacher) {
-          setIsTeacherForAM(false)
-          setIsTeacherForPM(false)
-          return
-        }
-
-        // Check if user is assigned as a teacher in AM assignments
-        const isAssignedAM = amAssignments.some(a => a.teacherId === teacher.id)
-        // Check if user is assigned as a teacher in PM assignments
-        const isAssignedPM = pmAssignments.some(a => a.teacherId === teacher.id)
-
-        setIsTeacherForAM(isAssignedAM)
-        setIsTeacherForPM(isAssignedPM)
-      } catch {
-        setIsTeacherForAM(false)
-        setIsTeacherForPM(false)
-      }
-    }
-
-    void checkTeacherAssignment()
-  }, [className, session?.user?.name, amAssignments, pmAssignments, showExportButtons])
-
-  // Export handlers
-  const handlePDFExport = async () => {
-    if (!className) return
-    setSavingPdf(true)
-    try {
-      await generatePdf(className, weekday)
-    } catch (error) {
-      console.error('Error generating PDF:', error)
-    } finally {
-      setSavingPdf(false)
-    }
-  }
-
-  const handlePDFDatumExport = async () => {
-    if (!className) return
-    setSavingPdfDatum(true)
-    try {
-      await generateSchedulePDF(className, weekday)
-    } catch (error) {
-      console.error('Error generating PDF with date:', error)
-    } finally {
-      setSavingPdfDatum(false)
-    }
-  }
-
-  const handleExcelAMExport = async () => {
-    if (!className || !session?.user?.name) return
-    setSavingExcelAM(true)
-    try {
-      await generateExcel(className, weekday, session.user.name, 'AM')
-    } catch (error) {
-      console.error('Error generating AM Excel:', error)
-    } finally {
-      setSavingExcelAM(false)
-    }
-  }
-
-  const handleExcelPMExport = async () => {
-    if (!className || !session?.user?.name) return
-    setSavingExcelPM(true)
-    try {
-      await generateExcel(className, weekday, session.user.name, 'PM')
-    } catch (error) {
-      console.error('Error generating PM Excel:', error)
-    } finally {
-      setSavingExcelPM(false)
-    }
-  }
+  const amTime = scheduleTimes.find(time => time.period === 'AM')
+  const pmTime = scheduleTimes.find(time => time.period === 'PM')
+  const breaksFor = (period: BreakTime['period']) =>
+    breakTimes.filter(time => time.period === period)
 
   return (
-    <div className="container mx-auto p-4">
-      {/* Export Buttons */}
-      {showExportButtons && className && (
-        <div className="mb-8 flex flex-wrap items-center gap-2">
-          <Button onClick={handlePDFExport} disabled={savingPdf}>
-            <Download className="mr-2 h-4 w-4" />
-            {savingPdf ? 'Exporting PDF...' : 'PDF Export'}
-          </Button>
-          <Button onClick={handlePDFDatumExport} disabled={savingPdfDatum}>
-            <Download className="mr-2 h-4 w-4" />
-            {savingPdfDatum ? 'Exporting PDF Datum ...' : 'PDF Datum Export'}
-          </Button>
-
-          {/* AM Excel Export Button - only show if teacher is assigned to AM */}
-          {isTeacherForAM && (
-            <Button onClick={handleExcelAMExport} disabled={savingExcelAM}>
-              {savingExcelAM ? (
-                <>
-                  <Spinner size="sm" />
-                  Exporting AM Excel ...
-                </>
-              ) : (
-                <>
-                  <FileSpreadsheet className="mr-2 h-4 w-4" />
-                  Export Notenliste Vormittag
-                </>
-              )}
-            </Button>
-          )}
-
-          {/* PM Excel Export Button - only show if teacher is assigned to PM */}
-          {isTeacherForPM && (
-            <Button onClick={handleExcelPMExport} disabled={savingExcelPM}>
-              {savingExcelPM ? (
-                <>
-                  <Spinner size="sm" />
-                  Exporting PM Excel ...
-                </>
-              ) : (
-                <>
-                  <FileSpreadsheet className="mr-2 h-4 w-4" />
-                  Export Notenliste Nachmittag
-                </>
-              )}
-            </Button>
-          )}
-        </div>
-      )}
-
-      {/* Groups Table */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Gruppenübersicht</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="min-w-full border text-sm">
-              <thead>
-                <tr>
-                  <th className="w-8 border p-1 text-center font-bold">Nr.</th>
-                  {groups.map((group, idx) => (
-                    <th
-                      key={group.id}
-                      className={`border p-2 text-center font-bold text-black ${GROUP_COLORS[idx % GROUP_COLORS.length]} ${DARK_GROUP_COLORS[idx % DARK_GROUP_COLORS.length]}`}
-                    >
-                      Gruppe {group.id}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {[...Array(maxStudents)].map((_, rowIdx) => (
-                  <tr key={rowIdx}>
-                    <td className="w-8 border p-1 text-center font-bold">{rowIdx + 1}</td>
-                    {groups.map(group => (
-                      <td key={group.id} className="border p-2 text-center">
-                        {group.students[rowIdx]
-                          ? `${group.students[rowIdx].lastName} ${group.students[rowIdx].firstName}`
-                          : ''}
-                      </td>
-                    ))}
-                  </tr>
+    <div className="space-y-6">
+      {/* Groups */}
+      <SectionCard icon={Users} title="Gruppenübersicht">
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr>
+                <th className={cn(thClass, 'bg-muted/50 w-10 text-center')}>Nr.</th>
+                {groups.map((group, idx) => (
+                  <th
+                    key={group.id}
+                    className={cn(
+                      'border-b px-3 py-2 text-center text-sm font-semibold',
+                      groupColor(idx),
+                    )}
+                  >
+                    Gruppe {group.id}
+                  </th>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: maxStudents }).map((_, rowIdx) => (
+                <tr key={rowIdx} className="even:bg-muted/20">
+                  <td className={cn(tdClass, 'text-muted-foreground text-center tabular-nums')}>
+                    {rowIdx + 1}
+                  </td>
+                  {groups.map(group => {
+                    const student = group.students[rowIdx]
+                    return (
+                      <td key={group.id} className={cn(tdClass, 'text-center')}>
+                        {student ? `${student.lastName} ${student.firstName}` : ''}
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </SectionCard>
 
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Klassenleitung</CardTitle>
-        </CardHeader>
-        <CardContent>
+      {/* Leadership + times */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <SectionCard icon={GraduationCap} title="Klassenleitung">
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <p className="text-muted-foreground text-sm">Klassenvorstand</p>
-              <p className="text-lg font-semibold">{classHead}</p>
+            <div>
+              <p className="text-muted-foreground text-xs tracking-wide uppercase">
+                Klassenvorstand
+              </p>
+              <p className="mt-1 text-base font-semibold">{classHead}</p>
             </div>
-            <div className="space-y-2">
-              <p className="text-muted-foreground text-sm">Klassenleitung</p>
-              <p className="text-lg font-semibold">{classLead}</p>
+            <div>
+              <p className="text-muted-foreground text-xs tracking-wide uppercase">
+                Klassenleitung
+              </p>
+              <p className="mt-1 text-base font-semibold">{classLead}</p>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </SectionCard>
 
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Zeiten</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <div className="border-b pb-2">
-                <p className="text-sm font-medium">Vormittag</p>
-                <p className="text-muted-foreground text-sm">
-                  {scheduleTimes.find((time: ScheduleTime) => time.period === 'AM')?.startTime} -{' '}
-                  {scheduleTimes.find((time: ScheduleTime) => time.period === 'AM')?.endTime}
-                </p>
-              </div>
-              {breakTimes.filter((time: BreakTime) => time.period === 'AM').length > 0 && (
-                <div>
-                  <p className="text-muted-foreground mb-1 text-xs font-medium">Pausen:</p>
-                  <ul className="text-muted-foreground space-y-1 text-xs">
-                    {breakTimes
-                      .filter((time: BreakTime) => time.period === 'AM')
-                      .map((time: BreakTime) => (
-                        <li key={time.id}>
-                          {time.name}: {time.startTime} - {time.endTime}
-                        </li>
-                      ))}
-                  </ul>
+        <SectionCard icon={Clock} title="Zeiten">
+          <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+            {[
+              { label: 'Vormittag', time: amTime, breaks: breaksFor('AM') },
+              { label: 'Nachmittag', time: pmTime, breaks: breaksFor('PM') },
+            ].map(({ label, time, breaks }) => (
+              <div key={label} className="space-y-2">
+                <div className="border-b pb-2">
+                  <p className="text-sm font-medium">{label}</p>
+                  <p className="text-muted-foreground text-sm tabular-nums">
+                    {time ? `${time.startTime} – ${time.endTime}` : '—'}
+                  </p>
                 </div>
-              )}
-            </div>
-            <div className="space-y-2">
-              <div className="border-b pb-2">
-                <p className="text-sm font-medium">Nachmittag</p>
-                <p className="text-muted-foreground text-sm">
-                  {scheduleTimes.find((time: ScheduleTime) => time.period === 'PM')?.startTime} -{' '}
-                  {scheduleTimes.find((time: ScheduleTime) => time.period === 'PM')?.endTime}
-                </p>
-              </div>
-              {breakTimes.filter((time: BreakTime) => time.period === 'PM').length > 0 && (
-                <div>
-                  <p className="text-muted-foreground mb-1 text-xs font-medium">Pausen:</p>
+                {breaks.length > 0 && (
                   <ul className="text-muted-foreground space-y-1 text-xs">
-                    {breakTimes
-                      .filter((time: BreakTime) => time.period === 'PM')
-                      .map((time: BreakTime) => (
-                        <li key={time.id}>
-                          {time.name}: {time.startTime} - {time.endTime}
-                        </li>
-                      ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-            {breakTimes.filter((time: BreakTime) => time.period === 'LUNCH').length > 0 && (
-              <div className="col-span-2 border-t pt-4">
-                <p className="text-muted-foreground mb-1 text-xs font-medium">Mittagspause:</p>
-                <ul className="text-muted-foreground space-y-1 text-xs">
-                  {breakTimes
-                    .filter((time: BreakTime) => time.period === 'LUNCH')
-                    .map((time: BreakTime) => (
-                      <li key={time.id}>
-                        {time.name}: {time.startTime} - {time.endTime}
+                    {breaks.map(b => (
+                      <li key={b.id} className="tabular-nums">
+                        {b.name}: {b.startTime} – {b.endTime}
                       </li>
                     ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+            {breaksFor('LUNCH').length > 0 && (
+              <div className="border-t pt-3 sm:col-span-2">
+                <p className="text-muted-foreground mb-1 text-xs font-medium">Mittagspause</p>
+                <ul className="text-muted-foreground space-y-1 text-xs">
+                  {breaksFor('LUNCH').map(b => (
+                    <li key={b.id} className="tabular-nums">
+                      {b.name}: {b.startTime} – {b.endTime}
+                    </li>
+                  ))}
                 </ul>
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </SectionCard>
+      </div>
 
-      {/* AM and PM Schedule Tables */}
+      {/* Rotation tables */}
       {[
-        { period: 'AM', teachers: uniqueAmTeachers },
-        { period: 'PM', teachers: uniquePmTeachers },
+        { period: 'AM' as const, label: 'Vormittag', teachers: uniqueAmTeachers },
+        { period: 'PM' as const, label: 'Nachmittag', teachers: uniquePmTeachers },
       ]
         .filter(({ teachers }) => teachers.length > 0)
-        .map(({ period, teachers }) => (
-          <Card className="mb-8" key={period}>
-            <CardHeader>
-              <CardTitle>
-                {getWeekday(weekday)} ({period === 'AM' ? 'Vormittag' : 'Nachmittag'})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="min-w-full border text-sm">
-                  <thead>
-                    <tr>
-                      <th className="border p-2">Lehrer/in</th>
-                      <th className="border p-2">Werkstätte</th>
-                      <th className="border p-2">Lehrinhalt</th>
-                      <th className="border p-2">Raum</th>
-                      {Object.keys(turns).map((turn, turnIdx) => (
-                        <th key={turn} className="border p-2">
-                          <div>Turnus {turnIdx + 1}</div>
-                          <div className="text-muted-foreground text-xs">
-                            {getTurnusInfo(turn, turns).start} - {getTurnusInfo(turn, turns).end}
-                          </div>
+        .map(({ period, label, teachers }) => (
+          <SectionCard
+            key={period}
+            icon={CalendarRange}
+            title={`${getWeekday(weekday)} · ${label}`}
+          >
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="bg-muted/50">
+                    <th className={thClass}>Lehrer/in</th>
+                    <th className={thClass}>Werkstätte</th>
+                    <th className={thClass}>Lehrinhalt</th>
+                    <th className={thClass}>Raum</th>
+                    {Object.keys(turns).map((turn, turnIdx) => {
+                      const { start, end } = getTurnusInfo(turn, turns)
+                      return (
+                        <th key={turn} className={cn(thClass, 'text-center')}>
+                          <div className="text-foreground font-semibold">Turnus {turnIdx + 1}</div>
+                          {start && (
+                            <div className="text-muted-foreground text-[11px] font-normal tabular-nums">
+                              {start} – {end}
+                            </div>
+                          )}
                         </th>
-                      ))}
+                      )
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {teachers.map((assignment, teacherIdx) => (
+                    <tr key={assignment.teacherId} className="even:bg-muted/20">
+                      <td className={cn(tdClass, 'font-medium whitespace-nowrap')}>
+                        {assignment.teacherLastName}, {assignment.teacherFirstName}
+                      </td>
+                      <td className={tdClass}>{assignment.subject ?? ''}</td>
+                      <td className={tdClass}>{assignment.learningContent ?? ''}</td>
+                      <td className={tdClass}>{assignment.room ?? ''}</td>
+                      {Object.keys(turns).map((turn, turnIdx) => {
+                        const group = getGroupForTeacherAndTurn(
+                          groups,
+                          teacherIdx,
+                          turnIdx,
+                          teachers,
+                        )
+                        const colorIdx = group ? groups.findIndex(g => g.id === group.id) : -1
+                        return (
+                          <td key={turn} className={cn(tdClass, 'p-1.5 text-center')}>
+                            {group && (
+                              <span
+                                className={cn(
+                                  'inline-flex h-7 w-7 items-center justify-center rounded-md text-sm font-semibold',
+                                  groupColor(colorIdx),
+                                )}
+                              >
+                                {group.id}
+                              </span>
+                            )}
+                          </td>
+                        )
+                      })}
                     </tr>
-                  </thead>
-                  <tbody>
-                    {teachers.map((assignment, teacherIdx) => (
-                      <tr key={assignment.teacherId}>
-                        <td className="border p-2 font-medium">
-                          {assignment.teacherLastName}, {assignment.teacherFirstName}
-                        </td>
-                        <td className="border p-2">{assignment.subject ?? ''}</td>
-                        <td className="border p-2">{assignment.learningContent ?? ''}</td>
-                        <td className="border p-2">{assignment.room ?? ''}</td>
-                        {Object.keys(turns).map((turn, turnIdx) => {
-                          const group = getGroupForTeacherAndTurn(
-                            groups,
-                            teacherIdx,
-                            turnIdx,
-                            teachers,
-                          )
-                          return (
-                            <td
-                              key={turn}
-                              className={`border p-2 text-center font-bold text-black ${group ? GROUP_COLORS[groups.findIndex(g => g.id === group.id) % GROUP_COLORS.length] : ''} ${group ? DARK_GROUP_COLORS[groups.findIndex(g => g.id === group.id) % DARK_GROUP_COLORS.length] : ''}`}
-                            >
-                              {group ? group.id : ''}
-                            </td>
-                          )
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </SectionCard>
         ))}
 
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Turnusse</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="min-w-full border text-sm">
-              <thead>
-                <tr>
-                  <th className="border p-2">Turnus</th>
-                  <th className="border p-2">Datum</th>
-                  <th className="border p-2">Woche</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(turns).map(([turnusKey, turnus], index) =>
-                  (
-                    turnus as { weeks: { date: string; week: string; isHoliday: boolean }[] }
-                  ).weeks.map((week, weekIndex) => (
-                    <tr key={`${turnusKey}-${weekIndex}`}>
+      {/* Turnus calendar */}
+      <SectionCard icon={CalendarRange} title="Turnusse">
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="bg-muted/50">
+                <th className={thClass}>Turnus</th>
+                <th className={thClass}>Datum</th>
+                <th className={thClass}>Woche</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(turns).map(([turnusKey, turnus], index) =>
+                (turnus as { weeks: { date: string; week: string }[] }).weeks.map(
+                  (week, weekIndex) => (
+                    <tr key={`${turnusKey}-${weekIndex}`} className="even:bg-muted/20">
                       {weekIndex === 0 && (
                         <td
-                          className="border p-2"
-                          rowSpan={(turnus as { weeks: { date: string }[] }).weeks.length}
+                          className={cn(tdClass, 'align-top font-medium')}
+                          rowSpan={(turnus as { weeks: unknown[] }).weeks.length}
                         >
                           Turnus {index + 1}
                         </td>
                       )}
-                      <td className="border p-2">{week.date}</td>
-                      <td className="border p-2">{week.week}</td>
+                      <td className={cn(tdClass, 'tabular-nums')}>{week.date}</td>
+                      <td className={cn(tdClass, 'text-muted-foreground')}>{week.week}</td>
                     </tr>
-                  )),
-                )}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+                  ),
+                ),
+              )}
+            </tbody>
+          </table>
+        </div>
+      </SectionCard>
 
       {additionalInfo && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Zusätzliche Informationen</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>{additionalInfo}</p>
-          </CardContent>
-        </Card>
+        <SectionCard icon={Info} title="Zusätzliche Informationen">
+          <p className="text-sm whitespace-pre-line">{additionalInfo}</p>
+        </SectionCard>
       )}
     </div>
   )
