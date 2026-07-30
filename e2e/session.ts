@@ -20,10 +20,10 @@ export type SessionRole = 'admin' | 'teacher' | 'student' | 'user'
 export interface MintSessionOptions {
   /**
    * Normalized username. This is the join key the app uses to find "me":
-   * the session callback runs it through `normalizeUsername`, and pages like
-   * Notensammler and Schedules look the result up via
-   * `/api/teachers/by-username`. It must match a `Teacher.username` row or
-   * those pages render as though the teacher does not exist.
+   * the session callback runs it through `normalizeUsername`, and
+   * `resolveSessionTeacher` matches it against `Teacher.username` (after the
+   * OID lookup, which the minted token usually skips). It must match a
+   * `Teacher.username` row or pages render as though the teacher does not exist.
    */
   username: string
   role: SessionRole

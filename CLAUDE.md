@@ -47,7 +47,7 @@ npm run e2e:session -- --username max.mustermann --role admin --curl
 Three things the minted token has to get right, all enforced in `e2e/session.ts`:
 
 - `provider: 'azure-ad'`, or the `jwt` callback treats it as a stale LDAP token and strips the role to `user`.
-- `name` must match a real `Teacher.username` — it is the key `/api/teachers/by-username` is queried with, so an invented name signs in fine and then renders empty class lists. Global setup picks an active teacher from the DB when `E2E_USERNAME` is unset.
+- `name` must match a real `Teacher.username` — `resolveSessionTeacher` matches it against `Teacher.username` (after the OID lookup, which the minted token usually skips), so an invented name signs in fine and then renders empty class lists. Global setup picks an active teacher from the DB when `E2E_USERNAME` is unset.
 - A non-empty `ENTRA_TEACHER_GROUP_ID` in `.env`, even a bogus one. Past the 15-minute refresh window the callback re-resolves the role via Graph; with a group configured the call throws and the `catch` preserves the role, but with _nothing_ configured `resolveMicrosoftAccess` returns `role: 'user'` without throwing and silently demotes the session.
 
 Harness knobs (not app env, not in `src/env.js`): `E2E_BASE_URL`, `E2E_ROLE`, `E2E_USERNAME`.
@@ -58,7 +58,7 @@ CI (`.github/workflows/node.js.yaml`) runs typecheck → vitest → lint on the 
 
 **Stack:** Next.js 15 App Router + React 19, Prisma (PostgreSQL), NextAuth, Tailwind v4, shadcn/Radix UI, React Query, i18next. Scaffolded from create-t3-app.
 
-**tRPC is scaffolded but unused.** `src/server/api/root.ts` is an empty router. All server logic lives in **REST route handlers under `src/app/api/**/route.ts`**. Do not add tRPC procedures — follow the existing REST pattern. The client calls these via `fetch`(often wrapped in hooks under`src/hooks/`).
+**The API is REST-only.** All server logic lives in **REST route handlers under `src/app/api/**/route.ts`**. (An unused tRPC scaffold was removed — do not reintroduce it.) The client calls these via `fetch` (often wrapped in hooks under `src/hooks/`, or the `apiFetch`/`apiSend` helpers in `src/lib/api-client.ts`).
 
 **Authentication & authorization** is the most important cross-cutting concern:
 

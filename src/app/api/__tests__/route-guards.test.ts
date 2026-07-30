@@ -17,7 +17,6 @@ const API_DIR = path.resolve(__dirname, '..')
 /** Route handlers whose access is enforced by something other than the guards. */
 const EXEMPT = new Map<string, string>([
   ['/api/auth/[...nextauth]', 'NextAuth owns this route entirely'],
-  ['/api/trpc/[trpc]', 'authorisation lives in the tRPC procedure middleware'],
   ['/api/github/releases', 'public release metadata, shown to signed-out visitors'],
   ['/api/sync/run', 'authenticated by a shared secret header, not a session'],
   ['/api/notifications/digest/run', 'authenticated by a shared secret header, not a session'],
