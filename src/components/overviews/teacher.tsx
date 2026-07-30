@@ -129,7 +129,7 @@ export function TeacherOverview() {
   }
 
   useEffect(() => {
-    if (session?.user?.role === 'teacher') {
+    if (session?.user?.role === 'teacher' || session?.user?.role === 'admin') {
       const weekday = today === 0 || today === 6 ? 1 : today // Default to Monday if weekend
       // Clear schedule data before initial fetch
       setScheduleData(null)
