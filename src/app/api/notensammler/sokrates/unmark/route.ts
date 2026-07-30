@@ -33,6 +33,7 @@ export async function POST(request: Request) {
       classId?: unknown
       semester?: unknown
       schoolYearId?: unknown
+      adminOverride?: unknown
     }
     const classId = parseId(body.classId)
     const semester = parseSemester(body.semester)
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
       classId,
       role: session?.user?.role,
       teacherId: teacher?.id ?? null,
+      adminOverride: body.adminOverride === true,
     })
     if (!canManage) {
       return NextResponse.json(

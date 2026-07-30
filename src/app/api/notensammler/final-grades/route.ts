@@ -60,6 +60,7 @@ export async function POST(request: Request) {
       grade: unknown
       conductNoteWish?: string | null
       schoolYearId?: number
+      adminOverride?: unknown
     }
     requestData = body
     const {
@@ -213,6 +214,7 @@ export async function POST(request: Request) {
       classId: classIdNum,
       role: session.user?.role,
       teacherId: currentTeacher?.id ?? null,
+      adminOverride: body.adminOverride === true,
     })
 
     const write = await withSokratesLock(classIdNum, schoolYearId, async tx => {

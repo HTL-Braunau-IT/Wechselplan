@@ -64,6 +64,7 @@ export async function POST(request: Request) {
         grade?: unknown
         conductNoteWish?: string | null
       }>
+      adminOverride?: unknown
     }
     requestData = body
     const { classId, schoolYearId: bodySchoolYearId, finalGrades: rawFinalGrades } = body
@@ -211,6 +212,7 @@ export async function POST(request: Request) {
       classId: classIdNum,
       role: session.user?.role,
       teacherId: currentTeacher?.id ?? null,
+      adminOverride: body.adminOverride === true,
     })
 
     const { count, skippedLocked } = await withSokratesLock(

@@ -40,11 +40,15 @@ export async function GET(request: Request) {
 
     const teacher = await resolveCurrentTeacher(session)
     const status = await getSokratesStatus(classId, schoolYearId)
+    // `canManage` is now the class lead alone. An admin who is not the lead gets
+    // `canManage: false` and instead sees `isAdmin`, which the grid uses to offer
+    // the deliberate one-time override button.
     const canManage = await canManageSokrates({
       classId,
       role: session?.user?.role,
       teacherId: teacher?.id ?? null,
     })
+    const isAdmin = session?.user?.role === 'admin'
 
     // Cells changed after the mark and not yet resolved — the grid flags these.
     const openNotices = await prisma.sokratesChangeNotice.findMany({
@@ -55,7 +59,7 @@ export async function GET(request: Request) {
       ...new Set(openNotices.map(n => `${n.studentId}:${n.teacherId}:${n.semester}`)),
     ]
 
-    return NextResponse.json({ status, canManage, driftedCells })
+    return NextResponse.json({ status, canManage, isAdmin, driftedCells })
   } catch (error) {
     captureError(error as Error, { location: 'api/notensammler/sokrates', type: 'get-status' })
     return NextResponse.json({ error: 'Failed to load Sokrates status' }, { status: 500 })

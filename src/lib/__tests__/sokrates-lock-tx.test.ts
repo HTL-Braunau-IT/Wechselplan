@@ -39,7 +39,12 @@ vi.mock('@/lib/notifications', () => ({
 vi.mock('@/server/send-support-email-graph', () => ({ sendEmail: mockSendEmail }))
 vi.mock('@/lib/sentry', () => ({ captureError: vi.fn() }))
 
-import { recordSokratesChanges, withSokratesLock, type SokratesStatus } from '@/lib/sokrates-lock'
+import {
+  canManageSokrates,
+  recordSokratesChanges,
+  withSokratesLock,
+  type SokratesStatus,
+} from '@/lib/sokrates-lock'
 
 const markedSecond = (transferId = 5): SokratesStatus => ({
   first: {
@@ -87,6 +92,50 @@ describe('withSokratesLock', () => {
   it('runs the whole body inside one transaction', async () => {
     await withSokratesLock(1, 1, async () => undefined)
     expect(mockTransaction).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('canManageSokrates', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // The class is led by teacher 59.
+    mockClassFindUnique.mockResolvedValue({ classLeadId: 59 })
+  })
+
+  it('lets the class lead manage, no override needed', async () => {
+    expect(await canManageSokrates({ classId: 1, role: 'teacher', teacherId: 59 })).toBe(true)
+  })
+
+  it('refuses a teacher who is not the class lead', async () => {
+    expect(await canManageSokrates({ classId: 1, role: 'teacher', teacherId: 7 })).toBe(false)
+  })
+
+  it('refuses an admin who has NOT asked to override', async () => {
+    // The whole point of the change: admin alone is no longer enough.
+    expect(await canManageSokrates({ classId: 1, role: 'admin', teacherId: 7 })).toBe(false)
+    expect(await canManageSokrates({ classId: 1, role: 'admin', teacherId: null })).toBe(false)
+  })
+
+  it('lets an admin through only with an explicit one-time override', async () => {
+    expect(
+      await canManageSokrates({ classId: 1, role: 'admin', teacherId: 7, adminOverride: true }),
+    ).toBe(true)
+    expect(
+      await canManageSokrates({ classId: 1, role: 'admin', teacherId: null, adminOverride: true }),
+    ).toBe(true)
+  })
+
+  it('does not let a non-admin escalate by sending the override flag', async () => {
+    expect(
+      await canManageSokrates({ classId: 1, role: 'teacher', teacherId: 7, adminOverride: true }),
+    ).toBe(false)
+    expect(
+      await canManageSokrates({ classId: 1, role: undefined, teacherId: 7, adminOverride: true }),
+    ).toBe(false)
+  })
+
+  it('still lets the lead manage even if they are also an admin, without the flag', async () => {
+    expect(await canManageSokrates({ classId: 1, role: 'admin', teacherId: 59 })).toBe(true)
   })
 })
 

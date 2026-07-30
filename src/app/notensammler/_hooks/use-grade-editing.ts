@@ -38,6 +38,12 @@ type Params = {
   refreshTeacherClasses: () => Promise<void>
   /** Re-reads Sokrates lock/drift state after a save so badges stay current. */
   refreshSokrates?: () => void | Promise<void>
+  /**
+   * An admin has switched the one-time Sokrates override on: grade writes carry
+   * the flag so the server lets them past a lock. Ignored server-side for anyone
+   * who is not an admin.
+   */
+  adminOverride?: boolean
 }
 
 const emptyFinalGrade = () => ({
@@ -59,6 +65,7 @@ export function useGradeEditing({
   setNotice,
   refreshTeacherClasses,
   refreshSokrates,
+  adminOverride = false,
 }: Params) {
   const [saving, setSaving] = useState(false)
   const [savingAll, setSavingAll] = useState(false)
@@ -101,6 +108,7 @@ export function useGradeEditing({
             semester,
             grade,
             ...(schoolYearId != null && { schoolYearId }),
+            ...(adminOverride && { adminOverride: true }),
           }),
         })
 
@@ -118,7 +126,7 @@ export function useGradeEditing({
     },
     // schoolYearId belongs here: without it the callback kept sending the
     // school year that was selected when the class was first opened.
-    [beginRequest, classData, endRequest, schoolYearId],
+    [adminOverride, beginRequest, classData, endRequest, schoolYearId],
   )
 
   const handleGradeChange = useCallback(
@@ -216,6 +224,7 @@ export function useGradeEditing({
         if (conductNoteWish !== undefined) {
           body.conductNoteWish = conductNoteWish === '' ? null : conductNoteWish
         }
+        if (adminOverride) body.adminOverride = true
 
         const response = await fetch('/api/notensammler/final-grades', {
           method: 'POST',
@@ -234,7 +243,7 @@ export function useGradeEditing({
         endRequest(ok)
       }
     },
-    [beginRequest, classData, endRequest, schoolYearId],
+    [adminOverride, beginRequest, classData, endRequest, schoolYearId],
   )
 
   const handleFinalGradeChange = useCallback(
@@ -383,6 +392,7 @@ export function useGradeEditing({
       const batchBody = {
         classId: classData.id,
         ...(schoolYearId != null && { schoolYearId }),
+        ...(adminOverride && { adminOverride: true }),
       }
 
       // Both batch endpoints reject an oversized request outright. A class of
@@ -452,6 +462,7 @@ export function useGradeEditing({
       setSavingAll(false)
     }
   }, [
+    adminOverride,
     cancelAll,
     classData,
     finalGrades,
