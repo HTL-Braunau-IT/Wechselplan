@@ -18,7 +18,15 @@ interface ScheduleOverviewProps {
   pmAssignments: TeacherAssignmentResponse[]
   scheduleTimes: ScheduleTime[]
   breakTimes: BreakTime[]
+  /** Merged Turnusse — the fallback when the per-lane sets are not supplied. */
   turns: TurnSchedule
+  /**
+   * Per-lane Turnusse. AM and PM can differ in count/cadence, so when these are
+   * provided each rotation table and the calendar use their own lane; callers
+   * that omit them (e.g. the read-only /schedules viewer) fall back to `turns`.
+   */
+  amTurns?: TurnSchedule
+  pmTurns?: TurnSchedule
   classHead: string
   classLead: string
   additionalInfo: string
@@ -104,12 +112,30 @@ export function ScheduleOverview({
   scheduleTimes,
   breakTimes,
   turns,
+  amTurns,
+  pmTurns,
   classHead,
   classLead,
   additionalInfo,
   weekday,
 }: ScheduleOverviewProps) {
   const maxStudents = Math.max(...groups.map(g => g.students.length), 0)
+
+  // Each lane draws from its own Turnusse when provided, else the merged set.
+  const turnsFor = (period: 'AM' | 'PM'): TurnSchedule =>
+    (period === 'AM' ? amTurns : pmTurns) ?? turns
+
+  // Calendar: one table per lane when the lanes genuinely differ, otherwise a
+  // single combined table (identical lanes, or no per-lane data at all).
+  const lanesProvided = amTurns !== undefined || pmTurns !== undefined
+  const calendars: { label: string; turns: TurnSchedule }[] = !lanesProvided
+    ? [{ label: '', turns }]
+    : JSON.stringify(amTurns ?? {}) === JSON.stringify(pmTurns ?? {})
+      ? [{ label: '', turns: amTurns ?? {} }]
+      : [
+          { label: 'Vormittag', turns: amTurns ?? {} },
+          { label: 'Nachmittag', turns: pmTurns ?? {} },
+        ].filter(c => Object.keys(c.turns).length > 0)
 
   const uniqueTeachers = (assignments: TeacherAssignmentResponse[]) =>
     assignments
@@ -226,115 +252,127 @@ export function ScheduleOverview({
         </SectionCard>
       </div>
 
-      {/* Rotation tables */}
+      {/* Rotation tables — each lane over its own Turnusse */}
       {[
         { period: 'AM' as const, label: 'Vormittag', teachers: uniqueAmTeachers },
         { period: 'PM' as const, label: 'Nachmittag', teachers: uniquePmTeachers },
       ]
         .filter(({ teachers }) => teachers.length > 0)
-        .map(({ period, label, teachers }) => (
-          <SectionCard
-            key={period}
-            icon={CalendarRange}
-            title={`${getWeekday(weekday)} · ${label}`}
-          >
-            <div className="overflow-x-auto rounded-lg border">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="bg-muted/50">
-                    <th className={thClass}>Lehrer/in</th>
-                    <th className={thClass}>Werkstätte</th>
-                    <th className={thClass}>Lehrinhalt</th>
-                    <th className={thClass}>Raum</th>
-                    {Object.keys(turns).map((turn, turnIdx) => {
-                      const { start, end } = getTurnusInfo(turn, turns)
-                      return (
-                        <th key={turn} className={cn(thClass, 'text-center')}>
-                          <div className="text-foreground font-semibold">Turnus {turnIdx + 1}</div>
-                          {start && (
-                            <div className="text-muted-foreground text-[11px] font-normal tabular-nums">
-                              {start} – {end}
-                            </div>
-                          )}
-                        </th>
-                      )
-                    })}
-                  </tr>
-                </thead>
-                <tbody>
-                  {teachers.map((assignment, teacherIdx) => (
-                    <tr key={assignment.teacherId} className="even:bg-muted/20">
-                      <td className={cn(tdClass, 'font-medium whitespace-nowrap')}>
-                        {assignment.teacherLastName}, {assignment.teacherFirstName}
-                      </td>
-                      <td className={tdClass}>{assignment.subject ?? ''}</td>
-                      <td className={tdClass}>{assignment.learningContent ?? ''}</td>
-                      <td className={tdClass}>{assignment.room ?? ''}</td>
-                      {Object.keys(turns).map((turn, turnIdx) => {
-                        const group = getGroupForTeacherAndTurn(
-                          groups,
-                          teacherIdx,
-                          turnIdx,
-                          teachers,
-                        )
-                        const colorIdx = group ? groups.findIndex(g => g.id === group.id) : -1
+        .map(({ period, label, teachers }) => {
+          const periodTurns = turnsFor(period)
+          const turnKeys = Object.keys(periodTurns)
+          return (
+            <SectionCard
+              key={period}
+              icon={CalendarRange}
+              title={`${getWeekday(weekday)} · ${label}`}
+            >
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-muted/50">
+                      <th className={thClass}>Lehrer/in</th>
+                      <th className={thClass}>Werkstätte</th>
+                      <th className={thClass}>Lehrinhalt</th>
+                      <th className={thClass}>Raum</th>
+                      {turnKeys.map((turn, turnIdx) => {
+                        const { start, end } = getTurnusInfo(turn, periodTurns)
                         return (
-                          <td key={turn} className={cn(tdClass, 'p-1.5 text-center')}>
-                            {group && (
-                              <span
-                                className={cn(
-                                  'inline-flex h-7 w-7 items-center justify-center rounded-md text-sm font-semibold',
-                                  groupColor(colorIdx),
-                                )}
-                              >
-                                {group.id}
-                              </span>
+                          <th key={turn} className={cn(thClass, 'text-center')}>
+                            <div className="text-foreground font-semibold">
+                              Turnus {turnIdx + 1}
+                            </div>
+                            {start && (
+                              <div className="text-muted-foreground text-[11px] font-normal tabular-nums">
+                                {start} – {end}
+                              </div>
                             )}
-                          </td>
+                          </th>
                         )
                       })}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </SectionCard>
-        ))}
-
-      {/* Turnus calendar */}
-      <SectionCard icon={CalendarRange} title="Turnusse">
-        <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="bg-muted/50">
-                <th className={thClass}>Turnus</th>
-                <th className={thClass}>Datum</th>
-                <th className={thClass}>Woche</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(turns).map(([turnusKey, turnus], index) =>
-                (turnus as { weeks: { date: string; week: string }[] }).weeks.map(
-                  (week, weekIndex) => (
-                    <tr key={`${turnusKey}-${weekIndex}`} className="even:bg-muted/20">
-                      {weekIndex === 0 && (
-                        <td
-                          className={cn(tdClass, 'align-top font-medium')}
-                          rowSpan={(turnus as { weeks: unknown[] }).weeks.length}
-                        >
-                          Turnus {index + 1}
+                  </thead>
+                  <tbody>
+                    {teachers.map((assignment, teacherIdx) => (
+                      <tr key={assignment.teacherId} className="even:bg-muted/20">
+                        <td className={cn(tdClass, 'font-medium whitespace-nowrap')}>
+                          {assignment.teacherLastName}, {assignment.teacherFirstName}
                         </td>
-                      )}
-                      <td className={cn(tdClass, 'tabular-nums')}>{week.date}</td>
-                      <td className={cn(tdClass, 'text-muted-foreground')}>{week.week}</td>
-                    </tr>
+                        <td className={tdClass}>{assignment.subject ?? ''}</td>
+                        <td className={tdClass}>{assignment.learningContent ?? ''}</td>
+                        <td className={tdClass}>{assignment.room ?? ''}</td>
+                        {turnKeys.map((turn, turnIdx) => {
+                          const group = getGroupForTeacherAndTurn(
+                            groups,
+                            teacherIdx,
+                            turnIdx,
+                            teachers,
+                          )
+                          const colorIdx = group ? groups.findIndex(g => g.id === group.id) : -1
+                          return (
+                            <td key={turn} className={cn(tdClass, 'p-1.5 text-center')}>
+                              {group && (
+                                <span
+                                  className={cn(
+                                    'inline-flex h-7 w-7 items-center justify-center rounded-md text-sm font-semibold',
+                                    groupColor(colorIdx),
+                                  )}
+                                >
+                                  {group.id}
+                                </span>
+                              )}
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </SectionCard>
+          )
+        })}
+
+      {/* Turnus calendar — one table per lane when the lanes differ */}
+      {calendars.map(calendar => (
+        <SectionCard
+          key={calendar.label || 'all'}
+          icon={CalendarRange}
+          title={calendar.label ? `Turnusse · ${calendar.label}` : 'Turnusse'}
+        >
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="bg-muted/50">
+                  <th className={thClass}>Turnus</th>
+                  <th className={thClass}>Datum</th>
+                  <th className={thClass}>Woche</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(calendar.turns).map(([turnusKey, turnus], index) =>
+                  (turnus as { weeks: { date: string; week: string }[] }).weeks.map(
+                    (week, weekIndex) => (
+                      <tr key={`${turnusKey}-${weekIndex}`} className="even:bg-muted/20">
+                        {weekIndex === 0 && (
+                          <td
+                            className={cn(tdClass, 'align-top font-medium')}
+                            rowSpan={(turnus as { weeks: unknown[] }).weeks.length}
+                          >
+                            Turnus {index + 1}
+                          </td>
+                        )}
+                        <td className={cn(tdClass, 'tabular-nums')}>{week.date}</td>
+                        <td className={cn(tdClass, 'text-muted-foreground')}>{week.week}</td>
+                      </tr>
+                    ),
                   ),
-                ),
-              )}
-            </tbody>
-          </table>
-        </div>
-      </SectionCard>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </SectionCard>
+      ))}
 
       {additionalInfo && (
         <SectionCard icon={Info} title="Zusätzliche Informationen">

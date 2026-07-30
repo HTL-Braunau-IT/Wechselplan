@@ -35,6 +35,9 @@ export async function POST(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const className = searchParams.get('className')
+    const weekdayParam = searchParams.get('selectedWeekday')
+    const requestedWeekday =
+      weekdayParam != null && !Number.isNaN(Number(weekdayParam)) ? Number(weekdayParam) : null
     const schoolYearId = await resolveSchoolYearId(searchParams.get('schoolYearId'))
     if (schoolYearId == null) {
       return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
@@ -98,21 +101,16 @@ export async function POST(request: Request) {
       id: groupId,
       students: students.filter(s => s.groupId === groupId),
     }))
-    // Get teacher assignments (AM/PM) for this year
-    const teacherAssignments = await prisma.teacherAssignment.findMany({
-      where: { classId: class_response.id, schoolYearId },
-      orderBy: [{ period: 'asc' }, { groupId: 'asc' }],
-      include: {
-        teacher: true,
-        room: true,
-        subject: true,
-        learningContent: true,
-      },
-    })
-
-    // Get the schedule for this year
+    // Get the schedule for this year (a specific weekday if one was requested,
+    // otherwise the most recent). Assignments are then scoped to ITS weekday so a
+    // class with plans on several days does not spill every day's teachers into
+    // one export.
     const schedule = await prisma.schedule.findFirst({
-      where: { classId: class_response.id, schoolYearId },
+      where: {
+        classId: class_response.id,
+        schoolYearId,
+        ...(requestedWeekday != null ? { selectedWeekday: requestedWeekday } : {}),
+      },
       orderBy: [{ createdAt: 'desc' }],
       include: {
         scheduleTimes: true,
@@ -126,10 +124,22 @@ export async function POST(request: Request) {
               },
             },
           },
-          orderBy: {
-            order: 'asc',
-          },
+          orderBy: [{ period: 'asc' }, { order: 'asc' }],
         },
+      },
+    })
+
+    const exportWeekday = requestedWeekday ?? schedule?.selectedWeekday ?? 1
+
+    // Get teacher assignments (AM/PM) for this year on the exported weekday
+    const teacherAssignments = await prisma.teacherAssignment.findMany({
+      where: { classId: class_response.id, schoolYearId, selectedWeekday: exportWeekday },
+      orderBy: [{ period: 'asc' }, { groupId: 'asc' }],
+      include: {
+        teacher: true,
+        room: true,
+        subject: true,
+        learningContent: true,
       },
     })
 
@@ -177,18 +187,19 @@ export async function POST(request: Request) {
     const amAssignments = teacherAssignments.filter(a => a.period === 'AM').map(mapAssignment)
     const pmAssignments = teacherAssignments.filter(a => a.period === 'PM').map(mapAssignment)
 
-    // Use normalized turns if available, otherwise fall back to scheduleData
-    let turns: Record<string, unknown> = {}
-    if (schedule?.turns && schedule.turns.length > 0) {
-      turns = normalizeToJsonFormat(schedule.turns) as Record<string, unknown>
-    } else if (
-      schedule &&
-      typeof schedule.scheduleData === 'object' &&
-      schedule.scheduleData !== null &&
-      !Array.isArray(schedule.scheduleData)
-    ) {
-      turns = schedule.scheduleData as Record<string, unknown>
-    }
+    // Per-lane Turnusse: AM and PM each keep their own set (and their own count).
+    const amTurns: Record<string, unknown> = schedule?.turns
+      ? (normalizeToJsonFormat(schedule.turns.filter(turn => turn.period === 'AM')) as Record<
+          string,
+          unknown
+        >)
+      : {}
+    const pmTurns: Record<string, unknown> = schedule?.turns
+      ? (normalizeToJsonFormat(schedule.turns.filter(turn => turn.period === 'PM')) as Record<
+          string,
+          unknown
+        >)
+      : {}
 
     // Get schedule times and break times
     const scheduleTimes = schedule?.scheduleTimes ?? []
@@ -198,7 +209,10 @@ export async function POST(request: Request) {
       groups,
       amAssignments,
       pmAssignments,
-      turns,
+      amTurns,
+      pmTurns,
+      amBiweekly: (schedule?.amWeekInterval ?? 1) > 1,
+      pmBiweekly: (schedule?.pmWeekInterval ?? 1) > 1,
       className: class_response.name,
       classHead: class_response.classHead
         ? `${class_response.classHead.firstName} ${class_response.classHead.lastName}`

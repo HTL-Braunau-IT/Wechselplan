@@ -228,11 +228,21 @@ async function main() {
   const outDir = resolve(process.cwd(), process.argv[2] ?? '.pdf-preview')
   mkdirSync(outDir, { recursive: true })
 
+  // Show the independent lanes: AM runs every week over its full Turnus set, PM
+  // runs every 2nd week over a shorter set.
+  const amTurns = turns as unknown as Record<string, unknown>
+  const pmTurns = Object.fromEntries(
+    Object.entries(amTurns).slice(0, Math.max(1, Math.ceil(Object.keys(amTurns).length / 2))),
+  )
+
   const wechselplan = await generateSchedulePDF({
     groups,
     amAssignments: assignments(amTeachers, 0),
     pmAssignments: assignments(pmTeachers, 4),
-    turns: turns as unknown as Record<string, unknown>,
+    amTurns,
+    pmTurns,
+    amBiweekly: false,
+    pmBiweekly: true,
     className: '2AHME',
     classHead: 'Mag. Karin Aichinger',
     classLead: 'DI Robert Steinkellner',

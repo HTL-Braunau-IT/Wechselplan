@@ -111,7 +111,9 @@ export async function generateExcel(
  */
 export async function generatePdf(classId: string, weekday: number) {
   try {
-    const export_response = await fetch(`/api/export?className=${classId}`, {
+    const export_response = await fetch(
+      `/api/export?className=${classId}&selectedWeekday=${weekday}`,
+      {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     })

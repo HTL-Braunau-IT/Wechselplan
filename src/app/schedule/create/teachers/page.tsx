@@ -6,14 +6,7 @@ import { useTranslation } from 'next-i18next'
 import { useCachedData } from '@/hooks/use-cached-data'
 import { useClassDataByName } from '@/hooks/use-class-data'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   Dialog,
@@ -30,6 +23,7 @@ import { Spinner } from '@/components/ui/spinner'
 import {
   ArrowLeft,
   ArrowRight,
+  CalendarClock,
   CircleAlert,
   Copy,
   Sunrise,
@@ -40,10 +34,7 @@ import {
 import { captureFrontendError } from '@/lib/frontend-error'
 import { useUnsavedWarning } from '@/hooks/use-unsaved-warning'
 import { WizardFooter } from '@/components/schedule/wizard-footer'
-import {
-  PeriodAssignments,
-  type TeacherAssignment,
-} from '@/components/schedule/period-assignments'
+import { PeriodAssignments, type TeacherAssignment } from '@/components/schedule/period-assignments'
 import { useSchoolYear } from '@/contexts/school-year-context'
 
 interface Student {
@@ -86,8 +77,6 @@ interface ApiError {
   message: string
 }
 
-const WEEKDAY_VALUES = [1, 2, 3, 4, 5]
-
 /**
  * React component for assigning teachers, subjects, learning contents, and rooms to student groups for a selected class and weekday.
  *
@@ -102,8 +91,16 @@ export default function TeacherAssignmentPage() {
   const { selectedYear } = useSchoolYear()
   const schoolYearId = selectedYear?.id
   const selectedClass = searchParams.get('class')
+  const weekdayParam = searchParams.get('weekday')
   const [selectedClassId, setSelectedClassId] = useState<number | null>(null)
-  const [selectedWeekday, setSelectedWeekday] = useState<number | null>(null)
+  // Weekday is chosen on the "Tag & Perioden" step and carried in the URL.
+  const [selectedWeekday, setSelectedWeekday] = useState<number | null>(
+    weekdayParam ? Number(weekdayParam) : null,
+  )
+  // Which lanes this day runs — read from the schedule shell so only enabled
+  // periods are shown for editing.
+  const [amEnabled, setAmEnabled] = useState(true)
+  const [pmEnabled, setPmEnabled] = useState(true)
 
   const {
     rooms,
@@ -183,11 +180,36 @@ export default function TeacherAssignmentPage() {
           })),
         )
 
-        // Fetch existing teacher assignments for selected school year
+        // Which lanes does this day run? Read the schedule shell saved on the
+        // "Tag & Perioden" step; default to both if there is none yet.
+        if (selectedClass) {
+          try {
+            const yearQ = schoolYearId != null ? `&schoolYearId=${schoolYearId}` : ''
+            const shellRes = await fetch(
+              `/api/schedules?classId=${selectedClass}&weekday=${weekdayParam ?? selectedWeekday ?? 1}${yearQ}`,
+              { cache: 'no-store' },
+            )
+            if (shellRes.ok) {
+              const shells = (await shellRes.json()) as {
+                amEnabled: boolean
+                pmEnabled: boolean
+              }[]
+              if (shells[0]) {
+                setAmEnabled(shells[0].amEnabled)
+                setPmEnabled(shells[0].pmEnabled)
+              }
+            }
+          } catch {
+            // Non-fatal: fall back to showing both lanes.
+          }
+        }
+
+        // Fetch existing teacher assignments for this weekday + school year.
+        const weekdayQ = selectedWeekday != null ? `&selectedWeekday=${selectedWeekday}` : ''
         const teacherAssignmentsUrl =
           schoolYearId != null
-            ? `/api/schedules/teacher-assignments?classId=${selectedClassId}&schoolYearId=${schoolYearId}`
-            : `/api/schedules/teacher-assignments?classId=${selectedClassId}`
+            ? `/api/schedules/teacher-assignments?classId=${selectedClassId}&schoolYearId=${schoolYearId}${weekdayQ}`
+            : `/api/schedules/teacher-assignments?classId=${selectedClassId}${weekdayQ}`
         const teacherAssignmentsRes = await fetch(teacherAssignmentsUrl)
         if (teacherAssignmentsRes.ok) {
           const teacherAssignmentsData =
@@ -199,8 +221,10 @@ export default function TeacherAssignmentPage() {
             a => a.teacherId !== 0,
           )
 
-          // Set the weekday from the response
-          setSelectedWeekday(teacherAssignmentsData.selectedWeekday ?? 1)
+          // Keep the URL-chosen weekday; only fall back to the stored one.
+          if (!weekdayParam) {
+            setSelectedWeekday(teacherAssignmentsData.selectedWeekday ?? 1)
+          }
 
           // Initialize base assignments for all groups
           const initialAssignments: TeacherAssignment[] = groupsData.assignments.map(
@@ -684,63 +708,62 @@ export default function TeacherAssignmentPage() {
           </Alert>
         )}
 
-        <div className="max-w-xs space-y-2">
-          <Label htmlFor="weekday">{t('rotationDay')}</Label>
-          <Select
-            value={selectedWeekday?.toString() ?? ''}
-            onValueChange={value => {
-              setSelectedWeekday(parseInt(value))
-              setDirty(true)
-            }}
-          >
-            <SelectTrigger id="weekday" className="w-full">
-              <SelectValue placeholder={t('selectWeekday')} />
-            </SelectTrigger>
-            <SelectContent>
-              {WEEKDAY_VALUES.map(value => (
-                <SelectItem key={value} value={value.toString()}>
-                  {t(`weekdays.${value}`)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {/* Weekday is fixed by the previous step; shown read-only for context. */}
+        <div className="border-border/60 bg-card/40 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border p-4">
+          <span className="text-muted-foreground flex items-center gap-1.5 text-sm">
+            <CalendarClock className="h-3.5 w-3.5" />
+            {t('rotationDay')}
+          </span>
+          <span className="font-semibold">
+            {selectedWeekday ? t(`weekdays.${selectedWeekday}`) : '—'}
+          </span>
+          <span className="text-muted-foreground flex flex-wrap items-center gap-1.5 text-sm">
+            {amEnabled && <Badge variant="secondary">{t('morning')}</Badge>}
+            {pmEnabled && <Badge variant="secondary">{t('afternoon')}</Badge>}
+          </span>
         </div>
 
-        <PeriodAssignments
-          period="am"
-          title={t('morningAssignments')}
-          icon={Sunrise}
-          groups={groups}
-          assignments={amAssignments}
-          teachers={teachers}
-          subjects={subjects}
-          learningContents={learningContents}
-          rooms={rooms}
-          onAssignmentChange={handleAssignmentChange}
-          onStringFieldChange={handleStringFieldChange}
-          onClearRow={handleClearRow}
-        />
+        {amEnabled && (
+          <PeriodAssignments
+            period="am"
+            title={t('morningAssignments')}
+            icon={Sunrise}
+            groups={groups}
+            assignments={amAssignments}
+            teachers={teachers}
+            subjects={subjects}
+            learningContents={learningContents}
+            rooms={rooms}
+            onAssignmentChange={handleAssignmentChange}
+            onStringFieldChange={handleStringFieldChange}
+            onClearRow={handleClearRow}
+          />
+        )}
 
-        <PeriodAssignments
-          period="pm"
-          title={t('afternoonAssignments')}
-          icon={Sunset}
-          headerAction={
-            <Button variant="outline" size="sm" onClick={handleCopyAmToPm}>
-              <Copy className="h-4 w-4" />
-              {t('copyFromAm')}
-            </Button>
-          }
-          groups={groups}
-          assignments={pmAssignments}
-          teachers={teachers}
-          subjects={subjects}
-          learningContents={learningContents}
-          rooms={rooms}
-          onAssignmentChange={handleAssignmentChange}
-          onStringFieldChange={handleStringFieldChange}
-          onClearRow={handleClearRow}
-        />
+        {pmEnabled && (
+          <PeriodAssignments
+            period="pm"
+            title={t('afternoonAssignments')}
+            icon={Sunset}
+            headerAction={
+              amEnabled ? (
+                <Button variant="outline" size="sm" onClick={handleCopyAmToPm}>
+                  <Copy className="h-4 w-4" />
+                  {t('copyFromAm')}
+                </Button>
+              ) : undefined
+            }
+            groups={groups}
+            assignments={pmAssignments}
+            teachers={teachers}
+            subjects={subjects}
+            learningContents={learningContents}
+            rooms={rooms}
+            onAssignmentChange={handleAssignmentChange}
+            onStringFieldChange={handleStringFieldChange}
+            onClearRow={handleClearRow}
+          />
+        )}
 
         <WizardFooter
           back={

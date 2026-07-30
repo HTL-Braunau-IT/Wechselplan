@@ -19,6 +19,11 @@ interface UseScheduleOverviewResult {
   scheduleTimes: ScheduleTime[]
   breakTimes: BreakTime[]
   turns: TurnSchedule
+  /** Per-lane Turnusse (AM and PM can have different counts). */
+  amTurns: TurnSchedule
+  pmTurns: TurnSchedule
+  amEnabled: boolean
+  pmEnabled: boolean
   classHead: string
   classLead: string
   additionalInfo: string
@@ -39,6 +44,7 @@ interface UseScheduleOverviewResult {
 export function useScheduleOverview(
   classId: string | null,
   schoolYearId?: number,
+  weekdayFilter?: number,
 ): UseScheduleOverviewResult {
   const [groups, setGroups] = useState<Group[]>([])
   const [amAssignments, setAmAssignments] = useState<TeacherAssignmentResponse[]>([])
@@ -46,6 +52,10 @@ export function useScheduleOverview(
   const [scheduleTimes, setScheduleTimes] = useState<ScheduleTime[]>([])
   const [breakTimes, setBreakTimes] = useState<BreakTime[]>([])
   const [turns, setTurns] = useState<TurnSchedule>({})
+  const [amTurns, setAmTurns] = useState<TurnSchedule>({})
+  const [pmTurns, setPmTurns] = useState<TurnSchedule>({})
+  const [amEnabled, setAmEnabled] = useState(true)
+  const [pmEnabled, setPmEnabled] = useState(true)
   const [classHead, setClassHead] = useState<string>('—')
   const [classLead, setClassLead] = useState<string>('—')
   const [additionalInfo, setAdditionalInfo] = useState<string>('')
@@ -134,16 +144,28 @@ export function useScheduleOverview(
         }
 
         // Fetch rotation/turn schedule (filtered by school year when provided)
-        const schedulesRes = await fetch(`/api/schedules?classId=${classId}${yearQ}`, {
+        const weekdayQ = weekdayFilter != null ? `&weekday=${weekdayFilter}` : ''
+        const schedulesRes = await fetch(`/api/schedules?classId=${classId}${yearQ}${weekdayQ}`, {
           cache: 'no-store',
         })
-        let latestSchedule: ScheduleResponse | undefined
+        // The schedule row carries the per-lane blobs the API splits out.
+        type ScheduleRow = ScheduleResponse & {
+          selectedWeekday?: number
+          amEnabled?: boolean
+          pmEnabled?: boolean
+          amScheduleData?: TurnSchedule | null
+          pmScheduleData?: TurnSchedule | null
+        }
+        let latestSchedule: ScheduleRow | undefined
         let selectedWeekday = 6
 
         if (schedulesRes.ok) {
-          const schedules = (await schedulesRes.json()) as ScheduleResponse[]
-          // Get the most recent schedule (ordered by createdAt desc from API)
-          latestSchedule = schedules[0]
+          const schedules = (await schedulesRes.json()) as ScheduleRow[]
+          // Prefer the requested weekday; otherwise the most recent.
+          latestSchedule =
+            weekdayFilter != null
+              ? (schedules.find(s => s.selectedWeekday === weekdayFilter) ?? schedules[0])
+              : schedules[0]
           selectedWeekday = latestSchedule?.selectedWeekday ?? 6
         } else if (schedulesRes.status === 404) {
           // No schedules found - this is okay, we'll use defaults
@@ -154,31 +176,34 @@ export function useScheduleOverview(
 
         setAdditionalInfo(latestSchedule?.additionalInfo ?? '')
         setWeekday(selectedWeekday)
+        setAmEnabled(latestSchedule?.amEnabled ?? true)
+        setPmEnabled(latestSchedule?.pmEnabled ?? true)
 
-        // Convert normalized turns to legacy format, or fall back to scheduleData if available
+        // Per-lane Turnusse come straight off the API's split blobs.
+        const amData = (latestSchedule?.amScheduleData as TurnSchedule | null) ?? {}
+        const pmData = (latestSchedule?.pmScheduleData as TurnSchedule | null) ?? {}
+        setAmTurns(amData)
+        setPmTurns(pmData)
+
+        // `turns` keeps its merged meaning for the shared overview display.
         if (
           latestSchedule?.turns &&
           Array.isArray(latestSchedule.turns) &&
           latestSchedule.turns.length > 0
         ) {
-          // Use normalized turns data
-          const normalizedTurns = normalizeToJsonFormat(latestSchedule.turns)
-          setTurns(normalizedTurns)
-        } else if (
-          latestSchedule?.scheduleData &&
-          typeof latestSchedule.scheduleData === 'object'
-        ) {
-          // Fall back to scheduleData for backward compatibility
-          setTurns(latestSchedule.scheduleData as TurnSchedule)
+          setTurns(normalizeToJsonFormat(latestSchedule.turns))
+        } else if (Object.keys(amData).length > 0 || Object.keys(pmData).length > 0) {
+          setTurns({ ...pmData, ...amData })
         } else {
-          // No turn data available
           setTurns({})
         }
 
-        // Fetch teacher assignments (no weekday filter needed - each class has one schedule)
+        // Fetch teacher assignments for this weekday (each weekday is its own plan).
         try {
           const teacherRes = await fetch(
-            `/api/schedules/teacher-assignments?classId=${resolvedClassId}${yearQ}`,
+            `/api/schedules/teacher-assignments?classId=${resolvedClassId}${yearQ}${
+              weekdayFilter != null ? `&selectedWeekday=${weekdayFilter}` : ''
+            }`,
             { cache: 'no-store' },
           )
           if (teacherRes.ok) {
@@ -230,7 +255,7 @@ export function useScheduleOverview(
     }
 
     void fetchData()
-  }, [classId, resolvedClassId, yearQ])
+  }, [classId, resolvedClassId, yearQ, weekdayFilter])
 
   return {
     groups,
@@ -239,6 +264,10 @@ export function useScheduleOverview(
     scheduleTimes,
     breakTimes,
     turns,
+    amTurns,
+    pmTurns,
+    amEnabled,
+    pmEnabled,
     classHead,
     classLead,
     additionalInfo,

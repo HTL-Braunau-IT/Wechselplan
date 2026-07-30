@@ -291,11 +291,12 @@ async function seedAssignmentsAndRotations(
     for (const groupId of GROUPS) {
       await prisma.teacherAssignment.upsert({
         where: {
-          classId_period_groupId_schoolYearId: {
+          classId_period_groupId_schoolYearId_selectedWeekday: {
             classId: klass.id,
             period: PERIOD,
             groupId,
             schoolYearId,
+            selectedWeekday: WEEKDAY,
           },
         },
         update: {},
@@ -319,11 +320,13 @@ async function seedAssignmentsAndRotations(
       for (const [turnIndex, turnId] of TURNS.entries()) {
         await prisma.teacherRotation.upsert({
           where: {
-            classId_groupId_turnId_period: {
+            classId_groupId_turnId_period_selectedWeekday_schoolYearId: {
               classId: klass.id,
               groupId,
               turnId,
               period: PERIOD,
+              selectedWeekday: WEEKDAY,
+              schoolYearId,
             },
           },
           update: {},
@@ -333,6 +336,8 @@ async function seedAssignmentsAndRotations(
             turnId,
             period: PERIOD,
             teacherId: teachers[(groupId - 1 + turnIndex) % teachers.length]!.id,
+            selectedWeekday: WEEKDAY,
+            schoolYearId,
           },
         })
         rotations += 1

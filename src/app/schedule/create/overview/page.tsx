@@ -25,6 +25,7 @@ import { WizardFooter } from '@/components/schedule/wizard-footer'
 import { AlertCircle, ArrowLeft, Check, FileDown } from 'lucide-react'
 import { generatePdf, generateSchedulePDF } from '@/lib/export-utils'
 import { buildRotationForSave } from '@/lib/rotation'
+import { useSchoolYear } from '@/contexts/school-year-context'
 
 /**
  * Renders a centered loading spinner with a localized loading message.
@@ -50,7 +51,11 @@ export default function OverviewPage() {
   const { t } = useTranslation('schedule')
   const searchParams = useSearchParams()
   const classId = searchParams.get('class')
+  const weekdayParam = searchParams.get('weekday')
+  const urlWeekday = weekdayParam ? Number(weekdayParam) : undefined
   const { isLoading: isLoadingCachedData } = useCachedData()
+  const { selectedYear } = useSchoolYear()
+  const schoolYearId = selectedYear?.id
   const router = useRouter()
 
   const {
@@ -60,13 +65,15 @@ export default function OverviewPage() {
     scheduleTimes,
     breakTimes,
     turns,
+    amTurns,
+    pmTurns,
     classHead,
     classLead,
     additionalInfo,
     weekday,
     loading: overviewLoading,
     error: overviewError,
-  } = useScheduleOverview(classId)
+  } = useScheduleOverview(classId, schoolYearId, urlWeekday)
 
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -90,17 +97,19 @@ export default function OverviewPage() {
     setSaving(true)
     try {
       // Build round-robin teacher rotation for AM and PM using the shared helper,
-      // so the persisted rotation always matches the on-screen preview.
-      const turnKeys = Object.keys(turns)
+      // so the persisted rotation always matches the on-screen preview. AM and PM
+      // are independent lanes, so each rotates over its OWN Turnus count.
+      const amTurnKeys = Object.keys(amTurns)
+      const pmTurnKeys = Object.keys(pmTurns)
       const amRotation = buildRotationForSave(
         groups,
         uniqueAmTeachers.map(t => t.teacherId),
-        turnKeys.length,
+        amTurnKeys.length,
       )
       const pmRotation = buildRotationForSave(
         groups,
         uniquePmTeachers.map(t => t.teacherId),
-        turnKeys.length,
+        pmTurnKeys.length,
       )
 
       // Resolve className to classId if needed
@@ -116,13 +125,16 @@ export default function OverviewPage() {
         resolvedClassId = classId
       }
 
-      // Save to backend
+      // Save to backend — weekday- and year-scoped, with each lane's own Turnusse.
       const response = await fetch('/api/schedules/rotation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           classId: resolvedClassId,
-          turns: turnKeys,
+          selectedWeekday: urlWeekday ?? weekday,
+          ...(schoolYearId != null ? { schoolYearId } : {}),
+          amTurns: amTurnKeys,
+          pmTurns: pmTurnKeys,
           amRotation,
           pmRotation,
         }),
@@ -265,6 +277,8 @@ export default function OverviewPage() {
         scheduleTimes={scheduleTimes}
         breakTimes={breakTimes}
         turns={turns}
+        amTurns={amTurns}
+        pmTurns={pmTurns}
         classHead={classHead}
         classLead={classLead}
         additionalInfo={additionalInfo}

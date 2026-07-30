@@ -1,6 +1,7 @@
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
 import { colors, fonts, groupColor, page } from '@/lib/pdf/theme'
 import { GroupBadge, Meta, PageFooter, PageHeader, SectionLabel } from './primitives'
+import { rotatedGroupIndex } from '@/lib/rotation'
 import {
   formatDateGerman,
   getSchoolYear,
@@ -17,7 +18,12 @@ export interface WechselplanData {
   }>
   amAssignments: Assignment[]
   pmAssignments: Assignment[]
-  turns: Record<string, unknown>
+  // AM and PM are independent lanes with their own Turnusse (and cadence), so
+  // each carries its own turn record and biweekly flag.
+  amTurns: Record<string, unknown>
+  pmTurns: Record<string, unknown>
+  amBiweekly?: boolean
+  pmBiweekly?: boolean
   className: string
   classHead: string
   classLead: string
@@ -65,8 +71,8 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
 
-  band: { marginTop: 7 },
-  bandHeading: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 5 },
+  band: { marginTop: 5 },
+  bandHeading: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 3 },
   bandHint: { ...fonts.regular, fontSize: 6.5, color: colors.faint, marginLeft: 8 },
 
   /* --- Gruppeneinteilung --- */
@@ -99,7 +105,7 @@ const styles = StyleSheet.create({
     marginLeft: 'auto',
     opacity: 0.85,
   },
-  studentRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 1.9, paddingLeft: 6 },
+  studentRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 1.4, paddingLeft: 6 },
   studentIndex: {
     ...fonts.regular,
     fontSize: 6.4,
@@ -116,7 +122,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     backgroundColor: colors.surfaceSunken,
     paddingHorizontal: 6,
-    paddingVertical: 6,
+    paddingVertical: 4,
     borderRightWidth: 0.5,
     borderRightColor: colors.line,
   },
@@ -130,20 +136,20 @@ const styles = StyleSheet.create({
   headTurnusCell: {
     backgroundColor: colors.brandTint,
     alignItems: 'center',
-    paddingVertical: 3,
+    paddingVertical: 2,
     paddingHorizontal: 2,
     borderLeftWidth: 0.5,
     borderLeftColor: colors.line,
   },
   headTurnusTitle: { ...fonts.bold, fontSize: 8, color: colors.brandInk },
-  headTurnusDates: { ...fonts.regular, fontSize: 6.4, color: colors.inkSoft, marginTop: 2 },
-  headTurnusMeta: { ...fonts.regular, fontSize: 6, color: colors.muted, marginTop: 1.5 },
+  headTurnusDates: { ...fonts.regular, fontSize: 6.4, color: colors.inkSoft, marginTop: 1.5 },
+  headTurnusMeta: { ...fonts.regular, fontSize: 6, color: colors.muted, marginTop: 1 },
 
   periodBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.brand,
-    paddingVertical: 3.4,
+    paddingVertical: 2.8,
     paddingHorizontal: 6,
   },
   periodName: {
@@ -154,6 +160,18 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   periodTime: { ...fonts.regular, fontSize: 7.6, color: colors.surface, marginLeft: 9 },
+  periodBadge: {
+    ...fonts.bold,
+    fontSize: 6.4,
+    color: colors.brand,
+    backgroundColor: colors.surface,
+    borderRadius: 2,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    marginLeft: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   periodBreak: {
     ...fonts.regular,
     fontSize: 6.2,
@@ -171,7 +189,7 @@ const styles = StyleSheet.create({
   cell: {
     justifyContent: 'center',
     paddingHorizontal: 6,
-    paddingVertical: 3.9,
+    paddingVertical: 3.1,
     borderRightWidth: 0.5,
     borderRightColor: colors.line,
   },
@@ -192,7 +210,7 @@ const styles = StyleSheet.create({
   groupCellText: { ...fonts.bold, fontSize: 11 },
 
   /* --- footer strip --- */
-  footerStrip: { flexDirection: 'row', marginTop: 8, alignItems: 'stretch' },
+  footerStrip: { flexDirection: 'row', marginTop: 6, alignItems: 'stretch' },
   infoBox: {
     borderWidth: 0.75,
     borderColor: colors.line,
@@ -250,7 +268,8 @@ function getGroupForTeacherAndTurn(
   assignments: Assignment[],
 ): { id: number } | null {
   if (!groups.length || !assignments[teacherIdx]) return null
-  return groups[(teacherIdx + turnIdx) % groups.length] ?? null
+  // Single source of truth for the round-robin (shared with the save path).
+  return groups[rotatedGroupIndex(teacherIdx, turnIdx, groups.length)] ?? null
 }
 
 /** "07:50 – 12:30" across all lesson slots of a period. */
@@ -401,10 +420,6 @@ function PeriodRows({
 export default function WechselplanDocument({ data }: { data: WechselplanData }) {
   const weekdayName = getWeekdayName(data.selectedWeekday)
   const schoolYear = getSchoolYear(data.updatedAt)
-  const turnusColumns = buildTurnusColumns(data.turns)
-  const turnusWidth = turnusColumns.length
-    ? (CONTENT_WIDTH - LABEL_WIDTH) / turnusColumns.length
-    : 0
 
   const breaks = [
     { name: 'Vormittag', time: breakFor(data.breakTimes, 'AM') },
@@ -415,8 +430,20 @@ export default function WechselplanDocument({ data }: { data: WechselplanData })
   const hasNote = Boolean(data.additionalInfo && data.additionalInfo !== '—')
 
   const periods = [
-    { key: 'AM' as const, name: 'Vormittag', assignments: data.amAssignments },
-    { key: 'PM' as const, name: 'Nachmittag', assignments: data.pmAssignments },
+    {
+      key: 'AM' as const,
+      name: 'Vormittag',
+      assignments: data.amAssignments,
+      turns: data.amTurns,
+      biweekly: data.amBiweekly,
+    },
+    {
+      key: 'PM' as const,
+      name: 'Nachmittag',
+      assignments: data.pmAssignments,
+      turns: data.pmTurns,
+      biweekly: data.pmBiweekly,
+    },
   ].filter(p => p.assignments.length > 0)
 
   return (
@@ -461,52 +488,71 @@ export default function WechselplanDocument({ data }: { data: WechselplanData })
             </Text>
           </View>
 
-          {periods.length > 0 && turnusColumns.length > 0 ? (
-            <View style={styles.grid}>
-              <View style={styles.headRow}>
-                <View style={[styles.headLabelCell, { width: COL_TEACHER }]}>
-                  <Text style={styles.headLabelText}>Lehrer/in</Text>
-                </View>
-                <View style={[styles.headLabelCell, { width: COL_SUBJECT }]}>
-                  <Text style={styles.headLabelText}>Werkstätte</Text>
-                </View>
-                <View style={[styles.headLabelCell, { width: COL_CONTENT }]}>
-                  <Text style={styles.headLabelText}>Lehrinhalt</Text>
-                </View>
-                <View style={[styles.headLabelCell, { width: COL_ROOM }]}>
-                  <Text style={styles.headLabelText}>Raum</Text>
-                </View>
-                {turnusColumns.map((col, idx) => (
-                  <View key={idx} style={[styles.headTurnusCell, { width: turnusWidth }]}>
-                    <Text style={styles.headTurnusTitle}>{col.label}</Text>
-                    {col.range ? <Text style={styles.headTurnusDates}>{col.range}</Text> : null}
-                    {col.meta ? <Text style={styles.headTurnusMeta}>{col.meta}</Text> : null}
-                  </View>
-                ))}
-              </View>
-
-              {periods.map(period => (
-                <View key={period.key}>
+          {periods.length > 0 ? (
+            periods.map((period, periodIdx) => {
+              // Each lane owns its Turnus columns — AM and PM can differ in count.
+              const turnusColumns = buildTurnusColumns(period.turns)
+              const turnusWidth = turnusColumns.length
+                ? (CONTENT_WIDTH - LABEL_WIDTH) / turnusColumns.length
+                : 0
+              return (
+                <View
+                  key={period.key}
+                  style={[styles.grid, ...(periodIdx > 0 ? [{ marginTop: 6 }] : [])]}
+                  wrap={false}
+                >
                   <View style={styles.periodBar}>
                     <Text style={styles.periodName}>{period.name}</Text>
                     <Text style={styles.periodTime}>
                       {periodTimeRange(data.scheduleTimes, period.key)}
                     </Text>
+                    {period.biweekly ? <Text style={styles.periodBadge}>14-tägig</Text> : null}
                     {breakFor(data.breakTimes, period.key) ? (
                       <Text style={styles.periodBreak}>
                         Pause {breakFor(data.breakTimes, period.key)}
                       </Text>
                     ) : null}
                   </View>
-                  <PeriodRows
-                    assignments={period.assignments}
-                    groups={data.groups}
-                    turnusColumns={turnusColumns}
-                    turnusWidth={turnusWidth}
-                  />
+                  {turnusColumns.length > 0 ? (
+                    <>
+                      <View style={styles.headRow}>
+                        <View style={[styles.headLabelCell, { width: COL_TEACHER }]}>
+                          <Text style={styles.headLabelText}>Lehrer/in</Text>
+                        </View>
+                        <View style={[styles.headLabelCell, { width: COL_SUBJECT }]}>
+                          <Text style={styles.headLabelText}>Werkstätte</Text>
+                        </View>
+                        <View style={[styles.headLabelCell, { width: COL_CONTENT }]}>
+                          <Text style={styles.headLabelText}>Lehrinhalt</Text>
+                        </View>
+                        <View style={[styles.headLabelCell, { width: COL_ROOM }]}>
+                          <Text style={styles.headLabelText}>Raum</Text>
+                        </View>
+                        {turnusColumns.map((col, idx) => (
+                          <View key={idx} style={[styles.headTurnusCell, { width: turnusWidth }]}>
+                            <Text style={styles.headTurnusTitle}>{col.label}</Text>
+                            {col.range ? (
+                              <Text style={styles.headTurnusDates}>{col.range}</Text>
+                            ) : null}
+                            {col.meta ? (
+                              <Text style={styles.headTurnusMeta}>{col.meta}</Text>
+                            ) : null}
+                          </View>
+                        ))}
+                      </View>
+                      <PeriodRows
+                        assignments={period.assignments}
+                        groups={data.groups}
+                        turnusColumns={turnusColumns}
+                        turnusWidth={turnusWidth}
+                      />
+                    </>
+                  ) : (
+                    <Text style={styles.empty}>Keine Turnusse für {period.name} hinterlegt.</Text>
+                  )}
                 </View>
-              ))}
-            </View>
+              )
+            })
           ) : (
             <Text style={styles.empty}>Keine Turnus- oder Lehrerzuteilung vorhanden.</Text>
           )}

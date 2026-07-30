@@ -156,6 +156,7 @@ export async function POST(request: Request) {
       where: {
         classId: class_response.id,
         schoolYearId,
+        selectedWeekday: weekday,
         ...(period && { period: period as 'AM' | 'PM' }),
       },
       include: {

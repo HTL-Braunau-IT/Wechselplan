@@ -8,35 +8,35 @@ datasource db {
 }
 
 model Student {
-  id              Int               @id @default(autoincrement())
-  firstName       String
-  lastName        String
-  classId         Int?
-  groupId         Int?
-  sitzplatz       String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  username        String            @unique
-  email           String?
-  externalId      String?           @unique
-  externalSource  String?
+  id               Int               @id @default(autoincrement())
+  firstName        String
+  lastName         String
+  classId          Int?
+  groupId          Int?
+  sitzplatz        String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  username         String            @unique
+  email            String?
+  externalId       String?           @unique
+  externalSource   String?
   // Sokrates person id. In Entra this is the Graph `employeeId`; in
   // Notenmanagement it is the `Student_ID`. Same value in both systems, so it is
   // the deterministic key that links a student to their NM Matrikelnummer
   // without any name/class matching. Captured by the directory sync.
-  sokratesId      String?           @unique
+  sokratesId       String?           @unique
   // Notenmanagement identity, resolved by the NM link sync (matching sokratesId
   // against NM `Student_ID`). Cached so grade transfer never re-matches by name.
-  matrikelnummer  String?
-  nmKlasse        String?           // real NM class name for this student (LF Klasse)
-  nmLinkedAt      DateTime?         // when matrikelnummer was last confirmed against NM
-  isActive        Boolean           @default(true)
-  deactivatedAt   DateTime?
-  lastSyncedAt    DateTime?
-  syncStatus      String?           // "active" | "unassigned" (ambiguous membership)
-  class           Class?            @relation(fields: [classId], references: [id])
-  grades          Grade[]
-  finalGrades     FinalGrade[]
+  matrikelnummer   String?
+  nmKlasse         String? // real NM class name for this student (LF Klasse)
+  nmLinkedAt       DateTime? // when matrikelnummer was last confirmed against NM
+  isActive         Boolean           @default(true)
+  deactivatedAt    DateTime?
+  lastSyncedAt     DateTime?
+  syncStatus       String? // "active" | "unassigned" (ambiguous membership)
+  class            Class?            @relation(fields: [classId], references: [id])
+  grades           Grade[]
+  finalGrades      FinalGrade[]
   classMemberships ClassMembership[]
 
   @@index([firstName, lastName])
@@ -47,40 +47,40 @@ model Student {
 }
 
 model Teacher {
-  id             Int                 @id @default(autoincrement())
-  firstName      String
-  lastName       String
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-  username       String              @unique
-  email          String?             @unique
-  externalId     String?             @unique
-  externalSource String?
-  isActive       Boolean             @default(true)
-  deactivatedAt  DateTime?
-  lastSyncedAt   DateTime?
-  assignments    TeacherAssignment[]
-  headClasses    Class[]             @relation("ClassHead")
-  leadClasses    Class[]             @relation("ClassLead")
-  grades         Grade[]
-  notifications  Notification[]      @relation("NotificationRecipient")
-  createdSchedules Schedule[]        @relation("ScheduleCreator")
+  id               Int                 @id @default(autoincrement())
+  firstName        String
+  lastName         String
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  username         String              @unique
+  email            String?             @unique
+  externalId       String?             @unique
+  externalSource   String?
+  isActive         Boolean             @default(true)
+  deactivatedAt    DateTime?
+  lastSyncedAt     DateTime?
+  assignments      TeacherAssignment[]
+  headClasses      Class[]             @relation("ClassHead")
+  leadClasses      Class[]             @relation("ClassLead")
+  grades           Grade[]
+  notifications    Notification[]      @relation("NotificationRecipient")
+  createdSchedules Schedule[]          @relation("ScheduleCreator")
 
   @@index([firstName, lastName])
   @@index([isActive])
 }
 
 model Class {
-  id               Int                     @id @default(autoincrement())
-  name             String                  @unique
+  id               Int                       @id @default(autoincrement())
+  name             String                    @unique
   description      String?
-  createdAt        DateTime                @default(now())
-  updatedAt        DateTime                @updatedAt
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
   classHeadId      Int?
   classLeadId      Int?
-  externalId       String?                 @unique
+  externalId       String?                   @unique
   externalSource   String?
-  isActive         Boolean                 @default(true)
+  isActive         Boolean                   @default(true)
   deactivatedAt    DateTime?
   lastSyncedAt     DateTime?
   schedules        Schedule[]
@@ -90,28 +90,28 @@ model Class {
   finalGrades      FinalGrade[]
   transfers        NotenmanagementTransfer[]
   classMemberships ClassMembership[]
-  classHead        Teacher?                @relation("ClassHead", fields: [classHeadId], references: [id])
-  classLead        Teacher?                @relation("ClassLead", fields: [classLeadId], references: [id])
+  classHead        Teacher?                  @relation("ClassHead", fields: [classHeadId], references: [id])
+  classLead        Teacher?                  @relation("ClassLead", fields: [classLeadId], references: [id])
 
   @@index([name])
   @@index([isActive])
 }
 
 model SchoolYear {
-  id                 Int       @id @default(autoincrement())
-  label              String    @unique // e.g. "2025/2026"
-  startDate          DateTime
-  endDate            DateTime
-  semesterChangeDate DateTime  // day when first semester ends / second semester starts
-  isCurrent          Boolean?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  schedules              Schedule[]
-  teacherAssignments    TeacherAssignment[]
-  grades                Grade[]
-  finalGrades           FinalGrade[]
+  id                       Int                       @id @default(autoincrement())
+  label                    String                    @unique // e.g. "2025/2026"
+  startDate                DateTime
+  endDate                  DateTime
+  semesterChangeDate       DateTime // day when first semester ends / second semester starts
+  isCurrent                Boolean?
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  schedules                Schedule[]
+  teacherAssignments       TeacherAssignment[]
+  grades                   Grade[]
+  finalGrades              FinalGrade[]
   notenmanagementTransfers NotenmanagementTransfer[]
-  classMemberships      ClassMembership[]
+  classMemberships         ClassMembership[]
 
   @@index([label])
 }
@@ -134,28 +134,38 @@ model ClassMembership {
 }
 
 model Schedule {
-  id                Int            @id @default(autoincrement())
-  name              String
-  description       String?
-  startDate         DateTime
-  endDate           DateTime
-  selectedWeekday   Int
-  scheduleData      Json?          // Deprecated: will be removed after migration
-  additionalInfo    String?
-  semesterPlanning  String?        // "first", "second", or null for full year
-  classId           Int?
-  schoolYearId      Int
+  id               Int            @id @default(autoincrement())
+  name             String
+  description      String?
+  startDate        DateTime
+  endDate          DateTime
+  selectedWeekday  Int
+  // Per-period lane config. AM and PM are independent: each may be enabled on
+  // its own and carries its own cadence. weekInterval 1 = every week, 2 = every
+  // 2nd week; weekOffset 0 = starts on the A-week, 1 = starts on the B-week.
+  // Turnus structure lives on ScheduleTurn.period, so counts can differ per lane.
+  amEnabled        Boolean        @default(true)
+  pmEnabled        Boolean        @default(true)
+  amWeekInterval   Int            @default(1)
+  amWeekOffset     Int            @default(0)
+  pmWeekInterval   Int            @default(1)
+  pmWeekOffset     Int            @default(0)
+  scheduleData     Json? // Deprecated: null on all rows, kept for legacy read paths
+  additionalInfo   String?
+  semesterPlanning String? // "first", "second", or null for full year
+  classId          Int?
+  schoolYearId     Int
   // Teacher who first created this plan. Kept across later edits so the author
   // is notified about changes someone else makes (see src/lib/notifications.ts).
-  createdById       Int?
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  class             Class?         @relation(fields: [classId], references: [id])
-  schoolYear        SchoolYear     @relation(fields: [schoolYearId], references: [id])
-  createdBy         Teacher?       @relation("ScheduleCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  breakTimes        BreakTime[]    @relation("BreakTimeToSchedule")
-  scheduleTimes     ScheduleTime[] @relation("ScheduleToScheduleTime")
-  turns             ScheduleTurn[]
+  createdById      Int?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  class            Class?         @relation(fields: [classId], references: [id])
+  schoolYear       SchoolYear     @relation(fields: [schoolYearId], references: [id])
+  createdBy        Teacher?       @relation("ScheduleCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  breakTimes       BreakTime[]    @relation("BreakTimeToSchedule")
+  scheduleTimes    ScheduleTime[] @relation("ScheduleToScheduleTime")
+  turns            ScheduleTurn[]
 
   @@index([classId])
   @@index([schoolYearId])
@@ -163,43 +173,44 @@ model Schedule {
 }
 
 model ScheduleTurn {
-  id                Int            @id @default(autoincrement())
-  scheduleId        Int
-  name              String         // e.g., "TURNUS 1"
-  customLength      Int?           // Optional custom length for this turn
-  order             Int             // Order of the turn within the schedule
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  schedule          Schedule       @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
-  weeks             ScheduleWeek[]
-  holidays          ScheduleTurnHoliday[]
+  id           Int                   @id @default(autoincrement())
+  scheduleId   Int
+  period       String                @default("AM") // "AM" | "PM" — which lane this Turnus belongs to
+  name         String // e.g., "TURNUS 1"
+  customLength Int? // Optional custom length for this turn
+  order        Int // Order of the turn within its period lane
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  schedule     Schedule              @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  weeks        ScheduleWeek[]
+  holidays     ScheduleTurnHoliday[]
 
-  @@unique([scheduleId, order])
+  @@unique([scheduleId, period, order])
   @@index([scheduleId])
 }
 
 model ScheduleWeek {
-  id                Int            @id @default(autoincrement())
-  turnId            Int
-  date              String         // Date in format "dd.MM.yy"
-  week              String         // Week number in format "KW##"
-  isHoliday         Boolean        @default(false)
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  turn              ScheduleTurn   @relation(fields: [turnId], references: [id], onDelete: Cascade)
+  id        Int          @id @default(autoincrement())
+  turnId    Int
+  date      String // Date in format "dd.MM.yy"
+  week      String // Week number in format "KW##"
+  isHoliday Boolean      @default(false)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  turn      ScheduleTurn @relation(fields: [turnId], references: [id], onDelete: Cascade)
 
   @@index([turnId])
   @@index([date])
 }
 
 model ScheduleTurnHoliday {
-  id                Int            @id @default(autoincrement())
-  turnId            Int
-  holidayId         Int
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  turn              ScheduleTurn   @relation(fields: [turnId], references: [id], onDelete: Cascade)
-  holiday           SchoolHoliday  @relation(fields: [holidayId], references: [id], onDelete: Cascade)
+  id        Int           @id @default(autoincrement())
+  turnId    Int
+  holidayId Int
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  turn      ScheduleTurn  @relation(fields: [turnId], references: [id], onDelete: Cascade)
+  holiday   SchoolHoliday @relation(fields: [holidayId], references: [id], onDelete: Cascade)
 
   @@unique([turnId, holidayId])
   @@index([turnId])
@@ -237,7 +248,7 @@ model TeacherAssignment {
   teacher           Teacher         @relation(fields: [teacherId], references: [id])
   schoolYear        SchoolYear      @relation(fields: [schoolYearId], references: [id])
 
-  @@unique([classId, period, groupId, schoolYearId])
+  @@unique([classId, period, groupId, schoolYearId, selectedWeekday])
   @@index([classId])
   @@index([teacherId])
   @@index([subjectId])
@@ -284,12 +295,12 @@ model LearningContent {
 }
 
 model SchoolHoliday {
-  id        Int                   @id @default(autoincrement())
-  name      String                @unique
-  startDate DateTime
-  endDate   DateTime
-  createdAt DateTime              @default(now())
-  updatedAt DateTime              @updatedAt
+  id            Int                   @id @default(autoincrement())
+  name          String                @unique
+  startDate     DateTime
+  endDate       DateTime
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
   scheduleTurns ScheduleTurnHoliday[]
 }
 
@@ -328,16 +339,20 @@ model SchedulePDF {
 }
 
 model TeacherRotation {
-  id        Int      @id @default(autoincrement())
-  classId   Int
-  groupId   Int
-  teacherId Int
-  turnId    String
-  period    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              Int      @id @default(autoincrement())
+  classId         Int
+  groupId         Int
+  teacherId       Int
+  turnId          String
+  period          String
+  selectedWeekday Int      @default(1)
+  schoolYearId    Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  @@unique([classId, groupId, turnId, period])
+  @@unique([classId, groupId, turnId, period, selectedWeekday, schoolYearId])
+  @@index([classId])
+  @@index([schoolYearId])
 }
 
 model Role {
@@ -378,16 +393,16 @@ model SupportMessage {
 // Admin-editable runtime settings for the Entra directory sync.
 // Treated as a singleton: only the row with id = 1 is used.
 model DirectorySyncSettings {
-  id                  Int       @id @default(1)
-  syncedClassGroupIds String[]  @default([])
-  syncEnabled         Boolean   @default(false)
-  studentPhotoSourcePriority String @default("manual_first")
-  teacherPhotoSourcePriority String @default("manual_first")
-  lastSyncAt          DateTime?
-  lastSyncStatus      String?
-  lastSyncSummary     Json?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                         Int       @id @default(1)
+  syncedClassGroupIds        String[]  @default([])
+  syncEnabled                Boolean   @default(false)
+  studentPhotoSourcePriority String    @default("manual_first")
+  teacherPhotoSourcePriority String    @default("manual_first")
+  lastSyncAt                 DateTime?
+  lastSyncStatus             String?
+  lastSyncSummary            Json?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
 }
 
 // Admin-editable Notenmanagement integration settings. Singleton (id = 1).
@@ -396,30 +411,30 @@ model DirectorySyncSettings {
 // (see src/lib/crypto.ts) — never in plaintext. The actual grade transfer still
 // authenticates as the individual teacher, so their credentials are never stored.
 model NotenmanagementSettings {
-  id                   Int       @id @default(1)
-  serviceUsername      String?
-  servicePasswordEnc   String?   // AES-256-GCM ciphertext (base64: iv|tag|data)
-  lastLinkSyncAt       DateTime?
-  lastLinkSyncStatus   String?
-  lastLinkSyncSummary  Json?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  id                  Int       @id @default(1)
+  serviceUsername     String?
+  servicePasswordEnc  String? // AES-256-GCM ciphertext (base64: iv|tag|data)
+  lastLinkSyncAt      DateTime?
+  lastLinkSyncStatus  String?
+  lastLinkSyncSummary Json?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 }
 
 model Grade {
-  id           Int         @id @default(autoincrement())
-  studentId   Int
-  teacherId   Int
-  classId     Int
-  semester    String       // 'first' or 'second'
-  grade       Float?
+  id           Int        @id @default(autoincrement())
+  studentId    Int
+  teacherId    Int
+  classId      Int
+  semester     String // 'first' or 'second'
+  grade        Float?
   schoolYearId Int
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  student     Student      @relation(fields: [studentId], references: [id])
-  teacher     Teacher      @relation(fields: [teacherId], references: [id])
-  class       Class        @relation(fields: [classId], references: [id])
-  schoolYear  SchoolYear   @relation(fields: [schoolYearId], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  student      Student    @relation(fields: [studentId], references: [id])
+  teacher      Teacher    @relation(fields: [teacherId], references: [id])
+  class        Class      @relation(fields: [classId], references: [id])
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id])
 
   @@unique([studentId, teacherId, classId, semester, schoolYearId])
   @@index([studentId])
@@ -430,18 +445,18 @@ model Grade {
 }
 
 model FinalGrade {
-  id               Int         @id @default(autoincrement())
-  studentId        Int
-  classId          Int
-  semester         String      // 'first' or 'second'
-  grade            Float?
-  conductNoteWish  String?     // Betragensnote (Wunsch): Sehr zufriedenstellend, etc.
-  schoolYearId     Int
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
-  student      Student     @relation(fields: [studentId], references: [id])
-  class        Class       @relation(fields: [classId], references: [id])
-  schoolYear   SchoolYear  @relation(fields: [schoolYearId], references: [id])
+  id              Int        @id @default(autoincrement())
+  studentId       Int
+  classId         Int
+  semester        String // 'first' or 'second'
+  grade           Float?
+  conductNoteWish String? // Betragensnote (Wunsch): Sehr zufriedenstellend, etc.
+  schoolYearId    Int
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  student         Student    @relation(fields: [studentId], references: [id])
+  class           Class      @relation(fields: [classId], references: [id])
+  schoolYear      SchoolYear @relation(fields: [schoolYearId], references: [id])
 
   @@unique([studentId, classId, semester, schoolYearId])
   @@index([studentId])
@@ -451,17 +466,17 @@ model FinalGrade {
 }
 
 model NotenmanagementTransfer {
-  id            Int         @id @default(autoincrement())
-  classId       Int
-  groupId       Int?        // null = class-level transfer, set = group-level (Notenstand)
-  semester      String      // 'first' or 'second'
-  lfId          String
-  nmKlasse      String?     // real Notenmanagement class this LF was filed under; combined Wechselplan classes split into one LF (and record) per real class
-  schoolYearId  Int
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  class         Class       @relation(fields: [classId], references: [id])
-  schoolYear    SchoolYear  @relation(fields: [schoolYearId], references: [id])
+  id           Int        @id @default(autoincrement())
+  classId      Int
+  groupId      Int? // null = class-level transfer, set = group-level (Notenstand)
+  semester     String // 'first' or 'second'
+  lfId         String
+  nmKlasse     String? // real Notenmanagement class this LF was filed under; combined Wechselplan classes split into one LF (and record) per real class
+  schoolYearId Int
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  class        Class      @relation(fields: [classId], references: [id])
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id])
 
   @@unique([classId, groupId, semester, schoolYearId, nmKlasse], map: "NotenmanagementTransfer_split_key")
   @@index([classId])
@@ -471,17 +486,17 @@ model NotenmanagementTransfer {
 
 // Noten (daily grades) feature: weights, Lehrstoff per day, and per-student-per-day entries
 model NotenWeightConfig {
-  id                    Int   @id @default(autoincrement())
-  teacherId             Int
-  classId               Int
-  groupId              Int
-  schoolYearId          Int
-  weightWiederholung    Int   @default(25) // percentage, sum with others = 100
-  weightBericht         Int   @default(25)
-  weightMitarbeit       Int   @default(25)
-  weightPraktischeArbeit Int  @default(25)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                     Int      @id @default(autoincrement())
+  teacherId              Int
+  classId                Int
+  groupId                Int
+  schoolYearId           Int
+  weightWiederholung     Int      @default(25) // percentage, sum with others = 100
+  weightBericht          Int      @default(25)
+  weightMitarbeit        Int      @default(25)
+  weightPraktischeArbeit Int      @default(25)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   @@unique([teacherId, classId, groupId, schoolYearId])
   @@index([teacherId])
@@ -496,7 +511,7 @@ model LehrstoffPerDay {
   groupId      Int
   schoolYearId Int
   date         DateTime @db.Date
-  period       String   // 'AM' | 'PM'
+  period       String // 'AM' | 'PM'
   lehrstoff    String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -508,26 +523,26 @@ model LehrstoffPerDay {
 }
 
 model NotenEntry {
-  id                 Int      @id @default(autoincrement())
-  studentId          Int
-  teacherId          Int
-  classId            Int
-  groupId            Int
-  schoolYearId       Int
-  date               DateTime @db.Date
-  period             String   // 'AM' | 'PM'
-  attendance         String?  // Anwesend | Krank | Entschuldigt | Unentschuldigt
-  wiederholung1      Float?
-  wiederholung2      Float?
-  bericht1           Float?
-  bericht2           Float?
-  mitarbeit1         Float?
-  mitarbeit2         Float?
-  praktischeArbeit1  Float?
-  praktischeArbeit2  Float?
-  notizen            String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                Int      @id @default(autoincrement())
+  studentId         Int
+  teacherId         Int
+  classId           Int
+  groupId           Int
+  schoolYearId      Int
+  date              DateTime @db.Date
+  period            String // 'AM' | 'PM'
+  attendance        String? // Anwesend | Krank | Entschuldigt | Unentschuldigt
+  wiederholung1     Float?
+  wiederholung2     Float?
+  bericht1          Float?
+  bericht2          Float?
+  mitarbeit1        Float?
+  mitarbeit2        Float?
+  praktischeArbeit1 Float?
+  praktischeArbeit2 Float?
+  notizen           String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@unique([studentId, teacherId, classId, groupId, schoolYearId, date, period])
   @@index([studentId])
@@ -547,9 +562,9 @@ model NotenEntry {
 model SokratesTransfer {
   id           Int      @id @default(autoincrement())
   classId      Int
-  semester     String   // 'first' | 'second'
+  semester     String // 'first' | 'second'
   schoolYearId Int
-  markedById   Int      // Teacher (class lead or admin) who marked it entered
+  markedById   Int // Teacher (class lead or admin) who marked it entered
   markedByName String
   markedAt     DateTime @default(now())
   lockedAll    Boolean  @default(false) // hard-lock the whole class (hybrid escalation)
@@ -589,13 +604,13 @@ model SokratesChangeNotice {
   schoolYearId       Int
   studentId          Int
   studentName        String
-  teacherId          Int      // subject/teacher column that changed
+  teacherId          Int // subject/teacher column that changed
   subjectTeacherName String
   oldGrade           Float?
   newGrade           Float?
-  changedById        Int?     // teacher who made the change (null: admin without a Teacher row)
+  changedById        Int? // teacher who made the change (null: admin without a Teacher row)
   changedByName      String
-  recipientId        Int?     // class lead notified (null if the class has no lead)
+  recipientId        Int? // class lead notified (null if the class has no lead)
   changedAt          DateTime  @default(now())
   acknowledgedAt     DateTime?
 
