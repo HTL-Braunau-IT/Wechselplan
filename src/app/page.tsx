@@ -33,7 +33,11 @@ export default function Home() {
           </span>
           <h1 className="text-2xl font-bold tracking-tight">{t('common.welcome')}</h1>
           <p className="text-muted-foreground mt-2 text-sm">{t('auth.pleaseLogin')}</p>
-          <Button onClick={() => signIn()} size="lg" className="mt-6 w-full">
+          <Button
+            onClick={() => signIn('azure-ad', { callbackUrl: '/' })}
+            size="lg"
+            className="mt-6 w-full"
+          >
             <LogIn className="mr-2 h-5 w-5" />
             {t('auth.login')}
           </Button>
