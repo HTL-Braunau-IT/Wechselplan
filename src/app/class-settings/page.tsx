@@ -1,230 +1,189 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useMemo, useState } from 'react'
+import type { LucideIcon } from 'lucide-react'
+import { AlertCircle, School, Search, UserCheck, Users } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PageContainer } from '@/components/ui/page-container'
 import { PageHeader } from '@/components/ui/page-header'
-import { EmptyState } from '@/components/ui/empty-state'
-import { toast } from 'sonner'
-import type { Teacher, Class } from '@/types/types.ts'
-import { Loader2, School } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
-import { Spinner } from '@/components/ui/spinner'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
 import { useSchoolYear } from '@/contexts/school-year-context'
+import { ClassAssignmentRow } from './_components/class-assignment-row'
+import { useClasses, useTeachers, useUpdateAssignment } from './_hooks/use-class-settings'
 
-const NONE_VALUE = 'none'
-
-interface ErrorResponse {
-  error: string
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: LucideIcon
+  label: string
+  value: string
+}) {
+  return (
+    <div className="border-border/60 bg-card flex items-center gap-3 rounded-xl border p-4">
+      <span className="bg-muted text-muted-foreground flex h-10 w-10 shrink-0 items-center justify-center rounded-lg">
+        <Icon className="h-5 w-5" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-2xl leading-none font-semibold">{value}</p>
+        <p className="text-muted-foreground mt-1 truncate text-xs">{label}</p>
+      </div>
+    </div>
+  )
 }
 
-/**
- * Renders a centered loading spinner with a localized loading message.
- */
-function LoadingScreen() {
-  const { t } = useTranslation()
+function RowSkeleton() {
   return (
-    <div className="flex min-h-[400px] flex-col items-center justify-center gap-4">
-      <Spinner size="lg" />
-      <p className="text-muted-foreground text-lg">{t('classSettings.loading')}</p>
+    <div className="border-border/60 bg-card flex flex-col gap-4 rounded-xl border p-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex items-center gap-3">
+        <Skeleton className="h-9 w-9 rounded-lg" />
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-4 w-20" />
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:w-[32rem]">
+        <Skeleton className="h-9 w-full" />
+        <Skeleton className="h-9 w-full" />
+      </div>
     </div>
   )
 }
 
 /**
- * Displays and manages class settings, allowing assignment of teachers as class heads or leads.
- *
- * Fetches class and teacher data, displays a list of classes with dropdowns to select or remove class heads and leads, and updates assignments via API requests. Provides loading and updating indicators, and shows notifications for success or error states.
+ * Assigns a Klassenvorstand (class head) and Klassenleiter (class lead) to each
+ * class. Admin-only (see nav-items / the admin-gated PATCH): the assignment
+ * decides who may lock a class's grades after the Sokrates transfer.
  */
 export default function ClassSettingsPage() {
   const { t } = useTranslation()
   const { selectedYear } = useSchoolYear()
   const schoolYearId = selectedYear?.id
-  const [classes, setClasses] = useState<Class[]>([])
-  const [teachers, setTeachers] = useState<Teacher[]>([])
-  const [loading, setLoading] = useState(true)
-  const [updatingClassId, setUpdatingClassId] = useState<number | null>(null)
-  const [updatingField, setUpdatingField] = useState<'head' | 'lead' | null>(null)
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Start both requests simultaneously
-        const classesUrl =
-          schoolYearId != null ? `/api/classes?schoolYearId=${schoolYearId}` : '/api/classes'
-        const [classesPromise, teachersPromise] = [fetch(classesUrl), fetch('/api/teachers')]
+  const classesQuery = useClasses(schoolYearId)
+  const teachersQuery = useTeachers()
+  const { update, pendingKeys } = useUpdateAssignment(schoolYearId)
 
-        // Wait for both requests to complete, regardless of success/failure
-        const [classesResult, teachersResult] = await Promise.allSettled([
-          classesPromise,
-          teachersPromise,
-        ])
+  const [search, setSearch] = useState('')
+  const [onlyIncomplete, setOnlyIncomplete] = useState(false)
 
-        // Handle classes result
-        if (classesResult.status === 'fulfilled' && classesResult.value.ok) {
-          const classesData = await classesResult.value.json()
-          setClasses(classesData as Class[])
-        } else {
-          throw new Error('Failed to fetch classes')
-        }
+  const classes = useMemo(() => classesQuery.data ?? [], [classesQuery.data])
+  const teachers = teachersQuery.data ?? []
 
-        // Handle teachers result
-        if (teachersResult.status === 'fulfilled' && teachersResult.value.ok) {
-          const teachersData = await teachersResult.value.json()
-          setTeachers(teachersData as Teacher[])
-        } else {
-          throw new Error('Failed to fetch teachers')
-        }
-      } catch (error) {
-        toast.error(t('classSettings.error.load'))
-        console.error(error)
-      } finally {
-        setLoading(false)
-      }
-    }
+  const stats = useMemo(() => {
+    const headCount = classes.filter(c => c.classHeadId != null).length
+    const leadCount = classes.filter(c => c.classLeadId != null).length
+    return { total: classes.length, headCount, leadCount }
+  }, [classes])
 
-    void fetchData()
-  }, [t, schoolYearId])
+  const filteredClasses = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return classes.filter(c => {
+      if (q && !c.name.toLowerCase().includes(q)) return false
+      if (onlyIncomplete && c.classHeadId != null && c.classLeadId != null) return false
+      return true
+    })
+  }, [classes, search, onlyIncomplete])
 
-  const handleTeacherChange = async (
-    classId: number,
-    teacherId: number | null,
-    type: 'head' | 'lead',
-  ) => {
-    if (updatingClassId !== null) {
-      return // Prevent multiple simultaneous updates
-    }
-
-    setUpdatingClassId(classId)
-    setUpdatingField(type)
-
-    try {
-      const response = await fetch(`/api/classes/${classId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          [type === 'head' ? 'classHeadId' : 'classLeadId']: teacherId,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = (await response.json()) as ErrorResponse
-        throw new Error(errorData.error ?? t('classSettings.error.update'))
-      }
-
-      const updatedClass = (await response.json()) as Class
-      setClasses(prevClasses => prevClasses.map(c => (c.id === classId ? updatedClass : c)))
-
-      toast.success(t('classSettings.success'))
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('classSettings.error.update'))
-      console.error(error)
-    } finally {
-      setUpdatingClassId(null)
-      setUpdatingField(null)
-    }
-  }
-
-  if (loading) {
-    return <LoadingScreen />
-  }
+  const isLoading = classesQuery.isLoading || teachersQuery.isLoading
+  const isError = classesQuery.isError || teachersQuery.isError
 
   return (
     <PageContainer>
       <div className="space-y-6">
-        <PageHeader icon={School} title={t('classSettings.title')} />
-        {classes.length === 0 ? (
-          <EmptyState icon={School} title={t('classSettings.title')} />
-        ) : (
-          <div className="grid gap-6 xl:grid-cols-2">
-            {classes.map(cls => (
-              <Card key={cls.id}>
-                <CardHeader>
-                  <CardTitle>{cls.name}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor={`class-head-${cls.id}`}>{t('classSettings.classHead')}</Label>
-                      <div className="relative">
-                        <Select
-                          value={cls.classHeadId ? cls.classHeadId.toString() : NONE_VALUE}
-                          onValueChange={value =>
-                            handleTeacherChange(
-                              cls.id,
-                              value === NONE_VALUE ? null : parseInt(value),
-                              'head',
-                            )
-                          }
-                        >
-                          <SelectTrigger id={`class-head-${cls.id}`}>
-                            <SelectValue placeholder={t('classSettings.selectClassHead')} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={NONE_VALUE}>{t('classSettings.none')}</SelectItem>
-                            {teachers.map(teacher => (
-                              <SelectItem key={teacher.id} value={teacher.id.toString()}>
-                                {teacher.firstName} {teacher.lastName}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {updatingClassId === cls.id && updatingField === 'head' && (
-                          <div className="text-muted-foreground absolute top-1/2 right-8 flex -translate-y-1/2 items-center gap-2 text-sm">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            <span>{t('classSettings.updating')}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor={`class-lead-${cls.id}`}>{t('classSettings.classLead')}</Label>
-                      <div className="relative">
-                        <Select
-                          value={cls.classLeadId ? cls.classLeadId.toString() : NONE_VALUE}
-                          onValueChange={value =>
-                            handleTeacherChange(
-                              cls.id,
-                              value === NONE_VALUE ? null : parseInt(value),
-                              'lead',
-                            )
-                          }
-                        >
-                          <SelectTrigger id={`class-lead-${cls.id}`}>
-                            <SelectValue placeholder={t('classSettings.selectClassLead')} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={NONE_VALUE}>{t('classSettings.none')}</SelectItem>
-                            {teachers.map(teacher => (
-                              <SelectItem key={teacher.id} value={teacher.id.toString()}>
-                                {teacher.firstName} {teacher.lastName}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {updatingClassId === cls.id && updatingField === 'lead' && (
-                          <div className="text-muted-foreground absolute top-1/2 right-8 flex -translate-y-1/2 items-center gap-2 text-sm">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            <span>{t('classSettings.updating')}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+        <PageHeader
+          icon={School}
+          title={t('classSettings.title')}
+          description={t('classSettings.description')}
+        />
+
+        {isError ? (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>{t('classSettings.error.load')}</AlertTitle>
+            <AlertDescription>{t('classSettings.error.loadHint')}</AlertDescription>
+          </Alert>
+        ) : isLoading ? (
+          <div className="space-y-3">
+            <RowSkeleton />
+            <RowSkeleton />
+            <RowSkeleton />
           </div>
+        ) : classes.length === 0 ? (
+          <EmptyState
+            icon={School}
+            title={t('classSettings.empty.title')}
+            description={t('classSettings.empty.description')}
+          />
+        ) : (
+          <>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <StatCard
+                icon={Users}
+                label={t('classSettings.stats.total')}
+                value={String(stats.total)}
+              />
+              <StatCard
+                icon={UserCheck}
+                label={t('classSettings.classHead')}
+                value={`${stats.headCount}/${stats.total}`}
+              />
+              <StatCard
+                icon={UserCheck}
+                label={t('classSettings.classLead')}
+                value={`${stats.leadCount}/${stats.total}`}
+              />
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="relative sm:w-72">
+                <Search className="text-muted-foreground pointer-events-none absolute top-2.5 left-2.5 h-4 w-4" />
+                <Input
+                  value={search}
+                  onChange={event => setSearch(event.target.value)}
+                  placeholder={t('classSettings.searchPlaceholder')}
+                  className="pl-8"
+                  aria-label={t('classSettings.searchPlaceholder')}
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="only-incomplete"
+                  checked={onlyIncomplete}
+                  onCheckedChange={setOnlyIncomplete}
+                />
+                <Label htmlFor="only-incomplete" className="text-sm font-normal">
+                  {t('classSettings.onlyIncomplete')}
+                </Label>
+              </div>
+            </div>
+
+            {filteredClasses.length === 0 ? (
+              <EmptyState
+                icon={Search}
+                title={t('classSettings.noResults.title')}
+                description={t('classSettings.noResults.description')}
+              />
+            ) : (
+              <div className="space-y-3">
+                {filteredClasses.map(cls => (
+                  <ClassAssignmentRow
+                    key={cls.id}
+                    cls={cls}
+                    teachers={teachers}
+                    pendingKeys={pendingKeys}
+                    onUpdate={update}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     </PageContainer>

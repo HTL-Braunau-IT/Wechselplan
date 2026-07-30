@@ -399,16 +399,37 @@
   },
   "classSettings": {
     "title": "Class Settings",
+    "description": "Set the class head and class lead for each class.",
     "loading": "Loading class settings...",
     "classHead": "Class Head",
     "classLead": "Class Lead",
     "selectClassHead": "Select class head",
     "selectClassLead": "Select class lead",
+    "searchPlaceholder": "Search class …",
+    "searchTeacher": "Search teacher …",
+    "noTeachers": "No teachers found",
+    "onlyIncomplete": "Incomplete only",
     "none": "None",
     "updating": "Updating...",
     "success": "Class updated successfully",
+    "stats": {
+      "total": "Classes"
+    },
+    "status": {
+      "complete": "Complete",
+      "incomplete": "Incomplete"
+    },
+    "empty": {
+      "title": "No classes yet",
+      "description": "There are no classes for the selected school year."
+    },
+    "noResults": {
+      "title": "No classes found",
+      "description": "Adjust your search or filter."
+    },
     "error": {
       "load": "Failed to load data",
+      "loadHint": "Please reload the page or try again later.",
       "update": "Failed to update class"
     }
   },
