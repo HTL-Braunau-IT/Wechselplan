@@ -15,9 +15,15 @@ export default function TimesPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const className = searchParams.get('class')
+  const weekdayParam = searchParams.get('weekday')
+  const parsedWeekday = weekdayParam ? parseInt(weekdayParam, 10) : NaN
+  const weekday = Number.isInteger(parsedWeekday) ? parsedWeekday : null
 
   const handleSave = () => {
-    router.push(`/schedule/create/overview?class=${className}`)
+    const query = new URLSearchParams()
+    if (className) query.set('class', className)
+    if (weekday != null) query.set('weekday', String(weekday))
+    router.push(`/schedule/create/overview?${query.toString()}`)
   }
 
   const handleCancel = () => {
@@ -31,7 +37,12 @@ export default function TimesPage() {
         title="Zeiten festlegen"
         description="Unterrichts- und Pausenzeiten für den Stundenplan auswählen"
       />
-      <ScheduleTimesSelector className={className} onSave={handleSave} onCancel={handleCancel} />
+      <ScheduleTimesSelector
+        className={className}
+        weekday={weekday}
+        onSave={handleSave}
+        onCancel={handleCancel}
+      />
     </PageContainer>
   )
 }

@@ -12,6 +12,7 @@ interface Step {
 
 const steps: Step[] = [
   { id: 'class', path: '/schedule/create' },
+  { id: 'periods', path: '/schedule/create/periods' },
   { id: 'teachers', path: '/schedule/create/teachers' },
   { id: 'rotation', path: '/schedule/create/rotation' },
   { id: 'times', path: '/schedule/create/times' },
@@ -28,8 +29,19 @@ export function CreationProgress() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const selectedClass = searchParams.get('class')
+  const selectedWeekday = searchParams.get('weekday')
 
   const currentStepIndex = steps.findIndex(step => pathname === step.path)
+
+  // Keep the class (and, once chosen, the weekday) in the URL as the user steps
+  // back and forth — every step past "periods" is scoped to a single weekday.
+  const hrefFor = (path: string) => {
+    const params = new URLSearchParams()
+    if (selectedClass) params.set('class', selectedClass)
+    if (selectedWeekday) params.set('weekday', selectedWeekday)
+    const query = params.toString()
+    return query ? `${path}?${query}` : path
+  }
 
   return (
     <div className="sticky top-16 flex flex-col items-start px-4 py-8">
@@ -37,7 +49,7 @@ export function CreationProgress() {
         const isCompleted = index < currentStepIndex
         const isCurrent = index === currentStepIndex
         const isClickable = isCompleted || isCurrent
-        const href = selectedClass ? `${step.path}?class=${selectedClass}` : step.path
+        const href = hrefFor(step.path)
 
         const stepInner = (
           <>

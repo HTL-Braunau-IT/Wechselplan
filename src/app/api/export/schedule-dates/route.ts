@@ -97,17 +97,19 @@ export async function POST(request: Request) {
     const days = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag']
     const weekdayString = days[weekday]
 
-    // Use normalized turns if available, otherwise fall back to scheduleData
-    let scheduleData: ScheduleData = {}
-    if (schedule.turns && schedule.turns.length > 0) {
-      scheduleData = normalizeToJsonFormat(schedule.turns) as ScheduleData
-    } else if (
-      schedule.scheduleData &&
-      typeof schedule.scheduleData === 'object' &&
-      !Array.isArray(schedule.scheduleData)
-    ) {
-      scheduleData = schedule.scheduleData as unknown as ScheduleData
-    }
+    // AM and PM are independent lanes and their Turnus names collide ("TURNUS 1"
+    // in both), so never merge them. When both lanes are weekly their dates are
+    // identical; when they differ (e.g. PM biweekly) the fuller lane carries the
+    // most calendar detail — show that one.
+    const allTurns = schedule.turns ?? []
+    const amData = normalizeToJsonFormat(
+      allTurns.filter(turn => turn.period === 'AM'),
+    ) as ScheduleData
+    const pmData = normalizeToJsonFormat(
+      allTurns.filter(turn => turn.period === 'PM'),
+    ) as ScheduleData
+    const scheduleData: ScheduleData =
+      Object.keys(pmData).length > Object.keys(amData).length ? pmData : amData
     const doc = ScheduleTurnusPDF({
       scheduleData: scheduleData as unknown as ScheduleData,
       className: className ?? '',

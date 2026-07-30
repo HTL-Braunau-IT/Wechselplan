@@ -117,14 +117,19 @@ export function parseJsonToNormalized(scheduleData: unknown): ScheduleTurnData[]
 
 /**
  * Creates Prisma data structure for creating ScheduleTurn with weeks and holidays
- * For nested creates (when scheduleId is 0), omit the schedule connection
+ * For nested creates (when scheduleId is 0), omit the schedule connection.
+ *
+ * `period` tags the Turnus onto its AM or PM lane — the two are independent, so
+ * each lane keeps its own ordered Turnus sequence.
  */
 export function createScheduleTurnData(
   turnData: ScheduleTurnData,
   order: number,
+  period: 'AM' | 'PM' = 'AM',
 ): Omit<Prisma.ScheduleTurnCreateInput, 'schedule'> {
   return {
     name: turnData.name,
+    period,
     customLength: turnData.customLength ?? null,
     order,
     weeks: {

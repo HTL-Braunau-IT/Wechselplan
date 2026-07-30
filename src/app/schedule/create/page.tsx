@@ -468,9 +468,9 @@ export default function ScheduleClassSelectPage() {
         throw new Error('Failed to store assignments')
       }
 
-      // Navigate to the teachers page
+      // Groups are saved; move on to choosing the weekday and periods.
       setDirty(false)
-      router.push(`/schedule/create/teachers?class=${selectedClass}`)
+      router.push(`/schedule/create/periods?class=${selectedClass}`)
     } catch (err) {
       console.error('Error saving assignments:', err)
       captureFrontendError(err, {
@@ -506,9 +506,9 @@ export default function ScheduleClassSelectPage() {
         throw new Error('Failed to update assignments')
       }
 
-      // Navigate to the teachers page
+      // Groups are saved; move on to choosing the weekday and periods.
       setDirty(false)
-      router.push(`/schedule/create/teachers?class=${selectedClass}`)
+      router.push(`/schedule/create/periods?class=${selectedClass}`)
     } catch (err) {
       console.error('Error updating assignments:', err)
       captureFrontendError(err, {

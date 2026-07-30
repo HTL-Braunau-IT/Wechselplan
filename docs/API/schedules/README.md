@@ -47,6 +47,33 @@ Authorization: Bearer <jwt-token>
 ### Assignments
 - `GET /api/schedules/assignments` - Retrieve teacher assignments for a class
 
+### Rotation & Clone
+- `POST /api/schedules/rotation` - Persist the teacher rotation (weekday- and year-scoped, per lane)
+- `POST /api/schedules/clone` - Copy a class's whole plan from one weekday onto another
+
+## Per-period lanes & weekday scoping
+
+A schedule models **AM and PM as independent lanes**. On the `Schedule` row:
+
+- `amEnabled` / `pmEnabled` — whether each lane runs on this weekday.
+- `amWeekInterval` / `pmWeekInterval` — `1` = every week, `2` = every 2nd week.
+- `amWeekOffset` / `pmWeekOffset` — `0` = starts on the A-week, `1` = the B-week.
+
+Each lane owns its own Turnusse: `ScheduleTurn.period` (`"AM"` | `"PM"`) tags the turn, and
+uniqueness is `(scheduleId, period, order)`, so AM and PM can have **different Turnus counts**.
+
+`POST /api/schedules` accepts the lane flags/cadence above plus `amScheduleData` / `pmScheduleData`
+(the per-lane `TurnSchedule` blobs). `scheduleData` is the legacy single blob — treated as the AM
+lane. A request with **no** turn blob updates only metadata/cadence and leaves existing Turnusse
+intact (except lanes just switched off). `GET /api/schedules` returns `amScheduleData` /
+`pmScheduleData` (and `scheduleData` = the AM lane for legacy readers).
+
+**Every weekday is its own plan.** `TeacherAssignment` and `TeacherRotation` are keyed by
+`selectedWeekday` (and school year), so the same class holds a different plan on each day — writing
+one weekday never touches the others. `POST /api/schedules/clone` copies a source weekday's
+Schedule (both lanes + cadence), teacher assignments and rotation onto a target weekday as an
+editable starting point; student groups are class-wide and come along automatically.
+
 ## Data Models
 
 ### Schedule Creation Request

@@ -25,6 +25,8 @@ import type { ScheduleTime, BreakTime } from '@/types/schedule'
 
 interface ScheduleTimesSelectorProps {
   className: string | null
+  /** The weekday being edited — scopes which lanes (AM/PM) are active. */
+  weekday?: number | null
   onSave?: () => void
   onCancel?: () => void
 }
@@ -35,7 +37,12 @@ interface ScheduleTimesSelectorProps {
  * Fetches teacher assignments to determine active periods, loads available schedule and break times,
  * and allows users to select or add new times for AM, PM, and lunch periods.
  */
-export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleTimesSelectorProps) {
+export function ScheduleTimesSelector({
+  className,
+  weekday,
+  onSave,
+  onCancel,
+}: ScheduleTimesSelectorProps) {
   const [scheduleTimes, setScheduleTimes] = useState<ScheduleTime[]>([])
   const [breakTimes, setBreakTimes] = useState<BreakTime[]>([])
   const [selectedAMScheduleTime, setSelectedAMScheduleTime] = useState<number | null>(null)
@@ -85,8 +92,8 @@ export function ScheduleTimesSelector({ className, onSave, onCancel }: ScheduleT
     }
   }, [classData, className])
 
-  // Fetch teacher assignments to determine periods
-  const { data: teacherAssignmentsData } = useTeacherAssignments(classId, null)
+  // Fetch teacher assignments to determine periods (scoped to this weekday).
+  const { data: teacherAssignmentsData } = useTeacherAssignments(classId, weekday ?? null)
 
   // Fetch schedule times
   useScheduleTimes(classId)

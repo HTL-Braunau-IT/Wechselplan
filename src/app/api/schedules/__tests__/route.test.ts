@@ -137,9 +137,7 @@ describe('Schedules API', () => {
                 },
               },
             },
-            orderBy: {
-              order: 'asc',
-            },
+            orderBy: [{ period: 'asc' }, { order: 'asc' }],
           },
         },
         orderBy: {
@@ -249,14 +247,20 @@ describe('Schedules API', () => {
           selectedWeekday: 1,
           classId: 1,
           schoolYearId: 1,
+          // Per-period lane config. Empty scheduleData enables the AM lane by
+          // default; no PM blob was sent, so PM stays off.
+          amEnabled: true,
+          pmEnabled: false,
+          amWeekInterval: 1,
+          amWeekOffset: 0,
+          pmWeekInterval: 1,
+          pmWeekOffset: 0,
           scheduleData: expect.anything(), // JsonNull after migration
           additionalInfo: null,
           semesterPlanning: null,
           // No Teacher row behind the mocked session, so the author is unknown.
           createdById: null,
-          turns: {
-            create: [],
-          },
+          // No turns are created for an empty lane.
         },
         include: {
           scheduleTimes: true,
@@ -270,9 +274,7 @@ describe('Schedules API', () => {
                 },
               },
             },
-            orderBy: {
-              order: 'asc',
-            },
+            orderBy: [{ period: 'asc' }, { order: 'asc' }],
           },
         },
       })
@@ -405,13 +407,16 @@ describe('Schedules API', () => {
           selectedWeekday: 1,
           classId: 1,
           schoolYearId: 1,
+          amEnabled: true,
+          pmEnabled: false,
+          amWeekInterval: 1,
+          amWeekOffset: 0,
+          pmWeekInterval: 1,
+          pmWeekOffset: 0,
           scheduleData: expect.anything(), // JsonNull after migration
           additionalInfo: null,
           semesterPlanning: 'first',
           createdById: null,
-          turns: {
-            create: [],
-          },
         },
         include: {
           scheduleTimes: true,
@@ -425,9 +430,7 @@ describe('Schedules API', () => {
                 },
               },
             },
-            orderBy: {
-              order: 'asc',
-            },
+            orderBy: [{ period: 'asc' }, { order: 'asc' }],
           },
         },
       })

@@ -8,17 +8,22 @@ import { resolveCurrentTeacher } from '@/lib/current-teacher'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { notifyScheduleChange } from '../_notify'
 
+interface GroupRotationRow {
+  groupId: number
+  turns: (number | null)[]
+}
+
 interface TeacherRotationRequest {
   classId: number
-  turns: string[]
-  amRotation: {
-    groupId: number
-    turns: (number | null)[]
-  }[]
-  pmRotation: {
-    groupId: number
-    turns: (number | null)[]
-  }[]
+  selectedWeekday: number
+  schoolYearId?: number
+  // Per-lane Turnus labels. `turns` is the legacy shared list, still accepted and
+  // applied to both lanes when the split ones are absent.
+  amTurns?: string[]
+  pmTurns?: string[]
+  turns?: string[]
+  amRotation: GroupRotationRow[]
+  pmRotation: GroupRotationRow[]
 }
 
 /**
@@ -34,11 +39,25 @@ export async function POST(request: Request) {
 
   try {
     const data = (await request.json()) as TeacherRotationRequest
-    const { classId, turns, amRotation, pmRotation } = data
+    const { classId, amRotation, pmRotation } = data
+    const amTurns = data.amTurns ?? data.turns ?? []
+    const pmTurns = data.pmTurns ?? data.turns ?? []
 
-    if (!classId || typeof classId !== 'number' || !turns || !amRotation || !pmRotation) {
+    if (
+      !classId ||
+      typeof classId !== 'number' ||
+      typeof data.selectedWeekday !== 'number' ||
+      !amRotation ||
+      !pmRotation
+    ) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
+    if (amTurns.length === 0 && pmTurns.length === 0) {
+      // Without any turn labels there is nothing to write — refuse rather than
+      // silently wiping the weekday's rotation and returning success.
+      return NextResponse.json({ error: 'Missing turn labels' }, { status: 400 })
+    }
+    const selectedWeekday = data.selectedWeekday
 
     const classData = await prisma.class.findUnique({
       where: {
@@ -50,71 +69,65 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }
 
-    // Captured before the wipe below: a teacher dropped from the rotation is
-    // exactly the person who most needs to hear that it changed.
+    // Rotation is scoped per weekday+year now (a class can hold a different plan
+    // on each day), so resolve the year before touching any rows. A null year
+    // would drop the constraint from the delete below and wipe every year, so
+    // refuse it the same way POST /api/schedules and the clone route do.
+    const schoolYearId = data.schoolYearId ?? (await resolveSchoolYearId())
+    if (schoolYearId == null) {
+      return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
+    }
+
+    // Captured before the wipe below: a teacher dropped from this day's rotation
+    // is exactly the person who most needs to hear that it changed.
     const previousTeachers = await prisma.teacherRotation.findMany({
-      where: { classId: classData.id },
+      where: { classId: classData.id, selectedWeekday, schoolYearId },
       select: { teacherId: true },
       distinct: ['teacherId'],
     })
 
-    // Delete existing rotations for this class
+    // Delete only THIS day's (and year's) rotations — never the sibling weekdays.
     await prisma.teacherRotation.deleteMany({
-      where: {
-        classId: classData.id,
-      },
+      where: { classId: classData.id, selectedWeekday, schoolYearId },
     })
 
-    // Save AM rotation
-    for (const groupRotation of amRotation) {
-      for (let i = 0; i < turns.length; i++) {
-        const teacherId = groupRotation.turns[i]
-        if (teacherId !== null) {
-          await prisma.teacherRotation.create({
-            data: {
-              classId: classData.id,
-              groupId: groupRotation.groupId,
-              teacherId: teacherId!,
-              turnId: turns[i]!,
-              period: 'AM',
-            },
-          })
+    const writePeriod = async (
+      period: 'AM' | 'PM',
+      rotationRows: GroupRotationRow[],
+      turnLabels: string[],
+    ) => {
+      for (const groupRotation of rotationRows) {
+        for (let i = 0; i < turnLabels.length; i++) {
+          const teacherId = groupRotation.turns[i]
+          if (teacherId != null) {
+            await prisma.teacherRotation.create({
+              data: {
+                classId: classData.id,
+                groupId: groupRotation.groupId,
+                teacherId,
+                turnId: turnLabels[i]!,
+                period,
+                selectedWeekday,
+                schoolYearId,
+              },
+            })
+          }
         }
       }
     }
 
-    // Save PM rotation
-    for (const groupRotation of pmRotation) {
-      for (let i = 0; i < turns.length; i++) {
-        const teacherId = groupRotation.turns[i]
-        if (teacherId !== null) {
-          await prisma.teacherRotation.create({
-            data: {
-              classId: classData.id,
-              groupId: groupRotation.groupId,
-              teacherId: teacherId!,
-              turnId: turns[i]!,
-              period: 'PM',
-            },
-          })
-        }
-      }
-    }
+    await writePeriod('AM', amRotation, amTurns)
+    await writePeriod('PM', pmRotation, pmTurns)
 
-    // The rotation table itself carries no school year; the notification
-    // audience does, so it is resolved the same way every other route does.
-    const schoolYearId = await resolveSchoolYearId()
     const session = await getServerSession(authOptions)
-    if (schoolYearId != null) {
-      await notifyScheduleChange({
-        type: 'schedule-rotation-changed',
-        classId: classData.id,
-        schoolYearId,
-        actor: await resolveCurrentTeacher(session),
-        session,
-        alsoNotify: previousTeachers.map(rotation => rotation.teacherId),
-      })
-    }
+    await notifyScheduleChange({
+      type: 'schedule-rotation-changed',
+      classId: classData.id,
+      schoolYearId,
+      actor: await resolveCurrentTeacher(session),
+      session,
+      alsoNotify: previousTeachers.map(rotation => rotation.teacherId),
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

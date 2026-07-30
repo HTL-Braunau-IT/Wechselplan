@@ -1,95 +1,53 @@
 'use client'
 
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { RefreshCw } from 'lucide-react'
-import { RotationScheduleEditor } from '@/components/schedule/rotation-schedule-editor'
-import type { Schedule } from '@/components/schedule/rotation-schedule-editor'
+
+import { TurnusEditor } from '@/components/schedule/turnus-editor'
 import { useSchoolYear } from '@/contexts/school-year-context'
 import { PageContainer } from '@/components/ui/page-container'
 import { PageHeader } from '@/components/ui/page-header'
+import { EmptyState } from '@/components/ui/empty-state'
+import { useTranslation } from 'next-i18next'
 
 /**
- * Page component for creating and editing rotation schedules.
- *
- * Wraps the RotationScheduleEditor component and handles navigation after save.
+ * The Turnus step: sets the number of Turnusse and their week lengths per period
+ * (AM/PM independently), then persists the per-lane rotation weeks.
  */
 export default function RotationPage() {
-  const router = useRouter()
+  const { t } = useTranslation('schedule')
   const searchParams = useSearchParams()
   const { selectedYear } = useSchoolYear()
-  const schoolYearId = selectedYear?.id
   const className = searchParams.get('class')
   const weekdayParam = searchParams.get('weekday')
+  const parsedWeekday = weekdayParam ? parseInt(weekdayParam, 10) : NaN
+  const weekday =
+    Number.isInteger(parsedWeekday) && parsedWeekday >= 0 && parsedWeekday <= 6 ? parsedWeekday : 1
 
-  // The rotation dates must be computed within the *selected* school year, not a
-  // hardcoded one — otherwise a plan created for a future year lands on wrong weeks.
+  // Rotation dates are computed within the *selected* school year.
   const schoolYearStart = selectedYear ? new Date(selectedYear.startDate) : null
   const schoolYearEnd = selectedYear ? new Date(selectedYear.endDate) : null
   const schoolYearMiddle = selectedYear ? new Date(selectedYear.semesterChangeDate) : null
-
-  const handleSave = async (
-    schedule: Schedule,
-    selectedWeekday: number,
-    additionalInfo: string,
-    semesterPlanning: 'first' | 'second' | null,
-  ) => {
-    // First, get the numeric class ID from the class name
-    const classResponse = await fetch(`/api/classes/get-by-name?name=${className}`)
-    if (!classResponse.ok) {
-      throw new Error('Failed to fetch class information')
-    }
-    const classData = await classResponse.json()
-    if (!classData?.id) {
-      throw new Error('Class not found')
-    }
-
-    const response = await fetch('/api/schedules', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        name: 'Rotation Schedule',
-        description: `Rotation schedule for class ${className}`,
-        startDate: new Date().toISOString(),
-        endDate: new Date().toISOString(),
-        selectedWeekday: selectedWeekday,
-        scheduleData: schedule,
-        additionalInfo,
-        classId: classData.id.toString(),
-        ...(schoolYearId != null && { schoolYearId }),
-        semesterPlanning,
-      }),
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to save schedule')
-    }
-
-    // Navigate to the times page with both class and weekday parameters
-    router.push(`/schedule/create/times?class=${className}&weekday=${selectedWeekday}`)
-  }
-
-  const handleCancel = () => {
-    window.history.back()
-  }
 
   return (
     <PageContainer size="wide" className="space-y-6">
       <PageHeader
         icon={RefreshCw}
-        title="Rotationsplan"
-        description="Turnusse, Rotationstag und individuelle Wochenlängen festlegen"
+        title={t('steps.rotation')}
+        description={t('rotationDescription')}
       />
-      <RotationScheduleEditor
-        className={className}
-        initialWeekday={weekdayParam ? parseInt(weekdayParam) : null}
-        schoolYearStart={schoolYearStart}
-        schoolYearEnd={schoolYearEnd}
-        schoolYearMiddle={schoolYearMiddle}
-        onSave={handleSave}
-        onCancel={handleCancel}
-      />
+      {className ? (
+        <TurnusEditor
+          className={className}
+          weekday={weekday}
+          schoolYearId={selectedYear?.id}
+          schoolYearStart={schoolYearStart}
+          schoolYearEnd={schoolYearEnd}
+          schoolYearMiddle={schoolYearMiddle}
+        />
+      ) : (
+        <EmptyState icon={RefreshCw} title={t('noClassSelected')} />
+      )}
     </PageContainer>
   )
 }

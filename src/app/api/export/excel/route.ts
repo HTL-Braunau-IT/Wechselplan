@@ -132,7 +132,7 @@ export async function POST(request: Request) {
 
     // Fetch teacher assignments for this year
     const teacherAssignments = await prisma.teacherAssignment.findMany({
-      where: { classId: class_response.id, schoolYearId },
+      where: { classId: class_response.id, schoolYearId, selectedWeekday: weekday },
       include: {
         teacher: true,
       },

@@ -24,7 +24,18 @@ const scheduleSchema = z.object({
     message: 'Invalid end date format',
   }),
   selectedWeekday: z.number().int().min(0).max(6),
-  scheduleData: z.any(), // Using any for now since the exact structure isn't clear
+  // Per-period lanes. Each carries its own Turnus structure (`*ScheduleData`, the
+  // TurnSchedule blob the normalizer understands) and its own cadence. `scheduleData`
+  // is the legacy single blob — treated as the AM lane when the split ones are absent.
+  amEnabled: z.boolean().optional(),
+  pmEnabled: z.boolean().optional(),
+  amWeekInterval: z.number().int().min(1).max(4).optional(),
+  amWeekOffset: z.number().int().min(0).max(3).optional(),
+  pmWeekInterval: z.number().int().min(1).max(4).optional(),
+  pmWeekOffset: z.number().int().min(0).max(3).optional(),
+  amScheduleData: z.any().optional(),
+  pmScheduleData: z.any().optional(),
+  scheduleData: z.any().optional(),
   classId: z.string().optional(),
   schoolYearId: z.number().int().positive().optional(),
   additionalInfo: z.any().optional(),
@@ -60,12 +71,55 @@ export async function POST(req: Request) {
       startDate,
       endDate,
       selectedWeekday,
+      amEnabled,
+      pmEnabled,
+      amWeekInterval,
+      amWeekOffset,
+      pmWeekInterval,
+      pmWeekOffset,
+      amScheduleData,
+      pmScheduleData,
       scheduleData,
       classId,
       schoolYearId: bodySchoolYearId,
       additionalInfo,
       semesterPlanning,
     } = validationResult.data
+
+    // The legacy single blob feeds the AM lane when the split ones are absent.
+    const amBlob = amScheduleData ?? scheduleData ?? null
+    const pmBlob = pmScheduleData ?? null
+    const amOn = amEnabled ?? Boolean(amBlob)
+    const pmOn = pmEnabled ?? Boolean(pmBlob)
+
+    // One flat list of nested-turn creates, each tagged with its period lane.
+    const turnCreates = [
+      ...(amOn
+        ? parseJsonToNormalized(amBlob).map((turn, order) =>
+            createScheduleTurnData(turn, order, 'AM'),
+          )
+        : []),
+      ...(pmOn
+        ? parseJsonToNormalized(pmBlob).map((turn, order) =>
+            createScheduleTurnData(turn, order, 'PM'),
+          )
+        : []),
+    ]
+
+    const periodConfig = {
+      amEnabled: amOn,
+      pmEnabled: pmOn,
+      amWeekInterval: amWeekInterval ?? 1,
+      amWeekOffset: amWeekOffset ?? 0,
+      pmWeekInterval: pmWeekInterval ?? 1,
+      pmWeekOffset: pmWeekOffset ?? 0,
+    }
+
+    // Turn replacement is per-lane. A metadata-only save (the "Tag & Perioden"
+    // step) sends no turn blobs and must not wipe Turnusse saved later; a save
+    // that carries only one lane's blob must not wipe the other lane.
+    const hasAmTurnInput = amScheduleData !== undefined || scheduleData !== undefined
+    const hasPmTurnInput = pmScheduleData !== undefined
 
     // Resolve school year: from body or current
     let schoolYearId = bodySchoolYearId
@@ -111,10 +165,17 @@ export async function POST(req: Request) {
 
     let newSchedule
     if (existingSchedule) {
-      // Delete existing turns (cascade will delete weeks and holidays)
-      await prisma.scheduleTurn.deleteMany({
-        where: { scheduleId: existingSchedule.id },
-      })
+      // Clear only the lanes whose turns were sent (to be recreated below), plus
+      // any lane just switched off so a disabled period leaves nothing behind.
+      const periodsToClear = [
+        hasAmTurnInput || !amOn ? 'AM' : null,
+        hasPmTurnInput || !pmOn ? 'PM' : null,
+      ].filter((p): p is string => p !== null)
+      if (periodsToClear.length > 0) {
+        await prisma.scheduleTurn.deleteMany({
+          where: { scheduleId: existingSchedule.id, period: { in: periodsToClear } },
+        })
+      }
 
       // Update existing schedule, preserving times
       newSchedule = await prisma.schedule.update({
@@ -125,22 +186,14 @@ export async function POST(req: Request) {
           startDate: new Date(startDate),
           endDate: new Date(endDate),
           schoolYearId,
+          ...periodConfig,
           scheduleData: Prisma.JsonNull, // No longer storing JSON - using normalized turns instead
           additionalInfo,
           semesterPlanning,
           // Plans predating the author column get one on their next save, so
           // the person who built them still hears about later edits.
           createdById: existingSchedule.createdById ?? author?.id ?? null,
-          // Create normalized turns if scheduleData is provided
-          ...(scheduleData
-            ? {
-                turns: {
-                  create: parseJsonToNormalized(scheduleData).map((turnData, order) =>
-                    createScheduleTurnData(turnData, order),
-                  ),
-                },
-              }
-            : {}),
+          ...(turnCreates.length > 0 ? { turns: { create: turnCreates } } : {}),
         },
         include: {
           scheduleTimes: true,
@@ -154,9 +207,7 @@ export async function POST(req: Request) {
                 },
               },
             },
-            orderBy: {
-              order: 'asc',
-            },
+            orderBy: [{ period: 'asc' }, { order: 'asc' }],
           },
         },
       })
@@ -171,20 +222,12 @@ export async function POST(req: Request) {
           selectedWeekday,
           schoolYearId,
           classId: classId ? parseInt(classId) : null,
+          ...periodConfig,
           scheduleData: Prisma.JsonNull, // No longer storing JSON - using normalized turns instead
           additionalInfo,
           semesterPlanning,
           createdById: author?.id ?? null,
-          // Create normalized turns if scheduleData is provided
-          ...(scheduleData
-            ? {
-                turns: {
-                  create: parseJsonToNormalized(scheduleData).map((turnData, order) =>
-                    createScheduleTurnData(turnData, order),
-                  ),
-                },
-              }
-            : {}),
+          ...(turnCreates.length > 0 ? { turns: { create: turnCreates } } : {}),
         },
         include: {
           scheduleTimes: true,
@@ -198,9 +241,7 @@ export async function POST(req: Request) {
                 },
               },
             },
-            orderBy: {
-              order: 'asc',
-            },
+            orderBy: [{ period: 'asc' }, { order: 'asc' }],
           },
         },
       })
@@ -291,9 +332,7 @@ export async function GET(req: Request) {
               },
             },
           },
-          orderBy: {
-            order: 'asc',
-          },
+          orderBy: [{ period: 'asc' }, { order: 'asc' }],
         },
       },
       orderBy: {
@@ -309,12 +348,21 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'No schedules found' }, { status: 404 })
     }
 
-    // Convert normalized turns back to scheduleData JSON format for backward compatibility
-    const schedulesWithData = schedules.map(schedule => ({
-      ...schedule,
-      scheduleData:
-        schedule.turns && schedule.turns.length > 0 ? normalizeToJsonFormat(schedule.turns) : null,
-    }))
+    // Split the normalized turns back into per-lane TurnSchedule blobs. `scheduleData`
+    // keeps its legacy meaning (the AM lane) for older readers; `amScheduleData` /
+    // `pmScheduleData` carry each lane explicitly.
+    const schedulesWithData = schedules.map(schedule => {
+      const amTurns = schedule.turns?.filter(turn => turn.period === 'AM') ?? []
+      const pmTurns = schedule.turns?.filter(turn => turn.period === 'PM') ?? []
+      const amData = amTurns.length > 0 ? normalizeToJsonFormat(amTurns) : null
+      const pmData = pmTurns.length > 0 ? normalizeToJsonFormat(pmTurns) : null
+      return {
+        ...schedule,
+        amScheduleData: amData,
+        pmScheduleData: pmData,
+        scheduleData: amData,
+      }
+    })
 
     return NextResponse.json(schedulesWithData)
   } catch (error) {

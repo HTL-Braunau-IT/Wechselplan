@@ -219,19 +219,23 @@ export async function POST(request: Request) {
       )
     }
 
-    // Check for existing assignments for this class and year
+    // Assignments are weekday-scoped: a class can hold a different plan on each
+    // weekday, so everything below is keyed on this day only — never the siblings.
+    const weekday = typeof selectedWeekday === 'number' ? selectedWeekday : 1
+
+    // Check for existing assignments for this class, year and weekday
     const existingAssignments = await prisma.teacherAssignment.findMany({
-      where: { classId: classRecord.id, schoolYearId },
+      where: { classId: classRecord.id, schoolYearId, selectedWeekday: weekday },
     })
 
     if (existingAssignments.length > 0 && !updateExisting) {
       return NextResponse.json({ error: 'EXISTING_ASSIGNMENTS' }, { status: 409 })
     }
 
-    // Delete existing assignments for this class and year if updating
+    // Delete only THIS day's existing assignments if updating.
     if (updateExisting) {
       await prisma.teacherAssignment.deleteMany({
-        where: { classId: classRecord.id, schoolYearId },
+        where: { classId: classRecord.id, schoolYearId, selectedWeekday: weekday },
       })
     }
 
@@ -280,7 +284,7 @@ export async function POST(request: Request) {
           subjectId: subject.id,
           learningContentId: learningContent.id,
           roomId: room.id,
-          selectedWeekday: selectedWeekday ?? 1,
+          selectedWeekday: weekday,
         },
       })
     }
@@ -330,7 +334,7 @@ export async function POST(request: Request) {
           subjectId: subject.id,
           learningContentId: learningContent.id,
           roomId: room.id,
-          selectedWeekday: selectedWeekday ?? 1,
+          selectedWeekday: weekday,
         },
       })
     }

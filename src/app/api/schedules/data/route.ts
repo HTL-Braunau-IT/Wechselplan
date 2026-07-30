@@ -231,7 +231,13 @@ export async function GET(req: Request) {
     })
 
     const filteredOwnAssignments = ownAssignments
-      .filter(assignment => validClassIds.has(assignment.classId))
+      // Assignments are weekday-scoped now; this view is for the current weekday,
+      // so keep only that day's rows (a class taught on several days would else
+      // repeat each (period, group) once per weekday).
+      .filter(
+        assignment =>
+          validClassIds.has(assignment.classId) && assignment.selectedWeekday === weekdayNum,
+      )
       .map(assignment => ({
         id: assignment.id,
         teacherId: assignment.teacherId,
