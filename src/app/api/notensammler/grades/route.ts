@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { requireAccess } from '@/lib/api-guard'
 import {
   canManageSokrates,
   getSokratesStatus,
@@ -13,6 +11,7 @@ import {
   withSokratesLock,
 } from '@/lib/sokrates-lock'
 import { actorName, resolveCurrentTeacher } from '@/lib/current-teacher'
+import { resolveSchoolYearId } from '@/lib/school-year'
 import { notifyGradesEntered } from './_notify'
 
 // Force dynamic rendering - no caching
@@ -30,16 +29,13 @@ const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7]
  * { [studentId]: { [teacherId]: { first: grade | null, second: grade | null } } }
  */
 export async function GET(request: Request) {
-  const denied = await denyUnlessAccess('staff')
-  if (denied) return denied
+  const gate = await requireAccess('staff')
+  if (!gate.ok) return gate.response
 
   try {
-    const session = await getServerSession(authOptions)
+    const session = gate.session
     if (!session?.user?.name) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     if (!(await isFeatureEnabled('notensammler'))) {
       return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
@@ -59,24 +55,7 @@ export async function GET(request: Request) {
     }
 
     // Resolve school year: from query or current
-    let schoolYearId: number | undefined = schoolYearIdParam
-      ? parseInt(schoolYearIdParam, 10)
-      : undefined
-    if (schoolYearId == null || Number.isNaN(schoolYearId)) {
-      const now = new Date()
-      const current = await prisma.schoolYear.findFirst({
-        where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true },
-      })
-      schoolYearId =
-        current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true },
-          })
-        )?.id
-    }
+    const schoolYearId = await resolveSchoolYearId(schoolYearIdParam)
     if (schoolYearId == null) {
       return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
     }
@@ -179,17 +158,14 @@ export async function GET(request: Request) {
  * @returns A JSON response with success status or an error message.
  */
 export async function POST(request: Request) {
-  const denied = await denyUnlessAccess('staff')
-  if (denied) return denied
+  const gate = await requireAccess('staff')
+  if (!gate.ok) return gate.response
 
   let requestData: unknown
   try {
-    const session = await getServerSession(authOptions)
+    const session = gate.session
     if (!session?.user?.name) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     if (!(await isFeatureEnabled('notensammler'))) {
       return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
@@ -208,22 +184,7 @@ export async function POST(request: Request) {
     const { studentId, teacherId, classId, semester, grade, schoolYearId: bodySchoolYearId } = body
 
     // Resolve school year: from body or current
-    let schoolYearId = bodySchoolYearId
-    if (schoolYearId == null) {
-      const now = new Date()
-      const current = await prisma.schoolYear.findFirst({
-        where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true },
-      })
-      schoolYearId =
-        current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true },
-          })
-        )?.id
-    }
+    const schoolYearId = await resolveSchoolYearId(bodySchoolYearId)
     if (schoolYearId == null) {
       return NextResponse.json(
         {
@@ -468,16 +429,13 @@ export async function POST(request: Request) {
  * @returns A JSON response with success status or an error message.
  */
 export async function DELETE(request: Request) {
-  const denied = await denyUnlessAccess('staff')
-  if (denied) return denied
+  const gate = await requireAccess('staff')
+  if (!gate.ok) return gate.response
 
   try {
-    const session = await getServerSession(authOptions)
+    const session = gate.session
     if (!session?.user?.name) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     if (!(await isFeatureEnabled('notensammler'))) {
       return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
@@ -501,6 +459,14 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Invalid teacherId or classId format' }, { status: 400 })
     }
 
+    // Scope the delete to one school year — the client always sends it. Without
+    // this the deleteMany below would wipe the teacher's grades for the class in
+    // every year, not just the one on screen.
+    const schoolYearId = await resolveSchoolYearId(searchParams.get('schoolYearId'))
+    if (schoolYearId == null) {
+      return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
+    }
+
     // Verify teacher exists
     const teacher = await prisma.teacher.findUnique({
       where: { id: teacherId },
@@ -517,11 +483,12 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }
 
-    // Delete all grades for this teacher in this class
+    // Delete this teacher's grades for the class in the given school year.
     const result = await prisma.grade.deleteMany({
       where: {
         teacherId,
         classId,
+        schoolYearId,
       },
     })
 

@@ -1,17 +1,15 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { resolveSessionStudent } from '@/lib/session-student'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { resolveStudentPhoto } from '@/lib/student-photo-source'
 import { resolveTeacherPhoto } from '@/lib/teacher-photo-source'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { requireAccess } from '@/lib/api-guard'
 
 export async function GET(request: Request) {
-  const denied = await denyUnlessAccess('session')
-  if (denied) return denied
+  const gate = await requireAccess('session')
+  if (!gate.ok) return gate.response
 
-  const session = await getServerSession(authOptions)
+  const session = gate.session
   if (!session?.user?.name || !session.user.role) {
     return NextResponse.json({ error: 'Nicht angemeldet' }, { status: 401 })
   }

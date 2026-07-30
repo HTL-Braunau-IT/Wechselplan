@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { denyUnlessAccess, requireAccess } from '@/lib/api-guard'
 import { resolveCurrentTeacher } from '@/lib/current-teacher'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { bestEffort } from '@/lib/notifications'
@@ -73,8 +71,8 @@ export async function GET(request: Request) {
  * Expects a JSON body containing `scheduleTimes`, `breakTimes`, and `classId`. Validates the presence of `classId`, retrieves the latest schedule for the specified class, and updates its associated times. Returns the updated schedule in JSON format, or an error response if validation fails, the class or schedule is not found, or an internal error occurs.
  */
 export async function POST(request: Request) {
-  const denied = await denyUnlessAccess('staff')
-  if (denied) return denied
+  const gate = await requireAccess('staff')
+  if (!gate.ok) return gate.response
 
   try {
     const { scheduleTimes, breakTimes, classId } = await request.json()
@@ -129,7 +127,7 @@ export async function POST(request: Request) {
     // save has committed by now, so a lookup that throws must not turn it into a
     // 500 the user would retry.
     await bestEffort('notify:schedule-times', async () => {
-      const session = await getServerSession(authOptions)
+      const session = gate.session
       const actor = await resolveCurrentTeacher(session)
       const schoolYearId = await resolveSchoolYearId()
       if (schoolYearId != null) {

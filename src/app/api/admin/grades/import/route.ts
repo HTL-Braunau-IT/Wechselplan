@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { parse } from 'csv-parse/sync'
-import { getServerSession } from 'next-auth'
-import { authOptions, hasRole } from '@/lib/auth'
 import { captureError } from '@/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { requireAccess } from '@/lib/api-guard'
+import { resolveSchoolYearId } from '@/lib/school-year'
 
 const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7]
 
@@ -22,47 +21,21 @@ interface ImportRequest {
  * @returns A JSON response with import statistics or an error message.
  */
 export async function POST(request: Request) {
-  const denied = await denyUnlessAccess('staff')
-  if (denied) return denied
+  const gate = await requireAccess('staff')
+  if (!gate.ok) return gate.response
 
   const rawBody = await request.text()
   try {
-    const session = await getServerSession(authOptions)
+    const session = gate.session
     if (!session?.user?.name) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Check if user has admin or teacher role (either from session or database)
-    const isAdmin = session.user?.role === 'admin' || (await hasRole(session.user.name, 'admin'))
-    const isTeacher =
-      session.user?.role === 'teacher' || (await hasRole(session.user.name, 'teacher'))
-    if (!isAdmin && !isTeacher) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const body = JSON.parse(rawBody) as ImportRequest & { schoolYearId?: number }
     const { data, schoolYearId: bodySchoolYearId } = body
 
     // Resolve school year: from body or current (today between start and end)
-    let schoolYearId = bodySchoolYearId
-    if (schoolYearId == null) {
-      const now = new Date()
-      const current = await prisma.schoolYear.findFirst({
-        where: {
-          startDate: { lte: now },
-          endDate: { gte: now },
-        },
-        select: { id: true },
-      })
-      schoolYearId =
-        current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true },
-          })
-        )?.id
-    }
+    const schoolYearId = await resolveSchoolYearId(bodySchoolYearId)
     if (schoolYearId == null) {
       return NextResponse.json(
         {

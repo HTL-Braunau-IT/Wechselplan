@@ -2,12 +2,11 @@ import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { generateNotensammlerAllClassesPDF } from '@/lib/pdf-generator'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import type { NotensammlerAllClassesClassData } from '@/lib/pdf-generator'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { requireAccess } from '@/lib/api-guard'
+import { resolveSchoolYearId } from '@/lib/school-year'
 
 /**
  * Handles GET requests to generate a PDF of the current teacher's grades for all classes they are assigned to in the given school year.
@@ -15,16 +14,13 @@ import { denyUnlessAccess } from '@/lib/api-guard'
  * @returns A PDF file as response, or JSON error with status 400/404/500.
  */
 export async function GET(request: Request) {
-  const denied = await denyUnlessAccess('staff')
-  if (denied) return denied
+  const gate = await requireAccess('staff')
+  if (!gate.ok) return gate.response
 
   try {
-    const session = await getServerSession(authOptions)
+    const session = gate.session
     if (!session?.user?.name) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     if (!(await isFeatureEnabled('notensammler'))) {
       return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
@@ -32,24 +28,7 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url)
     const schoolYearIdParam = searchParams.get('schoolYearId')
-    let schoolYearId: number | undefined = schoolYearIdParam
-      ? parseInt(schoolYearIdParam, 10)
-      : undefined
-    if (schoolYearId == null || Number.isNaN(schoolYearId)) {
-      const now = new Date()
-      const current = await prisma.schoolYear.findFirst({
-        where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true },
-      })
-      schoolYearId =
-        current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true },
-          })
-        )?.id
-    }
+    const schoolYearId = await resolveSchoolYearId(schoolYearIdParam)
     if (schoolYearId == null) {
       return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
     }

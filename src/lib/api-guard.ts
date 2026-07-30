@@ -5,19 +5,12 @@ import { requireAdmin } from '@/lib/require-admin'
 import { isStaffRole, type AccessTier } from '@/lib/api-access'
 
 /**
- * Route-handler wrappers that enforce the access policy inside the handler.
+ * Route-handler guards that enforce the access policy inside the handler.
  *
  * `middleware.ts` already rejects unauthorised API requests, but middleware is
  * easy to bypass in tests and easy to mis-scope with a matcher change, so
- * handlers that touch or return sensitive data wrap themselves as well.
+ * handlers that touch or return sensitive data guard themselves as well.
  */
-
-export type RouteContext = Record<string, unknown>
-
-export type GuardedHandler<C extends RouteContext = RouteContext> = (
-  request: Request,
-  context: C & { session: Session },
-) => Promise<Response> | Response
 
 function unauthorized(): Response {
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -28,64 +21,63 @@ function forbidden(required: string): Response {
 }
 
 /**
- * Assertion-style guard for handlers that cannot easily change their
- * signature (route handlers taking `params`, or handlers with several early
- * returns). Returns a `Response` to send back, or `null` when access is
+ * Result of {@link requireAccess}: either the resolved session (access granted)
+ * or the `Response` to return (access denied).
+ */
+export type AccessResult = { ok: true; session: Session } | { ok: false; response: Response }
+
+/**
+ * Enforces an access tier **and hands back the session it had to resolve**, so
+ * a handler that needs the signed-in user does not fetch it a second time.
+ *
+ * ```ts
+ * export async function GET() {
+ *   const gate = await requireAccess('staff')
+ *   if (!gate.ok) return gate.response
+ *   const { session } = gate
+ *   …
+ * }
+ * ```
+ *
+ * The role check here is exactly the one the tier implies, so a handler must
+ * not re-check `session.user.role` afterwards — that branch is already dead.
+ */
+export async function requireAccess(tier: AccessTier): Promise<AccessResult> {
+  const session = await getServerSession(authOptions)
+
+  if (tier === 'public') {
+    // `public` never rejects; the session is returned if one happens to exist.
+    return { ok: true, session: (session ?? { user: undefined }) as unknown as Session }
+  }
+
+  if (!session?.user) return { ok: false, response: unauthorized() }
+  if (tier === 'session') return { ok: true, session }
+  if (tier === 'staff') {
+    return isStaffRole(session.user.role)
+      ? { ok: true, session }
+      : { ok: false, response: forbidden('teacher') }
+  }
+
+  const auth = await requireAdmin()
+  return auth.ok ? { ok: true, session: auth.session } : { ok: false, response: forbidden('admin') }
+}
+
+/**
+ * Assertion-style guard for handlers that do not need the session — a
+ * guard-only gate. Returns a `Response` to send back, or `null` when access is
  * granted:
  *
  * ```ts
- * export async function GET(request: Request) {
+ * export async function GET() {
  *   const denied = await denyUnlessAccess('staff')
  *   if (denied) return denied
  *   …
  * }
  * ```
+ *
+ * Prefer {@link requireAccess} when the handler goes on to read the user.
  */
 export async function denyUnlessAccess(tier: AccessTier): Promise<Response | null> {
-  if (tier === 'public') return null
-
-  const session = await getServerSession(authOptions)
-  if (!session?.user) return unauthorized()
-
-  if (tier === 'session') return null
-  if (tier === 'staff') return isStaffRole(session.user.role) ? null : forbidden('teacher')
-
-  const auth = await requireAdmin()
-  return auth.ok ? null : forbidden('admin')
-}
-
-/** Requires any signed-in user. */
-export function withSession<C extends RouteContext>(handler: GuardedHandler<C>) {
-  return async (request: Request, context: C): Promise<Response> => {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) return unauthorized()
-    return handler(request, { ...context, session })
-  }
-}
-
-/** Requires a signed-in teacher or admin. */
-export function withStaff<C extends RouteContext>(handler: GuardedHandler<C>) {
-  return async (request: Request, context: C): Promise<Response> => {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) return unauthorized()
-    if (!isStaffRole(session.user.role)) return forbidden('teacher')
-    return handler(request, { ...context, session })
-  }
-}
-
-/**
- * Requires the local additive admin role.
- *
- * Delegates to {@link requireAdmin}, which also honours the super-admin object
- * id and tolerates Entra sessions whose `name` was derived from the display
- * name rather than the UPN.
- */
-export function withAdmin<C extends RouteContext>(handler: GuardedHandler<C>) {
-  return async (request: Request, context: C): Promise<Response> => {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) return unauthorized()
-    const auth = await requireAdmin()
-    if (!auth.ok) return forbidden('admin')
-    return handler(request, { ...context, session: auth.session })
-  }
+  const gate = await requireAccess(tier)
+  return gate.ok ? null : gate.response
 }

@@ -674,3 +674,38 @@ model NotificationSettings {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 }
+
+// Captured application error, surfaced to admins in the in-app Fehlerprotokoll
+// (Admin → error log) so they never need a shell on the host to see what broke.
+//
+// Written best-effort by `captureError` (server) and the `/api/client-errors`
+// ingest (browser); a write that fails must never break the request it is
+// reporting on. Repeats collapse onto one row by `dedupeKey`
+// (hash of location + type + message), bumping `count` and `lastSeenAt` rather
+// than inserting again — the same trick the notification bell uses. Rows are
+// pruned by an age-based job (see src/lib/error-log.ts). `context` is redacted
+// at the call site: never raw request bodies, grades, or PII.
+model ErrorLog {
+  id             Int       @id @default(autoincrement())
+  source         String    @default("server") // "server" | "client"
+  level          String    @default("error") // "error" | "warn"
+  location       String // logical origin, e.g. "api/noten/data"
+  type           String // operation kind, e.g. "fetch-data"
+  message        String
+  stack          String?
+  context        Json? // redacted structured extra
+  path           String? // request path, when known
+  method         String? // HTTP method, when known
+  actorId        Int? // Teacher who hit it, when resolvable
+  actorName      String?
+  dedupeKey      String // hash(location + type + message)
+  count          Int       @default(1)
+  firstSeenAt    DateTime  @default(now())
+  lastSeenAt     DateTime  @default(now())
+  acknowledgedAt DateTime?
+
+  @@index([lastSeenAt])
+  @@index([location])
+  @@index([acknowledgedAt, lastSeenAt])
+  @@index([dedupeKey])
+}

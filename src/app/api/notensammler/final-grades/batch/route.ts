@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { requireAccess } from '@/lib/api-guard'
+import { ALLOWED_FINAL_GRADES } from '@/lib/grades'
+import { resolveSchoolYearId } from '@/lib/school-year'
 import {
   canManageSokrates,
   getSokratesStatus,
@@ -17,8 +17,6 @@ import {
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-const ALLOWED_FINAL_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7]
 const ALLOWED_CONDUCT_NOTE_WISH = [
   'Sehr zufriedenstellend',
   'Zufriedenstellend',
@@ -39,17 +37,14 @@ type FinalGradeEntry = {
  * Body: { classId, schoolYearId?, finalGrades: Array<{ studentId, semester, grade?, conductNoteWish? }> }
  */
 export async function POST(request: Request) {
-  const denied = await denyUnlessAccess('staff')
-  if (denied) return denied
+  const gate = await requireAccess('staff')
+  if (!gate.ok) return gate.response
 
   let requestData: unknown
   try {
-    const session = await getServerSession(authOptions)
+    const session = gate.session
     if (!session?.user?.name) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     if (!(await isFeatureEnabled('notensammler'))) {
       return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
@@ -90,22 +85,7 @@ export async function POST(request: Request) {
     }
 
     // Resolve school year once
-    let schoolYearId = bodySchoolYearId
-    if (schoolYearId == null) {
-      const now = new Date()
-      const current = await prisma.schoolYear.findFirst({
-        where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true },
-      })
-      schoolYearId =
-        current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true },
-          })
-        )?.id
-    }
+    const schoolYearId = await resolveSchoolYearId(bodySchoolYearId)
     if (schoolYearId == null) {
       return NextResponse.json(
         {
@@ -215,75 +195,71 @@ export async function POST(request: Request) {
       adminOverride: body.adminOverride === true,
     })
 
-    const { count, skippedLocked } = await withSokratesLock(
-      classIdNum,
-      schoolYearId,
-      async tx => {
-        const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId, tx)
-        let writable = finalGrades
-        let columnWritable = finalGrades
-        let skippedLocked = 0
-        if (sokratesStatus.first.marked || sokratesStatus.second.marked) {
-          writable = finalGrades.filter(
-            fg => !isFinalGradeEditBlocked(sokratesStatus, fg.semester, canOverride),
-          )
-          columnWritable = writable.filter(
-            fg => !isEditBlocked(sokratesStatus, fg.semester, teacher.id, canOverride),
-          )
-          skippedLocked = finalGrades.length - writable.length
-        }
+    const { count, skippedLocked } = await withSokratesLock(classIdNum, schoolYearId, async tx => {
+      const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId, tx)
+      let writable = finalGrades
+      let columnWritable = finalGrades
+      let skippedLocked = 0
+      if (sokratesStatus.first.marked || sokratesStatus.second.marked) {
+        writable = finalGrades.filter(
+          fg => !isFinalGradeEditBlocked(sokratesStatus, fg.semester, canOverride),
+        )
+        columnWritable = writable.filter(
+          fg => !isEditBlocked(sokratesStatus, fg.semester, teacher.id, canOverride),
+        )
+        skippedLocked = finalGrades.length - writable.length
+      }
 
-        for (const fg of writable) {
-          await tx.finalGrade.upsert({
-            where: {
-              studentId_classId_semester_schoolYearId: {
-                studentId: fg.studentId,
-                classId: classIdNum,
-                semester: fg.semester,
-                schoolYearId,
-              },
-            },
-            update: {
-              grade: fg.grade,
-              conductNoteWish: fg.conductNoteWish,
-            },
-            create: {
+      for (const fg of writable) {
+        await tx.finalGrade.upsert({
+          where: {
+            studentId_classId_semester_schoolYearId: {
               studentId: fg.studentId,
               classId: classIdNum,
               semester: fg.semester,
               schoolYearId,
-              grade: fg.grade,
-              conductNoteWish: fg.conductNoteWish,
             },
-          })
-        }
-        for (const fg of columnWritable) {
-          if (fg.grade == null) continue
-          await tx.grade.upsert({
-            where: {
-              studentId_teacherId_classId_semester_schoolYearId: {
-                studentId: fg.studentId,
-                teacherId: teacher.id,
-                classId: classIdNum,
-                semester: fg.semester,
-                schoolYearId,
-              },
-            },
-            update: { grade: fg.grade },
-            create: {
+          },
+          update: {
+            grade: fg.grade,
+            conductNoteWish: fg.conductNoteWish,
+          },
+          create: {
+            studentId: fg.studentId,
+            classId: classIdNum,
+            semester: fg.semester,
+            schoolYearId,
+            grade: fg.grade,
+            conductNoteWish: fg.conductNoteWish,
+          },
+        })
+      }
+      for (const fg of columnWritable) {
+        if (fg.grade == null) continue
+        await tx.grade.upsert({
+          where: {
+            studentId_teacherId_classId_semester_schoolYearId: {
               studentId: fg.studentId,
               teacherId: teacher.id,
               classId: classIdNum,
               semester: fg.semester,
               schoolYearId,
-              grade: fg.grade,
             },
-          })
-        }
+          },
+          update: { grade: fg.grade },
+          create: {
+            studentId: fg.studentId,
+            teacherId: teacher.id,
+            classId: classIdNum,
+            semester: fg.semester,
+            schoolYearId,
+            grade: fg.grade,
+          },
+        })
+      }
 
-        return { count: writable.length, skippedLocked }
-      },
-    )
+      return { count: writable.length, skippedLocked }
+    })
 
     return NextResponse.json({ success: true, count, skippedLocked })
   } catch (error) {

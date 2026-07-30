@@ -8,8 +8,8 @@ import { resolveAccessTier } from '@/lib/api-access'
  *
  * `middleware.ts` is the outer net, but a matcher change or a route that opts
  * out of middleware would silently remove it. Every exported route handler must
- * therefore also guard itself, either with `denyUnlessAccess`, one of the
- * `withX` wrappers, or the older `requireAdmin` call.
+ * therefore also guard itself, with `denyUnlessAccess`, `requireAccess`, or the
+ * `requireAdmin` call.
  */
 
 const API_DIR = path.resolve(__dirname, '..')
@@ -17,17 +17,12 @@ const API_DIR = path.resolve(__dirname, '..')
 /** Route handlers whose access is enforced by something other than the guards. */
 const EXEMPT = new Map<string, string>([
   ['/api/auth/[...nextauth]', 'NextAuth owns this route entirely'],
-  ['/api/trpc/[trpc]', 'authorisation lives in the tRPC procedure middleware'],
   ['/api/github/releases', 'public release metadata, shown to signed-out visitors'],
   ['/api/sync/run', 'authenticated by a shared secret header, not a session'],
   ['/api/notifications/digest/run', 'authenticated by a shared secret header, not a session'],
 ])
 
-const GUARD_PATTERNS = [
-  /denyUnlessAccess\s*\(/,
-  /\bwith(Session|Staff|Admin)\s*\(/,
-  /requireAdmin\s*\(/,
-]
+const GUARD_PATTERNS = [/denyUnlessAccess\s*\(/, /requireAccess\s*\(/, /requireAdmin\s*\(/]
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -85,7 +80,7 @@ describe('API route guards', () => {
 
       const source = fs.readFileSync(file, 'utf8')
       for (const match of source.matchAll(
-        /denyUnlessAccess\(\s*'(public|session|staff|admin)'\s*\)/g,
+        /(?:denyUnlessAccess|requireAccess)\(\s*'(public|session|staff|admin)'\s*\)/g,
       )) {
         const declared = match[1]!
         // Find which methods this file exports so we can compare against policy.

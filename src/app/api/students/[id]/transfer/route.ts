@@ -1,10 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
 import { z } from 'zod'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { requireAccess } from '@/lib/api-guard'
 import { resolveCurrentTeacher } from '@/lib/current-teacher'
 import { bestEffort } from '@/lib/notifications'
 import { notifyScheduleChange } from '../../../schedules/_notify'
@@ -26,8 +24,8 @@ const transferSchema = z.object({
  * untouched so it stays attached to the class in which it was produced.
  */
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
-  const denied = await denyUnlessAccess('staff')
-  if (denied) return denied
+  const gate = await requireAccess('staff')
+  if (!gate.ok) return gate.response
 
   let rawBody = ''
   try {
@@ -139,7 +137,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     // the transfer transaction has already committed, so nothing here may turn
     // it into a 500.
     await bestEffort('notify:student-transfer', async () => {
-      const session = await getServerSession(authOptions)
+      const session = gate.session
       const actor = await resolveCurrentTeacher(session)
       for (const affectedClassId of [sourceClassId, targetClassId]) {
         await notifyScheduleChange({

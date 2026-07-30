@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { resolveSchoolYearId } from '@/lib/school-year'
+import { denyUnlessAccess, requireAccess } from '@/lib/api-guard'
 import { resolveCurrentTeacher } from '@/lib/current-teacher'
 import { notifyScheduleChange } from '../_notify'
 
@@ -50,24 +49,7 @@ export async function GET(request: Request) {
     }
 
     // Resolve school year: from query or current
-    let schoolYearId: number | undefined = schoolYearIdParam
-      ? parseInt(schoolYearIdParam, 10)
-      : undefined
-    if (schoolYearId == null || Number.isNaN(schoolYearId)) {
-      const now = new Date()
-      const current = await prisma.schoolYear.findFirst({
-        where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true },
-      })
-      schoolYearId =
-        current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true },
-          })
-        )?.id
-    }
+    const schoolYearId = await resolveSchoolYearId(schoolYearIdParam)
     if (schoolYearId == null) {
       return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
     }
@@ -151,8 +133,8 @@ export async function GET(request: Request) {
  * @returns A JSON response with `{ success: true }` on success, or an error message with the appropriate HTTP status code if validation fails or an error occurs.
  */
 export async function POST(request: Request) {
-  const denied = await denyUnlessAccess('staff')
-  if (denied) return denied
+  const gate = await requireAccess('staff')
+  if (!gate.ok) return gate.response
 
   let requestData
   try {
@@ -194,22 +176,9 @@ export async function POST(request: Request) {
     }
 
     // Resolve school year: from body or current
-    let schoolYearId = typeof bodySchoolYearId === 'number' ? bodySchoolYearId : undefined
-    if (schoolYearId == null) {
-      const now = new Date()
-      const current = await prisma.schoolYear.findFirst({
-        where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true },
-      })
-      schoolYearId =
-        current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true },
-          })
-        )?.id
-    }
+    const schoolYearId = await resolveSchoolYearId(
+      typeof bodySchoolYearId === 'number' ? bodySchoolYearId : undefined,
+    )
     if (schoolYearId == null) {
       return NextResponse.json(
         {
@@ -239,107 +208,49 @@ export async function POST(request: Request) {
       })
     }
 
-    // Process AM assignments
-    for (const assignment of amAssignments) {
-      // Use upsert to create subject if it doesn't exist
-      // If creating new, mark as custom (user-created)
-      const subject = await prisma.subject.upsert({
-        where: { name: assignment.subject },
-        update: {},
-        create: {
-          name: assignment.subject,
-          isCustom: true, // User-created values are custom
-        },
-      })
+    // AM and PM lanes create identical rows apart from the period tag, so
+    // process both from one loop rather than two copy-pasted blocks.
+    const lanes = [
+      ['AM', amAssignments],
+      ['PM', pmAssignments],
+    ] as const
+    for (const [period, laneAssignments] of lanes) {
+      for (const assignment of laneAssignments) {
+        // Subject / learning content / room are upserted so user-entered values
+        // that don't exist yet are created (and flagged custom).
+        const subject = await prisma.subject.upsert({
+          where: { name: assignment.subject },
+          update: {},
+          create: { name: assignment.subject, isCustom: true },
+        })
+        const learningContent = await prisma.learningContent.upsert({
+          where: { name: assignment.learningContent },
+          update: {},
+          create: { name: assignment.learningContent, isCustom: true },
+        })
+        const room = await prisma.room.upsert({
+          where: { name: assignment.room },
+          update: {},
+          create: { name: assignment.room, isCustom: true },
+        })
 
-      // Use upsert to create learning content if it doesn't exist
-      // If creating new, mark as custom (user-created)
-      const learningContent = await prisma.learningContent.upsert({
-        where: { name: assignment.learningContent },
-        update: {},
-        create: {
-          name: assignment.learningContent,
-          isCustom: true, // User-created values are custom
-        },
-      })
-
-      // Use upsert to create room if it doesn't exist
-      // If creating new, mark as custom (user-created)
-      const room = await prisma.room.upsert({
-        where: { name: assignment.room },
-        update: {},
-        create: {
-          name: assignment.room,
-          isCustom: true, // User-created values are custom
-        },
-      })
-
-      await prisma.teacherAssignment.create({
-        data: {
-          classId: classRecord.id,
-          schoolYearId,
-          period: 'AM',
-          groupId: assignment.groupId === 0 ? null : assignment.groupId,
-          teacherId: assignment.teacherId,
-          subjectId: subject.id,
-          learningContentId: learningContent.id,
-          roomId: room.id,
-          selectedWeekday: weekday,
-        },
-      })
+        await prisma.teacherAssignment.create({
+          data: {
+            classId: classRecord.id,
+            schoolYearId,
+            period,
+            groupId: assignment.groupId === 0 ? null : assignment.groupId,
+            teacherId: assignment.teacherId,
+            subjectId: subject.id,
+            learningContentId: learningContent.id,
+            roomId: room.id,
+            selectedWeekday: weekday,
+          },
+        })
+      }
     }
 
-    // Process PM assignments
-    for (const assignment of pmAssignments) {
-      // Use upsert to create subject if it doesn't exist
-      // If creating new, mark as custom (user-created)
-      const subject = await prisma.subject.upsert({
-        where: { name: assignment.subject },
-        update: {},
-        create: {
-          name: assignment.subject,
-          isCustom: true, // User-created values are custom
-        },
-      })
-
-      // Use upsert to create learning content if it doesn't exist
-      // If creating new, mark as custom (user-created)
-      const learningContent = await prisma.learningContent.upsert({
-        where: { name: assignment.learningContent },
-        update: {},
-        create: {
-          name: assignment.learningContent,
-          isCustom: true, // User-created values are custom
-        },
-      })
-
-      // Use upsert to create room if it doesn't exist
-      // If creating new, mark as custom (user-created)
-      const room = await prisma.room.upsert({
-        where: { name: assignment.room },
-        update: {},
-        create: {
-          name: assignment.room,
-          isCustom: true, // User-created values are custom
-        },
-      })
-
-      await prisma.teacherAssignment.create({
-        data: {
-          classId: classRecord.id,
-          schoolYearId,
-          period: 'PM',
-          groupId: assignment.groupId === 0 ? null : assignment.groupId,
-          teacherId: assignment.teacherId,
-          subjectId: subject.id,
-          learningContentId: learningContent.id,
-          roomId: room.id,
-          selectedWeekday: weekday,
-        },
-      })
-    }
-
-    const session = await getServerSession(authOptions)
+    const session = gate.session
     await notifyScheduleChange({
       type: 'schedule-assignments-changed',
       classId: classRecord.id,

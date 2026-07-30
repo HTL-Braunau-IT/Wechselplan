@@ -1,27 +1,23 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { requireAccess } from '@/lib/api-guard'
+import { resolveSchoolYearId } from '@/lib/school-year'
 
 /**
  * PATCH: Update student sitzplatz
  * Body: { studentId: number, sitzplatz: string | null }
  */
 export async function PATCH(request: Request) {
-  const denied = await denyUnlessAccess('staff')
-  if (denied) return denied
+  const gate = await requireAccess('staff')
+  if (!gate.ok) return gate.response
 
   try {
-    const session = await getServerSession(authOptions)
+    const session = gate.session
     if (!session?.user?.name) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    if (session.user?.role !== 'teacher' && session.user?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     if (!(await isFeatureEnabled('noten'))) {
       return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
@@ -54,16 +50,13 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ error: 'Teacher not found' }, { status: 403 })
       }
 
-      const currentYear = await prisma.schoolYear.findFirst({
-        where: { isCurrent: true },
-        select: { id: true },
-      })
-      if (!currentYear) {
+      const schoolYearId = await resolveSchoolYearId()
+      if (schoolYearId == null) {
         return NextResponse.json({ error: 'No active school year' }, { status: 403 })
       }
 
       const memberships = await prisma.classMembership.findMany({
-        where: { studentId, schoolYearId: currentYear.id },
+        where: { studentId, schoolYearId },
         select: { classId: true },
       })
       const isAssigned =
@@ -71,7 +64,7 @@ export async function PATCH(request: Request) {
         (await prisma.teacherAssignment.findFirst({
           where: {
             teacherId: teacher.id,
-            schoolYearId: currentYear.id,
+            schoolYearId,
             classId: { in: memberships.map(m => m.classId) },
           },
           select: { id: true },

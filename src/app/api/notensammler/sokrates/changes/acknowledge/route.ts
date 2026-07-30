@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { requireAccess } from '@/lib/api-guard'
 import { captureError } from '@/lib/sentry'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { actorName } from '@/lib/current-teacher'
@@ -31,11 +29,11 @@ export const revalidate = 0
  * Sokrates mark. Admins are not silently granted it here (no override flag).
  */
 export async function POST(request: Request) {
-  const denied = await denyUnlessAccess('staff')
-  if (denied) return denied
+  const gate = await requireAccess('staff')
+  if (!gate.ok) return gate.response
 
   try {
-    const session = await getServerSession(authOptions)
+    const session = gate.session
     if (!(await isFeatureEnabled('notensammler'))) {
       return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
     }

@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { resolveSchoolYearId } from '@/lib/school-year'
 import { captureError } from '@/lib/sentry'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { normalizeUsername } from '@/lib/username'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { requireAccess } from '@/lib/api-guard'
 
 /**
  * Handles HTTP GET requests to retrieve schedule, student, rotation, assignment, and class information for a specified teacher and weekday.
@@ -17,8 +16,8 @@ import { denyUnlessAccess } from '@/lib/api-guard'
  * @remark All error conditions except internal server errors return HTTP 200 with an error message in the JSON payload. Only unexpected exceptions result in a 500 status code.
  */
 export async function GET(req: Request) {
-  const denied = await denyUnlessAccess('session')
-  if (denied) return denied
+  const gate = await requireAccess('session')
+  if (!gate.ok) return gate.response
 
   const { searchParams } = new URL(req.url)
   try {
@@ -46,7 +45,7 @@ export async function GET(req: Request) {
     // signed-in user, fall back to the robust session resolver. Gated on the
     // names matching so this can never return a different teacher's schedule.
     if (!teacher) {
-      const session = await getServerSession(authOptions)
+      const session = gate.session
       if (session?.user?.name && normalizeUsername(session.user.name) === teacherUsername) {
         teacher = await resolveSessionTeacher(session)
       }
@@ -60,24 +59,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Teacher not found' }, { status: 200 })
     }
 
-    let schoolYearId: number | undefined = schoolYearIdParam
-      ? parseInt(schoolYearIdParam, 10)
-      : undefined
-    if (schoolYearId == null || Number.isNaN(schoolYearId)) {
-      const now = new Date()
-      const current = await prisma.schoolYear.findFirst({
-        where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true },
-      })
-      schoolYearId =
-        current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true },
-          })
-        )?.id
-    }
+    const schoolYearId = await resolveSchoolYearId(schoolYearIdParam)
 
     const ownAssignmentsWhere =
       schoolYearId != null ? { teacherId: teacher.id, schoolYearId } : { teacherId: teacher.id }

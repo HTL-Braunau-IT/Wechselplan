@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { requireAccess } from '@/lib/api-guard'
 import { resolveCurrentTeacher } from '@/lib/current-teacher'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { notifyScheduleChange } from '../_notify'
@@ -34,8 +32,8 @@ interface TeacherRotationRequest {
  * @returns A JSON response indicating success or providing an error message.
  */
 export async function POST(request: Request) {
-  const denied = await denyUnlessAccess('staff')
-  if (denied) return denied
+  const gate = await requireAccess('staff')
+  if (!gate.ok) return gate.response
 
   try {
     const data = (await request.json()) as TeacherRotationRequest
@@ -86,40 +84,46 @@ export async function POST(request: Request) {
       distinct: ['teacherId'],
     })
 
-    // Delete only THIS day's (and year's) rotations — never the sibling weekdays.
-    await prisma.teacherRotation.deleteMany({
-      where: { classId: classData.id, selectedWeekday, schoolYearId },
-    })
-
-    const writePeriod = async (
+    const buildRows = (
       period: 'AM' | 'PM',
       rotationRows: GroupRotationRow[],
       turnLabels: string[],
-    ) => {
-      for (const groupRotation of rotationRows) {
-        for (let i = 0; i < turnLabels.length; i++) {
+    ) =>
+      rotationRows.flatMap(groupRotation =>
+        turnLabels.flatMap((turnLabel, i) => {
           const teacherId = groupRotation.turns[i]
-          if (teacherId != null) {
-            await prisma.teacherRotation.create({
-              data: {
-                classId: classData.id,
-                groupId: groupRotation.groupId,
-                teacherId,
-                turnId: turnLabels[i]!,
-                period,
-                selectedWeekday,
-                schoolYearId,
-              },
-            })
-          }
-        }
-      }
-    }
+          return teacherId != null
+            ? [
+                {
+                  classId: classData.id,
+                  groupId: groupRotation.groupId,
+                  teacherId,
+                  turnId: turnLabel,
+                  period,
+                  selectedWeekday,
+                  schoolYearId,
+                },
+              ]
+            : []
+        }),
+      )
 
-    await writePeriod('AM', amRotation, amTurns)
-    await writePeriod('PM', pmRotation, pmTurns)
+    const rowsToCreate = [
+      ...buildRows('AM', amRotation, amTurns),
+      ...buildRows('PM', pmRotation, pmTurns),
+    ]
 
-    const session = await getServerSession(authOptions)
+    // Replace only THIS day's (and year's) rotations — never the sibling
+    // weekdays — atomically, so a mid-write failure cannot leave the weekday
+    // half-wiped.
+    await prisma.$transaction([
+      prisma.teacherRotation.deleteMany({
+        where: { classId: classData.id, selectedWeekday, schoolYearId },
+      }),
+      prisma.teacherRotation.createMany({ data: rowsToCreate }),
+    ])
+
+    const session = gate.session
     await notifyScheduleChange({
       type: 'schedule-rotation-changed',
       classId: classData.id,

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
+import { resolveSchoolYearId } from '@/lib/school-year'
 import * as XLSX from 'xlsx'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
 import { denyUnlessAccess } from '@/lib/api-guard'
@@ -58,23 +59,7 @@ export async function POST(request: Request) {
     }
 
     const schoolYearIdParam = searchParams.get('schoolYearId')
-    let schoolYearId: number | null = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : null
-    if (schoolYearId == null || Number.isNaN(schoolYearId)) {
-      const now = new Date()
-      const current = await prisma.schoolYear.findFirst({
-        where: { startDate: { lte: now }, endDate: { gte: now } },
-        select: { id: true },
-      })
-      schoolYearId =
-        current?.id ??
-        (
-          await prisma.schoolYear.findFirst({
-            orderBy: { startDate: 'desc' },
-            select: { id: true },
-          })
-        )?.id ??
-        null
-    }
+    const schoolYearId = await resolveSchoolYearId(schoolYearIdParam)
     if (schoolYearId == null) {
       return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
     }
