@@ -25,6 +25,21 @@ vi.mock('@/lib/api-guard', async () => {
   }
 })
 
+/**
+ * `captureError` persists to the ErrorLog table best-effort and fire-and-forget
+ * (see src/lib/sentry.ts -> src/lib/error-log.ts). In tests that would fire
+ * async DB writes against a mocked/absent Prisma after the handler returns,
+ * bleeding console noise and non-determinism into later tests. Stub the sink to
+ * a no-op so `captureError` stays real (call assertions still work) without any
+ * persistence. A test for the sink itself can `vi.unmock('@/lib/error-log')`.
+ */
+vi.mock('@/lib/error-log', () => ({
+  recordError: vi.fn(async () => undefined),
+  redactContext: (context: Record<string, unknown> | null | undefined) => context ?? null,
+  dedupeKey: () => 'test-dedupe-key',
+  pruneErrorLogs: vi.fn(async () => 0),
+}))
+
 // Automatically cleanup after each test
 afterEach(() => {
   cleanup()
