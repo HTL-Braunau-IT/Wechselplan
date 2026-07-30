@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-type Entry = { timer: NodeJS.Timeout; persists: boolean }
+type Entry = { timer: NodeJS.Timeout; persists: boolean; run: () => void }
 
 /**
  * Debounce work per key, and flush or cancel everything on demand.
@@ -46,6 +46,20 @@ export function useKeyedDebounce(delayMs: number) {
     setPendingCount(0)
   }, [])
 
+  /**
+   * Run everything that is still waiting, right now. "Speichern" has to mean
+   * saved: without this, a value typed into a debounced field and followed
+   * immediately by the button was written by the timer *after* the save, so the
+   * indicator said "gespeichert" while the field was still in flight.
+   */
+  const flushAll = useCallback(() => {
+    const pending = [...entriesRef.current.values()]
+    for (const entry of pending) clearTimeout(entry.timer)
+    entriesRef.current.clear()
+    setPendingCount(0)
+    for (const entry of pending) entry.run()
+  }, [])
+
   const schedule = useCallback(
     (key: string, run: () => void, options?: { persists?: boolean }) => {
       const existing = entriesRef.current.get(key)
@@ -56,7 +70,7 @@ export function useKeyedDebounce(delayMs: number) {
         sync()
         run()
       }, delayMs)
-      entriesRef.current.set(key, { timer, persists: options?.persists ?? true })
+      entriesRef.current.set(key, { timer, persists: options?.persists ?? true, run })
       sync()
     },
     [delayMs, sync],
@@ -71,5 +85,5 @@ export function useKeyedDebounce(delayMs: number) {
     }
   }, [])
 
-  return { schedule, cancel, cancelAll, pendingCount }
+  return { schedule, cancel, cancelAll, flushAll, pendingCount }
 }

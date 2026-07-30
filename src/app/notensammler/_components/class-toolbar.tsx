@@ -1,6 +1,5 @@
 'use client'
 
-import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ArrowUpDown, CheckCircle2, Download, FileText, Save, Upload } from 'lucide-react'
 import {
@@ -17,15 +16,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Hint } from '@/components/hint'
 import { Button } from '@/components/ui/button'
 import { Badge, badgeVariants } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import type { Semester } from '@/lib/grades'
+import { SaveStatus, type SaveState } from '@/components/save-status'
 import type { ClassData, SemesterView, SortDirection, SortField } from '../_lib/types'
-import type { SaveState } from '../_hooks/use-grade-editing'
-import { SaveStatus } from './save-status'
 
 /** One combined sort control instead of a field dropdown plus a direction dropdown. */
 const SORT_OPTIONS: Array<{ value: string; field: SortField; direction: SortDirection }> = [
@@ -34,16 +32,6 @@ const SORT_OPTIONS: Array<{ value: string; field: SortField; direction: SortDire
   { value: 'groupId-asc', field: 'groupId', direction: 'asc' },
   { value: 'groupId-desc', field: 'groupId', direction: 'desc' },
 ]
-
-/** Wraps a button in a tooltip — the guidance that used to sit in a "Hinweise" block. */
-function Hint({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
-  )
-}
 
 export type ClassToolbarProps = {
   classData: ClassData

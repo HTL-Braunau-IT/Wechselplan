@@ -2,9 +2,19 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CalendarX, Eye, EyeOff, GraduationCap, Save } from 'lucide-react'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  AlertCircle,
+  CalendarClock,
+  CalendarX,
+  GraduationCap,
+  Sun,
+  Sunset,
+  Users,
+} from 'lucide-react'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { PageContainer } from '@/components/ui/page-container'
@@ -12,6 +22,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useSchoolYear } from '@/contexts/school-year-context'
 import { useEntitlements } from '@/contexts/entitlements-context'
+import { useUnsavedWarning } from '@/hooks/use-unsaved-warning'
 import { entryKey, isSemester2 } from '@/lib/grades'
 import {
   emptyEntry,
@@ -25,14 +36,12 @@ import { useNotenData } from './_hooks/use-noten-data'
 import { useNotenSearch } from './_hooks/use-noten-search'
 import { useStickyColumns } from './_hooks/use-sticky-columns'
 import { useNmTransfer } from './_hooks/use-nm-transfer'
-import { NotenSearchPanel } from './_components/noten-search-panel'
-import { WeightsBar } from './_components/weights-bar'
+import { ClassGroupPicker } from './_components/class-group-picker'
+import { NotenToolbar } from './_components/noten-toolbar'
+import { DateMatchList } from './_components/search-popover'
 import { NotenGrid } from './_components/noten-grid'
 import { TextModal, type TextModalContentRef, type TextModalState } from './_components/text-modal'
 import { NmTransferDialog } from './_components/nm-transfer-dialog'
-
-const TAB_TRIGGER_CLASS =
-  'rounded-lg px-4 py-2.5 text-sm font-medium shadow-sm transition-all hover:bg-muted/80 data-[state=active]:shadow-md data-[state=active]:ring-2 data-[state=active]:ring-inset data-[state=active]:ring-primary'
 
 /** Today as YYYY-MM-DD in local time (the dates from the API are local dates). */
 function todayLocalYmd(): string {
@@ -56,7 +65,6 @@ export default function NotenPage() {
   const schoolYearId = selectedYear?.id ?? null
   const semesterChangeDate = selectedYear?.semesterChangeDate
   const todayYmd = todayLocalYmd()
-  const currentPeriod: 'AM' | 'PM' = new Date().getHours() < 12 ? 'AM' : 'PM'
 
   const {
     classes,
@@ -65,6 +73,7 @@ export default function NotenPage() {
     setSelectedClassId,
     selectedGroupId,
     setSelectedGroupId,
+    currentSlot,
     selectClass,
   } = useNotenClasses(schoolYearId)
 
@@ -73,6 +82,10 @@ export default function NotenPage() {
     groupId: selectedGroupId,
     schoolYearId,
   })
+
+  // Marks are written as they are entered, but a seat plan is debounced and a
+  // failed write stays queued — closing the tab on either used to lose it.
+  useUnsavedWarning(data.hasUnsavedWork)
 
   const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set())
   // Fold away days that haven't happened yet the first time a class/group loads,
@@ -106,23 +119,27 @@ export default function NotenPage() {
     resetKey: `${selectedClassId}-${selectedGroupId}-${search.focusDateYmd}`,
   })
 
+  const selectedClass = classes.find(cls => cls.id === selectedClassId)
+
   const transfer = useNmTransfer({
     classId: selectedClassId,
     schoolYearId,
     selectedGroupId,
-    allGroupIds: classes.find(c => c.id === selectedClassId)?.groupIds ?? [],
+    allGroupIds: selectedClass?.groupIds ?? [],
   })
 
-  const { semester1DayKeys, semester2DayKeys } = useMemo(() => {
+  const { semester1DayKeys, semester2DayKeys, futureDayKeys } = useMemo(() => {
     const first: string[] = []
     const second: string[] = []
+    const future: string[] = []
     for (const day of data.teachingDays) {
       const key = `${day.date}-${day.period}`
       if (isSemester2(day.date, semesterChangeDate)) second.push(key)
       else first.push(key)
+      if (day.date > todayYmd) future.push(key)
     }
-    return { semester1DayKeys: first, semester2DayKeys: second }
-  }, [data.teachingDays, semesterChangeDate])
+    return { semester1DayKeys: first, semester2DayKeys: second, futureDayKeys: future }
+  }, [data.teachingDays, semesterChangeDate, todayYmd])
 
   const summary = useMemo(
     () =>
@@ -130,6 +147,11 @@ export default function NotenPage() {
     [data.students, data.teachingDays, data.entries, data.weights, todayYmd],
   )
 
+  /**
+   * Teaching days still to come. The header used to add a third figure for the
+   * current half-day, counting only AM columns before noon — which is zero for
+   * every afternoon group, all morning.
+   */
   const remainingDays = useMemo(() => {
     const upcoming = data.teachingDays.filter(day => day.date > todayYmd)
     const todayIsSecondSemester = isSemester2(todayYmd, semesterChangeDate)
@@ -138,18 +160,14 @@ export default function NotenPage() {
       semester: upcoming.filter(
         day => isSemester2(day.date, semesterChangeDate) === todayIsSecondSemester,
       ).length,
-      period: upcoming.filter(day => day.period === currentPeriod).length,
     }
-  }, [data.teachingDays, todayYmd, semesterChangeDate, currentPeriod])
+  }, [data.teachingDays, todayYmd, semesterChangeDate])
 
   // Adjust during render (React's documented "reset state on key change"
   // pattern) rather than in an effect, so there's no extra commit/repaint.
   if (data.teachingDays.length > 0 && collapseInitedFor !== collapseInitKey) {
     setCollapseInitedFor(collapseInitKey)
-    const future = data.teachingDays
-      .filter(day => day.date > todayYmd)
-      .map(day => `${day.date}-${day.period}`)
-    setCollapsedDays(new Set(future))
+    setCollapsedDays(new Set(futureDayKeys))
   }
 
   const allDaysCollapsed =
@@ -180,10 +198,7 @@ export default function NotenPage() {
   const handleEntryChange = useCallback(
     (entry: NotenEntryRow, patch: Partial<NotenEntryRow>) => {
       data.updateEntry(entry.studentId, entry.date, entry.period, patch)
-      // Attendance is a deliberate click and shows a saving indicator; the
-      // grade selects fire often enough that the indicator would just flicker.
-      const skipSaving = !('attendance' in patch)
-      void data.saveEntries([{ ...entry, ...patch }], { skipSaving })
+      void data.saveEntries([{ ...entry, ...patch }])
     },
     [data],
   )
@@ -258,185 +273,210 @@ export default function NotenPage() {
     )
   }
 
-  const selectedClass = classes.find(cls => cls.id === selectedClassId)
   const canTransfer = isFeatureEnabled('notenmgmt_htl') && selectedClassId != null
+  const groupPeriod = data.teachingDays[0]?.period
+  const saving = data.saveState === 'saving'
 
   return (
     <TooltipProvider delayDuration={200}>
       <PageContainer size="wide" className="space-y-6">
-        <PageHeader icon={GraduationCap} title={t('navigation.noten')} />
+        <PageHeader
+          icon={GraduationCap}
+          title={t('navigation.noten')}
+          description={t('noten.subtitle', {
+            defaultValue: 'Anwesenheit und Mitarbeit je Unterrichtstag erfassen.',
+          })}
+        />
+
+        {/* A load failure is not dismissible: there is nothing behind it to
+            get back to, and picking another group is what clears it. */}
+        {data.loadError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{data.loadError}</AlertDescription>
+          </Alert>
+        )}
+
+        {data.saveError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="flex items-start justify-between gap-4">
+              <span className="whitespace-pre-line">{data.saveError}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => data.setSaveError(null)}
+              >
+                {t('common.close', 'Schließen')}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {loadingClasses ? (
-          <Spinner />
+          <div className="flex min-h-[240px] items-center justify-center">
+            <Spinner size="lg" />
+          </div>
         ) : classes.length === 0 ? (
           <EmptyState icon={GraduationCap} title={t('noten.noClasses')} />
         ) : (
           <>
-            <Tabs
-              value={selectedClassId?.toString() ?? ''}
-              onValueChange={value => {
-                const id = parseInt(value, 10)
-                if (!Number.isNaN(id)) selectClass(id)
-              }}
-            >
-              <TabsList className="text-foreground flex h-auto flex-wrap gap-2 bg-transparent p-0">
-                {classes.map(cls => (
-                  <TabsTrigger key={cls.id} value={cls.id.toString()} className={TAB_TRIGGER_CLASS}>
-                    {cls.name}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
+            <ClassGroupPicker
+              classes={classes}
+              selectedClassId={selectedClassId}
+              selectedGroupId={selectedGroupId}
+              currentSlot={currentSlot}
+              onSelectClass={selectClass}
+              onSelectGroup={setSelectedGroupId}
+            />
 
-            {selectedClass && (
-              <Tabs
-                value={selectedGroupId?.toString() ?? ''}
-                onValueChange={value => setSelectedGroupId(parseInt(value, 10))}
-              >
-                <TabsList className="text-foreground mb-4 flex h-auto flex-wrap gap-2 bg-transparent p-0">
-                  {selectedClass.groupIds.map(groupId => (
-                    <TabsTrigger
-                      key={groupId}
-                      value={groupId.toString()}
-                      className={TAB_TRIGGER_CLASS}
-                    >
-                      {t('noten.gruppe')} {groupId}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
+            {data.loading && (
+              <div className="flex min-h-[240px] items-center justify-center">
+                <Spinner size="lg" />
+              </div>
             )}
 
-            {selectedClass && selectedGroupId != null && (
-              <>
-                <div className="border-border mb-4 flex flex-wrap items-center justify-between gap-2 border-b pb-2">
-                  <h2 className="text-foreground text-base font-semibold">
-                    {selectedClass.name} - {t('noten.gruppe')} {selectedGroupId}
-                  </h2>
-                  <p className="text-muted-foreground text-xs">
-                    {t('noten.remainingFullYear', { defaultValue: 'Rest Schuljahr' })}:{' '}
-                    {remainingDays.fullYear} ·{' '}
-                    {t('noten.remainingSemester', { defaultValue: 'Rest Semester' })}:{' '}
-                    {remainingDays.semester} ·{' '}
-                    {t('noten.remainingPeriod', { defaultValue: `Rest ${currentPeriod}` })}:{' '}
-                    {remainingDays.period}
-                  </p>
-                </div>
+            {!data.loading && !(selectedClass && selectedGroupId != null) && (
+              <EmptyState
+                icon={GraduationCap}
+                title={t('noten.noGroupSelectedTitle', { defaultValue: 'Keine Gruppe ausgewählt' })}
+                description={t('noten.noGroupSelectedDesc', {
+                  defaultValue: 'Wähle oben eine Klasse und eine Gruppe.',
+                })}
+              />
+            )}
 
-                {data.loading ? (
-                  <Spinner />
-                ) : (
-                  <>
-                    <NotenSearchPanel
-                      open={search.open}
-                      setOpen={search.setOpen}
-                      searchText={search.searchText}
-                      setSearchText={search.setSearchText}
-                      searchDate={search.searchDate}
-                      setSearchDate={search.setSearchDate}
-                      message={search.message}
-                      nameMatchCount={search.nameMatches.length}
-                      activeNameMatchIndex={search.activeNameMatchIndex}
-                      onNameSearch={() => void search.performNameSearch()}
-                      onNextNameMatch={search.gotoNextNameMatch}
-                      onDateSearch={() => void search.performDateSearch()}
-                      dateMatches={search.dateMatches}
-                      studentsByGroup={search.studentsByGroup}
-                      onOpenGroup={(classId, groupId) => {
-                        setSelectedClassId(classId)
-                        setSelectedGroupId(groupId)
-                      }}
-                    />
-
-                    <WeightsBar
-                      weights={data.weights}
-                      weightsValid={data.weightsValid}
-                      saving={data.saving}
-                      saveError={data.saveError}
-                      onChange={handleWeightChange}
-                      onCommit={() => void data.saveWeights()}
-                    />
-
-                    <div className="mb-4 flex flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => void data.saveAll()}
-                        disabled={data.saving || selectedGroupId == null}
-                      >
-                        <Save className="h-4 w-4" />
-                        {t('common.save')}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          setCollapsedDays(
-                            allDaysCollapsed
-                              ? new Set()
-                              : new Set(data.teachingDays.map(day => `${day.date}-${day.period}`)),
-                          )
-                        }
-                        disabled={data.teachingDays.length === 0}
-                      >
-                        {allDaysCollapsed
-                          ? t('noten.expandAllDays', { defaultValue: 'Alle aufklappen' })
-                          : t('noten.collapseAllDays', { defaultValue: 'Alle Tage zuklappen' })}
-                      </Button>
-                      <Button
-                        variant={allRowsVisible ? 'destructive' : 'default'}
-                        size="sm"
-                        onClick={() => setAllRowsVisible(!allRowsVisible)}
-                        disabled={data.students.length === 0}
-                      >
-                        {allRowsVisible ? (
-                          <EyeOff className="h-4 w-4" />
+            {selectedClass && selectedGroupId != null && !data.loading && (
+              <Card>
+                <CardHeader className="gap-4">
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <h2 className="truncate text-xl font-semibold tracking-tight">
+                      {selectedClass.name} · {t('noten.gruppe')} {selectedGroupId}
+                    </h2>
+                    {groupPeriod && (
+                      <Badge variant="secondary" className="gap-1">
+                        {groupPeriod === 'AM' ? (
+                          <Sun className="h-3 w-3" />
                         ) : (
-                          <Eye className="h-4 w-4" />
+                          <Sunset className="h-3 w-3" />
                         )}
-                        {allRowsVisible
-                          ? t('noten.hideAllGrades', { defaultValue: 'Verstecke alle Noten' })
-                          : t('noten.showAllGrades', { defaultValue: 'Zeige alle Noten' })}
-                      </Button>
-                      {canTransfer && (
-                        <Button variant="outline" size="sm" onClick={() => transfer.start('group')}>
-                          {t('noten.notenmanagementEintragGruppe', {
-                            n: selectedGroupId,
-                            defaultValue: `Notenmanagement Eintrag Gruppe ${selectedGroupId}`,
-                          })}
-                        </Button>
-                      )}
-                      {canTransfer && selectedClass.groupIds.length > 0 && (
-                        <Button variant="outline" size="sm" onClick={() => transfer.start('all')}>
-                          {t('noten.notenmanagementEintragAlle', {
-                            defaultValue: 'Notenmanagement Eintrag – Alle Gruppen',
-                          })}
-                        </Button>
-                      )}
-                    </div>
+                        {groupPeriod === 'AM'
+                          ? t('noten.vormittag', { defaultValue: 'Vormittag' })
+                          : t('noten.nachmittag', { defaultValue: 'Nachmittag' })}
+                      </Badge>
+                    )}
+                    <span className="text-muted-foreground flex items-center gap-1.5 text-sm">
+                      <Users className="h-3.5 w-3.5" />
+                      {t('noten.studentCount', {
+                        defaultValue: '{{count}} Schüler',
+                        count: data.students.length,
+                      })}
+                    </span>
+                    <span className="text-muted-foreground flex items-center gap-1.5 text-sm">
+                      <CalendarClock className="h-3.5 w-3.5" />
+                      {t('noten.remainingSummary', {
+                        defaultValue:
+                          'Noch {{semester}} Termine im Semester, {{fullYear}} im Schuljahr',
+                        semester: remainingDays.semester,
+                        fullYear: remainingDays.fullYear,
+                      })}
+                    </span>
+                  </div>
 
-                    <div className="mb-4 flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          setCollapsedDays(prev => new Set([...prev, ...semester1DayKeys]))
-                        }
-                        disabled={!semesterChangeDate || semester1DayKeys.length === 0}
-                      >
-                        {t('noten.collapseSemester1', { defaultValue: '1. Semester zuklappen' })}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          setCollapsedDays(prev => new Set([...prev, ...semester2DayKeys]))
-                        }
-                        disabled={!semesterChangeDate || semester2DayKeys.length === 0}
-                      >
-                        {t('noten.collapseSemester2', { defaultValue: '2. Semester zuklappen' })}
-                      </Button>
-                    </div>
+                  <NotenToolbar
+                    saveState={data.saveState}
+                    saving={saving}
+                    onSave={() => void data.saveAll()}
+                    hasDays={data.teachingDays.length > 0}
+                    allDaysCollapsed={allDaysCollapsed}
+                    hasFutureDays={futureDayKeys.length > 0}
+                    canCollapseSemester1={!!semesterChangeDate && semester1DayKeys.length > 0}
+                    canCollapseSemester2={!!semesterChangeDate && semester2DayKeys.length > 0}
+                    onExpandAllDays={() => setCollapsedDays(new Set())}
+                    onCollapseAllDays={() =>
+                      setCollapsedDays(
+                        new Set(data.teachingDays.map(day => `${day.date}-${day.period}`)),
+                      )
+                    }
+                    onCollapseFutureDays={() =>
+                      setCollapsedDays(prev => new Set([...prev, ...futureDayKeys]))
+                    }
+                    onCollapseSemester1={() =>
+                      setCollapsedDays(prev => new Set([...prev, ...semester1DayKeys]))
+                    }
+                    onCollapseSemester2={() =>
+                      setCollapsedDays(prev => new Set([...prev, ...semester2DayKeys]))
+                    }
+                    gradesVisible={allRowsVisible}
+                    hasStudents={data.students.length > 0}
+                    onToggleGrades={() => setAllRowsVisible(!allRowsVisible)}
+                    weights={data.weights}
+                    weightsValid={data.weightsValid}
+                    onWeightChange={handleWeightChange}
+                    onWeightCommit={() => void data.saveWeights()}
+                    search={{
+                      open: search.open,
+                      onOpenChange: search.setOpen,
+                      searchText: search.searchText,
+                      setSearchText: search.setSearchText,
+                      searchDate: search.searchDate,
+                      setSearchDate: search.setSearchDate,
+                      message: search.message,
+                      onNameSearch: () => void search.performNameSearch(),
+                      onDateSearch: () => void search.performDateSearch(),
+                    }}
+                    nameMatchCount={search.nameMatches.length}
+                    activeNameMatchIndex={search.activeNameMatchIndex}
+                    nameMatchLabel={
+                      search.activeNameMatch
+                        ? `${search.activeNameMatch.lastName} ${search.activeNameMatch.firstName}`
+                        : null
+                    }
+                    onNextNameMatch={search.gotoNextNameMatch}
+                    onClearNameSearch={search.clearNameSearch}
+                    canTransfer={canTransfer}
+                    groupId={selectedGroupId}
+                    canTransferAllGroups={selectedClass.groupIds.length > 0}
+                    onTransferGroup={() => transfer.start('group')}
+                    onTransferAllGroups={() => transfer.start('all')}
+                  />
+                </CardHeader>
 
+                <CardContent className="space-y-4">
+                  <DateMatchList
+                    matches={search.dateMatches}
+                    studentsByGroup={search.studentsByGroup}
+                    onOpenGroup={(classId, groupId) => {
+                      setSelectedClassId(classId)
+                      setSelectedGroupId(groupId)
+                    }}
+                    onDismiss={search.clearDateSearch}
+                  />
+
+                  {data.students.length === 0 ? (
+                    <EmptyState
+                      icon={Users}
+                      title={t('noten.noStudentsTitle', {
+                        defaultValue: 'Keine Schüler in dieser Gruppe',
+                      })}
+                      description={t('noten.noStudentsDesc', {
+                        defaultValue:
+                          'Dieser Gruppe sind für dieses Schuljahr keine Schüler zugeordnet.',
+                      })}
+                    />
+                  ) : data.teachingDays.length === 0 ? (
+                    <EmptyState
+                      icon={CalendarX}
+                      title={t('noten.noTeachingDaysTitle', {
+                        defaultValue: 'Keine Unterrichtstage',
+                      })}
+                      description={t('noten.noTeachingDaysDesc', {
+                        defaultValue:
+                          'Für diese Gruppe ist im gewählten Schuljahr kein Turnus geplant.',
+                      })}
+                    />
+                  ) : (
                     <NotenGrid
                       teachingDays={data.teachingDays}
                       students={data.students}
@@ -450,7 +490,7 @@ export default function NotenPage() {
                       focusDateYmd={search.focusDateYmd}
                       todayYmd={todayYmd}
                       semesterChangeDate={semesterChangeDate}
-                      saving={data.saving}
+                      saving={saving}
                       sitzplatzLeft={sitzplatzLeft}
                       nameColumnRef={nameColumnRef}
                       registerDayColumn={registerDayColumn}
@@ -462,7 +502,7 @@ export default function NotenPage() {
                       onSetAllAnwesend={(date, period) => void data.setAllAnwesend(date, period)}
                       onEntryChange={handleEntryChange}
                       onSitzplatzChange={(studentId, value) =>
-                        void data.updateSitzplatz(studentId, value)
+                        data.updateSitzplatz(studentId, value)
                       }
                       onFinalGradeChange={data.setFinalGrade}
                       onFinalGradeCommit={handleFinalGradeCommit}
@@ -473,9 +513,9 @@ export default function NotenPage() {
                         setTextModal({ type: 'lehrstoff', date, period })
                       }
                     />
-                  </>
-                )}
-              </>
+                  )}
+                </CardContent>
+              </Card>
             )}
           </>
         )}

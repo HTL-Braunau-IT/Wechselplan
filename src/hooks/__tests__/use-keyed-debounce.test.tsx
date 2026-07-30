@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
-import { useKeyedDebounce } from '../use-keyed-debounce'
+import { useKeyedDebounce } from '@/hooks/use-keyed-debounce'
 
 describe('useKeyedDebounce', () => {
   beforeEach(() => vi.useFakeTimers())
@@ -59,6 +59,30 @@ describe('useKeyedDebounce', () => {
 
     act(() => vi.advanceTimersByTime(500))
     expect(result.current.pendingCount).toBe(0)
+  })
+
+  /**
+   * "Speichern" has to mean saved. Without a flush, a value typed into a
+   * debounced field and followed straight away by the button was written by its
+   * timer *after* the save had already gone out.
+   */
+  it('flushAll runs pending work immediately and clears the count', () => {
+    const run = vi.fn()
+    const { result } = renderHook(() => useKeyedDebounce(500))
+
+    act(() => {
+      result.current.schedule('sitzplatz:1', run)
+      result.current.schedule('sitzplatz:2', run)
+    })
+    expect(run).not.toHaveBeenCalled()
+
+    act(() => result.current.flushAll())
+    expect(run).toHaveBeenCalledTimes(2)
+    expect(result.current.pendingCount).toBe(0)
+
+    // The timers are gone, so nothing fires a second time.
+    act(() => vi.advanceTimersByTime(500))
+    expect(run).toHaveBeenCalledTimes(2)
   })
 
   it('cancelAll clears every timer and the count', () => {
