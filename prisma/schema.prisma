@@ -698,7 +698,9 @@ model ErrorLog {
   method         String? // HTTP method, when known
   actorId        Int? // Teacher who hit it, when resolvable
   actorName      String?
-  dedupeKey      String // hash(location + type + message)
+  // Unique so `recordError` can collapse repeats with one atomic upsert rather
+  // than a racy findFirst→create (concurrent hits would otherwise each insert).
+  dedupeKey      String    @unique // hash(location + type + message)
   count          Int       @default(1)
   firstSeenAt    DateTime  @default(now())
   lastSeenAt     DateTime  @default(now())
@@ -707,5 +709,4 @@ model ErrorLog {
   @@index([lastSeenAt])
   @@index([location])
   @@index([acknowledgedAt, lastSeenAt])
-  @@index([dedupeKey])
 }

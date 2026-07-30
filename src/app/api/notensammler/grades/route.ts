@@ -459,12 +459,13 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Invalid teacherId or classId format' }, { status: 400 })
     }
 
-    // Scope the delete to one school year — the client always sends it. Without
-    // this the deleteMany below would wipe the teacher's grades for the class in
-    // every year, not just the one on screen.
-    const schoolYearId = await resolveSchoolYearId(searchParams.get('schoolYearId'))
-    if (schoolYearId == null) {
-      return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
+    // A destructive bulk delete must name its year explicitly — never fall back
+    // to "current", which could silently wipe the wrong year's grades. The
+    // client always sends it.
+    const schoolYearIdParam = searchParams.get('schoolYearId')
+    const schoolYearId = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : NaN
+    if (Number.isNaN(schoolYearId)) {
+      return NextResponse.json({ error: 'schoolYearId parameter is required' }, { status: 400 })
     }
 
     // Verify teacher exists
@@ -481,6 +482,27 @@ export async function DELETE(request: Request) {
     })
     if (!classRecord) {
       return NextResponse.json({ error: 'Class not found' }, { status: 404 })
+    }
+
+    // Respect the Sokrates lock the POST and batch write paths enforce: once a
+    // class+semester is entered into Sokrates and hard-locked for this teacher,
+    // a bulk delete must not slip past it. Class leads/admins may still override.
+    const currentTeacher = await resolveCurrentTeacher(session)
+    const canOverride = await canManageSokrates({
+      classId,
+      role: session.user?.role,
+      teacherId: currentTeacher?.id ?? null,
+      adminOverride: false,
+    })
+    const sokratesStatus = await getSokratesStatus(classId, schoolYearId)
+    if (
+      isEditBlocked(sokratesStatus, 'first', teacherId, canOverride) ||
+      isEditBlocked(sokratesStatus, 'second', teacherId, canOverride)
+    ) {
+      return NextResponse.json(
+        { error: 'Diese Klasse ist für Sokrates gesperrt.' },
+        { status: 423 },
+      )
     }
 
     // Delete this teacher's grades for the class in the given school year.
