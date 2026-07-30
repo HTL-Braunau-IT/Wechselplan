@@ -208,104 +208,46 @@ export async function POST(request: Request) {
       })
     }
 
-    // Process AM assignments
-    for (const assignment of amAssignments) {
-      // Use upsert to create subject if it doesn't exist
-      // If creating new, mark as custom (user-created)
-      const subject = await prisma.subject.upsert({
-        where: { name: assignment.subject },
-        update: {},
-        create: {
-          name: assignment.subject,
-          isCustom: true, // User-created values are custom
-        },
-      })
+    // AM and PM lanes create identical rows apart from the period tag, so
+    // process both from one loop rather than two copy-pasted blocks.
+    const lanes = [
+      ['AM', amAssignments],
+      ['PM', pmAssignments],
+    ] as const
+    for (const [period, laneAssignments] of lanes) {
+      for (const assignment of laneAssignments) {
+        // Subject / learning content / room are upserted so user-entered values
+        // that don't exist yet are created (and flagged custom).
+        const subject = await prisma.subject.upsert({
+          where: { name: assignment.subject },
+          update: {},
+          create: { name: assignment.subject, isCustom: true },
+        })
+        const learningContent = await prisma.learningContent.upsert({
+          where: { name: assignment.learningContent },
+          update: {},
+          create: { name: assignment.learningContent, isCustom: true },
+        })
+        const room = await prisma.room.upsert({
+          where: { name: assignment.room },
+          update: {},
+          create: { name: assignment.room, isCustom: true },
+        })
 
-      // Use upsert to create learning content if it doesn't exist
-      // If creating new, mark as custom (user-created)
-      const learningContent = await prisma.learningContent.upsert({
-        where: { name: assignment.learningContent },
-        update: {},
-        create: {
-          name: assignment.learningContent,
-          isCustom: true, // User-created values are custom
-        },
-      })
-
-      // Use upsert to create room if it doesn't exist
-      // If creating new, mark as custom (user-created)
-      const room = await prisma.room.upsert({
-        where: { name: assignment.room },
-        update: {},
-        create: {
-          name: assignment.room,
-          isCustom: true, // User-created values are custom
-        },
-      })
-
-      await prisma.teacherAssignment.create({
-        data: {
-          classId: classRecord.id,
-          schoolYearId,
-          period: 'AM',
-          groupId: assignment.groupId === 0 ? null : assignment.groupId,
-          teacherId: assignment.teacherId,
-          subjectId: subject.id,
-          learningContentId: learningContent.id,
-          roomId: room.id,
-          selectedWeekday: weekday,
-        },
-      })
-    }
-
-    // Process PM assignments
-    for (const assignment of pmAssignments) {
-      // Use upsert to create subject if it doesn't exist
-      // If creating new, mark as custom (user-created)
-      const subject = await prisma.subject.upsert({
-        where: { name: assignment.subject },
-        update: {},
-        create: {
-          name: assignment.subject,
-          isCustom: true, // User-created values are custom
-        },
-      })
-
-      // Use upsert to create learning content if it doesn't exist
-      // If creating new, mark as custom (user-created)
-      const learningContent = await prisma.learningContent.upsert({
-        where: { name: assignment.learningContent },
-        update: {},
-        create: {
-          name: assignment.learningContent,
-          isCustom: true, // User-created values are custom
-        },
-      })
-
-      // Use upsert to create room if it doesn't exist
-      // If creating new, mark as custom (user-created)
-      const room = await prisma.room.upsert({
-        where: { name: assignment.room },
-        update: {},
-        create: {
-          name: assignment.room,
-          isCustom: true, // User-created values are custom
-        },
-      })
-
-      await prisma.teacherAssignment.create({
-        data: {
-          classId: classRecord.id,
-          schoolYearId,
-          period: 'PM',
-          groupId: assignment.groupId === 0 ? null : assignment.groupId,
-          teacherId: assignment.teacherId,
-          subjectId: subject.id,
-          learningContentId: learningContent.id,
-          roomId: room.id,
-          selectedWeekday: weekday,
-        },
-      })
+        await prisma.teacherAssignment.create({
+          data: {
+            classId: classRecord.id,
+            schoolYearId,
+            period,
+            groupId: assignment.groupId === 0 ? null : assignment.groupId,
+            teacherId: assignment.teacherId,
+            subjectId: subject.id,
+            learningContentId: learningContent.id,
+            roomId: room.id,
+            selectedWeekday: weekday,
+          },
+        })
+      }
     }
 
     const session = gate.session
