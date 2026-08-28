@@ -35,6 +35,11 @@ vi.mock('@/lib/prisma', () => ({
     classMembership: {
       findMany: vi.fn(),
     },
+    // The route derives the DESIGNED group set from GroupAssignment so a group
+    // that lost its last active student still counts toward the rotation modulus.
+    groupAssignment: {
+      findMany: vi.fn(),
+    },
   },
 }))
 
@@ -52,6 +57,7 @@ describe('Export API', () => {
     // instead of reaching the behaviour it means to assert.
     vi.mocked(prisma.schoolYear.findFirst).mockResolvedValue({ id: 1 } as never)
     vi.mocked(prisma.classMembership.findMany).mockResolvedValue([])
+    vi.mocked(prisma.groupAssignment.findMany).mockResolvedValue([] as never)
   })
 
   describe('POST /api/export', () => {

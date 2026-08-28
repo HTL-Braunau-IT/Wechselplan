@@ -823,8 +823,16 @@ export default function ScheduleClassSelectPage() {
         })),
       )
 
+      // The students query is keyed by class NAME, but the transfer only knows
+      // targetClassId — resolve the name so the destination roster is refetched
+      // too. Without this the target class keeps serving a cached roster that is
+      // missing the just-transferred-in student (finding 31).
+      const targetClassName = classes.find(c => c.id === targetClassId)?.name
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['students', selectedClass] }),
+        ...(targetClassName
+          ? [queryClient.invalidateQueries({ queryKey: ['students', targetClassName] })]
+          : []),
         queryClient.invalidateQueries({ queryKey: ['group-assignments', selectedClassId] }),
         queryClient.invalidateQueries({ queryKey: ['group-assignments', targetClassId] }),
       ])

@@ -153,13 +153,13 @@ describe('Support API', () => {
 
       // Verify error was logged and captured
 
+      // Only non-PII metadata is logged, never the support name/message text.
       expect(captureError).toHaveBeenCalledWith(expect.any(Error), {
         location: 'api/support',
         type: 'send-support-email',
         extra: {
-          name: validRequest.name,
-          message: validRequest.message,
-          currentUri: validRequest.currentUri,
+          messageLength: validRequest.message.length,
+          hasCurrentUri: true,
         },
       })
     })
@@ -186,11 +186,12 @@ describe('Support API', () => {
         error: 'Failed to process support request',
       })
 
+      // The raw body (user free-text / PII) is never persisted — only its size.
       expect(captureError).toHaveBeenCalledWith(expect.any(Error), {
         location: 'api/support',
         type: 'send-support-email',
         extra: {
-          requestBody,
+          requestBodyBytes: requestBody.length,
         },
       })
 

@@ -107,13 +107,21 @@ export function computeAverage(
   const considerTeacher = (teacherId: number): boolean =>
     teacherIds == null || teacherIds.has(teacherId)
 
+  // Scan all considered teachers before deciding, so the documented priority
+  // (nicht beurteilt wins over gestunden) holds regardless of teacher-id
+  // iteration order. Returning on the first sentinel seen made the result depend
+  // on which teacher id happened to come first (finding 17).
+  let hasNichtBeurteilt = false
+  let hasGestunden = false
   for (const teacherKey in studentGrades) {
     const teacherId = parseInt(teacherKey)
     if (!considerTeacher(teacherId)) continue
     const grade = studentGrades[teacherId]?.[semester]
-    if (grade === NICHT_BEURTEILT) return 'nicht beurteilt'
-    if (grade === GESTUNDEN) return 'gestunden'
+    if (grade === NICHT_BEURTEILT) hasNichtBeurteilt = true
+    else if (grade === GESTUNDEN) hasGestunden = true
   }
+  if (hasNichtBeurteilt) return 'nicht beurteilt'
+  if (hasGestunden) return 'gestunden'
 
   const gradeValues: number[] = []
   for (const teacherKey in studentGrades) {

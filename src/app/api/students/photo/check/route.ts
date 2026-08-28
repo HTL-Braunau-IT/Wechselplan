@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import path from 'path'
-import fs from 'fs'
+import { promises as fsp } from 'fs'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { hasEffectiveStudentPhoto } from '@/lib/student-photo-source'
 import { denyUnlessAccess } from '@/lib/api-guard'
@@ -8,14 +8,20 @@ import { denyUnlessAccess } from '@/lib/api-guard'
 const PHOTO_DIR = path.join(process.cwd(), 'data', 'student-photos')
 const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png'] as const
 
-function hasPhotoForStudent(studentId: number): boolean {
+// Cap the batch so a single request cannot fan out into an unbounded number of
+// filesystem / DB lookups and block the event loop (a comma-separated `ids`
+// param otherwise fits thousands of entries in one URL).
+const MAX_IDS = 500
+
+async function hasPhotoForStudent(studentId: number): Promise<boolean> {
   for (const ext of ALLOWED_EXTENSIONS) {
     const filePath = path.join(PHOTO_DIR, `${studentId}${ext}`)
-    if (!path.resolve(filePath).startsWith(path.resolve(PHOTO_DIR))) return false
+    if (!path.resolve(filePath).startsWith(path.resolve(PHOTO_DIR))) continue
     try {
-      if (fs.existsSync(filePath)) return true
+      await fsp.access(filePath)
+      return true
     } catch {
-      // continue
+      // file absent or unreadable — try next extension
     }
   }
   return false
@@ -26,7 +32,7 @@ function hasPhotoForStudent(studentId: number): boolean {
  * Returns { "1": true, "2": false } for each student id (true if photo exists).
  */
 export async function GET(request: Request) {
-  const denied = await denyUnlessAccess('session')
+  const denied = await denyUnlessAccess('staff')
   if (denied) return denied
 
   if (!(await isFeatureEnabled('student_photos'))) {
@@ -42,13 +48,25 @@ export async function GET(request: Request) {
       { status: 400 },
     )
   }
-  const ids = idsParam
-    .split(',')
-    .map(s => parseInt(s.trim(), 10))
-    .filter(n => !Number.isNaN(n) && n >= 1)
+  const ids = [
+    ...new Set(
+      idsParam
+        .split(',')
+        .map(s => parseInt(s.trim(), 10))
+        .filter(n => !Number.isNaN(n) && n >= 1),
+    ),
+  ]
+  if (ids.length > MAX_IDS) {
+    return NextResponse.json(
+      { error: `Too many ids (max ${MAX_IDS})` },
+      { status: 400 },
+    )
+  }
   const result: Record<string, boolean> = {}
   for (const id of ids) {
-    result[String(id)] = useEffective ? await hasEffectiveStudentPhoto(id) : hasPhotoForStudent(id)
+    result[String(id)] = useEffective
+      ? await hasEffectiveStudentPhoto(id)
+      : await hasPhotoForStudent(id)
   }
   return NextResponse.json(result)
 }

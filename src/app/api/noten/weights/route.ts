@@ -51,11 +51,23 @@ export async function PATCH(request: Request) {
     ) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
-    const sum =
-      Number(weightWiederholung) +
-      Number(weightBericht) +
-      Number(weightMitarbeit) +
-      Number(weightPraktischeArbeit)
+    // Bound each field to [0,100] before the sum check. The client enforces
+    // min=0/max=100, but a direct request could send e.g. {200,-100,0,0} (sum
+    // 100) which drives the weighted day-grade outside 1-5 or the divisor to 0,
+    // silently dropping a day from the average (finding 18).
+    const weightFields = [
+      weightWiederholung,
+      weightBericht,
+      weightMitarbeit,
+      weightPraktischeArbeit,
+    ].map(Number)
+    if (weightFields.some(w => !Number.isFinite(w) || w < 0 || w > 100)) {
+      return NextResponse.json(
+        { error: 'Each weight must be a number between 0 and 100' },
+        { status: 400 },
+      )
+    }
+    const sum = weightFields.reduce((acc, w) => acc + w, 0)
     if (sum !== 100) {
       return NextResponse.json({ error: 'Weights must sum to 100' }, { status: 400 })
     }

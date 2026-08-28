@@ -121,22 +121,37 @@ export async function GET(request: Request) {
     const byDate: SearchByDateResult[] = []
     if (dateQuery.length > 0) {
       const rotations = await prisma.teacherRotation.findMany({
-        where: { teacherId: teacher.id, classId: { in: classIds } },
-        select: { classId: true, groupId: true, turnId: true, period: true },
+        where: { teacherId: teacher.id, classId: { in: classIds }, schoolYearId },
+        select: {
+          classId: true,
+          groupId: true,
+          turnId: true,
+          period: true,
+          selectedWeekday: true,
+        },
       })
-      const scheduleByClass = new Map<
-        number,
+      // Since #98 a class has one schedule per weekday, and turn labels repeat
+      // across weekdays. Resolve one schedule per (class, weekday) and match each
+      // rotation row to the schedule that shares its selectedWeekday, so a
+      // rotation is never mapped onto another weekday's turn calendar.
+      const scheduleByClassWeekday = new Map<
+        string,
         Record<string, { weeks: Array<{ date: string; isHoliday: boolean }> }>
       >()
-      for (const classId of classIds) {
-        const schedule = await prisma.schedule.findFirst({
-          where: { classId, schoolYearId },
-          orderBy: { createdAt: 'desc' },
-          include: { turns: { include: { weeks: true }, orderBy: { order: 'asc' } } },
-        })
-        let scheduleData: Record<string, { weeks: Array<{ date: string; isHoliday: boolean }> }> =
-          {}
-        if (schedule?.turns && schedule.turns.length > 0) {
+      const scheduleKey = (classId: number, weekday: number) => `${classId}:${weekday}`
+      const schedules = await prisma.schedule.findMany({
+        where: { classId: { in: classIds }, schoolYearId },
+        orderBy: { createdAt: 'desc' },
+        include: { turns: { include: { weeks: true }, orderBy: { order: 'asc' } } },
+      })
+      for (const schedule of schedules) {
+        if (schedule.classId == null) continue
+        const key = scheduleKey(schedule.classId, schedule.selectedWeekday)
+        // createdAt desc: the first schedule seen per (class, weekday) is the
+        // newest; keep it and skip any older duplicates.
+        if (scheduleByClassWeekday.has(key)) continue
+        let scheduleData: Record<string, { weeks: Array<{ date: string; isHoliday: boolean }> }> = {}
+        if (schedule.turns && schedule.turns.length > 0) {
           scheduleData = normalizeToJsonFormat(
             schedule.turns.map(t => ({
               name: t.name,
@@ -145,12 +160,14 @@ export async function GET(request: Request) {
             })),
           ) as Record<string, { weeks: Array<{ date: string; isHoliday: boolean }> }>
         }
-        scheduleByClass.set(classId, scheduleData)
+        scheduleByClassWeekday.set(key, scheduleData)
       }
 
       const seen = new Set<string>()
       for (const rot of rotations) {
-        const scheduleData = scheduleByClass.get(rot.classId)
+        const scheduleData = scheduleByClassWeekday.get(
+          scheduleKey(rot.classId, rot.selectedWeekday),
+        )
         const weeks = scheduleData?.[rot.turnId]?.weeks ?? []
         for (const week of weeks) {
           if (week.isHoliday) continue

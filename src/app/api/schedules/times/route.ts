@@ -44,10 +44,18 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Class ID must be a number' }, { status: 400 })
   }
 
-  // Get the latest schedule for this class
+  // Since #98 a class has one schedule per weekday; scope by it so the times
+  // step reads the plan actually being edited, not whichever weekday's plan was
+  // created most recently. Optional for older callers that only pass classId.
+  const weekdayParam = searchParams.get('selectedWeekday')
+  const selectedWeekday =
+    weekdayParam != null && weekdayParam !== '' ? parseInt(weekdayParam, 10) : NaN
+
+  // Get the latest schedule for this class (and weekday, when given)
   const times = await prisma.schedule.findFirst({
     where: {
       classId: classId,
+      ...(Number.isNaN(selectedWeekday) ? {} : { selectedWeekday }),
     },
     orderBy: {
       createdAt: 'desc',
@@ -75,16 +83,25 @@ export async function POST(request: Request) {
   if (!gate.ok) return gate.response
 
   try {
-    const { scheduleTimes, breakTimes, classId } = await request.json()
+    const { scheduleTimes, breakTimes, classId, selectedWeekday } = await request.json()
 
     if (!classId || typeof classId !== 'number') {
       return NextResponse.json({ error: 'Class ID is required' }, { status: 400 })
     }
 
-    // Get the latest schedule for this class
+    // Scope by weekday so the save lands on the plan being edited, not whichever
+    // weekday's plan for this class was created most recently (#98). Optional for
+    // older callers that only send classId.
+    const weekdayFilter =
+      typeof selectedWeekday === 'number' && !Number.isNaN(selectedWeekday)
+        ? { selectedWeekday }
+        : {}
+
+    // Get the latest schedule for this class (and weekday, when given)
     const latestSchedule = await prisma.schedule.findFirst({
       where: {
         classId: classId,
+        ...weekdayFilter,
       },
       orderBy: {
         createdAt: 'desc',

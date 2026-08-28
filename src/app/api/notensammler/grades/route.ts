@@ -12,6 +12,7 @@ import {
 } from '@/lib/sokrates-lock'
 import { actorName, resolveCurrentTeacher } from '@/lib/current-teacher'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import { bestEffort } from '@/lib/notifications'
 import { notifyGradesEntered } from './_notify'
 
 // Force dynamic rendering - no caching
@@ -369,23 +370,28 @@ export async function POST(request: Request) {
     const { result, previousGrade, gradeChanged, semesterMarked, sokratesStatus } = write
 
     // Marked-then-changed → record + notify the class lead (no-op if unchanged
-    // or if the class lead made the change themselves).
+    // or if the class lead made the change themselves). The grade write has
+    // already committed, so this runs best-effort: a lookup/createMany/e-mail
+    // failure here must never surface as a 500 for a save that succeeded
+    // (finding 26).
     if (semesterMarked) {
-      await recordSokratesChanges({
-        classId: classIdNum,
-        schoolYearId,
-        changedById: currentTeacher?.id ?? null,
-        changedByName: actorName(currentTeacher, session),
-        status: sokratesStatus,
-        changes: [
-          {
-            studentId: studentIdNum,
-            teacherId: teacherIdNum,
-            semester: semesterTyped,
-            oldGrade: previousGrade,
-            newGrade: gradeValue,
-          },
-        ],
+      await bestEffort('sokrates:record-changes', async () => {
+        await recordSokratesChanges({
+          classId: classIdNum,
+          schoolYearId,
+          changedById: currentTeacher?.id ?? null,
+          changedByName: actorName(currentTeacher, session),
+          status: sokratesStatus,
+          changes: [
+            {
+              studentId: studentIdNum,
+              teacherId: teacherIdNum,
+              semester: semesterTyped,
+              oldGrade: previousGrade,
+              newGrade: gradeValue,
+            },
+          ],
+        })
       })
     }
 
@@ -411,13 +417,9 @@ export async function POST(request: Request) {
         errorStack: error instanceof Error ? error.stack : undefined,
       },
     })
-    return NextResponse.json(
-      {
-        error: 'Failed to save grade',
-        details: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 },
-    )
+    // Return a generic message; the detail (incl. any Prisma internals) is in
+    // captureError/Sentry above, not the client response (finding 42).
+    return NextResponse.json({ error: 'Failed to save grade' }, { status: 500 })
   }
 }
 

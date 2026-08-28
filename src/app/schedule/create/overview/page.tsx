@@ -7,7 +7,6 @@ import { useUnsavedWarning } from '@/hooks/use-unsaved-warning'
 import { useCachedData } from '@/hooks/use-cached-data'
 import { useScheduleOverview } from '@/hooks/use-schedule-overview'
 import { captureFrontendError } from '@/lib/frontend-error'
-import { captureError } from '@/lib/sentry'
 import {
   Dialog,
   DialogContent,
@@ -142,7 +141,10 @@ export default function OverviewPage() {
 
       if (!response.ok) {
         const error = new Error('Failed to save teacher rotation')
-        captureError(error, {
+        // Client-safe logger: importing the server-only captureError (@/lib/sentry)
+        // here pulled error-log's node:crypto into the client bundle and broke the
+        // production build.
+        captureFrontendError(error, {
           location: 'schedule/create/overview',
           type: 'save-overview',
         })

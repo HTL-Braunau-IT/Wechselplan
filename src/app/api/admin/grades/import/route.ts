@@ -244,12 +244,7 @@ export async function POST(request: Request) {
       type: 'import-grades',
       extra: { requestBodyBytes: rawBody.length },
     })
-    return NextResponse.json(
-      {
-        error: 'Failed to import grades',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 },
-    )
+    // Generic client message; detail stays in captureError/Sentry (finding 42).
+    return NextResponse.json({ error: 'Failed to import grades' }, { status: 500 })
   }
 }

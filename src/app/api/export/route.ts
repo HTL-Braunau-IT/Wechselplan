@@ -78,10 +78,22 @@ export async function POST(request: Request) {
           })
         : []
 
-    // Get all groups for this class
-    const groupIds = Array.from(new Set(students.map(s => s.groupId))).filter(
-      id => id !== null,
-    ) as number[]
+    // Build the group set from the DESIGNED groups (GroupAssignment), not just
+    // the groups that currently hold an active student. The Wechselplan rotation
+    // is a round-robin whose modulus is groups.length; if a group empties (its
+    // last student is soft-deactivated) and we derived groups only from live
+    // students, groups.length would shrink and every turnus column would print a
+    // different teacher→group schedule than the one saved (finding 29).
+    const designedGroups = await prisma.groupAssignment.findMany({
+      where: { class: class_response.name },
+      select: { groupId: true },
+    })
+    const groupIds = Array.from(
+      new Set<number>([
+        ...designedGroups.map(g => g.groupId),
+        ...(students.map(s => s.groupId).filter(id => id !== null) as number[]),
+      ]),
+    ).sort((a, b) => a - b)
     const groups = groupIds.map((groupId: number) => ({
       id: groupId,
       students: students.filter(s => s.groupId === groupId),

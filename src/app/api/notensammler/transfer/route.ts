@@ -86,7 +86,15 @@ export async function POST(request: Request) {
     }
 
     const body = (await request.json()) as Record<string, unknown>
-    requestData = body
+    // Only keep non-secret identifiers for the error log. The body also carries
+    // the teacher's NM `password`/`token` and grade `notes`, which must never
+    // reach the admin-visible Fehlerprotokoll.
+    requestData = {
+      classId: body.classId,
+      groupId: body.groupId,
+      semester: body.semester,
+      username: body.username,
+    }
 
     const groupId = parseOptionalInt(body.groupId)
     const isGroup = groupId !== null
@@ -301,16 +309,33 @@ export async function POST(request: Request) {
       return { lfId }
     }
 
-    // PUT an existing LF; null when the stored LF is gone (caller self-heals with a POST).
-    const putLf = async (lfId: string, payload: unknown): Promise<string | null> => {
+    // PUT an existing LF. Only a genuine 404 means the LF is gone and the caller
+    // may self-heal with a POST. Any other non-2xx (500/403/429/timeout) is a
+    // transient/permission failure — surfacing it as an error avoids POSTing a
+    // duplicate LF that would orphan the original in Notenmanagement (finding 27).
+    const putLf = async (
+      lfId: string,
+      payload: unknown,
+    ): Promise<{ ok: true; lfId: string } | { deleted: true } | { error: NextResponse }> => {
       const res = await nmSend('PUT', `api/LFs/${encodeURIComponent(lfId)}`, accessToken, payload)
-      if (!res.ok) {
-        console.warn(
-          `[Notenmanagement] PUT /api/LFs/${lfId} failed (status ${res.status}); creating a new LF instead.`,
-        )
-        return null
+      if (res.ok) {
+        return { ok: true, lfId: extractLfId(res.body) ?? lfId }
       }
-      return extractLfId(res.body) ?? lfId
+      if (res.status === 404) {
+        console.warn(
+          `[Notenmanagement] PUT /api/LFs/${lfId} returned 404; the LF was deleted, creating a new one.`,
+        )
+        return { deleted: true }
+      }
+      console.warn(
+        `[Notenmanagement] PUT /api/LFs/${lfId} failed (status ${res.status}); not creating a duplicate.`,
+      )
+      return {
+        error: NextResponse.json(
+          { error: 'Notenmanagement /api/LFs PUT failed', details: res.body },
+          { status: res.status === 403 ? 403 : 502 },
+        ),
+      }
     }
 
     // One LF per real NM class (combined Wechselplan classes split by nmKlasse).
@@ -320,38 +345,62 @@ export async function POST(request: Request) {
       const entries = notenByKlasse.get(klasse)!
       const payload = buildPayload(klasse, entries)
 
-      let existing = await prisma.notenmanagementTransfer.findFirst({
-        where: { classId, groupId, semester, schoolYearId, nmKlasse: klasse },
-      })
-      if (!existing && klassen.length === 1) {
-        existing = await prisma.notenmanagementTransfer.findFirst({
-          where: { classId, groupId, semester, schoolYearId, nmKlasse: null },
-        })
-      }
+      // Serialise the read → NM POST/PUT → persist for one transfer key. Without
+      // this a double-click or client retry lets two requests both findFirst→null
+      // and both POST a fresh LF, so the same Endnoten land under two LFs in the
+      // external gradebook (findings 4 & 12) — the class flow is not protected by
+      // the DB unique index because its groupId is NULL (NULLs are distinct in a
+      // Postgres unique index). The advisory xact lock makes the second request
+      // block until the first commits its create, then take the PUT path.
+      //
+      // The NM HTTP calls run inside the transaction so the lock is held across
+      // them; the timeout is sized to the NM client's own 20s ceiling. This is an
+      // infrequent, teacher-initiated action, so briefly holding a connection is
+      // an acceptable cost for correctness on this Zeugnis-grade write path.
+      const lockKey = `nm-transfer:${classId}:${groupId ?? 'null'}:${semester}:${schoolYearId}:${klasse}`
+      const outcome = await prisma.$transaction(
+        async (tx): Promise<{ lfId: string } | { error: NextResponse }> => {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`
 
-      let lfIdStr: string
-      if (existing) {
-        const updated = await putLf(existing.lfId, payload)
-        if (updated) {
-          lfIdStr = updated
-        } else {
-          const created = await postLf(payload)
-          if ('error' in created) return created.error
-          lfIdStr = created.lfId
-        }
-        await prisma.notenmanagementTransfer.update({
-          where: { id: existing.id },
-          data: { lfId: lfIdStr, nmKlasse: klasse },
-        })
-      } else {
-        const created = await postLf(payload)
-        if ('error' in created) return created.error
-        lfIdStr = created.lfId
-        await prisma.notenmanagementTransfer.create({
-          data: { classId, groupId, semester, schoolYearId, lfId: lfIdStr, nmKlasse: klasse },
-        })
-      }
-      results.push({ klasse, lfId: lfIdStr, count: entries.length })
+          let existing = await tx.notenmanagementTransfer.findFirst({
+            where: { classId, groupId, semester, schoolYearId, nmKlasse: klasse },
+          })
+          if (!existing && klassen.length === 1) {
+            existing = await tx.notenmanagementTransfer.findFirst({
+              where: { classId, groupId, semester, schoolYearId, nmKlasse: null },
+            })
+          }
+
+          let lfIdStr: string
+          if (existing) {
+            const updated = await putLf(existing.lfId, payload)
+            if ('error' in updated) return { error: updated.error }
+            if ('ok' in updated) {
+              lfIdStr = updated.lfId
+            } else {
+              // updated.deleted — the LF was genuinely 404, so recreate it.
+              const created = await postLf(payload)
+              if ('error' in created) return { error: created.error }
+              lfIdStr = created.lfId
+            }
+            await tx.notenmanagementTransfer.update({
+              where: { id: existing.id },
+              data: { lfId: lfIdStr, nmKlasse: klasse },
+            })
+          } else {
+            const created = await postLf(payload)
+            if ('error' in created) return { error: created.error }
+            lfIdStr = created.lfId
+            await tx.notenmanagementTransfer.create({
+              data: { classId, groupId, semester, schoolYearId, lfId: lfIdStr, nmKlasse: klasse },
+            })
+          }
+          return { lfId: lfIdStr }
+        },
+        { timeout: 30_000, maxWait: 25_000 },
+      )
+      if ('error' in outcome) return outcome.error
+      results.push({ klasse, lfId: outcome.lfId, count: entries.length })
     }
 
     return NextResponse.json({

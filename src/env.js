@@ -9,6 +9,23 @@ export const env = createEnv({
   server: {
     DATABASE_URL: z.string().url(),
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    // Root of at-rest secret encryption (crypto.ts scrypt KDF) AND the NextAuth
+    // JWT signing secret — required, so a deployment without it fails at boot
+    // rather than when an admin first saves a service password (finding 39).
+    NEXTAUTH_SECRET: z.string(),
+    // Microsoft Graph app credentials for the support-email sender. Optional so a
+    // deployment that does not use support email still boots; declared here so
+    // they go through the same validation contract as everything else.
+    GRAPH_TENANT_ID: z.string().optional(),
+    GRAPH_CLIENT_ID: z.string().optional(),
+    GRAPH_CLIENT_SECRET: z.string().optional(),
+    GRAPH_MAIL_FROM: z.string().optional(),
+    GRAPH_MAIL_TO: z.string().optional(),
+    // Photo cache TTL / source-priority knobs, read by the photo-source libs.
+    ENTRA_STUDENT_PHOTO_CACHE_TTL_HOURS: z.string().optional(),
+    ENTRA_TEACHER_PHOTO_CACHE_TTL_HOURS: z.string().optional(),
+    ENTRA_STUDENT_PHOTO_SOURCE_PRIORITY: z.string().optional(),
+    ENTRA_TEACHER_PHOTO_SOURCE_PRIORITY: z.string().optional(),
     // Entra is the only identity provider and the only directory source, so
     // these are required rather than optional: a deployment missing them can
     // neither log anyone in nor sync, and failing at boot beats failing at the
@@ -37,6 +54,7 @@ export const env = createEnv({
   client: {
     NEXT_PUBLIC_APP_VERSION: z.string().optional(),
     NEXT_PUBLIC_BUILD_DATE: z.string().optional(),
+    NEXT_PUBLIC_ENTRA_TEACHER_GROUP_ID: z.string().optional(),
   },
 
   /**
@@ -46,6 +64,16 @@ export const env = createEnv({
   runtimeEnv: {
     DATABASE_URL: process.env.DATABASE_URL,
     NODE_ENV: process.env.NODE_ENV,
+    NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
+    GRAPH_TENANT_ID: process.env.GRAPH_TENANT_ID,
+    GRAPH_CLIENT_ID: process.env.GRAPH_CLIENT_ID,
+    GRAPH_CLIENT_SECRET: process.env.GRAPH_CLIENT_SECRET,
+    GRAPH_MAIL_FROM: process.env.GRAPH_MAIL_FROM,
+    GRAPH_MAIL_TO: process.env.GRAPH_MAIL_TO,
+    ENTRA_STUDENT_PHOTO_CACHE_TTL_HOURS: process.env.ENTRA_STUDENT_PHOTO_CACHE_TTL_HOURS,
+    ENTRA_TEACHER_PHOTO_CACHE_TTL_HOURS: process.env.ENTRA_TEACHER_PHOTO_CACHE_TTL_HOURS,
+    ENTRA_STUDENT_PHOTO_SOURCE_PRIORITY: process.env.ENTRA_STUDENT_PHOTO_SOURCE_PRIORITY,
+    ENTRA_TEACHER_PHOTO_SOURCE_PRIORITY: process.env.ENTRA_TEACHER_PHOTO_SOURCE_PRIORITY,
     ENTRA_TENANT_ID: process.env.ENTRA_TENANT_ID,
     ENTRA_CLIENT_ID: process.env.ENTRA_CLIENT_ID,
     ENTRA_CLIENT_SECRET: process.env.ENTRA_CLIENT_SECRET,
@@ -62,6 +90,7 @@ export const env = createEnv({
     DISABLE_ENTITLEMENTS: process.env.DISABLE_ENTITLEMENTS,
     NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION,
     NEXT_PUBLIC_BUILD_DATE: process.env.NEXT_PUBLIC_BUILD_DATE,
+    NEXT_PUBLIC_ENTRA_TEACHER_GROUP_ID: process.env.NEXT_PUBLIC_ENTRA_TEACHER_GROUP_ID,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially

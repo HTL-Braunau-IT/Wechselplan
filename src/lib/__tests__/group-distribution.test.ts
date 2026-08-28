@@ -76,6 +76,23 @@ describe('adjustGroupCount', () => {
     expect(shrunk[0]!.students.length).toBe(0)
   })
 
+  it('balances removed students across remaining groups instead of filling the first', () => {
+    const fourGroups = [
+      { id: UNASSIGNED_GROUP_ID, students: [] as S[] },
+      { id: 1, students: mk(6) },
+      { id: 2, students: mk(6) },
+      { id: 3, students: mk(6) },
+      { id: 4, students: mk(6) },
+    ]
+    const shrunk = adjustGroupCount(fourGroups, 3, 12)
+    const sizes = shrunk
+      .filter(g => g.id !== UNASSIGNED_GROUP_ID)
+      .map(g => g.students.length)
+      .sort((a, b) => a - b)
+    // Balanced [8,8,8], not the old lopsided [6,6,12] (finding 23).
+    expect(sizes).toEqual([8, 8, 8])
+  })
+
   it('overflows to the unassigned group when remaining groups are full', () => {
     const full = [
       { id: UNASSIGNED_GROUP_ID, students: [] as S[] },

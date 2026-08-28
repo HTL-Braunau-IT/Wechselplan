@@ -9,7 +9,7 @@ import { denyUnlessAccess } from '@/lib/api-guard'
  * Tries .jpg, .jpeg, .png. Returns 404 when studentId is missing/invalid or no file found.
  */
 export async function GET(request: Request) {
-  const denied = await denyUnlessAccess('session')
+  const denied = await denyUnlessAccess('staff')
   if (denied) return denied
 
   if (!(await isFeatureEnabled('student_photos'))) {

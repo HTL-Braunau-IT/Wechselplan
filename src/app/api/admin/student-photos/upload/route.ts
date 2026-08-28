@@ -14,6 +14,30 @@ const EXT_BY_MIME: Record<string, string> = {
   'image/png': '.png',
 }
 
+// Bounds so a single request cannot exhaust the process heap: request.formData()
+// buffers every part in memory and each file is then read whole via arrayBuffer.
+const MAX_FILE_BYTES = 8 * 1024 * 1024 // 8 MB per image
+const MAX_TOTAL_BYTES = 60 * 1024 * 1024 // 60 MB per request (Content-Length gate)
+const MAX_FILES = 200
+
+/** True if the buffer begins with real JPEG or PNG magic bytes. */
+function hasImageMagicBytes(buffer: Buffer): boolean {
+  // JPEG: FF D8 FF · PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return true
+  }
+  if (
+    buffer.length >= 8 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47
+  ) {
+    return true
+  }
+  return false
+}
+
 export type UploadResultItem = {
   filename: string
   success: boolean
@@ -38,6 +62,12 @@ export async function POST(request: Request) {
     }
     if (!(await isFeatureEnabled('student_photos'))) {
       return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
+    }
+
+    // Reject an oversized body before formData() buffers the whole thing.
+    const contentLength = Number(request.headers.get('content-length') ?? '0')
+    if (Number.isFinite(contentLength) && contentLength > MAX_TOTAL_BYTES) {
+      return NextResponse.json({ error: 'Upload too large', results: [] }, { status: 413 })
     }
 
     const formData = await request.formData()
@@ -77,6 +107,14 @@ export async function POST(request: Request) {
           { status: 400 },
         )
       }
+      if (file.size > MAX_FILE_BYTES) {
+        return NextResponse.json(
+          {
+            results: [{ filename: file.name, success: false, error: 'File too large' }],
+          },
+          { status: 413 },
+        )
+      }
       const outExt = EXT_BY_MIME[mime] ?? '.jpg'
       const outPath = path.join(PHOTO_DIR, `${student.id}${outExt}`)
       if (!path.resolve(outPath).startsWith(path.resolve(PHOTO_DIR))) {
@@ -85,6 +123,15 @@ export async function POST(request: Request) {
       try {
         fs.mkdirSync(PHOTO_DIR, { recursive: true })
         const buffer = Buffer.from(await file.arrayBuffer())
+        // MIME is client-controlled; verify the bytes really are an image.
+        if (!hasImageMagicBytes(buffer)) {
+          return NextResponse.json(
+            {
+              results: [{ filename: file.name, success: false, error: 'Not a valid image file' }],
+            },
+            { status: 400 },
+          )
+        }
         fs.writeFileSync(outPath, buffer)
         return NextResponse.json({
           results: [{ filename: file.name, success: true, studentId: student.id }],
@@ -170,6 +217,12 @@ export async function POST(request: Request) {
     if (files.length === 0) {
       return NextResponse.json({ error: 'No files provided', results: [] }, { status: 400 })
     }
+    if (files.length > MAX_FILES) {
+      return NextResponse.json(
+        { error: `Too many files (max ${MAX_FILES})`, results: [] },
+        { status: 413 },
+      )
+    }
 
     async function processFile(file: File) {
       const rawName = file.name || 'unknown'
@@ -211,6 +264,10 @@ export async function POST(request: Request) {
         })
         return
       }
+      if (file.size > MAX_FILE_BYTES) {
+        results.push({ filename: rawName, success: false, error: 'File too large' })
+        return
+      }
       const outExt = EXT_BY_MIME[mime] ?? '.jpg'
       const uniqueStudents = Array.from(new Map(matchedStudents.map(s => [s.id, s])).values())
       for (const s of uniqueStudents) {
@@ -223,6 +280,11 @@ export async function POST(request: Request) {
       try {
         fs.mkdirSync(PHOTO_DIR, { recursive: true })
         const buffer = Buffer.from(await file.arrayBuffer())
+        // MIME is client-controlled; verify the bytes really are an image.
+        if (!hasImageMagicBytes(buffer)) {
+          results.push({ filename: rawName, success: false, error: 'Not a valid image file' })
+          return
+        }
         for (const s of uniqueStudents) {
           const outPath = path.join(PHOTO_DIR, `${s.id}${outExt}`)
           fs.writeFileSync(outPath, buffer)

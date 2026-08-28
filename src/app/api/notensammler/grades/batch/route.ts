@@ -13,6 +13,7 @@ import {
 } from '@/lib/sokrates-lock'
 import { actorName, resolveCurrentTeacher } from '@/lib/current-teacher'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import { bestEffort } from '@/lib/notifications'
 import { notifyGradesEntered } from '../_notify'
 
 export const dynamic = 'force-dynamic'
@@ -146,20 +147,7 @@ export async function POST(request: Request) {
       })
     }
 
-    // The grades already on file, keyed the same way as the incoming batch.
-    // Needed twice over: to tell an actual edit from a resave (only the former
-    // is gated by a Sokrates lock, and only the former is worth telling the
-    // class lead about), and to count what really moved.
-    const existing = await prisma.grade.findMany({
-      where: { classId: classIdNum, schoolYearId },
-      select: { studentId: true, teacherId: true, semester: true, grade: true },
-    })
-    const existingMap = new Map<string, number | null>()
-    for (const e of existing) {
-      existingMap.set(`${e.studentId}:${e.teacherId}:${e.semester}`, e.grade)
-    }
     const gradeKey = (g: GradeEntry) => `${g.studentId}:${g.teacherId}:${g.semester}`
-    const changed = grades.filter(g => (existingMap.get(gradeKey(g)) ?? null) !== g.grade)
 
     const currentTeacher = await resolveCurrentTeacher(session)
     const canOverride = await canManageSokrates({
@@ -178,10 +166,26 @@ export async function POST(request: Request) {
     // The mark state is re-read and the write applied under the shared advisory
     // lock, so a mark committing mid-request cannot leave a hard-locked cell
     // written: whichever of the two runs second sees the other's commit.
-    const { sokratesStatus, anyMarked, sokratesChanges, blockedKeys, writtenCount } =
+    const { sokratesStatus, anyMarked, sokratesChanges, blockedKeys, writtenCount, changed } =
       await withSokratesLock(classIdNum, schoolYearId, async tx => {
         const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId, tx)
         const anyMarked = sokratesStatus.first.marked || sokratesStatus.second.marked
+
+        // Read the grades already on file INSIDE the lock (through tx) so change
+        // detection and the hard-lock check see one consistent snapshot. Reading
+        // before the lock let a cell whose incoming value matched a stale read be
+        // classified "unchanged", skip the isEditBlocked check, and overwrite a
+        // concurrent authorised locked-cell edit (finding 20).
+        const existing = await tx.grade.findMany({
+          where: { classId: classIdNum, schoolYearId },
+          select: { studentId: true, teacherId: true, semester: true, grade: true },
+        })
+        const existingMap = new Map<string, number | null>()
+        for (const e of existing) {
+          existingMap.set(`${e.studentId}:${e.teacherId}:${e.semester}`, e.grade)
+        }
+        const changed = grades.filter(g => (existingMap.get(gradeKey(g)) ?? null) !== g.grade)
+
         const sokratesChanges: GradeChange[] = []
         const blockedKeys = new Set<string>()
         if (anyMarked) {
@@ -237,17 +241,22 @@ export async function POST(request: Request) {
           sokratesChanges,
           blockedKeys,
           writtenCount: gradesToWrite.length,
+          changed,
         }
       })
 
     if (anyMarked && sokratesChanges.length > 0) {
-      await recordSokratesChanges({
-        classId: classIdNum,
-        schoolYearId,
-        changedById: currentTeacher?.id ?? null,
-        changedByName: actorName(currentTeacher, session),
-        status: sokratesStatus,
-        changes: sokratesChanges,
+      // Best-effort: the grade batch has committed, so a failure recording the
+      // drift notice must not turn a successful save into a 500 (finding 26).
+      await bestEffort('sokrates:record-changes', async () => {
+        await recordSokratesChanges({
+          classId: classIdNum,
+          schoolYearId,
+          changedById: currentTeacher?.id ?? null,
+          changedByName: actorName(currentTeacher, session),
+          status: sokratesStatus,
+          changes: sokratesChanges,
+        })
       })
     }
 
@@ -274,12 +283,7 @@ export async function POST(request: Request) {
         errorMessage: error instanceof Error ? error.message : String(error),
       },
     })
-    return NextResponse.json(
-      {
-        error: 'Failed to save grades',
-        details: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 },
-    )
+    // Generic client message; Prisma detail stays in captureError/Sentry (finding 42).
+    return NextResponse.json({ error: 'Failed to save grades' }, { status: 500 })
   }
 }

@@ -117,7 +117,12 @@ function computeChanges(
  */
 export async function previewTeacherSync(): Promise<TeacherSyncDiff> {
   const teacherGroupId = resolveTeacherGroupId()
-  const members = await collectGroupMembers(teacherGroupId)
+  // Read transitive members so the roster matches what login grants: the login
+  // path (resolveMicrosoftAccess → checkMemberGroups) is transitive and class
+  // sync also uses { transitive: true }. Reading only direct members here meant a
+  // teacher nested in a sub-group got a staff login but was never synced — or was
+  // deactivated on being moved into a sub-group (finding 10).
+  const members = await collectGroupMembers(teacherGroupId, { transitive: true })
 
   const entraTeachers: EntraTeacher[] = []
   const issues: TeacherSyncIssue[] = []
@@ -424,7 +429,10 @@ export async function applyTeacherSync(
           },
         })
       }
-    })
+      // Raise the interactive-transaction timeout above Prisma's 5s default so a
+      // full roster apply cannot abort (P2028) and roll the whole run back on a
+      // networked DB (finding 35).
+    }, { timeout: 120_000, maxWait: 20_000 })
 
     const summary: TeacherSyncSummary = {
       created: selectedCreates.length,

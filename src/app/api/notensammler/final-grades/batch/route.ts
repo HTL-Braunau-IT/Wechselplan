@@ -9,7 +9,6 @@ import { resolveSchoolYearId } from '@/lib/school-year'
 import {
   canManageSokrates,
   getSokratesStatus,
-  isEditBlocked,
   isFinalGradeEditBlocked,
   resolveCurrentTeacher,
   withSokratesLock,
@@ -179,14 +178,17 @@ export async function POST(request: Request) {
     // rather than failing the whole "Alle speichern", which is what the grade
     // batch does — an untouched semester in the same request still saves.
     //
-    // This endpoint also mirrors each Endnote into the caller's own grade column
-    // (the second upsert loop below), so that half has to clear the column-level
-    // check too — otherwise saving an Endnote would be a way around a locked column.
+    // This route writes ONLY the FinalGrade (the class Endnote), exactly like the
+    // single-cell route. It used to also mirror each Endnote into the caller's own
+    // Grade column, which overwrote the caller's real subject marks and folded the
+    // Endnote into every student's computed average — the grid's own invariant is
+    // that "Endnote and Betragensnote belong to the class, not to a teacher
+    // column" (finding 3). The mirror is gone so both save paths produce the same
+    // DB state.
     //
-    // The mark state is re-read and every write applied under the shared
-    // advisory lock, so a mark committing mid-request cannot leave a hard-locked
-    // Zeugnisnote (or its mirrored column) written: whichever runs second sees
-    // the other's commit.
+    // The mark state is re-read and every write applied under the shared advisory
+    // lock, so a mark committing mid-request cannot leave a hard-locked Zeugnisnote
+    // written: whichever runs second sees the other's commit.
     const currentTeacher = await resolveCurrentTeacher(session)
     const canOverride = await canManageSokrates({
       classId: classIdNum,
@@ -198,14 +200,10 @@ export async function POST(request: Request) {
     const { count, skippedLocked } = await withSokratesLock(classIdNum, schoolYearId, async tx => {
       const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId, tx)
       let writable = finalGrades
-      let columnWritable = finalGrades
       let skippedLocked = 0
       if (sokratesStatus.first.marked || sokratesStatus.second.marked) {
         writable = finalGrades.filter(
           fg => !isFinalGradeEditBlocked(sokratesStatus, fg.semester, canOverride),
-        )
-        columnWritable = writable.filter(
-          fg => !isEditBlocked(sokratesStatus, fg.semester, teacher.id, canOverride),
         )
         skippedLocked = finalGrades.length - writable.length
       }
@@ -231,29 +229,6 @@ export async function POST(request: Request) {
             schoolYearId,
             grade: fg.grade,
             conductNoteWish: fg.conductNoteWish,
-          },
-        })
-      }
-      for (const fg of columnWritable) {
-        if (fg.grade == null) continue
-        await tx.grade.upsert({
-          where: {
-            studentId_teacherId_classId_semester_schoolYearId: {
-              studentId: fg.studentId,
-              teacherId: teacher.id,
-              classId: classIdNum,
-              semester: fg.semester,
-              schoolYearId,
-            },
-          },
-          update: { grade: fg.grade },
-          create: {
-            studentId: fg.studentId,
-            teacherId: teacher.id,
-            classId: classIdNum,
-            semester: fg.semester,
-            schoolYearId,
-            grade: fg.grade,
           },
         })
       }

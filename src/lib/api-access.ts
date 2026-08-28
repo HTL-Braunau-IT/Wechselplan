@@ -54,7 +54,10 @@ export const API_ACCESS_RULES: readonly ApiAccessRule[] = [
   { prefix: '/api/client-errors', tier: 'session', methods: ['POST'] },
   { prefix: '/api/school-years', tier: 'session', methods: ['GET'] },
   { prefix: '/api/students/class', tier: 'session', methods: ['GET'] },
-  { prefix: '/api/students/photo', tier: 'session', methods: ['GET'] },
+  // Student photos are only rendered in the staff Notensammler grid; a student
+  // reads their own portrait via /api/me/photo. Staff tier stops a student
+  // session from enumerating every classmate's photo by integer id.
+  { prefix: '/api/students/photo', tier: 'staff', methods: ['GET'] },
   { prefix: '/api/teachers/photo', tier: 'session', methods: ['GET'] },
   // Combining two classes into one is part of schedule creation, a teacher task.
   // Listed before the /api/classes admin rule below, which would otherwise catch it.
@@ -66,6 +69,11 @@ export const API_ACCESS_RULES: readonly ApiAccessRule[] = [
   // and freeze every colleague's grades. Ordered after the GET rule above so
   // reads stay open to any signed-in user.
   { prefix: '/api/classes', tier: 'admin' },
+  // The teacher schedule/roster view returns full class rosters and is a staff
+  // task. Listed before the /api/schedules session rule below so it is not
+  // caught by it — it must never be reachable by a student session, which could
+  // otherwise pass an arbitrary teacher username and read that teacher's roster.
+  { prefix: '/api/schedules/data', tier: 'staff', methods: ['GET'] },
   // Students read their own class schedule from the home page overview.
   { prefix: '/api/schedules', tier: 'session', methods: ['GET'] },
 

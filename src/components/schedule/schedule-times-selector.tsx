@@ -95,8 +95,8 @@ export function ScheduleTimesSelector({
   // Fetch teacher assignments to determine periods (scoped to this weekday).
   const { data: teacherAssignmentsData } = useTeacherAssignments(classId, weekday ?? null)
 
-  // Fetch schedule times
-  useScheduleTimes(classId)
+  // Fetch schedule times (scoped to this weekday's plan)
+  useScheduleTimes(classId, weekday ?? null)
 
   // Save mutation
   const saveTimesMutation = useSaveScheduleTimes()
@@ -148,7 +148,11 @@ export function ScheduleTimesSelector({
       // Fetch saved times for this class
       setIsLoadingSavedTimes(true)
       try {
-        const savedTimesResponse = await fetch(`/api/schedules/times?classId=${classId}`)
+        const weekdayQuery =
+          weekday != null && !Number.isNaN(weekday) ? `&selectedWeekday=${weekday}` : ''
+        const savedTimesResponse = await fetch(
+          `/api/schedules/times?classId=${classId}${weekdayQuery}`,
+        )
         if (savedTimesResponse.ok) {
           const savedTimes = await savedTimesResponse.json()
 
@@ -243,6 +247,7 @@ export function ScheduleTimesSelector({
         classId,
         scheduleTimes,
         breakTimes,
+        selectedWeekday: weekday ?? null,
       })
 
       if (onSave) {

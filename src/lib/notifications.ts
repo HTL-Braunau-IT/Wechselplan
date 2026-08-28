@@ -109,7 +109,11 @@ export async function notify<T extends NotificationType>(input: NotifyInput<T>):
       where: { id: { in: existing.map(row => row.id) } },
       // Type and createdAt move too: the bell sorts newest first, and a
       // collapsed row describes the most recent occurrence, not the first one.
-      data: { ...payload, createdAt: now },
+      // Clear digestedAt so a fresh event folded onto an already-digested unread
+      // row re-enters the digest window like any new event — otherwise the
+      // refreshed occurrence would be silently omitted from every future digest
+      // (finding 25).
+      data: { ...payload, createdAt: now, digestedAt: null },
     })
   }
 

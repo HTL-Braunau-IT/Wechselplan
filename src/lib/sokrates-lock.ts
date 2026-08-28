@@ -331,7 +331,9 @@ export async function recordSokratesChanges(params: {
   const classRecord = await prisma.class.findUnique({
     where: { id: classId },
     include: {
-      classLead: { select: { id: true, firstName: true, lastName: true, email: true } },
+      classLead: {
+        select: { id: true, firstName: true, lastName: true, email: true, isActive: true },
+      },
     },
   })
   if (!classRecord) return 0
@@ -413,8 +415,15 @@ export async function recordSokratesChanges(params: {
 
   // Email the class lead (best-effort). No lead or no address → in-app only.
   // A lead editing their own class already gets the in-app reminder; don't also
-  // email them about their own change.
-  const email = recipientId === changedById ? undefined : classRecord.classLead?.email
+  // email them about their own change. A deactivated lead (left the school but
+  // still recorded as classLead) is skipped: the nested `include` above bypasses
+  // the active-by-default filter, so the isActive check is explicit here — the
+  // bell path already drops them, this keeps the email channel consistent
+  // (finding 38).
+  const email =
+    recipientId === changedById || classRecord.classLead?.isActive === false
+      ? undefined
+      : classRecord.classLead?.email
   if (email) {
     const semesterLabel = (semester: Semester) =>
       semester === 'first' ? '1. Semester' : '2. Semester'

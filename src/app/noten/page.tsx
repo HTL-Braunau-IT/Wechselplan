@@ -141,11 +141,37 @@ export default function NotenPage() {
     return { semester1DayKeys: first, semester2DayKeys: second, futureDayKeys: future }
   }, [data.teachingDays, semesterChangeDate, todayYmd])
 
-  const summary = useMemo(
-    () =>
-      computeStudentSummary(data.students, data.teachingDays, data.entries, data.weights, todayYmd),
-    [data.students, data.teachingDays, data.entries, data.weights, todayYmd],
-  )
+  const summary = useMemo(() => {
+    // Attendance stays full-year, but the displayed calculatedGrade is scoped to
+    // the current semester's teaching days. Blending both semesters made the grid
+    // figure diverge from the per-semester Endnote and the transfer prefill, so a
+    // teacher could set a semester Endnote off a number contaminated by the other
+    // semester's marks (finding 19).
+    const full = computeStudentSummary(
+      data.students,
+      data.teachingDays,
+      data.entries,
+      data.weights,
+      todayYmd,
+    )
+    const todayIsSecondSemester = isSemester2(todayYmd, semesterChangeDate)
+    const currentSemesterDays = data.teachingDays.filter(
+      day => isSemester2(day.date, semesterChangeDate) === todayIsSecondSemester,
+    )
+    const scoped = computeStudentSummary(
+      data.students,
+      currentSemesterDays,
+      data.entries,
+      data.weights,
+      todayYmd,
+    )
+    const out: typeof full = {}
+    for (const id of Object.keys(full)) {
+      const key = Number(id)
+      out[key] = { ...full[key]!, calculatedGrade: scoped[key]?.calculatedGrade ?? null }
+    }
+    return out
+  }, [data.students, data.teachingDays, data.entries, data.weights, todayYmd, semesterChangeDate])
 
   /**
    * Teaching days still to come. The header used to add a third figure for the

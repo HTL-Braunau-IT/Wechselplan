@@ -6,6 +6,18 @@ import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { normalizeUsername } from '@/lib/username'
 import { requireAccess } from '@/lib/api-guard'
 
+// The schedule/roster view only needs display + grouping fields. Selecting them
+// explicitly keeps PII columns (email, username, externalId, sokratesId,
+// matrikelnummer, nmKlasse) out of the response, as every noten/* route does.
+const STUDENT_SCHEDULE_SELECT = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  groupId: true,
+  classId: true,
+  sitzplatz: true,
+} as const
+
 /**
  * Handles HTTP GET requests to retrieve schedule, student, rotation, assignment, and class information for a specified teacher and weekday.
  *
@@ -16,7 +28,7 @@ import { requireAccess } from '@/lib/api-guard'
  * @remark All error conditions except internal server errors return HTTP 200 with an error message in the JSON payload. Only unexpected exceptions result in a 500 status code.
  */
 export async function GET(req: Request) {
-  const gate = await requireAccess('session')
+  const gate = await requireAccess('staff')
   if (!gate.ok) return gate.response
 
   const { searchParams } = new URL(req.url)
@@ -33,6 +45,12 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Teacher username is required' }, { status: 400 })
     }
 
+    const isAdmin = gate.session?.user?.role === 'admin'
+    // Resolve the signed-in teacher once; it doubles as the caller identity for
+    // the ownership check below and as the fallback when the username lookup
+    // misses (display name != stored username after the Entra migration).
+    const caller = await resolveSessionTeacher(gate.session)
+
     let teacher = await prisma.teacher.findUnique({
       where: {
         username: teacherUsername,
@@ -47,7 +65,7 @@ export async function GET(req: Request) {
     if (!teacher) {
       const session = gate.session
       if (session?.user?.name && normalizeUsername(session.user.name) === teacherUsername) {
-        teacher = await resolveSessionTeacher(session)
+        teacher = caller
       }
     }
 
@@ -57,6 +75,13 @@ export async function GET(req: Request) {
         normalized: teacherUsername,
       })
       return NextResponse.json({ error: 'Teacher not found' }, { status: 200 })
+    }
+
+    // Defence in depth: even a staff caller may only read their own schedule
+    // unless they are an admin. Without this, any teacher could pass a
+    // colleague's (predictable) username and read that colleague's roster.
+    if (!isAdmin && caller?.id !== teacher.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const schoolYearId = await resolveSchoolYearId(schoolYearIdParam)
@@ -71,9 +96,16 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'No classes assigned to teacher' }, { status: 200 })
     }
 
+    // Scope the rotation to this weekday and year. Turn labels ("TURNUS 1"…)
+    // repeat across every weekday and year, so an unscoped read lets the
+    // overview's name-based .find() bind to the wrong weekday's rotation
+    // (#98 gives a class an independent rotation per weekday).
+    const weekdayNum = parseInt(currentWeekday)
     const teacherRotation = await prisma.teacherRotation.findMany({
       where: {
         teacherId: teacher.id,
+        selectedWeekday: weekdayNum,
+        ...(schoolYearId != null ? { schoolYearId } : {}),
       },
     })
 
@@ -128,7 +160,6 @@ export async function GET(req: Request) {
     }
 
     // Then fetch schedules and students for each class
-    const weekdayNum = parseInt(currentWeekday)
     for (const classId of classIds) {
       const schedule = await prisma.schedule.findFirst({
         where: {
@@ -169,7 +200,14 @@ export async function GET(req: Request) {
 
       // Fetch students for this class: by ClassMembership when schoolYearId set, else by Student.classId
       // Scheduling view only shows active students; historical grade queries remain unfiltered.
-      let studentList: Awaited<ReturnType<typeof prisma.student.findMany>>
+      let studentList: Array<{
+        id: number
+        firstName: string
+        lastName: string
+        groupId: number | null
+        classId: number | null
+        sitzplatz: string | null
+      }>
       if (schoolYearId != null) {
         const memberships = await prisma.classMembership.findMany({
           where: { classId, schoolYearId },
@@ -178,11 +216,15 @@ export async function GET(req: Request) {
         const ids = memberships.map(m => m.studentId)
         studentList =
           ids.length > 0
-            ? await prisma.student.findMany({ where: { id: { in: ids }, isActive: true } })
+            ? await prisma.student.findMany({
+                where: { id: { in: ids }, isActive: true },
+                select: STUDENT_SCHEDULE_SELECT,
+              })
             : []
       } else {
         studentList = await prisma.student.findMany({
           where: { classId, isActive: true },
+          select: STUDENT_SCHEDULE_SELECT,
         })
       }
       if (studentList) {

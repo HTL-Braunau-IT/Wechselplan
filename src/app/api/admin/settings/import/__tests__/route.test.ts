@@ -305,9 +305,9 @@ Room 2,20,Test Room 2`
       const response = await POST(request)
       const data = await response.json()
 
-      expect(response.status).toBe(500)
-      expect(data).toHaveProperty('error', 'Failed to import data')
-      expect(data).toHaveProperty('message', 'Name is required for all records')
+      // Authored validation error → 400 with the safe message.
+      expect(response.status).toBe(400)
+      expect(data).toEqual({ error: 'Name is required for all records' })
     })
 
     it('should handle missing name field', async () => {
@@ -325,9 +325,8 @@ Room 2,20,Test Room 2`
       const response = await POST(request)
       const data = await response.json()
 
-      expect(response.status).toBe(500)
-      expect(data).toHaveProperty('error', 'Failed to import data')
-      expect(data).toHaveProperty('message', 'Name is required for all records')
+      expect(response.status).toBe(400)
+      expect(data).toEqual({ error: 'Name is required for all records' })
     })
 
     it('should handle database errors', async () => {
@@ -348,11 +347,9 @@ Room 1,30,Test Room 1`
       const response = await POST(request)
       const data = await response.json()
 
+      // Unexpected (Prisma) error → generic message only; no internals leaked.
       expect(response.status).toBe(500)
-      expect(data).toEqual({
-        error: 'Failed to import data',
-        message: 'Database error',
-      })
+      expect(data).toEqual({ error: 'Failed to import data' })
       expect(captureError).toHaveBeenCalledWith(error, {
         location: 'api/admin/settings/import',
         type: 'data-import',

@@ -1,4 +1,3 @@
-import { captureError } from '@/lib/sentry'
 import { captureFrontendError } from '@/lib/frontend-error'
 
 /**
@@ -120,7 +119,9 @@ export async function generatePdf(classId: string, weekday: number) {
 
     if (!export_response.ok) {
       const error = new Error('Failed to export schedule')
-      captureError(error, {
+      // Client-safe logger — this module runs in the browser, so the server-only
+      // captureError would pull error-log's node:crypto into the client bundle.
+      captureFrontendError(error, {
         location: 'schedule/create/overview',
         type: 'export-schedule',
       })
