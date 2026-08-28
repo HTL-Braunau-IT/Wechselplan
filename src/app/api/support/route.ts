@@ -32,6 +32,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Name and message are required' }, { status: 400 })
     }
 
+    // Cap sizes before persisting/e-mailing: the route is session-tier, so any
+    // student can call it, and message is an unbounded TEXT column that also gets
+    // forwarded verbatim in an admin e-mail (finding 43).
+    if (name.length > 200 || message.length > 5000) {
+      return NextResponse.json(
+        { error: 'Name or message too long' },
+        { status: 400 },
+      )
+    }
+
     const supportMessage = await prisma.supportMessage.create({
       data: {
         name,
@@ -47,13 +57,15 @@ export async function POST(request: Request) {
         `Name: ${name}\nMessage: ${message}\nLocation: ${currentUri ?? 'Not specified'}`,
       )
     } catch (emailError) {
+      // Log only non-PII metadata — the support name/message are user free-text
+      // and are already persisted in SupportMessage; they must not be duplicated
+      // into the admin-visible error log (finding 40).
       captureError(emailError, {
         location: 'api/support',
         type: 'send-support-email',
         extra: {
-          name,
-          message,
-          currentUri,
+          messageLength: message.length,
+          hasCurrentUri: Boolean(currentUri),
         },
       })
       // Don't throw here, we still want to return success to the user
@@ -61,11 +73,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json(supportMessage)
   } catch (error) {
+    // Never persist the raw body (user free-text / PII) — only its size (finding 40).
     captureError(error, {
       location: 'api/support',
       type: 'send-support-email',
       extra: {
-        requestBody,
+        requestBodyBytes: requestBody.length,
       },
     })
     return NextResponse.json({ error: 'Failed to process support request' }, { status: 500 })

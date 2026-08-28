@@ -332,11 +332,15 @@ export async function POST(request: Request) {
       console.log('teacherData.id', teacherData.id)
       console.log('class_response.id', class_response.id)
 
-      // Get teacher rotations with optional period filtering
+      // Get teacher rotations with optional period filtering. Scope by weekday
+      // and school year: turn labels repeat across weekdays/years (#98), so an
+      // unscoped read would fold another weekday's rotation into this export.
       const teacherRotations = await prisma.teacherRotation.findMany({
         where: {
           teacherId: teacherData.id,
           classId: class_response.id,
+          selectedWeekday: weekday,
+          schoolYearId,
           ...(period && { period: period as 'AM' | 'PM' }), // Filter by period if specified
         },
       })

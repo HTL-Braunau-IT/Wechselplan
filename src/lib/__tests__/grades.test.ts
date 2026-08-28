@@ -128,6 +128,16 @@ describe('computeAverage', () => {
     expect(computeAverage(grades, 'first')).toBe('nicht beurteilt')
   })
 
+  it('reports "nicht beurteilt" ahead of "gestunden" regardless of teacher-id order', () => {
+    // The GESTUNDEN teacher has the LOWER id here: priority must not depend on
+    // iteration order (finding 17).
+    const grades = {
+      2: { first: GESTUNDEN, second: null },
+      5: { first: NICHT_BEURTEILT, second: null },
+    }
+    expect(computeAverage(grades, 'first')).toBe('nicht beurteilt')
+  })
+
   it('skips missing marks rather than counting them as zero', () => {
     const grades = {
       1: { first: 2, second: null },

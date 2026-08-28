@@ -6,6 +6,12 @@ import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
 import { ALLOWED_FINAL_GRADES } from '@/lib/grades'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import {
+  canManageSokrates,
+  getSokratesStatus,
+  isFinalGradeEditBlocked,
+  withSokratesLock,
+} from '@/lib/sokrates-lock'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -39,6 +45,7 @@ export async function PATCH(request: Request) {
     const body = (await request.json()) as {
       classId: unknown
       schoolYearId?: number
+      adminOverride?: boolean
       finalGrades: Array<{
         studentId: unknown
         semester: unknown
@@ -46,8 +53,13 @@ export async function PATCH(request: Request) {
         conductNoteWish?: string | null
       }>
     }
-    requestData = body
     const { classId, schoolYearId: bodySchoolYearId, finalGrades: rawFinalGrades } = body
+    // Keep only non-PII identifiers in the error log — never the grade values.
+    requestData = {
+      classId,
+      schoolYearId: bodySchoolYearId,
+      finalGradesCount: Array.isArray(rawFinalGrades) ? rawFinalGrades.length : 0,
+    }
 
     if (!rawFinalGrades || !Array.isArray(rawFinalGrades)) {
       return NextResponse.json({ error: 'finalGrades must be an array' }, { status: 400 })
@@ -146,45 +158,82 @@ export async function PATCH(request: Request) {
       }
     }
 
-    await prisma.$transaction(
-      rawFinalGrades.map(fg => {
-        const studentId =
-          typeof fg.studentId === 'string' ? parseInt(fg.studentId, 10) : (fg.studentId as number)
-        let gradeValue: number | null = null
-        if (fg.grade !== null && fg.grade !== undefined) {
-          gradeValue = typeof fg.grade === 'string' ? parseFloat(fg.grade) : (fg.grade as number)
+    // Normalise the validated entries once.
+    const parsed = rawFinalGrades.map(fg => {
+      const studentId =
+        typeof fg.studentId === 'string' ? parseInt(fg.studentId, 10) : (fg.studentId as number)
+      let gradeValue: number | null = null
+      if (fg.grade !== null && fg.grade !== undefined) {
+        gradeValue = typeof fg.grade === 'string' ? parseFloat(fg.grade) : (fg.grade as number)
+      }
+      let conductNoteWishValue: string | null = null
+      if (
+        fg.conductNoteWish !== undefined &&
+        fg.conductNoteWish !== null &&
+        fg.conductNoteWish !== ''
+      ) {
+        conductNoteWishValue = fg.conductNoteWish
+      }
+      return {
+        studentId,
+        semester: fg.semester as 'first' | 'second',
+        grade: gradeValue,
+        conductNoteWish: conductNoteWishValue,
+      }
+    })
+
+    // Respect the Sokrates hard lock exactly as the notensammler batch route
+    // does: a marked+locked semester freezes the Zeugnisnote for everyone but the
+    // class lead / admin. This route writes the same FinalGrade rows, so without
+    // the guard it was an unguarded parallel write path around the lock
+    // (finding 5). Re-read the mark state and apply every write under the shared
+    // advisory lock so a mark committing mid-request cannot slip through.
+    const canOverride = await canManageSokrates({
+      classId: classIdNum,
+      role: session.user?.role,
+      teacherId: teacher.id,
+      adminOverride: body.adminOverride === true,
+    })
+
+    const { count, skippedLocked } = await withSokratesLock(
+      classIdNum,
+      schoolYearId,
+      async tx => {
+        const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId, tx)
+        let writable = parsed
+        let skippedLocked = 0
+        if (sokratesStatus.first.marked || sokratesStatus.second.marked) {
+          writable = parsed.filter(
+            fg => !isFinalGradeEditBlocked(sokratesStatus, fg.semester, canOverride),
+          )
+          skippedLocked = parsed.length - writable.length
         }
-        let conductNoteWishValue: string | null = null
-        if (
-          fg.conductNoteWish !== undefined &&
-          fg.conductNoteWish !== null &&
-          fg.conductNoteWish !== ''
-        ) {
-          conductNoteWishValue = fg.conductNoteWish
-        }
-        return prisma.finalGrade.upsert({
-          where: {
-            studentId_classId_semester_schoolYearId: {
-              studentId,
-              classId: classIdNum,
-              semester: fg.semester as 'first' | 'second',
-              schoolYearId,
+        for (const fg of writable) {
+          await tx.finalGrade.upsert({
+            where: {
+              studentId_classId_semester_schoolYearId: {
+                studentId: fg.studentId,
+                classId: classIdNum,
+                semester: fg.semester,
+                schoolYearId,
+              },
             },
-          },
-          update: { grade: gradeValue, conductNoteWish: conductNoteWishValue },
-          create: {
-            studentId,
-            classId: classIdNum,
-            semester: fg.semester as 'first' | 'second',
-            schoolYearId,
-            grade: gradeValue,
-            conductNoteWish: conductNoteWishValue,
-          },
-        })
-      }),
+            update: { grade: fg.grade, conductNoteWish: fg.conductNoteWish },
+            create: {
+              studentId: fg.studentId,
+              classId: classIdNum,
+              semester: fg.semester,
+              schoolYearId,
+              grade: fg.grade,
+              conductNoteWish: fg.conductNoteWish,
+            },
+          })
+        }
+        return { count: writable.length, skippedLocked }
+      },
     )
 
-    return NextResponse.json({ success: true, count: rawFinalGrades.length })
+    return NextResponse.json({ success: true, count, skippedLocked })
   } catch (error) {
     captureError(error as Error, {
       location: 'api/noten/final-grades',

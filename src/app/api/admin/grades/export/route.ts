@@ -81,10 +81,18 @@ export async function GET() {
 
     // Escape CSV values (handle commas, quotes, newlines)
     const escapeCsvValue = (value: string): string => {
-      if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-        return `"${value.replace(/"/g, '""')}"`
+      // Neutralise spreadsheet formula injection: a cell starting with =, +, -,
+      // @, tab or CR is evaluated as a formula by Excel/LibreOffice. Names and
+      // usernames flow in verbatim (from directory sync / import), so prefix a
+      // guarding apostrophe before quoting (finding 36).
+      let safe = value
+      if (/^[=+\-@\t\r]/.test(safe)) {
+        safe = `'${safe}`
       }
-      return value
+      if (safe.includes(',') || safe.includes('"') || safe.includes('\n')) {
+        return `"${safe.replace(/"/g, '""')}"`
+      }
+      return safe
     }
 
     const csvContent = [

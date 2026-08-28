@@ -350,6 +350,11 @@ export async function previewClassStudentSync(
   const issues: EntraUserMappingIssue[] = []
   const entraGroups: EntraClassGroup[] = []
   const unresolvedGroupIds: string[] = []
+  // Group ids whose Graph fetch threw (transient 5xx/network/timeout), as opposed
+  // to a group that legitimately 404s. A transient failure makes that group's
+  // members unknown, so its class + students must be held back from deactivation
+  // rather than retired as if everyone left (finding 9).
+  const erroredGroupIds = new Set<string>()
   const membershipByOid = new Map<string, { user: EntraUser; groupIds: Set<string> }>()
   let fetchedMemberCount = 0
 
@@ -365,7 +370,10 @@ export async function previewClassStudentSync(
         type: 'get_group_error',
         extra: { groupId },
       })
+      // Thrown = transient. Hold this group's class + students back from
+      // deactivation; a genuine deletion returns null below and is allowed to.
       unresolvedGroupIds.push(groupId)
+      erroredGroupIds.add(groupId)
       continue
     }
     if (!group) {
@@ -398,6 +406,9 @@ export async function previewClassStudentSync(
         displayName: mapped.displayName,
         reason: `Failed to list members for group "${mapped.displayName}"`,
       })
+      // The group resolved but its members are unknown (transient) — hold its
+      // class + students back from deactivation (finding 9).
+      erroredGroupIds.add(mapped.id)
       continue
     }
 
@@ -480,10 +491,21 @@ export async function previewClassStudentSync(
     classesToUpdate.push({ existing: summary, group, changes, willAdopt })
   }
 
+  // Local class ids whose backing Entra group failed transiently this run. Their
+  // members were never collected, so they would otherwise all look "gone".
+  const heldBackClassIds = new Set<number>()
+  for (const groupId of erroredGroupIds) {
+    const localClass = classByExternalId.get(groupId)
+    if (localClass) heldBackClassIds.add(localClass.id)
+  }
+
   for (const row of classRows) {
     if (matchedClassIds.has(row.id)) continue
     if (!row.isActive) continue
     if (row.externalSource !== EXTERNAL_SOURCE_ENTRA) continue
+    // A transient Graph failure on this group is not a deletion — skip it so a
+    // one-off 5xx cannot deactivate a real class (finding 9).
+    if (row.externalId && erroredGroupIds.has(row.externalId)) continue
     classesToDeactivate.push({ existing: toClassRowSummary(row) })
   }
 
@@ -494,10 +516,16 @@ export async function previewClassStudentSync(
     include: { class: { select: { name: true } } },
   })
   const studentByExternalId = new Map<string, (typeof studentRows)[number]>()
-  const studentByUsername = new Map<string, (typeof studentRows)[number]>()
+  // Multi-valued so a username shared by two local rows is detectable as
+  // ambiguous rather than silently collapsed to whichever was inserted last,
+  // which could merge two distinct people into one record (finding 24).
+  const studentByUsername = new Map<string, (typeof studentRows)[number][]>()
   for (const row of studentRows) {
     if (row.externalId) studentByExternalId.set(row.externalId, row)
-    studentByUsername.set(row.username.toLowerCase(), row)
+    const key = row.username.toLowerCase()
+    const bucket = studentByUsername.get(key) ?? []
+    bucket.push(row)
+    studentByUsername.set(key, bucket)
   }
 
   const groupDisplayNameById = new Map<string, string>()
@@ -511,9 +539,20 @@ export async function previewClassStudentSync(
   const studentsToMarkUnassigned: StudentSyncUnassigned[] = []
   const studentsUnchanged: StudentSyncUnchanged[] = []
 
-  /** Resolves an existing local row for an Entra user, by oid then username. */
-  const findExistingStudent = (user: EntraUser) =>
-    studentByExternalId.get(user.oid) ?? studentByUsername.get(user.username.toLowerCase()) ?? null
+  /**
+   * Resolves an existing local row for an Entra user, by oid then username.
+   * `ambiguous` is set when the oid misses and more than one local row shares
+   * the username — the caller must skip rather than bind to an arbitrary row.
+   */
+  const resolveExistingStudent = (
+    user: EntraUser,
+  ): { row: (typeof studentRows)[number] | null; ambiguous: boolean } => {
+    const byOid = studentByExternalId.get(user.oid)
+    if (byOid) return { row: byOid, ambiguous: false }
+    const candidates = studentByUsername.get(user.username.toLowerCase()) ?? []
+    if (candidates.length > 1) return { row: null, ambiguous: true }
+    return { row: candidates[0] ?? null, ambiguous: false }
+  }
 
   for (const { user, groupIds } of membershipByOid.values()) {
     const memberGroupIds = Array.from(groupIds)
@@ -541,7 +580,7 @@ export async function previewClassStudentSync(
       // tracked: marking them matched keeps them out of the deactivation list,
       // and syncStatus records why they have no class. Skipping them, as this
       // used to, left them invisible to sync in both directions.
-      const ambiguousExisting = findExistingStudent(user)
+      const ambiguousExisting = resolveExistingStudent(user).row
       if (ambiguousExisting) matchedStudentIds.add(ambiguousExisting.id)
       studentsToMarkUnassigned.push({
         existing: ambiguousExisting ? toStudentRowSummary(ambiguousExisting) : null,
@@ -558,7 +597,20 @@ export async function previewClassStudentSync(
       groupDisplayName: targetGroupDisplayName,
     }
 
-    const existing = findExistingStudent(user)
+    const { row: existing, ambiguous } = resolveExistingStudent(user)
+
+    if (ambiguous) {
+      // Two local rows share this username and the oid did not match either —
+      // binding to one would overwrite that person's profile and could deactivate
+      // the other. Emit an issue and skip, as teacher sync does (finding 24).
+      issues.push({
+        oid: user.oid,
+        upn: user.username,
+        displayName: user.displayName ?? undefined,
+        reason: `Ambiguous local student match by username "${user.username}"`,
+      })
+      continue
+    }
 
     if (!existing) {
       studentsToCreate.push({ entra: user, target })
@@ -613,6 +665,10 @@ export async function previewClassStudentSync(
     if (matchedStudentIds.has(row.id)) continue
     if (!row.isActive) continue
     if (row.externalSource !== EXTERNAL_SOURCE_ENTRA) continue
+    // Hold back students of a class whose Entra group failed transiently this
+    // run: their membership was never fetched, so their absence is not real
+    // (finding 9).
+    if (row.classId != null && heldBackClassIds.has(row.classId)) continue
     studentsToDeactivate.push({ existing: toStudentRowSummary(row) })
   }
 
@@ -1071,7 +1127,10 @@ export async function applyClassStudentSync(
           },
         })
       }
-    })
+      // A full-school nightly apply issues thousands of sequential statements;
+      // Prisma's default 5s interactive-transaction timeout would abort (P2028)
+      // and roll the whole run back on a networked DB, so raise it (finding 35).
+    }, { timeout: 120_000, maxWait: 20_000 })
 
     const summary: ClassStudentSyncSummary = {
       classes: {

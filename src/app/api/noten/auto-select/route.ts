@@ -123,8 +123,15 @@ export async function GET(request: Request) {
           turns: { include: { weeks: true }, orderBy: { order: 'asc' } },
         },
       })
+      // Scope by year AND weekday: turn labels ("TURNUS 1"…) repeat across every
+      // weekday and year (#98 gives a class an independent rotation per weekday),
+      // so an unscoped read/.find() can bind to the wrong weekday's group.
       const rotations = await prisma.teacherRotation.findMany({
-        where: { teacherId: teacher.id },
+        where: {
+          teacherId: teacher.id,
+          schoolYearId,
+          selectedWeekday: firstAssignment.selectedWeekday,
+        },
       })
       if (schedule?.turns?.length) {
         const turnsForCurrentTurn = schedule.turns.map(t => ({
@@ -138,6 +145,7 @@ export async function GET(request: Request) {
               r.classId === requestedClassId &&
               r.period === firstAssignment.period &&
               r.turnId === currentTurnName &&
+              r.selectedWeekday === firstAssignment.selectedWeekday &&
               r.teacherId === teacher.id,
           )
           if (rot && classAssignments.some(a => a.groupId === rot.groupId)) {
@@ -155,8 +163,10 @@ export async function GET(request: Request) {
       where: { teacherId: teacher.id, schoolYearId },
       select: { classId: true, groupId: true, selectedWeekday: true, period: true },
     })
+    // Scope by year AND the weekday being resolved so a class with independent
+    // per-weekday rotations (#98) cannot bind to another weekday's group.
     const rotations = await prisma.teacherRotation.findMany({
-      where: { teacherId: teacher.id },
+      where: { teacherId: teacher.id, schoolYearId, selectedWeekday: currentWeekday },
     })
 
     const classIds = [...new Set(assignments.map(a => a.classId))]
@@ -191,6 +201,7 @@ export async function GET(request: Request) {
             r.classId === a.classId &&
             r.period === period &&
             r.turnId === currentTurnName &&
+            r.selectedWeekday === a.selectedWeekday &&
             r.teacherId === teacher.id,
         )
         if (

@@ -66,6 +66,7 @@ export function useScheduleOverview(
 
   // Resolve className to classId
   useEffect(() => {
+    let cancelled = false
     async function resolveClassId() {
       if (!classId) {
         setResolvedClassId(null)
@@ -73,12 +74,18 @@ export function useScheduleOverview(
         setLoading(false)
         return
       }
+      // Clear the previous class's id first so the data effect below does not run
+      // one pass with the NEW class name but the OLD numeric id, which would
+      // render one class's students against another's group assignments (finding 14).
+      setResolvedClassId(null)
       try {
         const res = await fetch(`/api/classes/get-by-name?name=${classId}`)
         if (!res.ok) throw new Error('Failed to fetch class ID')
         const data = (await res.json()) as { id: number }
+        if (cancelled) return
         setResolvedClassId(data.id)
       } catch (err) {
+        if (cancelled) return
         console.error('Error resolving class ID:', err)
         setResolvedClassId(null)
         setError('Failed to resolve class ID')
@@ -86,6 +93,9 @@ export function useScheduleOverview(
       }
     }
     void resolveClassId()
+    return () => {
+      cancelled = true
+    }
   }, [classId])
 
   const yearQ = schoolYearId != null ? `&schoolYearId=${schoolYearId}` : ''
@@ -94,6 +104,11 @@ export function useScheduleOverview(
     if (!classId || !resolvedClassId) {
       return
     }
+
+    // Invalidate stale writes: a slow class switch would otherwise let an older,
+    // in-flight response overwrite the newer class's state (finding 14). Every
+    // setState below is gated on this flag; the cleanup flips it on the next run.
+    let cancelled = false
 
     const fetchData = async () => {
       try {
@@ -115,6 +130,7 @@ export function useScheduleOverview(
         if (!groupRes.ok) throw new Error('Failed to fetch group assignments')
         const groupData: { assignments: { groupId: number; studentIds: number[] }[] } =
           await groupRes.json()
+        if (cancelled) return
         setGroups(
           groupData.assignments.map(g => ({
             id: g.groupId,
@@ -127,6 +143,7 @@ export function useScheduleOverview(
         // Fetch selected schedule times (optional - continue if this fails)
         try {
           const timesRes = await fetch(`/api/schedules/times?classId=${resolvedClassId}`)
+          if (cancelled) return
           if (timesRes.ok) {
             const timesData: { times: { scheduleTimes: ScheduleTime[]; breakTimes: BreakTime[] } } =
               await timesRes.json()
@@ -174,6 +191,7 @@ export function useScheduleOverview(
           throw new Error('Failed to fetch rotation schedule')
         }
 
+        if (cancelled) return
         setAdditionalInfo(latestSchedule?.additionalInfo ?? '')
         setWeekday(selectedWeekday)
         setAmEnabled(latestSchedule?.amEnabled ?? true)
@@ -206,6 +224,7 @@ export function useScheduleOverview(
             }`,
             { cache: 'no-store' },
           )
+          if (cancelled) return
           if (teacherRes.ok) {
             const teacherData: TeacherAssignmentsResponse = await teacherRes.json()
             setAmAssignments(teacherData.amAssignments)
@@ -228,6 +247,7 @@ export function useScheduleOverview(
           classHead: { firstName: string; lastName: string } | null
           classLead: { firstName: string; lastName: string } | null
         }
+        if (cancelled) return
         setClassHead(
           classData.classHead
             ? `${classData.classHead.firstName} ${classData.classHead.lastName}`
@@ -239,6 +259,7 @@ export function useScheduleOverview(
             : '—',
         )
       } catch (err) {
+        if (cancelled) return
         console.error('Error fetching overview data:', err)
         captureFrontendError(err, {
           location: 'schedule/create/overview',
@@ -250,11 +271,14 @@ export function useScheduleOverview(
         const errMsg = err instanceof Error ? err.message : 'Failed to load overview data'
         setError(errMsg)
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
 
     void fetchData()
+    return () => {
+      cancelled = true
+    }
   }, [classId, resolvedClassId, yearQ, weekdayFilter])
 
   return {

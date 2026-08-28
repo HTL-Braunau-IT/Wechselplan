@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
-import { denyUnlessAccess } from '@/lib/api-guard'
+import { requireAccess } from '@/lib/api-guard'
+import { isStaffRole } from '@/lib/api-access'
+import { resolveSessionStudent } from '@/lib/session-student'
 /**
  * Processes a GET request to retrieve the class name and group ID assigned to a student by username.
  *
@@ -11,8 +13,8 @@ import { denyUnlessAccess } from '@/lib/api-guard'
  * @returns A JSON response containing the class name and groupId, or an error message with the corresponding HTTP status code.
  */
 export async function GET(request: Request) {
-  const denied = await denyUnlessAccess('session')
-  if (denied) return denied
+  const gate = await requireAccess('session')
+  if (!gate.ok) return gate.response
 
   const { searchParams } = new URL(request.url)
   const rawUsername = searchParams.get('username')
@@ -22,6 +24,16 @@ export async function GET(request: Request) {
   const username = normalizeUsername(rawUsername)
   if (!username) {
     return NextResponse.json({ error: 'Username parameter is required' }, { status: 400 })
+  }
+
+  // A student caller may only look up their own class/group; staff may look up
+  // anyone. Without this, a student could enumerate the class and rotation
+  // group of every classmate by username.
+  if (!isStaffRole(gate.session?.user?.role)) {
+    const caller = await resolveSessionStudent(gate.session)
+    if (!caller || normalizeUsername(caller.username ?? '') !== username) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
   }
 
   const schoolYearIdParam = searchParams.get('schoolYearId')

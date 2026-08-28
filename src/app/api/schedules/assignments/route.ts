@@ -240,72 +240,68 @@ export async function POST(request: Request) {
     // First, ensure all groups exist in GroupAssignment table
     const requestedGroupIds = assignments.map(a => a.groupId).filter(id => id !== 0) // Exclude unassigned group
 
-    // Create or update GroupAssignment records for all requested groups
-    for (const groupId of requestedGroupIds) {
-      await prisma.groupAssignment.upsert({
-        where: {
-          class_groupId: {
-            class: classRecord.name,
-            groupId: groupId,
+    // GroupAssignment (denormalized cache) and Student.groupId (source of truth)
+    // must move together. Run the whole re-shuffle in one transaction so a
+    // mid-sequence failure rolls back rather than leaving the cache and the
+    // student rows in disagreement with no way to repair (finding 21).
+    await prisma.$transaction(async tx => {
+      // Create or update GroupAssignment records for all requested groups
+      for (const groupId of requestedGroupIds) {
+        await tx.groupAssignment.upsert({
+          where: {
+            class_groupId: {
+              class: classRecord.name,
+              groupId: groupId,
+            },
           },
-        },
-        update: {},
-        create: {
-          groupId: groupId,
-          class: classRecord.name,
-        },
-      })
-    }
+          update: {},
+          create: {
+            groupId: groupId,
+            class: classRecord.name,
+          },
+        })
+      }
 
-    // Remove orphan GroupAssignment rows for this class (e.g. empty group 3 after reducing to 2 groups)
-    if (requestedGroupIds.length > 0) {
-      await prisma.groupAssignment.deleteMany({
-        where: {
-          class: classRecord.name,
-          groupId: { notIn: requestedGroupIds },
-        },
-      })
-    } else {
-      await prisma.groupAssignment.deleteMany({
-        where: { class: classRecord.name },
-      })
-    }
+      // Remove orphan GroupAssignment rows for this class (e.g. empty group 3 after reducing to 2 groups)
+      if (requestedGroupIds.length > 0) {
+        await tx.groupAssignment.deleteMany({
+          where: {
+            class: classRecord.name,
+            groupId: { notIn: requestedGroupIds },
+          },
+        })
+      } else {
+        await tx.groupAssignment.deleteMany({
+          where: { class: classRecord.name },
+        })
+      }
 
-    // Update each student's groupId
-    for (const assignment of assignments) {
-      // Skip the unassigned group (groupId: 0)
-      if (assignment.groupId === 0) {
-        await prisma.student.updateMany({
+      // Update each student's groupId. Scope by classId so a stray id can never
+      // pull a student from another class into this class's group numbering.
+      for (const assignment of assignments) {
+        await tx.student.updateMany({
           where: {
             id: { in: assignment.studentIds },
+            classId: classRecord.id,
+          },
+          // groupId 0 is the "unassigned" sentinel → clear the group.
+          data: { groupId: assignment.groupId === 0 ? null : assignment.groupId },
+        })
+      }
+
+      // Remove groupId from removed students (this is now handled by the unassigned group)
+      if (Array.isArray(removedStudentIds) && removedStudentIds.length > 0) {
+        await tx.student.updateMany({
+          where: {
+            id: { in: removedStudentIds },
+            classId: classRecord.id,
           },
           data: {
             groupId: null,
           },
         })
-      } else {
-        await prisma.student.updateMany({
-          where: {
-            id: { in: assignment.studentIds },
-          },
-          data: {
-            groupId: assignment.groupId,
-          },
-        })
       }
-    }
-
-    // Remove groupId from removed students (this is now handled by the unassigned group)
-    if (Array.isArray(removedStudentIds) && removedStudentIds.length > 0) {
-      await prisma.student.updateMany({
-        where: {
-          id: { in: removedStudentIds },
-        },
-        data: {
-          groupId: null,
-        },
-      })
-    }
+    })
 
     // A group re-shuffle is a schedule change everyone attached to the class
     // cares about (issue #96). Folded into the class's bell entry, so re-saving

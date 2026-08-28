@@ -156,7 +156,10 @@ export default function ScheduleTurnusPDF({
         ) : (
           <>
             <View style={styles.table}>
-              <View style={styles.headRow}>
+              {/* `fixed` repeats the column headers on every page the table
+                  spans; without it an overflowing weeks list leaves page 2+
+                  with unlabeled turnus columns (finding 41). */}
+              <View style={styles.headRow} fixed>
                 {turnusKeys.map(key => (
                   <View key={key} style={[styles.headCell, { width: columnWidth }]}>
                     <Text style={styles.headTitle}>{key}</Text>

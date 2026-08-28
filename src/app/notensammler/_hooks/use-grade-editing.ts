@@ -264,7 +264,12 @@ export function useGradeEditing({
 
       if (gradeValue === null && value !== '') return
 
-      schedule(`final:${studentId}:${semester}`, () => {
+      // Endnote and Betragensnote of one student/semester write the SAME
+      // FinalGrade row (both fields in one request). Share one debounce key per
+      // row so a second edit replaces the first timer — separate keys let two
+      // overlapping writes race, and out-of-order delivery could clobber the
+      // newer field with an older snapshot (finding 32).
+      schedule(`finalrow:${studentId}:${semester}`, () => {
         void (async () => {
           try {
             await saveFinalGrade(studentId, semester, gradeValue, conductWish)
@@ -302,7 +307,8 @@ export function useGradeEditing({
         return next
       })
 
-      schedule(`conduct:${studentId}:${semester}`, () => {
+      // Shares the per-row key with handleFinalGradeChange (finding 32).
+      schedule(`finalrow:${studentId}:${semester}`, () => {
         void (async () => {
           try {
             await saveFinalGrade(studentId, semester, gradeToSend, conductValue)

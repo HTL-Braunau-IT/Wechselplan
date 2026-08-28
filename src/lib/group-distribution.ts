@@ -100,7 +100,15 @@ export function adjustGroupCount<S extends HasLastName>(
     const overflow: S[] = []
 
     for (const student of removed) {
-      const target = keep.find(g => g.students.length < maxSize)
+      // Add each removed student to the currently-smallest eligible group, not
+      // the first with any room — otherwise shrinking fills group 1 to maxSize
+      // before touching the rest, producing lopsided groups (finding 23). This
+      // keeps largest-minus-smallest <= 1, matching distributeStudentsEvenly.
+      let target: (typeof keep)[number] | undefined
+      for (const g of keep) {
+        if (g.students.length >= maxSize) continue
+        if (!target || g.students.length < target.students.length) target = g
+      }
       if (target) {
         target.students.push(student)
         target.students.sort(byLastName)

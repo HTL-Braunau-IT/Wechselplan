@@ -92,12 +92,42 @@ describe('Schedule Data API', () => {
     const res = await GET(req)
     const data = await res.json()
 
-    // The ownership gate blocks the fallback, so no other teacher's data leaks.
-    expect(resolveSessionTeacher).not.toHaveBeenCalled()
+    // The caller resolves to no teacher, so the username fallback cannot bind to
+    // a different teacher and no other teacher's data leaks.
     expect(data).toEqual({ error: 'Teacher not found' })
   })
 
+  test('forbids a non-admin caller from reading another teacher by username', async () => {
+    // The requested teacher exists, but the caller resolves to a different
+    // teacher and is not an admin, so the ownership gate must return 403.
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { name: 'someone.else', role: 'teacher' },
+      expires: '2999-01-01',
+    } as never)
+    vi.mocked(prisma.teacher.findUnique).mockResolvedValue(
+      makeTeacher({ id: 1, firstName: 'T', lastName: 'E', username: 'foo' }),
+    )
+    vi.mocked(resolveSessionTeacher).mockResolvedValue(
+      makeTeacher({ id: 2, firstName: 'O', lastName: 'E', username: 'someone.else' }),
+    )
+
+    const req = new Request('http://localhost/api/schedules/data?teacher=foo')
+    const res = await GET(req)
+    const data = await res.json()
+
+    expect(res.status).toBe(403)
+    expect(data).toEqual({ error: 'Forbidden' })
+    // No roster query should run once the caller fails the ownership check.
+    expect(prisma.student.findMany).not.toHaveBeenCalled()
+  })
+
   test('should return 200 if no assignments for teacher', async () => {
+    // Admin session so the caller-owns-teacher gate is satisfied and the
+    // handler's data-shaping logic is exercised.
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { name: 'admin', role: 'admin' },
+      expires: '2999-01-01',
+    } as never)
     vi.mocked(prisma.teacher.findUnique).mockResolvedValue(
       makeTeacher({ id: 1, firstName: 'T', lastName: 'E', username: 'foo' }),
     )
@@ -110,6 +140,10 @@ describe('Schedule Data API', () => {
   })
 
   test('should return 200 if no teacher rotation found', async () => {
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { name: 'admin', role: 'admin' },
+      expires: '2999-01-01',
+    } as never)
     vi.mocked(prisma.teacher.findUnique).mockResolvedValue(
       makeTeacher({ id: 1, firstName: 'T', lastName: 'E', username: 'foo' }),
     )
@@ -123,6 +157,10 @@ describe('Schedule Data API', () => {
   })
 
   test('should return 200 if no students found', async () => {
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { name: 'admin', role: 'admin' },
+      expires: '2999-01-01',
+    } as never)
     vi.mocked(prisma.teacher.findUnique).mockResolvedValue(
       makeTeacher({ id: 1, firstName: 'T', lastName: 'E', username: 'foo' }),
     )
@@ -152,6 +190,10 @@ describe('Schedule Data API', () => {
   })
 
   test('should return 200 and correct structure if all data is present', async () => {
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { name: 'admin', role: 'admin' },
+      expires: '2999-01-01',
+    } as never)
     vi.mocked(prisma.teacher.findUnique).mockResolvedValue(
       makeTeacher({ id: 1, firstName: 'T', lastName: 'E', username: 'foo' }),
     )

@@ -10,6 +10,13 @@ interface ImportRequest {
   data: string // CSV data
 }
 
+/**
+ * A safe, user-facing validation error whose message may be returned to the
+ * client. Unexpected errors (e.g. Prisma) fall through to a generic 500 so their
+ * internals are never disclosed (finding 42).
+ */
+class ImportValidationError extends Error {}
+
 interface ImportData {
   name: string
   capacity?: number | null
@@ -45,7 +52,7 @@ export async function POST(request: Request) {
     // Validate and transform data based on type
     const transformedData: ImportData[] = records.map((record: Record<string, string>) => {
       if (!record.name) {
-        throw new Error('Name is required for all records')
+        throw new ImportValidationError('Name is required for all records')
       }
 
       switch (type) {
@@ -66,7 +73,7 @@ export async function POST(request: Request) {
             description: record.description ?? null,
           }
         default:
-          throw new Error('Invalid import type')
+          throw new ImportValidationError('Invalid import type')
       }
     })
 
@@ -143,18 +150,18 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ count: result.count })
   } catch (error: unknown) {
+    // Authored validation errors are safe to surface (400); anything else is
+    // unexpected and returns a generic message, keeping Prisma internals out of
+    // the client response (finding 42). Detail still goes to captureError/Sentry.
+    if (error instanceof ImportValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
     captureError(error, {
       location: 'api/admin/settings/import',
       type: 'data-import',
       extra: { requestBody: rawBody },
     })
-    return NextResponse.json(
-      {
-        error: 'Failed to import data',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 },
-    )
+    return NextResponse.json({ error: 'Failed to import data' }, { status: 500 })
   }
 }
 

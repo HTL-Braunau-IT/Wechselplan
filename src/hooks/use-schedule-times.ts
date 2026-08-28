@@ -14,6 +14,8 @@ interface SaveTimesRequest {
   scheduleTimes: { id: number }[]
   breakTimes: { id: number }[]
   classId: number
+  /** Weekday of the plan being edited (#98: one schedule per weekday). */
+  selectedWeekday?: number | null
 }
 
 /**
@@ -22,13 +24,15 @@ interface SaveTimesRequest {
  * @param classId - The class ID to fetch times for, or null to skip the query
  * @returns React Query result with schedule times and break times
  */
-export function useScheduleTimes(classId: number | null) {
+export function useScheduleTimes(classId: number | null, weekday?: number | null) {
   return useQuery<ScheduleTimesResponse>({
-    queryKey: ['schedule-times', classId],
+    queryKey: ['schedule-times', classId, weekday ?? null],
     queryFn: async () => {
       if (!classId) throw new Error('Class ID is required')
 
-      const response = await fetch(`/api/schedules/times?classId=${classId}`)
+      const weekdayQuery =
+        weekday != null && !Number.isNaN(weekday) ? `&selectedWeekday=${weekday}` : ''
+      const response = await fetch(`/api/schedules/times?classId=${classId}${weekdayQuery}`)
       if (!response.ok) {
         throw new Error('Failed to fetch schedule times')
       }
