@@ -37,6 +37,10 @@ x-app-env: &app-env
   SYNC_MAX_DEACTIVATION_RATIO: ${SYNC_MAX_DEACTIVATION_RATIO:-0.2}
   SYNC_TRIGGER_SECRET: ${SYNC_TRIGGER_SECRET:-}
 
+  # Native app (iOS/Android): accept Entra Bearer tokens on /api alongside the
+  # NextAuth cookie. Off unless set to true. Read by src/lib/bearer-auth.ts.
+  AUTH_BEARER_ENABLED: ${AUTH_BEARER_ENABLED:-false}
+
   # Microsoft Graph mail — a separate app registration from ENTRA_* above.
   GRAPH_TENANT_ID: ${GRAPH_TENANT_ID:-}
   GRAPH_CLIENT_ID: ${GRAPH_CLIENT_ID:-}
