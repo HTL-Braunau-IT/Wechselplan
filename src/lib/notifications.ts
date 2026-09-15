@@ -14,6 +14,7 @@
 
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { sendPushToTeachers } from '@/lib/push'
 import { captureError } from '@/lib/sentry'
 import type { Semester } from '@/lib/grades'
 import type { NotificationParams, NotificationType } from '@/types/notifications'
@@ -129,6 +130,20 @@ export async function notify<T extends NotificationType>(input: NotifyInput<T>):
   await prisma.notification.deleteMany({
     where: { recipientId: { in: recipients }, readAt: { lt: cutoff } },
   })
+
+  // Mirror the in-app bell to a device push, best-effort. The rendered message
+  // lives in the client i18next catalogue (a row stores only type + params), so
+  // there is no localized text server-side yet — send generic German copy and
+  // carry the type in data.
+  // TODO: replace the generic body with per-type localized push text (e.g. a
+  // small server-side catalogue, or have the app render from type + params).
+  await bestEffort(`push:${type}`, () =>
+    sendPushToTeachers(recipients, {
+      title: 'Wechselplan',
+      body: 'Du hast eine neue Benachrichtigung.',
+      data: { type },
+    }),
+  )
 
   return recipients.length
 }

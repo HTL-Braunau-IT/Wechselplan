@@ -65,9 +65,26 @@ model Teacher {
   grades           Grade[]
   notifications    Notification[]      @relation("NotificationRecipient")
   createdSchedules Schedule[]          @relation("ScheduleCreator")
+  pushTokens       PushToken[]
 
   @@index([firstName, lastName])
   @@index([isActive])
+}
+
+/// Expo push tokens registered by the native app, one row per device. Expo
+/// delivers to APNs/FCM using the credentials uploaded to EAS, so no APNs/FCM
+/// secret lives here. Rows are pruned when Expo reports DeviceNotRegistered.
+model PushToken {
+  id         Int      @id @default(autoincrement())
+  token      String   @unique
+  teacherId  Int
+  teacher    Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  platform   String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  lastUsedAt DateTime @default(now())
+
+  @@index([teacherId])
 }
 
 model Class {

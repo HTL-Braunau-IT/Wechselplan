@@ -50,6 +50,9 @@ export const API_ACCESS_RULES: readonly ApiAccessRule[] = [
   { prefix: '/api/entitlements', tier: 'session' },
   { prefix: '/api/me', tier: 'session' },
   { prefix: '/api/support', tier: 'session' },
+  // Native app device push-token registration; any signed-in user registers
+  // their own device.
+  { prefix: '/api/push', tier: 'session' },
   // Any signed-in user may report a browser-side error into the admin log.
   { prefix: '/api/client-errors', tier: 'session', methods: ['POST'] },
   { prefix: '/api/school-years', tier: 'session', methods: ['GET'] },
