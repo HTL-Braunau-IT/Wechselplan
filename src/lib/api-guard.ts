@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getServerSession, type Session } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { type Session } from 'next-auth'
+import { getEffectiveSession } from '@/lib/request-session'
 import { requireAdmin } from '@/lib/require-admin'
 import { isStaffRole, type AccessTier } from '@/lib/api-access'
 
@@ -43,7 +43,7 @@ export type AccessResult = { ok: true; session: Session } | { ok: false; respons
  * not re-check `session.user.role` afterwards — that branch is already dead.
  */
 export async function requireAccess(tier: AccessTier): Promise<AccessResult> {
-  const session = await getServerSession(authOptions)
+  const session = await getEffectiveSession()
 
   if (tier === 'public') {
     // `public` never rejects; the session is returned if one happens to exist.

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 import { isStaffRole, resolveAccessTier, satisfiesTier } from '@/lib/api-access'
+import { getBearerToken, verifyBearerToken } from '@/lib/bearer-auth'
 
 const locales = ['en', 'de']
 const defaultLocale = 'de'
@@ -56,14 +57,26 @@ export async function middleware(request: NextRequest) {
     }
 
     const token = await getToken({ req: request })
-    if (!satisfiesTier(tier, token?.role, Boolean(token))) {
-      return NextResponse.json(
-        { error: token ? `Forbidden: ${tier} access required` : 'Unauthorized' },
-        { status: token ? 403 : 401 },
-      )
+    if (token) {
+      if (!satisfiesTier(tier, token.role, true)) {
+        return NextResponse.json({ error: `Forbidden: ${tier} access required` }, { status: 403 })
+      }
+      return NextResponse.next()
     }
 
-    return NextResponse.next()
+    // No NextAuth cookie. The native app authenticates with an Entra Bearer
+    // token: the Edge runtime can verify the token is authentic but cannot
+    // resolve its role (that needs Graph + the database), so a valid token is let
+    // through here and the tier is enforced by the handler guard in the Node
+    // runtime (api-guard / require-admin via getEffectiveSession). Every handler
+    // guards itself — asserted by route-guards.test.ts — so this does not leave
+    // staff/admin routes open. Inert unless AUTH_BEARER_ENABLED=true.
+    const bearer = getBearerToken(request.headers.get('authorization'))
+    if (bearer && (await verifyBearerToken(bearer))) {
+      return NextResponse.next()
+    }
+
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   if (ADMIN_PAGE_PREFIXES.some(prefix => pathname.startsWith(prefix))) {

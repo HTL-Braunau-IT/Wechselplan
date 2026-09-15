@@ -1,5 +1,6 @@
-import { getServerSession, type Session } from 'next-auth'
-import { authOptions, hasRole } from '@/lib/auth'
+import { type Session } from 'next-auth'
+import { hasRole } from '@/lib/auth'
+import { getEffectiveSession } from '@/lib/request-session'
 import { normalizeUsername } from '@/lib/username'
 
 /**
@@ -14,7 +15,7 @@ import { normalizeUsername } from '@/lib/username'
  *    from the display name rather than the UPN/email.
  */
 export async function requireAdmin(): Promise<{ ok: true; session: Session } | { ok: false }> {
-  const session = await getServerSession(authOptions)
+  const session = await getEffectiveSession()
   if (!session?.user) {
     return { ok: false }
   }

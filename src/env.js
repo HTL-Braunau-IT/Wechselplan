@@ -37,6 +37,13 @@ export const env = createEnv({
     ENTRA_SYNC_CLASS_GROUP_IDS: z.string().optional(),
     ENTRA_SUPER_ADMIN_OBJECT_ID: z.string().optional(),
     ENTRA_SYNC_ENABLED: z.string().optional(),
+    // Native app support: accept an Entra Bearer access token on /api in addition
+    // to the NextAuth session cookie. Off unless AUTH_BEARER_ENABLED=true, so the
+    // web-only surface is unchanged until a deployment opts in. AUDIENCE is the
+    // `aud` the mobile access token carries; defaults to the web app's own
+    // ENTRA_CLIENT_ID (and its api:// URI) when unset. See src/lib/bearer-auth.ts.
+    AUTH_BEARER_ENABLED: z.string().optional(),
+    ENTRA_API_AUDIENCE: z.string().optional(),
     SYNC_TRIGGER_SECRET: z.string().optional(),
     SYNC_MAX_DEACTIVATION_RATIO: z.string().optional(),
     GITHUB_TOKEN: z.string().optional(),
@@ -81,6 +88,8 @@ export const env = createEnv({
     ENTRA_SYNC_CLASS_GROUP_IDS: process.env.ENTRA_SYNC_CLASS_GROUP_IDS,
     ENTRA_SUPER_ADMIN_OBJECT_ID: process.env.ENTRA_SUPER_ADMIN_OBJECT_ID,
     ENTRA_SYNC_ENABLED: process.env.ENTRA_SYNC_ENABLED,
+    AUTH_BEARER_ENABLED: process.env.AUTH_BEARER_ENABLED,
+    ENTRA_API_AUDIENCE: process.env.ENTRA_API_AUDIENCE,
     SYNC_TRIGGER_SECRET: process.env.SYNC_TRIGGER_SECRET,
     SYNC_MAX_DEACTIVATION_RATIO: process.env.SYNC_MAX_DEACTIVATION_RATIO,
     GITHUB_TOKEN: process.env.GITHUB_TOKEN,
