@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendSupportEmail } from '@/server/send-support-email-graph'
+import { renderEmailHtml, esc } from '@/server/email-template'
 import { captureError } from '@/lib/sentry'
 import { denyUnlessAccess } from '@/lib/api-guard'
 
@@ -36,10 +37,7 @@ export async function POST(request: Request) {
     // student can call it, and message is an unbounded TEXT column that also gets
     // forwarded verbatim in an admin e-mail (finding 43).
     if (name.length > 200 || message.length > 5000) {
-      return NextResponse.json(
-        { error: 'Name or message too long' },
-        { status: 400 },
-      )
+      return NextResponse.json({ error: 'Name or message too long' }, { status: 400 })
     }
 
     const supportMessage = await prisma.supportMessage.create({
@@ -52,10 +50,22 @@ export async function POST(request: Request) {
 
     // Send email notification to admin (do not block user if this fails)
     try {
-      await sendSupportEmail(
-        `New support message from ${name}`,
-        `Name: ${name}\nMessage: ${message}\nLocation: ${currentUri ?? 'Not specified'}`,
-      )
+      const location = currentUri ?? 'Not specified'
+      const text = `Name: ${name}\nMessage: ${message}\nLocation: ${location}`
+      // Everything here is user-typed free text — escape it into the body.
+      const html = renderEmailHtml({
+        preheader: `Support-Anfrage von ${name}`,
+        title: 'Neue Support-Anfrage',
+        intro: [`Von: ${name}`, `Seite: ${location}`],
+        panel: {
+          tone: 'neutral',
+          title: 'Nachricht',
+          bodyHtml: `<div style="font:400 15px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#334155;white-space:pre-wrap;">${esc(
+            message,
+          )}</div>`,
+        },
+      })
+      await sendSupportEmail(`New support message from ${name}`, { html, text })
     } catch (emailError) {
       // Log only non-PII metadata — the support name/message are user free-text
       // and are already persisted in SupportMessage; they must not be duplicated

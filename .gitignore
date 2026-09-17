@@ -65,3 +65,6 @@ yarn-error.log*
 
 # rendered output of `npm run pdf:preview`
 /.pdf-preview
+
+# rendered output of `npm run email:preview`
+/.email-preview

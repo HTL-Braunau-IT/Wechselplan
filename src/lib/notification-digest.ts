@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { sendEmail } from '@/server/send-support-email-graph'
+import { renderEmailHtml, esc, muted, absoluteUrl } from '@/server/email-template'
 import { renderNotificationLine } from '@/lib/notification-message'
 import { recordDigestRun } from '@/lib/notification-settings'
 
@@ -101,38 +102,60 @@ export async function runNotificationDigest(now: Date = new Date()): Promise<Dig
       continue
     }
 
-    const lines: string[] = []
+    const entries: { text: string; date: string }[] = []
     for (const row of bucket.rows) {
       const text = renderNotificationLine(row.type, row.params)
-      if (text) lines.push(`• ${text} (${formatDate(row.createdAt)})`)
+      if (text) entries.push({ text, date: formatDate(row.createdAt) })
     }
     // Nothing renderable (all rows were unknown types) → skip, but mark them
     // digested so we do not re-scan them forever. Contained like the send below:
     // a failed stamp must count as a failure, not abort the remaining teachers.
-    if (lines.length === 0) {
-      await stampDigested(bucket.rows.map(r => r.id), now, summary)
+    if (entries.length === 0) {
+      await stampDigested(
+        bucket.rows.map(r => r.id),
+        now,
+        summary,
+      )
       continue
     }
 
-    const shown = lines.slice(0, MAX_LINES_PER_EMAIL)
-    const overflow = lines.length - shown.length
+    const shown = entries.slice(0, MAX_LINES_PER_EMAIL)
+    const overflow = entries.length - shown.length
     // Count the *rendered* lines, not every fetched row: a bucket mixing known
     // and unknown types would otherwise claim more items than it lists.
-    const count = lines.length
+    const count = entries.length
     const subject = `Wechselplan: ${count} ungelesene Benachrichtigung(en)`
-    const body = [
+    const intro = `Du hast ${count} ungelesene Benachrichtigung(en) in Wechselplan, die seit mehr als ${DIGEST_AGE_HOURS} Stunden offen sind:`
+
+    const text = [
       `Hallo ${bucket.firstName},`,
       '',
-      `du hast ${count} ungelesene Benachrichtigung(en) in Wechselplan, die seit mehr als ${DIGEST_AGE_HOURS} Stunden offen sind:`,
+      intro,
       '',
-      ...shown,
+      ...shown.map(e => `• ${e.text} (${e.date})`),
       ...(overflow > 0 ? ['', `… und ${overflow} weitere.`] : []),
       '',
       'Öffne Wechselplan, um sie anzusehen und zu bestätigen.',
     ].join('\n')
 
+    const appLink = absoluteUrl('/')
+    const html = renderEmailHtml({
+      preheader: intro,
+      title: 'Ungelesene Benachrichtigungen',
+      intro: [`Hallo ${bucket.firstName},`, intro],
+      panel: {
+        tone: 'info',
+        itemsHtml: [
+          ...shown.map(e => `${esc(e.text)} ${muted(`(${e.date})`)}`),
+          ...(overflow > 0 ? [muted(`… und ${overflow} weitere.`)] : []),
+        ],
+      },
+      button: appLink ? { label: 'Wechselplan öffnen', href: appLink } : null,
+      outro: appLink ? undefined : ['Öffne Wechselplan, um sie anzusehen und zu bestätigen.'],
+    })
+
     try {
-      await sendEmail(bucket.email, subject, body)
+      await sendEmail(bucket.email, subject, { html, text })
     } catch (error) {
       // Send failed → leave the rows un-digested so the next run retries them.
       summary.failures += 1
@@ -147,7 +170,11 @@ export async function runNotificationDigest(now: Date = new Date()): Promise<Dig
     // the next sweep. Contained: if this fails after a successful send, the rows
     // stay eligible and the teacher may get the digest again — at-least-once
     // delivery, never a lost notification — and the run is flagged partial.
-    await stampDigested(bucket.rows.map(r => r.id), now, summary)
+    await stampDigested(
+      bucket.rows.map(r => r.id),
+      now,
+      summary,
+    )
   }
 
   await recordDigestRun({

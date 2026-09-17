@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/server/send-support-email-graph'
+import { renderEmailHtml, esc, muted, absoluteUrl } from '@/server/email-template'
 import { captureError } from '@/lib/sentry'
 import { getGradeDisplayText, type Semester } from '@/lib/grades'
 import { bestEffort, notensammlerLink, notify, sokratesChangeDedupeKey } from '@/lib/notifications'
@@ -240,7 +241,13 @@ export async function acknowledgeSokratesChangeNotices(params: {
   // second lookup, and counts the acknowledged changes for the singular/plural.
   const acknowledgedGroups = new Map<
     string,
-    { changedById: number; className: string; schoolYearId: number; semester: Semester; count: number }
+    {
+      changedById: number
+      className: string
+      schoolYearId: number
+      semester: Semester
+      count: number
+    }
   >()
   let total = 0
 
@@ -427,27 +434,52 @@ export async function recordSokratesChanges(params: {
   if (email) {
     const semesterLabel = (semester: Semester) =>
       semester === 'first' ? '1. Semester' : '2. Semester'
-    const lines = relevant.map(change => {
-      const student = studentName.get(change.studentId) ?? `#${change.studentId}`
-      const teacher = teacherName.get(change.teacherId) ?? `#${change.teacherId}`
-      return `• ${student} — ${teacher} (${semesterLabel(change.semester)}): ${formatGrade(
-        change.oldGrade,
-      )} → ${formatGrade(change.newGrade)}`
-    })
+    const changes = relevant.map(change => ({
+      student: studentName.get(change.studentId) ?? `#${change.studentId}`,
+      teacher: teacherName.get(change.teacherId) ?? `#${change.teacherId}`,
+      semester: semesterLabel(change.semester),
+      oldGrade: formatGrade(change.oldGrade),
+      newGrade: formatGrade(change.newGrade),
+    }))
     const subject = `Notenänderung nach Sokrates-Übertragung — ${classRecord.name}`
-    const body = [
-      `In der Klasse ${classRecord.name} wurde(n) ${relevant.length} Note(n) geändert, nachdem sie als in Sokrates eingetragen markiert wurde(n).`,
+    const intro = `In der Klasse ${classRecord.name} wurde(n) ${relevant.length} Note(n) geändert, nachdem sie als in Sokrates eingetragen markiert wurde(n).`
+
+    const text = [
+      intro,
       '',
       `Geändert von: ${changedByName}`,
       '',
-      ...lines,
+      ...changes.map(
+        ch => `• ${ch.student} — ${ch.teacher} (${ch.semester}): ${ch.oldGrade} → ${ch.newGrade}`,
+      ),
       '',
       'Bitte prüfen, ob die Note in Sokrates nachgezogen werden muss.',
       'Öffne den Notensammler, um die Änderungen zu bestätigen.',
     ].join('\n')
 
+    const notensammlerUrl = absoluteUrl(notensammlerLink(classRecord.name))
+    const html = renderEmailHtml({
+      preheader: intro,
+      title: 'Notenänderung nach Sokrates-Übertragung',
+      intro: [intro, `Geändert von: ${changedByName}`],
+      panel: {
+        tone: 'warning',
+        title: `${relevant.length} geänderte Note(n)`,
+        itemsHtml: changes.map(
+          ch =>
+            `${esc(ch.student)} — ${esc(ch.teacher)} ${muted(`(${ch.semester})`)}: ` +
+            `${esc(ch.oldGrade)} &rarr; <strong style="color:#0F172A;">${esc(ch.newGrade)}</strong>`,
+        ),
+      },
+      button: notensammlerUrl ? { label: 'Notensammler öffnen', href: notensammlerUrl } : null,
+      outro: [
+        'Bitte prüfen, ob die Note in Sokrates nachgezogen werden muss.',
+        ...(notensammlerUrl ? [] : ['Öffne den Notensammler, um die Änderungen zu bestätigen.']),
+      ],
+    })
+
     try {
-      await sendEmail(email, subject, body)
+      await sendEmail(email, subject, { html, text })
     } catch (error) {
       // Recorded in-app already; the email is the redundant channel.
       captureError(error, {

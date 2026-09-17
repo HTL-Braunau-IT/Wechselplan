@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/server/send-support-email-graph'
+import { renderEmailHtml } from '@/server/email-template'
 import { captureError } from '@/lib/sentry'
 import { denyUnlessAccess } from '@/lib/api-guard'
 
@@ -66,10 +67,20 @@ export async function POST(request: Request) {
     // Send emails to all teachers
     const emailPromises = teachersWithEmails.map(async teacher => {
       const subject = `Wechselplan ${className}`
-      const message = `Hallo ${teacher.firstName} ${teacher.lastName}!\n\nEs wurde ein Wechselplan für Klasse ${className} erstellt. Du findest den Plan unter ${scheduleLink}.\n\nViele Grüße,\nDas Wechselplan-Team`
+      const text = `Hallo ${teacher.firstName} ${teacher.lastName}!\n\nEs wurde ein Wechselplan für Klasse ${className} erstellt. Du findest den Plan unter ${scheduleLink}.\n\nViele Grüße,\nDas Wechselplan-Team`
+      const html = renderEmailHtml({
+        preheader: `Ein neuer Wechselplan für die Klasse ${className} steht bereit.`,
+        title: 'Neuer Wechselplan',
+        intro: [
+          `Hallo ${teacher.firstName} ${teacher.lastName},`,
+          `es wurde ein Wechselplan für die Klasse ${className} erstellt. Öffne ihn direkt über die Schaltfläche unten.`,
+        ],
+        button: scheduleLink ? { label: 'Wechselplan öffnen', href: scheduleLink } : null,
+        outro: ['Viele Grüße,\nDas Wechselplan-Team'],
+      })
 
       try {
-        await sendEmail(teacher.email!, subject, message)
+        await sendEmail(teacher.email!, subject, { html, text })
         console.log(`Email sent successfully to ${teacher.email}`)
       } catch (emailError) {
         console.error(`Failed to send email to ${teacher.email}:`, emailError)

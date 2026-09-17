@@ -30,7 +30,8 @@
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
     "e2e:session": "npx tsx scripts/mint-session.ts",
-    "pdf:preview": "npx tsx --tsconfig tsconfig.scripts.json scripts/preview-pdfs.ts"
+    "pdf:preview": "npx tsx --tsconfig tsconfig.scripts.json scripts/preview-pdfs.ts",
+    "email:preview": "npx tsx --tsconfig tsconfig.scripts.json scripts/preview-emails.ts"
   },
   "dependencies": {
     "@azure/msal-browser": "^4.13.2",

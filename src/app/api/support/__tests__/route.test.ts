@@ -78,10 +78,14 @@ describe('Support API', () => {
         },
       })
 
-      // Verify email was sent
+      // Verify email was sent: subject unchanged, body is now the branded
+      // HTML pair carrying the same plain-text record.
       expect(sendSupportEmail).toHaveBeenCalledWith(
         `New support message from ${validRequest.name}`,
-        `Name: ${validRequest.name}\nMessage: ${validRequest.message}\nLocation: ${validRequest.currentUri}`,
+        expect.objectContaining({
+          text: `Name: ${validRequest.name}\nMessage: ${validRequest.message}\nLocation: ${validRequest.currentUri}`,
+          html: expect.stringContaining('<!DOCTYPE html>'),
+        }),
       )
 
       // Verify no errors were logged

@@ -70,12 +70,16 @@ describe('runNotificationDigest', () => {
     // Each digest goes to its own recipient's address.
     const recipients = vi.mocked(sendEmail).mock.calls.map(([to]) => to)
     expect(recipients).toEqual(['anna@example.at', 'ben@example.at'])
-    // Anna's mail names her count and lists rendered lines.
+    // Anna's mail names her count and lists rendered lines, in both the HTML
+    // body and its plain-text counterpart.
     const [to, subject, body] = vi.mocked(sendEmail).mock.calls[0]!
     expect(to).toBe('anna@example.at')
     expect(subject).toContain('2')
-    expect(body).toContain('Anna')
-    expect(body).toContain('Note in 1AHIT eingetragen')
+    const { html, text } = body as { html: string; text: string }
+    expect(text).toContain('Anna')
+    expect(text).toContain('Note in 1AHIT eingetragen')
+    expect(html).toContain('<!DOCTYPE html>')
+    expect(html).toContain('Note in 1AHIT eingetragen')
     // Both of Anna's rows get marked in one update.
     expect(prisma.notification.updateMany).toHaveBeenCalledWith({
       where: { id: { in: [1, 2] } },
@@ -121,9 +125,7 @@ describe('runNotificationDigest', () => {
     expect(sendEmail).toHaveBeenCalledTimes(1)
     expect(summary.teachersEmailed).toBe(1)
     expect(summary.failures).toBe(1)
-    expect(recordDigestRun).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'partial' }),
-    )
+    expect(recordDigestRun).toHaveBeenCalledWith(expect.objectContaining({ status: 'partial' }))
   })
 
   it('leaves a failed teacher un-digested and reports the run as partial', async () => {
@@ -137,8 +139,6 @@ describe('runNotificationDigest', () => {
     expect(summary.failures).toBe(1)
     expect(summary.teachersEmailed).toBe(0)
     expect(prisma.notification.updateMany).not.toHaveBeenCalled()
-    expect(recordDigestRun).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'partial' }),
-    )
+    expect(recordDigestRun).toHaveBeenCalledWith(expect.objectContaining({ status: 'partial' }))
   })
 })

@@ -19,6 +19,19 @@ type TokenResponse = {
 }
 
 /**
+ * An e-mail body: either a plain string (sent as `text/plain`, the historical
+ * shape) or a `{ html, text }` pair. When `html` is present the mail goes out as
+ * HTML — `text` is kept only as the canonical plain-text record. See
+ * {@link renderEmailHtml} for the branded shell the callers build.
+ */
+export type EmailBody = string | { html: string; text?: string }
+
+function graphBody(body: EmailBody): { contentType: 'Text' | 'HTML'; content: string } {
+  if (typeof body === 'string') return { contentType: 'Text', content: body }
+  return { contentType: 'HTML', content: body.html }
+}
+
+/**
  * Obtains a valid OAuth access token for Microsoft Graph API using client credentials, with caching and automatic refresh before expiration.
  *
  * @returns The access token string for Microsoft Graph API.
@@ -75,7 +88,7 @@ async function getGraphToken(): Promise<string> {
   }
 }
 
-export async function sendSupportEmail(subject: string, text: string) {
+export async function sendSupportEmail(subject: string, body: EmailBody) {
   try {
     console.log('Sending support email to:', mailTo)
     const token = await getGraphToken()
@@ -93,10 +106,7 @@ export async function sendSupportEmail(subject: string, text: string) {
       body: JSON.stringify({
         message: {
           subject,
-          body: {
-            contentType: 'Text',
-            content: text,
-          },
+          body: graphBody(body),
           toRecipients: [{ emailAddress: { address: mailTo } }],
         },
         saveToSentItems: 'false',
@@ -134,9 +144,10 @@ export async function sendSupportEmail(subject: string, text: string) {
  *
  * @param toEmail - The recipient's email address
  * @param subject - The email subject
- * @param text - The email body text
+ * @param body - The email body: a plain string, or `{ html, text }` for a
+ *   branded HTML mail (see {@link renderEmailHtml})
  */
-export async function sendEmail(toEmail: string, subject: string, text: string) {
+export async function sendEmail(toEmail: string, subject: string, body: EmailBody) {
   try {
     console.log('Sending email to:', toEmail)
     const token = await getGraphToken()
@@ -154,10 +165,7 @@ export async function sendEmail(toEmail: string, subject: string, text: string) 
       body: JSON.stringify({
         message: {
           subject,
-          body: {
-            contentType: 'Text',
-            content: text,
-          },
+          body: graphBody(body),
           toRecipients: [{ emailAddress: { address: toEmail } }],
         },
         saveToSentItems: 'false',
