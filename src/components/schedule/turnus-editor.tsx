@@ -181,8 +181,10 @@ export function TurnusEditor({
     [shell?.pmEnabled, pm, buildTerms, shell?.pmWeekInterval, shell?.pmWeekOffset],
   )
 
+  // `allWeeks` is a display-only expansion (teaching + holiday weeks); it never
+  // gets persisted, so drop it from the saved blob.
   const toRecord = (terms: ScheduleTerm[]): Record<string, ScheduleTerm> =>
-    Object.fromEntries(terms.map(term => [term.name, term]))
+    Object.fromEntries(terms.map(({ allWeeks: _allWeeks, ...term }) => [term.name, term]))
 
   const handleSave = async () => {
     setSaving(true)
@@ -368,6 +370,7 @@ function LaneTurnusCard({
           {terms.map(term => {
             const first = term.weeks[0]
             const last = term.weeks[term.weeks.length - 1]
+            const listWeeks = term.allWeeks ?? term.weeks
             return (
               <div key={term.name} className="rounded-lg border p-3">
                 <div className="mb-2 flex items-center justify-between">
@@ -379,6 +382,32 @@ function LaneTurnusCard({
                 <p className="text-muted-foreground text-xs tabular-nums">
                   {first && last ? `${first.date} – ${last.date}` : '—'}
                 </p>
+                {listWeeks.length > 0 && (
+                  <ul className="border-border/60 mt-2 space-y-0.5 border-t pt-2">
+                    {listWeeks.map((week, index) => (
+                      <li
+                        key={`${week.date}-${index}`}
+                        className="flex items-baseline justify-between gap-2 text-[11px] tabular-nums"
+                      >
+                        <span
+                          className={
+                            week.isHoliday ? 'text-muted-foreground line-through' : undefined
+                          }
+                        >
+                          {week.date}
+                        </span>
+                        {week.isHoliday && week.holidayName && (
+                          <span
+                            className="text-muted-foreground truncate text-[10px]"
+                            title={week.holidayName}
+                          >
+                            {week.holidayName}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <div className="mt-2">
                   <Label
                     htmlFor={`len-${title}-${term.name}`}

@@ -7,6 +7,8 @@ export type ScheduleWeek = {
   date: string
   week: string
   isHoliday: boolean
+  /** Name of the holiday this week falls in, when `isHoliday` is true. Display-only. */
+  holidayName?: string
 }
 
 export type ScheduleTerm = {
@@ -14,6 +16,13 @@ export type ScheduleTerm = {
   weeks: ScheduleWeek[]
   holidays?: Holiday[]
   customLength?: number
+  /**
+   * Every calendar week in the turn's span — teaching weeks AND holiday weeks,
+   * each flagged via `ScheduleWeek.isHoliday`. Display-only (the wizard lists
+   * these under each Turnus); not persisted. `weeks` stays the teaching weeks
+   * that drive counts and saving.
+   */
+  allWeeks?: ScheduleWeek[]
 }
 
 export type ScheduleEntry = {

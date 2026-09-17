@@ -176,4 +176,30 @@ describe('computePeriodTurns', () => {
     expect(dates).toContain('15.09.25')
     expect(dates).not.toContain('08.09.25')
   })
+
+  it('lists every calendar week per Turnus in allWeeks, flagging holiday weeks', () => {
+    const holidays: Holiday[] = [
+      { id: 1, name: 'Herbstferien', startDate: '2025-09-08', endDate: '2025-09-08' },
+    ]
+    const terms = computePeriodTurns({ ...window, numberOfTerms: 2, holidays })
+
+    // Teaching weeks stay holiday-free: 13 Mondays minus the one holiday = 12.
+    const teachingTotal = terms.reduce((n, t) => n + t.weeks.length, 0)
+    expect(teachingTotal).toBe(12)
+
+    // allWeeks covers every calendar week (teaching + holiday) exactly once.
+    const allDates = terms.flatMap(t => t.allWeeks!.map(w => w.date))
+    expect(allDates.length).toBe(13)
+    expect(new Set(allDates).size).toBe(13)
+
+    // The holiday week is present, flagged, and carries its name.
+    const holidayWeek = terms.flatMap(t => t.allWeeks!).find(w => w.date === '08.09.25')
+    expect(holidayWeek).toMatchObject({ isHoliday: true, holidayName: 'Herbstferien' })
+
+    // Within each Turnus the non-holiday allWeeks entries match its teaching weeks.
+    for (const term of terms) {
+      const teachingFromAll = term.allWeeks!.filter(w => !w.isHoliday).map(w => w.date)
+      expect(teachingFromAll).toEqual(term.weeks.map(w => w.date))
+    }
+  })
 })

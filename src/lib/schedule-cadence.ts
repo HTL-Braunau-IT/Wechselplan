@@ -15,7 +15,7 @@
  */
 import { addWeeks, format, isWithinInterval, setDay } from 'date-fns'
 
-import type { Holiday, ScheduleTerm } from '@/types/schedule'
+import type { Holiday, ScheduleTerm, ScheduleWeek } from '@/types/schedule'
 
 export interface PeriodCadence {
   /** 1 = every week, 2 = every 2nd week. */
@@ -55,15 +55,20 @@ function toMidnight(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate())
 }
 
-/** Whether `date` falls inside any holiday interval (inclusive, date-only). */
-export function isHolidayDate(date: Date, holidays: Holiday[]): boolean {
+/** The holiday whose interval contains `date` (inclusive, date-only), if any. */
+export function holidayForDate(date: Date, holidays: Holiday[]): Holiday | undefined {
   const check = toMidnight(date)
-  return holidays.some(holiday =>
+  return holidays.find(holiday =>
     isWithinInterval(check, {
       start: toMidnight(new Date(holiday.startDate)),
       end: toMidnight(new Date(holiday.endDate)),
     }),
   )
+}
+
+/** Whether `date` falls inside any holiday interval (inclusive, date-only). */
+export function isHolidayDate(date: Date, holidays: Holiday[]): boolean {
+  return holidayForDate(date, holidays) !== undefined
 }
 
 /**
@@ -124,9 +129,10 @@ export function computePeriodTurns(options: ComputePeriodTurnsOptions): Schedule
   const cadence = normalizeCadence(options.cadence)
 
   const absoluteWeeks = weekdayDatesInRange(start, end, weekday)
-  const teachingDates = absoluteWeeks.filter(
-    (date, index) => periodMeetsOnWeek(index, cadence) && !isHolidayDate(date, holidays),
-  )
+  // Every calendar week the lane meets on (holidays included) …
+  const cadenceDates = absoluteWeeks.filter((_, index) => periodMeetsOnWeek(index, cadence))
+  // … and the subset that are real teaching weeks (holidays removed).
+  const teachingDates = cadenceDates.filter(date => !isHolidayDate(date, holidays))
 
   const terms = Math.max(0, Math.floor(numberOfTerms))
   const weeksPerTerm: number[] = new Array(terms).fill(0)
@@ -155,6 +161,31 @@ export function computePeriodTurns(options: ComputePeriodTurnsOptions): Schedule
       weeksLeft -= weeksPerTerm[i]!
       turnsLeft--
     }
+  }
+
+  // Assign every calendar week (teaching + holiday) to a Turnus for display, so
+  // each card can list its real dates with holiday weeks flagged. A holiday week
+  // is grouped with the Turnus whose teaching weeks follow it; any trailing weeks
+  // fall to the last populated Turnus. `weeks` above stays teaching-only.
+  const turnForTeaching: number[] = []
+  weeksPerTerm.forEach((count, i) => {
+    for (let k = 0; k < count; k++) turnForTeaching.push(i)
+  })
+  const allWeeksPerTurn: ScheduleWeek[][] = Array.from({ length: terms }, () => [])
+  let teachingSeen = 0
+  for (const date of cadenceDates) {
+    const holiday = holidayForDate(date, holidays)
+    const turnIdx =
+      turnForTeaching.length === 0
+        ? 0
+        : (turnForTeaching[Math.min(teachingSeen, turnForTeaching.length - 1)] ?? 0)
+    allWeeksPerTurn[turnIdx]?.push({
+      week: `KW${calendarWeekNumber(date)}`,
+      date: format(date, 'dd.MM.yy'),
+      isHoliday: holiday !== undefined,
+      ...(holiday ? { holidayName: holiday.name } : {}),
+    })
+    if (!holiday) teachingSeen++
   }
 
   const result: ScheduleTerm[] = []
@@ -191,6 +222,7 @@ export function computePeriodTurns(options: ComputePeriodTurnsOptions): Schedule
       name,
       weeks,
       holidays: termHolidays,
+      allWeeks: allWeeksPerTurn[i] ?? [],
       ...(customLength && customLength > 0 ? { customLength } : {}),
     })
   }
