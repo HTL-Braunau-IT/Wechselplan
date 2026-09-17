@@ -46,14 +46,20 @@ export default function Home() {
     )
   }
 
+  const role = session.user?.role
+
+  // Teachers and admins get the full-bleed dashboard, which brings its own
+  // date/greeting header and layout; the version/changelog lives in the topbar.
+  if (role === 'teacher' || role === 'admin') {
+    return <TeacherOverview />
+  }
+
   const localizedDate = new Date().toLocaleDateString('de-DE', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
   })
-
-  const role = session.user?.role
   const roleLabel = role ? t(`overview.roles.${role}`, { defaultValue: '' }) : ''
 
   return (
@@ -88,9 +94,7 @@ export default function Home() {
           </>
         }
       />
-      {/* Only show class selector for students */}
-      {session.user?.role === 'student' && <StudentOverview />}
-      {(session.user?.role === 'teacher' || session.user?.role === 'admin') && <TeacherOverview />}
+      {role === 'student' && <StudentOverview />}
     </PageContainer>
   )
 }
