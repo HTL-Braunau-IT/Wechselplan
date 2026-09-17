@@ -26,6 +26,42 @@ function pairAverage(first: number | null | undefined, second: number | null | u
   return first ?? second ?? null
 }
 
+/**
+ * The weighted grade for a single teaching day, or null when the day has no
+ * marks. Each category averages its two slots first, then the categories are
+ * combined over only the weights actually in play — so a missing category does
+ * not pull the result toward zero. The Verlauf grid and the term average
+ * (below) share this so the two never diverge.
+ */
+export function dayGradeValue(
+  entry: NotenEntryRow | undefined,
+  weights: WeightConfig,
+): number | null {
+  const avgWiederholung = pairAverage(entry?.wiederholung1, entry?.wiederholung2)
+  const avgBericht = pairAverage(entry?.bericht1, entry?.bericht2)
+  const avgMitarbeit = pairAverage(entry?.mitarbeit1, entry?.mitarbeit2)
+  const avgPraktisch = pairAverage(entry?.praktischeArbeit1, entry?.praktischeArbeit2)
+
+  if (avgWiederholung == null && avgBericht == null && avgMitarbeit == null && avgPraktisch == null) {
+    return null
+  }
+
+  const divisor =
+    (avgWiederholung != null ? weights.weightWiederholung : 0) +
+    (avgBericht != null ? weights.weightBericht : 0) +
+    (avgMitarbeit != null ? weights.weightMitarbeit : 0) +
+    (avgPraktisch != null ? weights.weightPraktischeArbeit : 0)
+  if (divisor === 0) return null
+
+  return (
+    ((avgWiederholung ?? 0) * weights.weightWiederholung +
+      (avgBericht ?? 0) * weights.weightBericht +
+      (avgMitarbeit ?? 0) * weights.weightMitarbeit +
+      (avgPraktisch ?? 0) * weights.weightPraktischeArbeit) /
+    divisor
+  )
+}
+
 export function computeStudentSummary(
   students: Student[],
   teachingDays: TeachingDay[],
@@ -56,34 +92,8 @@ export function computeStudentSummary(
       if (entry?.attendance === 'Anwesend') anwesend++
       else nichtAnwesend++
 
-      const avgWiederholung = pairAverage(entry?.wiederholung1, entry?.wiederholung2)
-      const avgBericht = pairAverage(entry?.bericht1, entry?.bericht2)
-      const avgMitarbeit = pairAverage(entry?.mitarbeit1, entry?.mitarbeit2)
-      const avgPraktisch = pairAverage(entry?.praktischeArbeit1, entry?.praktischeArbeit2)
-
-      if (
-        avgWiederholung == null &&
-        avgBericht == null &&
-        avgMitarbeit == null &&
-        avgPraktisch == null
-      ) {
-        continue
-      }
-
-      // Divide by the weights actually in play, not the full 100.
-      const divisor =
-        (avgWiederholung != null ? weights.weightWiederholung : 0) +
-        (avgBericht != null ? weights.weightBericht : 0) +
-        (avgMitarbeit != null ? weights.weightMitarbeit : 0) +
-        (avgPraktisch != null ? weights.weightPraktischeArbeit : 0)
-      if (divisor === 0) continue
-
-      const dayGrade =
-        ((avgWiederholung ?? 0) * weights.weightWiederholung +
-          (avgBericht ?? 0) * weights.weightBericht +
-          (avgMitarbeit ?? 0) * weights.weightMitarbeit +
-          (avgPraktisch ?? 0) * weights.weightPraktischeArbeit) /
-        divisor
+      const dayGrade = dayGradeValue(entry, weights)
+      if (dayGrade == null) continue
       dayGrades.push(dayGrade)
     }
 

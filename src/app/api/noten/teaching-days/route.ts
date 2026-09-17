@@ -134,15 +134,11 @@ export async function GET(request: Request) {
           : 0
     })
 
-    // When same date has both AM and PM (same group), keep only one day per date (prefer AM)
-    const seenDates = new Set<string>()
-    const teachingDaysOnePerDate = teachingDays.filter(day => {
-      if (seenDates.has(day.date)) return false
-      seenDates.add(day.date)
-      return true
-    })
-
-    return NextResponse.json({ teachingDays: teachingDaysOnePerDate })
+    // A group scheduled both halves of a date yields two teaching days (AM + PM),
+    // each with its own attendance and marks — the redesigned screen shows them as
+    // separate half-days and NotenEntry is keyed by (date, period). Only exact
+    // (date, period) duplicates are collapsed, above, via `seen`.
+    return NextResponse.json({ teachingDays })
   } catch (error) {
     captureError(error, {
       location: 'api/noten/teaching-days',

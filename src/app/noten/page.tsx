@@ -1,17 +1,8 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-  AlertCircle,
-  CalendarClock,
-  CalendarX,
-  GraduationCap,
-  Sun,
-  Sunset,
-  Users,
-} from 'lucide-react'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { AlertCircle, ArrowRight, CalendarClock, CalendarX, GraduationCap, Sun, Sunset, Users, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -20,28 +11,25 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { PageContainer } from '@/components/ui/page-container'
 import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
+import { SaveStatus } from '@/components/save-status'
 import { useSchoolYear } from '@/contexts/school-year-context'
 import { useEntitlements } from '@/contexts/entitlements-context'
 import { useUnsavedWarning } from '@/hooks/use-unsaved-warning'
 import { entryKey, isSemester2 } from '@/lib/grades'
-import {
-  emptyEntry,
-  type NotenEntryRow,
-  type SearchByNameMatch,
-  type WeightConfig,
-} from './_lib/types'
+import { emptyEntry, type NotenEntryRow, type SearchByNameMatch, type TeachingDay, type WeightConfig } from './_lib/types'
 import { computeStudentSummary } from './_lib/summary'
 import { useNotenClasses } from './_hooks/use-noten-classes'
 import { useNotenData } from './_hooks/use-noten-data'
 import { useNotenSearch } from './_hooks/use-noten-search'
-import { useStickyColumns } from './_hooks/use-sticky-columns'
 import { useNmTransfer } from './_hooks/use-nm-transfer'
 import { ClassGroupPicker } from './_components/class-group-picker'
-import { NotenToolbar } from './_components/noten-toolbar'
-import { DateMatchList } from './_components/search-popover'
-import { NotenGrid } from './_components/noten-grid'
-import { TextModal, type TextModalContentRef, type TextModalState } from './_components/text-modal'
+import { SearchPopover, DateMatchList } from './_components/search-popover'
 import { NmTransferDialog } from './_components/nm-transfer-dialog'
+import { NotenViewTabs, type NotenTab } from './_components/noten-view-tabs'
+import { TransferMenu } from './_components/transfer-menu'
+import { ErfassenTab } from './_components/erfassen-tab'
+import { VerlaufTab } from './_components/verlauf-tab'
+import { EndnotenTab } from './_components/endnoten-tab'
 
 /** Today as YYYY-MM-DD in local time (the dates from the API are local dates). */
 function todayLocalYmd(): string {
@@ -52,10 +40,10 @@ function todayLocalYmd(): string {
 /**
  * Noten — per-lesson assessment for one class/group.
  *
- * A wide grid of teaching days against students, with attendance, four
- * assessment categories, notes and final grades. Class selection, data,
- * search, sticky-column measurement and the Notenmanagement transfer each live
- * in their own hook.
+ * Three views over the same data (class/group selection, entries, weighting,
+ * final grades — all owned by `useNotenData`): a per-half-day tile grid for
+ * capture, a term history, and the final grades. Search and the Notenmanagement
+ * transfer sit in their own hooks and dialogs.
  */
 export default function NotenPage() {
   const { t } = useTranslation('common')
@@ -87,16 +75,29 @@ export default function NotenPage() {
   // failed write stays queued — closing the tab on either used to lose it.
   useUnsavedWarning(data.hasUnsavedWork)
 
-  const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set())
-  // Fold away days that haven't happened yet the first time a class/group loads,
-  // so the teacher lands on a compact "term so far" view instead of scrolling
-  // past a hundred empty future columns. Re-applied only when the class/group
-  // changes, never on a plain data refetch, so manual toggles are preserved.
-  const collapseInitKey = `${selectedClassId}-${selectedGroupId}`
-  const [collapseInitedFor, setCollapseInitedFor] = useState<string | null>(null)
-  const [rowGradeVisibility, setRowGradeVisibility] = useState<Record<number, boolean>>({})
-  const [textModal, setTextModal] = useState<TextModalState>(null)
-  const textModalContentRef = useRef<TextModalContentRef | null>(null)
+  const [tab, setTab] = useState<NotenTab>('erfassen')
+  const [hideGrades, setHideGrades] = useState(false)
+  const [dayIndex, setDayIndex] = useState(0)
+
+  // Land on today's half-day (or the most recent past one) the first time a
+  // class/group loads. Re-applied only when the class/group changes, using the
+  // documented render-time "reset state on key change" pattern, so paging
+  // through days is preserved across a plain refetch.
+  const dayInitKey = `${selectedClassId}-${selectedGroupId}`
+  const [dayInitedFor, setDayInitedFor] = useState<string | null>(null)
+  if (data.teachingDays.length > 0 && dayInitedFor !== dayInitKey) {
+    setDayInitedFor(dayInitKey)
+    let idx = data.teachingDays.findIndex(day => day.date === todayYmd)
+    if (idx < 0) {
+      for (let i = data.teachingDays.length - 1; i >= 0; i--) {
+        if (data.teachingDays[i]!.date <= todayYmd) {
+          idx = i
+          break
+        }
+      }
+    }
+    setDayIndex(idx < 0 ? 0 : idx)
+  }
 
   const onSearchNavigate = useCallback(
     (match: SearchByNameMatch) => {
@@ -107,18 +108,6 @@ export default function NotenPage() {
   )
   const search = useNotenSearch({ schoolYearId, onNavigate: onSearchNavigate })
 
-  const focusColumnKey = useMemo(() => {
-    const target = search.focusDateYmd ?? todayYmd
-    const day = data.teachingDays.find(d => d.date === target)
-    return day ? `${day.date}-${day.period}` : null
-  }, [data.teachingDays, search.focusDateYmd, todayYmd])
-
-  const { nameColumnRef, sitzplatzLeft, registerDayColumn } = useStickyColumns({
-    deps: [data.students, data.teachingDays],
-    focusColumnKey,
-    resetKey: `${selectedClassId}-${selectedGroupId}-${search.focusDateYmd}`,
-  })
-
   const selectedClass = classes.find(cls => cls.id === selectedClassId)
 
   const transfer = useNmTransfer({
@@ -128,25 +117,10 @@ export default function NotenPage() {
     allGroupIds: selectedClass?.groupIds ?? [],
   })
 
-  const { semester1DayKeys, semester2DayKeys, futureDayKeys } = useMemo(() => {
-    const first: string[] = []
-    const second: string[] = []
-    const future: string[] = []
-    for (const day of data.teachingDays) {
-      const key = `${day.date}-${day.period}`
-      if (isSemester2(day.date, semesterChangeDate)) second.push(key)
-      else first.push(key)
-      if (day.date > todayYmd) future.push(key)
-    }
-    return { semester1DayKeys: first, semester2DayKeys: second, futureDayKeys: future }
-  }, [data.teachingDays, semesterChangeDate, todayYmd])
-
   const summary = useMemo(() => {
     // Attendance stays full-year, but the displayed calculatedGrade is scoped to
-    // the current semester's teaching days. Blending both semesters made the grid
-    // figure diverge from the per-semester Endnote and the transfer prefill, so a
-    // teacher could set a semester Endnote off a number contaminated by the other
-    // semester's marks (finding 19).
+    // the current semester's teaching days — blending both made the figure
+    // diverge from the per-semester Endnote and the transfer prefill (finding 19).
     const full = computeStudentSummary(
       data.students,
       data.teachingDays,
@@ -173,11 +147,6 @@ export default function NotenPage() {
     return out
   }, [data.students, data.teachingDays, data.entries, data.weights, todayYmd, semesterChangeDate])
 
-  /**
-   * Teaching days still to come. The header used to add a third figure for the
-   * current half-day, counting only AM columns before noon — which is zero for
-   * every afternoon group, all morning.
-   */
   const remainingDays = useMemo(() => {
     const upcoming = data.teachingDays.filter(day => day.date > todayYmd)
     const todayIsSecondSemester = isSemester2(todayYmd, semesterChangeDate)
@@ -189,42 +158,38 @@ export default function NotenPage() {
     }
   }, [data.teachingDays, todayYmd, semesterChangeDate])
 
-  // Adjust during render (React's documented "reset state on key change"
-  // pattern) rather than in an effect, so there's no extra commit/repaint.
-  if (data.teachingDays.length > 0 && collapseInitedFor !== collapseInitKey) {
-    setCollapseInitedFor(collapseInitKey)
-    setCollapsedDays(new Set(futureDayKeys))
-  }
-
-  const allDaysCollapsed =
-    data.teachingDays.length > 0 &&
-    data.teachingDays.every(day => collapsedDays.has(`${day.date}-${day.period}`))
-  const allRowsVisible =
-    data.students.length > 0 &&
-    data.students.every(student => rowGradeVisibility[student.id] ?? true)
-
-  const toggleDayCollapsed = useCallback((date: string, period: string) => {
-    setCollapsedDays(prev => {
-      const next = new Set(prev)
-      const key = `${date}-${period}`
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }, [])
-
-  const setAllRowsVisible = useCallback(
-    (visible: boolean) => {
-      setRowGradeVisibility(Object.fromEntries(data.students.map(student => [student.id, visible])))
-    },
-    [data.students],
-  )
-
   /** Apply a patch to one entry and persist it. */
   const handleEntryChange = useCallback(
     (entry: NotenEntryRow, patch: Partial<NotenEntryRow>) => {
       data.updateEntry(entry.studentId, entry.date, entry.period, patch)
       void data.saveEntries([{ ...entry, ...patch }])
+    },
+    [data],
+  )
+
+  /** Copy just the attendance of the other half-day onto this one; marks untouched. */
+  const handleCopyAttendance = useCallback(
+    (from: TeachingDay, to: TeachingDay) => {
+      const payload: NotenEntryRow[] = []
+      for (const student of data.students) {
+        const source = data.entries[entryKey(student.id, from.date, from.period)]
+        const attendance = source?.attendance
+        if (!attendance) continue
+        const existing =
+          data.entries[entryKey(student.id, to.date, to.period)] ??
+          emptyEntry(student.id, to.date, to.period)
+        data.updateEntry(student.id, to.date, to.period, { attendance })
+        payload.push({ ...existing, attendance })
+      }
+      if (payload.length > 0) void data.saveEntries(payload)
+    },
+    [data],
+  )
+
+  const handleCommitLehrstoff = useCallback(
+    (date: string, period: string, value: string) => {
+      data.setLehrstoffByDay(prev => ({ ...prev, [`${date}-${period}`]: value }))
+      void data.saveLehrstoff(date, period, value)
     },
     [data],
   )
@@ -251,39 +216,8 @@ export default function NotenPage() {
     [data],
   )
 
-  const textModalInitialValue = useMemo(() => {
-    if (!textModal) return ''
-    if (textModal.type === 'notizen') {
-      return (
-        data.entries[entryKey(textModal.studentId, textModal.date, textModal.period)]?.notizen ?? ''
-      )
-    }
-    return data.lehrstoffByDay[`${textModal.date}-${textModal.period}`] ?? ''
-  }, [textModal, data.entries, data.lehrstoffByDay])
-
-  const closeTextModal = useCallback(() => {
-    if (!textModal) return
-    const value = textModalContentRef.current?.getValue() ?? ''
-
-    if (textModal.type === 'notizen') {
-      // The day may have no entry yet — the note itself is what creates it.
-      const existing =
-        data.entries[entryKey(textModal.studentId, textModal.date, textModal.period)] ??
-        emptyEntry(textModal.studentId, textModal.date, textModal.period)
-      data.updateEntry(textModal.studentId, textModal.date, textModal.period, { notizen: value })
-      void data.saveEntries([{ ...existing, notizen: value }])
-    } else {
-      const key = `${textModal.date}-${textModal.period}`
-      data.setLehrstoffByDay(prev => ({ ...prev, [key]: value }))
-      void data.saveLehrstoff(textModal.date, textModal.period, value)
-    }
-    setTextModal(null)
-  }, [textModal, data])
-
   const handleWeightChange = useCallback(
     (key: keyof WeightConfig, value: number) => {
-      // Seed from the current weights (falling back to defaults) so the first
-      // edit, made before any config is stored, starts from a full set.
       data.setWeightConfig(prev => ({ ...(prev ?? data.weights), [key]: value }))
     },
     [data],
@@ -300,8 +234,15 @@ export default function NotenPage() {
   }
 
   const canTransfer = isFeatureEnabled('notenmgmt_htl') && selectedClassId != null
-  const groupPeriod = data.teachingDays[0]?.period
-  const saving = data.saveState === 'saving'
+  const periods = Array.from(new Set(data.teachingDays.map(day => day.period)))
+  const safeDayIndex = Math.min(dayIndex, Math.max(0, data.teachingDays.length - 1))
+  const groupSelected = !!(selectedClass && selectedGroupId != null)
+
+  const tabs: Array<{ value: NotenTab; label: string }> = [
+    { value: 'erfassen', label: t('noten.tabErfassen', { defaultValue: 'Erfassen' }) },
+    { value: 'verlauf', label: t('noten.tabVerlauf', { defaultValue: 'Verlauf' }) },
+    { value: 'endnoten', label: t('noten.tabEndnoten', { defaultValue: 'Endnoten' }) },
+  ]
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -312,10 +253,25 @@ export default function NotenPage() {
           description={t('noten.subtitle', {
             defaultValue: 'Anwesenheit und Mitarbeit je Unterrichtstag erfassen.',
           })}
+          actions={
+            groupSelected ? (
+              <>
+                <SaveStatus state={data.saveState} />
+                {canTransfer && (
+                  <TransferMenu
+                    groupId={selectedGroupId}
+                    canTransferAllGroups={(selectedClass?.groupIds.length ?? 0) > 0}
+                    onTransferGroup={() => transfer.start('group')}
+                    onTransferAllGroups={() => transfer.start('all')}
+                  />
+                )}
+              </>
+            ) : undefined
+          }
         />
 
-        {/* A load failure is not dismissible: there is nothing behind it to
-            get back to, and picking another group is what clears it. */}
+        {/* A load failure is not dismissible: there is nothing behind it to get
+            back to, and picking another group is what clears it. */}
         {data.loadError && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -363,7 +319,7 @@ export default function NotenPage() {
               </div>
             )}
 
-            {!data.loading && !(selectedClass && selectedGroupId != null) && (
+            {!data.loading && !groupSelected && (
               <EmptyState
                 icon={GraduationCap}
                 title={t('noten.noGroupSelectedTitle', { defaultValue: 'Keine Gruppe ausgewählt' })}
@@ -373,185 +329,160 @@ export default function NotenPage() {
               />
             )}
 
-            {selectedClass && selectedGroupId != null && !data.loading && (
-              <Card>
-                <CardHeader className="gap-4">
-                  <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
-                    <h2 className="truncate text-xl font-semibold tracking-tight">
-                      {selectedClass.name} · {t('noten.gruppe')} {selectedGroupId}
-                    </h2>
-                    {groupPeriod && (
-                      <Badge variant="secondary" className="gap-1">
-                        {groupPeriod === 'AM' ? (
-                          <Sun className="h-3 w-3" />
-                        ) : (
-                          <Sunset className="h-3 w-3" />
-                        )}
-                        {groupPeriod === 'AM'
-                          ? t('noten.vormittag', { defaultValue: 'Vormittag' })
-                          : t('noten.nachmittag', { defaultValue: 'Nachmittag' })}
-                      </Badge>
-                    )}
-                    <span className="text-muted-foreground flex items-center gap-1.5 text-sm">
-                      <Users className="h-3.5 w-3.5" />
-                      {t('noten.studentCount', {
-                        defaultValue: '{{count}} Schüler',
-                        count: data.students.length,
-                      })}
-                    </span>
-                    <span className="text-muted-foreground flex items-center gap-1.5 text-sm">
-                      <CalendarClock className="h-3.5 w-3.5" />
-                      {t('noten.remainingSummary', {
-                        defaultValue:
-                          'Noch {{semester}} Termine im Semester, {{fullYear}} im Schuljahr',
-                        semester: remainingDays.semester,
-                        fullYear: remainingDays.fullYear,
-                      })}
-                    </span>
-                  </div>
+            {groupSelected && !data.loading && (
+              <div className="space-y-6">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
+                  <h2 className="truncate text-xl font-semibold tracking-tight">
+                    {selectedClass!.name} · {t('noten.gruppe')} {selectedGroupId}
+                  </h2>
+                  {periods.map(period => (
+                    <Badge key={period} variant="secondary" className="gap-1">
+                      {period === 'AM' ? <Sun className="h-3 w-3" /> : <Sunset className="h-3 w-3" />}
+                      {period === 'AM'
+                        ? t('noten.vormittag', { defaultValue: 'Vormittag' })
+                        : t('noten.nachmittag', { defaultValue: 'Nachmittag' })}
+                    </Badge>
+                  ))}
+                  <span className="text-muted-foreground flex items-center gap-1.5 text-sm">
+                    <Users className="h-3.5 w-3.5" />
+                    {t('noten.studentCount', {
+                      defaultValue: '{{count}} Schüler',
+                      count: data.students.length,
+                    })}
+                  </span>
+                  <span className="text-muted-foreground flex items-center gap-1.5 text-sm">
+                    <CalendarClock className="h-3.5 w-3.5" />
+                    {t('noten.remainingSummary', {
+                      defaultValue: 'Noch {{semester}} Termine im Semester, {{fullYear}} im Schuljahr',
+                      semester: remainingDays.semester,
+                      fullYear: remainingDays.fullYear,
+                    })}
+                  </span>
 
-                  <NotenToolbar
-                    saveState={data.saveState}
-                    saving={saving}
-                    onSave={() => void data.saveAll()}
-                    hasDays={data.teachingDays.length > 0}
-                    allDaysCollapsed={allDaysCollapsed}
-                    hasFutureDays={futureDayKeys.length > 0}
-                    canCollapseSemester1={!!semesterChangeDate && semester1DayKeys.length > 0}
-                    canCollapseSemester2={!!semesterChangeDate && semester2DayKeys.length > 0}
-                    onExpandAllDays={() => setCollapsedDays(new Set())}
-                    onCollapseAllDays={() =>
-                      setCollapsedDays(
-                        new Set(data.teachingDays.map(day => `${day.date}-${day.period}`)),
-                      )
-                    }
-                    onCollapseFutureDays={() =>
-                      setCollapsedDays(prev => new Set([...prev, ...futureDayKeys]))
-                    }
-                    onCollapseSemester1={() =>
-                      setCollapsedDays(prev => new Set([...prev, ...semester1DayKeys]))
-                    }
-                    onCollapseSemester2={() =>
-                      setCollapsedDays(prev => new Set([...prev, ...semester2DayKeys]))
-                    }
-                    gradesVisible={allRowsVisible}
-                    hasStudents={data.students.length > 0}
-                    onToggleGrades={() => setAllRowsVisible(!allRowsVisible)}
+                  <span className="ml-auto flex items-center gap-2">
+                    {search.activeNameMatch && (
+                      <span className="border-border bg-muted/60 flex items-center gap-2 rounded-full border py-1 pr-1 pl-3 text-xs">
+                        <span className="font-medium">
+                          {search.activeNameMatch.lastName} {search.activeNameMatch.firstName}
+                        </span>
+                        {search.nameMatches.length > 1 && (
+                          <>
+                            <span className="text-muted-foreground tabular-nums">
+                              {search.activeNameMatchIndex + 1}/{search.nameMatches.length}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-5 w-5"
+                              onClick={search.gotoNextNameMatch}
+                              aria-label={t('noten.searchNextMatch', { defaultValue: 'Nächster Treffer' })}
+                            >
+                              <ArrowRight className="h-3.5 w-3.5" />
+                            </Button>
+                          </>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5"
+                          onClick={search.clearNameSearch}
+                          aria-label={t('noten.searchClear', { defaultValue: 'Suche zurücksetzen' })}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </span>
+                    )}
+                    <SearchPopover
+                      open={search.open}
+                      onOpenChange={search.setOpen}
+                      searchText={search.searchText}
+                      setSearchText={search.setSearchText}
+                      searchDate={search.searchDate}
+                      setSearchDate={search.setSearchDate}
+                      message={search.message}
+                      onNameSearch={() => void search.performNameSearch()}
+                      onDateSearch={() => void search.performDateSearch()}
+                    />
+                  </span>
+                </div>
+
+                <NotenViewTabs value={tab} onValueChange={setTab} tabs={tabs} />
+
+                <DateMatchList
+                  matches={search.dateMatches}
+                  studentsByGroup={search.studentsByGroup}
+                  onOpenGroup={(classId, groupId) => {
+                    setSelectedClassId(classId)
+                    setSelectedGroupId(groupId)
+                  }}
+                  onDismiss={search.clearDateSearch}
+                />
+
+                {data.students.length === 0 ? (
+                  <EmptyState
+                    icon={Users}
+                    title={t('noten.noStudentsTitle', {
+                      defaultValue: 'Keine Schüler in dieser Gruppe',
+                    })}
+                    description={t('noten.noStudentsDesc', {
+                      defaultValue: 'Dieser Gruppe sind für dieses Schuljahr keine Schüler zugeordnet.',
+                    })}
+                  />
+                ) : tab === 'endnoten' ? (
+                  <EndnotenTab
+                    students={data.students}
+                    finalGrades={data.finalGrades}
+                    summary={summary}
+                    hideGrades={hideGrades}
+                    onFinalGradeChange={data.setFinalGrade}
+                    onFinalGradeCommit={handleFinalGradeCommit}
+                  />
+                ) : data.teachingDays.length === 0 ? (
+                  <EmptyState
+                    icon={CalendarX}
+                    title={t('noten.noTeachingDaysTitle', { defaultValue: 'Keine Unterrichtstage' })}
+                    description={t('noten.noTeachingDaysDesc', {
+                      defaultValue: 'Für diese Gruppe ist im gewählten Schuljahr kein Turnus geplant.',
+                    })}
+                  />
+                ) : tab === 'erfassen' ? (
+                  <ErfassenTab
+                    teachingDays={data.teachingDays}
+                    students={data.students}
+                    entries={data.entries}
+                    summary={summary}
+                    lehrstoffByDay={data.lehrstoffByDay}
                     weights={data.weights}
                     weightsValid={data.weightsValid}
+                    dayIndex={safeDayIndex}
+                    hideGrades={hideGrades}
+                    saving={data.saveState === 'saving'}
+                    todayYmd={todayYmd}
+                    semesterChangeDate={semesterChangeDate}
+                    onSelectDay={setDayIndex}
+                    onToggleHide={() => setHideGrades(h => !h)}
+                    onEntryChange={handleEntryChange}
+                    onSetAllAnwesend={(date, period) => void data.setAllAnwesend(date, period)}
+                    onCopyAttendance={handleCopyAttendance}
+                    onSitzplatzChange={(studentId, value) => data.updateSitzplatz(studentId, value)}
+                    onCommitLehrstoff={handleCommitLehrstoff}
                     onWeightChange={handleWeightChange}
                     onWeightCommit={() => void data.saveWeights()}
-                    search={{
-                      open: search.open,
-                      onOpenChange: search.setOpen,
-                      searchText: search.searchText,
-                      setSearchText: search.setSearchText,
-                      searchDate: search.searchDate,
-                      setSearchDate: search.setSearchDate,
-                      message: search.message,
-                      onNameSearch: () => void search.performNameSearch(),
-                      onDateSearch: () => void search.performDateSearch(),
-                    }}
-                    nameMatchCount={search.nameMatches.length}
-                    activeNameMatchIndex={search.activeNameMatchIndex}
-                    nameMatchLabel={
-                      search.activeNameMatch
-                        ? `${search.activeNameMatch.lastName} ${search.activeNameMatch.firstName}`
-                        : null
-                    }
-                    onNextNameMatch={search.gotoNextNameMatch}
-                    onClearNameSearch={search.clearNameSearch}
-                    canTransfer={canTransfer}
-                    groupId={selectedGroupId}
-                    canTransferAllGroups={selectedClass.groupIds.length > 0}
-                    onTransferGroup={() => transfer.start('group')}
-                    onTransferAllGroups={() => transfer.start('all')}
                   />
-                </CardHeader>
-
-                <CardContent className="space-y-4">
-                  <DateMatchList
-                    matches={search.dateMatches}
-                    studentsByGroup={search.studentsByGroup}
-                    onOpenGroup={(classId, groupId) => {
-                      setSelectedClassId(classId)
-                      setSelectedGroupId(groupId)
-                    }}
-                    onDismiss={search.clearDateSearch}
+                ) : (
+                  <VerlaufTab
+                    teachingDays={data.teachingDays}
+                    students={data.students}
+                    entries={data.entries}
+                    weights={data.weights}
+                    hideGrades={hideGrades}
+                    todayYmd={todayYmd}
                   />
-
-                  {data.students.length === 0 ? (
-                    <EmptyState
-                      icon={Users}
-                      title={t('noten.noStudentsTitle', {
-                        defaultValue: 'Keine Schüler in dieser Gruppe',
-                      })}
-                      description={t('noten.noStudentsDesc', {
-                        defaultValue:
-                          'Dieser Gruppe sind für dieses Schuljahr keine Schüler zugeordnet.',
-                      })}
-                    />
-                  ) : data.teachingDays.length === 0 ? (
-                    <EmptyState
-                      icon={CalendarX}
-                      title={t('noten.noTeachingDaysTitle', {
-                        defaultValue: 'Keine Unterrichtstage',
-                      })}
-                      description={t('noten.noTeachingDaysDesc', {
-                        defaultValue:
-                          'Für diese Gruppe ist im gewählten Schuljahr kein Turnus geplant.',
-                      })}
-                    />
-                  ) : (
-                    <NotenGrid
-                      teachingDays={data.teachingDays}
-                      students={data.students}
-                      entries={data.entries}
-                      lehrstoffByDay={data.lehrstoffByDay}
-                      finalGrades={data.finalGrades}
-                      summary={summary}
-                      collapsedDays={collapsedDays}
-                      rowGradeVisibility={rowGradeVisibility}
-                      highlightedStudentId={search.highlightedStudentId}
-                      focusDateYmd={search.focusDateYmd}
-                      todayYmd={todayYmd}
-                      semesterChangeDate={semesterChangeDate}
-                      saving={saving}
-                      sitzplatzLeft={sitzplatzLeft}
-                      nameColumnRef={nameColumnRef}
-                      registerDayColumn={registerDayColumn}
-                      studentRowRefs={search.studentRowRefs}
-                      onToggleDay={toggleDayCollapsed}
-                      onToggleRowVisible={(studentId, visible) =>
-                        setRowGradeVisibility(prev => ({ ...prev, [studentId]: visible }))
-                      }
-                      onSetAllAnwesend={(date, period) => void data.setAllAnwesend(date, period)}
-                      onEntryChange={handleEntryChange}
-                      onSitzplatzChange={(studentId, value) =>
-                        data.updateSitzplatz(studentId, value)
-                      }
-                      onFinalGradeChange={data.setFinalGrade}
-                      onFinalGradeCommit={handleFinalGradeCommit}
-                      onOpenNotizen={(studentId, date, period) =>
-                        setTextModal({ type: 'notizen', studentId, date, period })
-                      }
-                      onOpenLehrstoff={(date, period) =>
-                        setTextModal({ type: 'lehrstoff', date, period })
-                      }
-                    />
-                  )}
-                </CardContent>
-              </Card>
+                )}
+              </div>
             )}
           </>
         )}
-
-        <TextModal
-          state={textModal}
-          initialValue={textModalInitialValue}
-          contentRef={textModalContentRef}
-          onClose={closeTextModal}
-        />
 
         <NmTransferDialog {...transfer} />
       </PageContainer>
