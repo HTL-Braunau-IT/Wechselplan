@@ -10,9 +10,10 @@ interface RoomSelectProps {
   value: string | undefined
   onChange: (value: string) => void
   rooms: Room[]
+  className?: string
 }
 
-export function RoomSelect({ value, onChange, rooms }: RoomSelectProps) {
+export function RoomSelect({ value, onChange, rooms, className }: RoomSelectProps) {
   const { t } = useTranslation('schedule')
 
   return (
@@ -21,6 +22,7 @@ export function RoomSelect({ value, onChange, rooms }: RoomSelectProps) {
       onChange={onChange}
       options={rooms}
       placeholder={t('selectRoom')}
+      className={className}
     />
   )
 }

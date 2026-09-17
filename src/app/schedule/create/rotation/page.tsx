@@ -1,7 +1,7 @@
 'use client'
 
 import { useSearchParams } from 'next/navigation'
-import { RefreshCw } from 'lucide-react'
+import { CalendarRange } from 'lucide-react'
 
 import { TurnusEditor } from '@/components/schedule/turnus-editor'
 import { useSchoolYear } from '@/contexts/school-year-context'
@@ -32,7 +32,7 @@ export default function RotationPage() {
   return (
     <PageContainer size="wide" className="space-y-6">
       <PageHeader
-        icon={RefreshCw}
+        icon={CalendarRange}
         title={t('steps.rotation')}
         description={t('rotationDescription')}
       />
@@ -46,7 +46,7 @@ export default function RotationPage() {
           schoolYearMiddle={schoolYearMiddle}
         />
       ) : (
-        <EmptyState icon={RefreshCw} title={t('noClassSelected')} />
+        <EmptyState icon={CalendarRange} title={t('noClassSelected')} />
       )}
     </PageContainer>
   )

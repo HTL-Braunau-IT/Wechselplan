@@ -10,9 +10,10 @@ interface SubjectSelectProps {
   value: string | undefined
   onChange: (value: string) => void
   subjects: Subject[]
+  className?: string
 }
 
-export function SubjectSelect({ value, onChange, subjects }: SubjectSelectProps) {
+export function SubjectSelect({ value, onChange, subjects, className }: SubjectSelectProps) {
   const { t } = useTranslation('schedule')
 
   return (
@@ -21,6 +22,7 @@ export function SubjectSelect({ value, onChange, subjects }: SubjectSelectProps)
       onChange={onChange}
       options={subjects}
       placeholder={t('selectSubject')}
+      className={className}
     />
   )
 }

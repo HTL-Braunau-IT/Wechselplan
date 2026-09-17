@@ -13,7 +13,6 @@ import {
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import { useTranslation } from 'next-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import {
   Select,
   SelectContent,
@@ -45,7 +44,17 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Spinner } from '@/components/ui/spinner'
 import { PageContainer } from '@/components/ui/page-container'
 import { PageHeader } from '@/components/ui/page-header'
-import { AlertCircle, ArrowRight, Combine, RotateCcw, UserPlus, Users } from 'lucide-react'
+import {
+  AlertCircle,
+  ArrowRight,
+  Combine,
+  Info,
+  Minus,
+  Plus,
+  RotateCcw,
+  UserPlus,
+  Users,
+} from 'lucide-react'
 import { captureFrontendError } from '@/lib/frontend-error'
 import { useUnsavedWarning } from '@/hooks/use-unsaved-warning'
 import { WizardFooter } from '@/components/schedule/wizard-footer'
@@ -858,24 +867,17 @@ export default function ScheduleClassSelectPage() {
     }
   }
 
+  const realGroups = groups.filter(g => g.id !== UNASSIGNED_GROUP_ID).sort((a, b) => a.id - b.id)
+  const unassignedStudents = groups.find(g => g.id === UNASSIGNED_GROUP_ID)?.students ?? []
+  const assignedCount = realGroups.reduce((n, g) => n + g.students.length, 0)
+
   return (
     <PageContainer size="wide">
       <div className="space-y-6">
         <PageHeader
           icon={Users}
-          title={t('selectClass')}
-          actions={
-            <>
-              <Button onClick={() => setShowAddStudentDialog(true)}>
-                <UserPlus className="h-4 w-4" />
-                {t('addStudent')}
-              </Button>
-              <Button variant="outline" onClick={() => setShowCombineClassesDialog(true)}>
-                <Combine className="h-4 w-4" />
-                {t('combineClasses')}
-              </Button>
-            </>
-          }
+          title={t('steps.class')}
+          description={t('classGroupsDescription')}
         />
 
         {loadingClasses && !selectedClass ? (
@@ -890,158 +892,166 @@ export default function ScheduleClassSelectPage() {
           </Alert>
         ) : (
           <div className="space-y-6">
-            <Card className="max-w-2xl">
-              <CardHeader>
-                <CardTitle>{t('class')}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {/* The primary "next" action lives in the wizard footer below for
-                    consistent button placement across all creation steps. */}
-                <div className="space-y-2">
-                  <Label htmlFor="class-select">{t('class')}</Label>
-                  <Select value={selectedClass} onValueChange={setSelectedClass} required>
-                    <SelectTrigger id="class-select" className="w-full">
-                      <SelectValue placeholder={t('pleaseSelect')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {classes.map(cls => (
-                        <SelectItem key={cls.id} value={cls.name}>
-                          {cls.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
-
-            {selectedClass && (
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <h2 className="text-xl font-semibold">
-                    {t('studentsOfClass', { class: selectedClass })}
-                  </h2>
-                  <div className="flex flex-wrap items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="group-size" className="text-sm font-medium">
-                        {t('numberOfGroups')}:
-                      </Label>
-                      <Select value={String(numberOfGroups)} onValueChange={handleGroupSizeChange}>
-                        <SelectTrigger id="group-size" className="w-20">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="2">2</SelectItem>
-                          <SelectItem value="3">3</SelectItem>
-                          <SelectItem value="4">4</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button onClick={handleReset} variant="outline" size="sm">
-                      <RotateCcw className="h-4 w-4" />
-                      {t('resetGroups')}
-                    </Button>
-                  </div>
-                </div>
-                {sizeError && (
-                  <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription className="break-words">
-                      {t('maxGroupSizeError')}
-                    </AlertDescription>
-                  </Alert>
-                )}
-                {actionError && (
-                  <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription className="break-words">{actionError}</AlertDescription>
-                  </Alert>
-                )}
-                {loading ? (
-                  <div className="text-muted-foreground flex items-center gap-3 py-8">
-                    <Spinner size="sm" />
-                    <span>{t('loadingStudents')}</span>
-                  </div>
-                ) : (
-                  <DndContext
-                    sensors={sensors}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
-                  >
-                    <div
-                      className={`grid gap-6 ${
-                        numberOfGroups === 2
-                          ? 'grid-cols-1 justify-items-center md:grid-cols-2'
-                          : numberOfGroups === 3
-                            ? 'grid-cols-1 justify-items-center md:grid-cols-2 [&>*:nth-child(3)]:mx-auto [&>*:nth-child(3)]:max-w-md [&>*:nth-child(3)]:md:col-span-2'
-                            : 'grid-cols-1 justify-items-center md:grid-cols-2'
-                      }`}
-                    >
-                      {/* Regular groups first */}
-                      {groups
-                        .filter(g => g.id !== UNASSIGNED_GROUP_ID)
-                        .sort((a, b) => a.id - b.id)
-                        .map(group => (
-                          <GroupContainer key={group.id} group={group}>
-                            <div className="space-y-2">
-                              {group.students.map((student, index) => (
-                                <StudentItem
-                                  key={student.id}
-                                  student={student}
-                                  index={index}
-                                  onRemove={handleStudentRemoval}
-                                  onTransfer={handleOpenTransferDialog}
-                                  t={t}
-                                />
-                              ))}
-                            </div>
-                          </GroupContainer>
-                        ))}
-                      {/* Unassigned group last, only if it has students */}
-                      {groups.find(g => g.id === UNASSIGNED_GROUP_ID)?.students.length ? (
-                        <div className="flex flex-col items-center gap-4">
-                          <GroupContainer
-                            key={UNASSIGNED_GROUP_ID}
-                            group={{
-                              id: UNASSIGNED_GROUP_ID,
-                              students:
-                                groups.find(g => g.id === UNASSIGNED_GROUP_ID)?.students ?? [],
-                            }}
-                          >
-                            <div className="space-y-2">
-                              {(groups.find(g => g.id === UNASSIGNED_GROUP_ID)?.students ?? []).map(
-                                (student, index) => (
-                                  <StudentItem
-                                    key={student.id}
-                                    student={student}
-                                    index={index}
-                                    onRemove={handleStudentRemoval}
-                                    t={t}
-                                  />
-                                ),
-                              )}
-                            </div>
-                          </GroupContainer>
-                        </div>
-                      ) : null}
-                    </div>
-                    <DragOverlay>
-                      {activeStudent ? (
-                        <div className="bg-card rounded border p-2 text-sm shadow-lg">
-                          {`${activeStudent.lastName}, ${activeStudent.firstName}`}
-                        </div>
-                      ) : null}
-                    </DragOverlay>
-                  </DndContext>
-                )}
+            {/* Toolbar: class, live counts, group stepper and the row-level actions. */}
+            <div className="border-border/60 bg-card/40 flex flex-wrap items-center gap-x-5 gap-y-3 rounded-xl border p-4">
+              <Label htmlFor="class-select" className="text-muted-foreground">
+                {t('class')}
+              </Label>
+              <Select value={selectedClass} onValueChange={setSelectedClass} required>
+                <SelectTrigger id="class-select" className="bg-background h-9 min-w-[180px]">
+                  <SelectValue placeholder={t('pleaseSelect')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {classes.map(cls => (
+                    <SelectItem key={cls.id} value={cls.name}>
+                      {cls.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedClass && !loading && (
+                <span className="text-muted-foreground text-sm tabular-nums">
+                  {t('studentCountAssigned', {
+                    count: students.length,
+                    assigned: assignedCount,
+                  })}
+                </span>
+              )}
+              <span className="bg-border hidden h-6 w-px sm:block" />
+              <span className="text-muted-foreground text-sm font-medium">{t('groups')}</span>
+              <div className="border-input bg-background inline-flex items-center overflow-hidden rounded-md border shadow-xs">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-none"
+                  aria-label={t('fewerGroups')}
+                  disabled={!selectedClass || numberOfGroups <= 2}
+                  onClick={() => handleGroupSizeChange(String(numberOfGroups - 1))}
+                >
+                  <Minus className="h-3.5 w-3.5" />
+                </Button>
+                <span className="min-w-7 text-center text-sm font-semibold tabular-nums">
+                  {numberOfGroups}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-none"
+                  aria-label={t('moreGroups')}
+                  disabled={!selectedClass || numberOfGroups >= 4}
+                  onClick={() => handleGroupSizeChange(String(numberOfGroups + 1))}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
               </div>
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handleReset} disabled={!selectedClass}>
+                  <RotateCcw className="h-4 w-4" />
+                  {t('resetGroups')}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAddStudentDialog(true)}
+                  disabled={!selectedClass}
+                >
+                  <UserPlus className="h-4 w-4" />
+                  {t('addStudent')}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowCombineClassesDialog(true)}
+                >
+                  <Combine className="h-4 w-4" />
+                  {t('combineClasses')}
+                </Button>
+              </div>
+            </div>
+
+            {sizeError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="break-words">
+                  {t('maxGroupSizeError')}
+                </AlertDescription>
+              </Alert>
+            )}
+            {actionError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="break-words">{actionError}</AlertDescription>
+              </Alert>
+            )}
+
+            {!selectedClass ? (
+              <div className="text-muted-foreground rounded-lg border border-dashed py-12 text-center text-sm">
+                {t('selectClass')}
+              </div>
+            ) : loading ? (
+              <div className="text-muted-foreground flex items-center gap-3 py-8">
+                <Spinner size="sm" />
+                <span>{t('loadingStudents')}</span>
+              </div>
+            ) : (
+              <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+                <div className="flex flex-wrap items-start gap-4">
+                  {realGroups.map(group => (
+                    <GroupContainer
+                      key={group.id}
+                      group={group}
+                      colorIndex={group.id - 1}
+                      maxSize={MAX_GROUP_SIZE}
+                    >
+                      {group.students.map((student, index) => (
+                        <StudentItem
+                          key={student.id}
+                          student={student}
+                          index={index}
+                          onRemove={handleStudentRemoval}
+                          onTransfer={handleOpenTransferDialog}
+                          t={t}
+                        />
+                      ))}
+                    </GroupContainer>
+                  ))}
+                </div>
+
+                {/* Unassigned tray — a drop-off shelf; drag a pill into a group above. */}
+                {unassignedStudents.length > 0 && (
+                  <div className="bg-card border-border mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-dashed p-4">
+                    <span className="text-muted-foreground flex items-center gap-2 text-xs font-medium tracking-wide uppercase">
+                      <Info className="h-3.5 w-3.5" />
+                      {t('unassigned')} · {unassignedStudents.length}
+                    </span>
+                    {unassignedStudents.map((student, index) => (
+                      <StudentItem
+                        key={student.id}
+                        student={student}
+                        index={index}
+                        onRemove={handleStudentRemoval}
+                        t={t}
+                        variant="pill"
+                      />
+                    ))}
+                    <span className="text-muted-foreground text-xs">{t('dragStudentHint')}</span>
+                  </div>
+                )}
+
+                <DragOverlay>
+                  {activeStudent ? (
+                    <div className="bg-card rounded-md border px-2 py-1 text-sm shadow-md">
+                      {`${activeStudent.lastName}, ${activeStudent.firstName}`}
+                    </div>
+                  ) : null}
+                </DragOverlay>
+              </DndContext>
             )}
 
             <WizardFooter>
-              <Button
-                disabled={!selectedClass || sizeError}
-                onClick={() => void handleNext()}
-              >
+              <Button disabled={!selectedClass || sizeError} onClick={() => void handleNext()}>
                 {t('next')}
                 <ArrowRight className="h-4 w-4" />
               </Button>

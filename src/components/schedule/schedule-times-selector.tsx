@@ -15,7 +15,19 @@ import {
 } from '@/components/ui/dialog'
 import { useTranslation } from 'react-i18next'
 import { Spinner } from '@/components/ui/spinner'
-import { AlertCircle, ArrowLeft, CheckCircle2, ChevronDown, ChevronRight, Plus } from 'lucide-react'
+import {
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Coffee,
+  Plus,
+  Sunrise,
+  Sunset,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { WizardFooter } from '@/components/schedule/wizard-footer'
 import { useClassDataByName } from '@/hooks/use-class-data'
 import { useScheduleTimes } from '@/hooks/use-schedule-times'
@@ -31,11 +43,40 @@ interface ScheduleTimesSelectorProps {
   onCancel?: () => void
 }
 
+/** "HH:mm" → minutes since midnight; NaN for anything unparseable. */
+function toMinutes(hhmm: string | undefined): number {
+  if (!hhmm) return NaN
+  const [h, m] = hhmm.split(':').map(Number)
+  if (h === undefined || Number.isNaN(h)) return NaN
+  return h * 60 + (m === undefined || Number.isNaN(m) ? 0 : m)
+}
+
+/** House style for a time range: "HH:mm – HH:mm" with an en dash. */
+function formatRange(start: string, end: string): string {
+  return `${start} – ${end}`
+}
+
+/** "HH:mm" for a minute offset, used for the axis hour labels. */
+function minutesToLabel(mins: number): string {
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+interface DayBlock {
+  key: string
+  label: string
+  start: string
+  end: string
+  kind: 'lesson' | 'break'
+}
+
 /**
  * Component for managing schedule and break times for a selected class.
  *
  * Fetches teacher assignments to determine active periods, loads available schedule and break times,
- * and allows users to select or add new times for AM, PM, and lunch periods.
+ * and allows users to select or add new times for AM, PM, and lunch periods. The selected times are
+ * mirrored live onto a horizontal day-axis so the shape of the day is visible while choosing.
  */
 export function ScheduleTimesSelector({
   className,
@@ -336,180 +377,321 @@ export function ScheduleTimesSelector({
       </div>
     )
 
+  // --- Derive the live day-axis from the current selection ---------------------
+  const amLesson = scheduleTimes.find(
+    time => time.id === selectedAMScheduleTime && time.period === 'AM',
+  )
+  const pmLesson = scheduleTimes.find(
+    time => time.id === selectedPMScheduleTime && time.period === 'PM',
+  )
+  const amBreak = breakTimes.find(time => time.id === selectedAMBreakTime && time.period === 'AM')
+  const lunchBreak = breakTimes.find(
+    time => time.id === selectedLunchBreakTime && time.period === 'LUNCH',
+  )
+  const pmBreak = breakTimes.find(time => time.id === selectedPMBreakTime && time.period === 'PM')
+
+  const dayBlocks: DayBlock[] = [
+    amLesson && {
+      key: 'am-lesson',
+      label: t('schedule:morning'),
+      start: amLesson.startTime,
+      end: amLesson.endTime,
+      kind: 'lesson' as const,
+    },
+    amBreak && {
+      key: 'am-break',
+      label: amBreak.name,
+      start: amBreak.startTime,
+      end: amBreak.endTime,
+      kind: 'break' as const,
+    },
+    lunchBreak && {
+      key: 'lunch-break',
+      label: lunchBreak.name,
+      start: lunchBreak.startTime,
+      end: lunchBreak.endTime,
+      kind: 'break' as const,
+    },
+    pmLesson && {
+      key: 'pm-lesson',
+      label: t('schedule:afternoon'),
+      start: pmLesson.startTime,
+      end: pmLesson.endTime,
+      kind: 'lesson' as const,
+    },
+    pmBreak && {
+      key: 'pm-break',
+      label: pmBreak.name,
+      start: pmBreak.startTime,
+      end: pmBreak.endTime,
+      kind: 'break' as const,
+    },
+  ].filter((b): b is DayBlock => Boolean(b))
+
+  // Axis domain: a default 07:00–18:00 window, widened to hold anything selected.
+  const blockMinutes = dayBlocks
+    .flatMap(b => [toMinutes(b.start), toMinutes(b.end)])
+    .filter(n => !Number.isNaN(n))
+  const axisStart = Math.floor(Math.min(7 * 60, ...blockMinutes) / 60) * 60
+  const axisEnd = Math.ceil(Math.max(18 * 60, ...blockMinutes) / 60) * 60
+  const axisSpan = Math.max(axisEnd - axisStart, 1)
+
+  const hourTicks: number[] = []
+  for (let m = Math.ceil(axisStart / 60) * 60; m <= axisEnd; m += 60) {
+    hourTicks.push(m)
+  }
+
+  const dayStart = blockMinutes.length ? Math.min(...blockMinutes) : NaN
+  const dayEnd = blockMinutes.length ? Math.max(...blockMinutes) : NaN
+  const daySpanLabel = Number.isNaN(dayStart)
+    ? null
+    : formatRange(minutesToLabel(dayStart), minutesToLabel(dayEnd))
+
+  const weekdayName =
+    weekday != null && !Number.isNaN(weekday) ? t(`schedule:weekdays.${weekday}`) : ''
+
+  // --- Phase groups for the picker --------------------------------------------
+  interface PhaseGroup {
+    key: string
+    icon: typeof Sunrise
+    title: string
+    lessons: ScheduleTime[]
+    selectedLesson: number | null
+    setLesson: (id: number | null) => void
+    breakLabel: string
+    breaks: BreakTime[]
+    selectedBreak: number | null
+    setBreak: (id: number | null) => void
+  }
+
+  const phaseGroups: PhaseGroup[] = (
+    [
+      periods.has('AM') && {
+        key: 'AM',
+        icon: Sunrise,
+        title: t('schedule:morning'),
+        lessons: scheduleTimes.filter(time => time.period === 'AM'),
+        selectedLesson: selectedAMScheduleTime,
+        setLesson: setSelectedAMScheduleTime,
+        breakLabel: t('admin.settings.times.labels.amBreak'),
+        breaks: breakTimes.filter(time => time.period === 'AM'),
+        selectedBreak: selectedAMBreakTime,
+        setBreak: setSelectedAMBreakTime,
+      },
+      periods.size > 0 && {
+        key: 'LUNCH',
+        icon: Coffee,
+        title: t('schedule:lunch'),
+        lessons: [] as ScheduleTime[],
+        selectedLesson: null,
+        setLesson: () => undefined,
+        breakLabel: t('admin.settings.times.labels.lunchBreak'),
+        breaks: breakTimes.filter(time => time.period === 'LUNCH'),
+        selectedBreak: selectedLunchBreakTime,
+        setBreak: setSelectedLunchBreakTime,
+      },
+      periods.has('PM') && {
+        key: 'PM',
+        icon: Sunset,
+        title: t('schedule:afternoon'),
+        lessons: scheduleTimes.filter(time => time.period === 'PM'),
+        selectedLesson: selectedPMScheduleTime,
+        setLesson: setSelectedPMScheduleTime,
+        breakLabel: t('admin.settings.times.labels.pmBreak'),
+        breaks: breakTimes.filter(time => time.period === 'PM'),
+        selectedBreak: selectedPMBreakTime,
+        setBreak: setSelectedPMBreakTime,
+      },
+    ] as (PhaseGroup | false)[]
+  ).filter((g): g is PhaseGroup => g !== false)
+
+  const chipClass = (active: boolean) =>
+    cn(
+      'flex flex-col items-start gap-0.5 rounded-md border px-3 py-2 text-left text-sm transition-colors',
+      active
+        ? 'border-primary bg-primary/10 text-foreground'
+        : 'border-input hover:bg-accent text-foreground',
+    )
+
   return (
     <>
+      {success && (
+        <Alert variant="success">
+          <CheckCircle2 className="h-4 w-4" />
+          <AlertDescription>{success}</AlertDescription>
+        </Alert>
+      )}
+
+      {isLoadingSavedTimes && (
+        <Alert variant="info">
+          <Spinner size="sm" />
+          <AlertDescription>{t('admin.settings.times.loadingSavedTimes')}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Day axis — a live picture of the selected day. */}
       <Card>
-        <CardHeader>
-          <CardTitle>{t('admin.settings.times.title')}</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+          <CardTitle className="text-lg tracking-tight">
+            {weekdayName
+              ? t('schedule:dayScheduleTitle', { weekday: weekdayName })
+              : t('schedule:steps.times')}
+          </CardTitle>
+          {daySpanLabel && (
+            <span className="text-muted-foreground text-sm tabular-nums">{daySpanLabel}</span>
+          )}
         </CardHeader>
         <CardContent>
-          {success && (
-            <Alert variant="success" className="mb-4">
-              <CheckCircle2 className="h-4 w-4" />
-              <AlertDescription>{success}</AlertDescription>
-            </Alert>
-          )}
-
-          {isLoadingSavedTimes && (
-            <Alert variant="info" className="mb-4">
-              <Spinner size="sm" />
-              <AlertDescription>{t('admin.settings.times.loadingSavedTimes')}</AlertDescription>
-            </Alert>
-          )}
-
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
-            {/* Schedule Times */}
-            <div>
-              <h2 className="mb-4 text-xl font-semibold">
-                {t('admin.settings.times.scheduleTimes')}
-              </h2>
-
-              {/* Existing schedule times */}
-              <div className="space-y-6">
-                {periods.has('AM') && (
-                  <div>
-                    <h3 className="mb-3 text-lg font-medium">
-                      {t('admin.settings.times.labels.amScheduleTime')}
-                    </h3>
-                    <select
-                      value={selectedAMScheduleTime ?? ''}
-                      onChange={e =>
-                        setSelectedAMScheduleTime(e.target.value ? parseInt(e.target.value) : null)
-                      }
-                      className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border p-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+          {dayBlocks.length === 0 ? (
+            <p className="text-muted-foreground text-sm">{t('schedule:noTimeSelected')}</p>
+          ) : (
+            <>
+              <div className="bg-muted/25 relative h-11 rounded-sm">
+                {hourTicks.map(m => {
+                  const left = ((m - axisStart) / axisSpan) * 100
+                  return (
+                    <div
+                      key={`tick-${m}`}
+                      aria-hidden="true"
+                      className="bg-border/70 absolute top-0 bottom-0 w-px"
+                      style={{ left: `${left}%` }}
+                    />
+                  )
+                })}
+                {dayBlocks.map(block => {
+                  const start = toMinutes(block.start)
+                  const end = toMinutes(block.end)
+                  if (Number.isNaN(start) || Number.isNaN(end)) return null
+                  const left = ((start - axisStart) / axisSpan) * 100
+                  const width = ((end - start) / axisSpan) * 100
+                  const wide = end - start >= 60
+                  return (
+                    <div
+                      key={block.key}
+                      title={formatRange(block.start, block.end)}
+                      className={cn(
+                        'absolute top-1 bottom-1 flex flex-col justify-center overflow-hidden rounded-sm border px-2',
+                        block.kind === 'lesson'
+                          ? 'border-primary/30 bg-primary/15'
+                          : 'border-border bg-muted',
+                      )}
+                      style={{ left: `${left}%`, width: `${width}%` }}
                     >
-                      <option value="">{t('admin.settings.times.select.amScheduleTime')}</option>
-                      {scheduleTimes
-                        .filter(time => time.period === 'AM')
-                        .map(time => (
-                          <option key={time.id} value={time.id}>
-                            {time.startTime} - {time.endTime} | {time.hours}{' '}
-                            {t('admin.settings.times.hours')}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                )}
-
-                {periods.has('PM') && (
-                  <div>
-                    <h3 className="mb-3 text-lg font-medium">
-                      {t('admin.settings.times.labels.pmScheduleTime')}
-                    </h3>
-                    <select
-                      value={selectedPMScheduleTime ?? ''}
-                      onChange={e =>
-                        setSelectedPMScheduleTime(e.target.value ? parseInt(e.target.value) : null)
-                      }
-                      className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border p-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-                    >
-                      <option value="">{t('admin.settings.times.select.pmScheduleTime')}</option>
-                      {scheduleTimes
-                        .filter(time => time.period === 'PM')
-                        .map(time => (
-                          <option key={time.id} value={time.id}>
-                            {time.startTime} - {time.endTime} | {time.hours}{' '}
-                            {t('admin.settings.times.hours')}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                )}
+                      {wide ? (
+                        <>
+                          <span className="truncate text-xs font-semibold whitespace-nowrap">
+                            {block.label}
+                          </span>
+                          <span className="text-muted-foreground truncate text-[0.6875rem] whitespace-nowrap tabular-nums">
+                            {formatRange(block.start, block.end)}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground truncate text-[0.6875rem] font-medium whitespace-nowrap">
+                          {block.label}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
-            </div>
-
-            {/* Break Times */}
-            <div>
-              <h2 className="mb-4 text-xl font-semibold">{t('admin.settings.times.breakTimes')}</h2>
-
-              {/* Existing break times */}
-              <div className="space-y-6">
-                {periods.has('AM') && (
-                  <div>
-                    <h3 className="mb-3 text-lg font-medium">
-                      {t('admin.settings.times.labels.amBreak')}{' '}
-                      <span className="text-muted-foreground text-sm font-normal">
-                        ({t('admin.settings.times.optional')})
-                      </span>
-                    </h3>
-                    <select
-                      value={selectedAMBreakTime ?? ''}
-                      onChange={e =>
-                        setSelectedAMBreakTime(e.target.value ? parseInt(e.target.value) : null)
-                      }
-                      className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border p-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+              <div className="relative mt-1.5 h-4">
+                {hourTicks.map(m => {
+                  const left = ((m - axisStart) / axisSpan) * 100
+                  return (
+                    <span
+                      key={`label-${m}`}
+                      className="text-muted-foreground absolute -translate-x-1/2 text-[0.6875rem] tabular-nums"
+                      style={{ left: `${left}%` }}
                     >
-                      <option value="">{t('admin.settings.times.select.amBreak')}</option>
-                      {breakTimes
-                        .filter(time => time.period === 'AM')
-                        .map(time => (
-                          <option key={time.id} value={time.id}>
-                            {time.name}: {time.startTime} - {time.endTime}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                )}
-
-                {periods.size > 0 && (
-                  <div>
-                    <h3 className="mb-3 text-lg font-medium">
-                      {t('admin.settings.times.labels.lunchBreak')}{' '}
-                      <span className="text-muted-foreground text-sm font-normal">
-                        ({t('admin.settings.times.optional')})
-                      </span>
-                    </h3>
-                    <select
-                      value={selectedLunchBreakTime ?? ''}
-                      onChange={e =>
-                        setSelectedLunchBreakTime(e.target.value ? parseInt(e.target.value) : null)
-                      }
-                      className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border p-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-                    >
-                      <option value="">{t('admin.settings.times.select.lunchBreak')}</option>
-                      {breakTimes
-                        .filter(time => time.period === 'LUNCH')
-                        .map(time => (
-                          <option key={time.id} value={time.id}>
-                            {time.name}: {time.startTime} - {time.endTime}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                )}
-
-                {periods.has('PM') && (
-                  <div>
-                    <h3 className="mb-3 text-lg font-medium">
-                      {t('admin.settings.times.labels.pmBreak')}{' '}
-                      <span className="text-muted-foreground text-sm font-normal">
-                        ({t('admin.settings.times.optional')})
-                      </span>
-                    </h3>
-                    <select
-                      value={selectedPMBreakTime ?? ''}
-                      onChange={e =>
-                        setSelectedPMBreakTime(e.target.value ? parseInt(e.target.value) : null)
-                      }
-                      className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border p-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-                    >
-                      <option value="">{t('admin.settings.times.select.pmBreak')}</option>
-                      {breakTimes
-                        .filter(time => time.period === 'PM')
-                        .map(time => (
-                          <option key={time.id} value={time.id}>
-                            {time.name}: {time.startTime} - {time.endTime}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                )}
+                      {minutesToLabel(m)}
+                    </span>
+                  )
+                })}
               </div>
-            </div>
-          </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
-          {/* Creation Forms */}
-          <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2">
+      {/* Time pickers, grouped by phase. */}
+      <Card>
+        <CardContent className="p-0">
+          {phaseGroups.map((group, index) => {
+            const Icon = group.icon
+            return (
+              <div
+                key={group.key}
+                className={cn(
+                  'flex flex-col gap-6 px-6 py-5 sm:flex-row sm:items-start sm:gap-6',
+                  index < phaseGroups.length - 1 && 'border-border/60 border-b',
+                )}
+              >
+                <div className="flex shrink-0 items-center gap-2 pt-1 sm:w-40">
+                  <Icon className="text-muted-foreground h-5 w-5" />
+                  <span className="text-sm font-medium">{group.title}</span>
+                </div>
+                <div className="flex min-w-0 flex-1 flex-col gap-3">
+                  {group.lessons.length > 0 && (
+                    <div>
+                      <div className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
+                        {t('schedule:lessonTime')}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {group.lessons.map(time => (
+                          <button
+                            key={time.id}
+                            type="button"
+                            onClick={() => group.setLesson(time.id)}
+                            className={chipClass(group.selectedLesson === time.id)}
+                          >
+                            <span className="font-semibold tabular-nums">
+                              {formatRange(time.startTime, time.endTime)}
+                            </span>
+                            <span className="text-muted-foreground text-xs tabular-nums">
+                              {time.hours} {t('admin.settings.times.hours')}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <div className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
+                      {group.breakLabel}{' '}
+                      <span className="normal-case">({t('admin.settings.times.optional')})</span>
+                    </div>
+                    {group.breaks.length === 0 ? (
+                      <p className="text-muted-foreground text-sm">
+                        {t('admin.settings.times.noBreaksAvailable')}
+                      </p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {group.breaks.map(time => (
+                          <button
+                            key={time.id}
+                            type="button"
+                            onClick={() =>
+                              group.setBreak(group.selectedBreak === time.id ? null : time.id)
+                            }
+                            className={chipClass(group.selectedBreak === time.id)}
+                          >
+                            <span className="font-semibold">{time.name}</span>
+                            <span className="text-muted-foreground text-xs tabular-nums">
+                              {formatRange(time.startTime, time.endTime)}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+
+          {/* Create new schedule / break times. */}
+          <div className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
             <Card className="border-dashed">
               <CardHeader
                 className="cursor-pointer py-2"
@@ -714,23 +896,24 @@ export function ScheduleTimesSelector({
               )}
             </Card>
           </div>
-
-          <WizardFooter
-            back={
-              onCancel && (
-                <Button variant="outline" onClick={onCancel}>
-                  <ArrowLeft className="h-4 w-4" />
-                  {t('schedule:back')}
-                </Button>
-              )
-            }
-          >
-            <Button onClick={handleSave} disabled={saveTimesMutation.isPending}>
-              {saveTimesMutation.isPending ? t('common:common.loading') : t('schedule:next')}
-            </Button>
-          </WizardFooter>
         </CardContent>
       </Card>
+
+      <WizardFooter
+        back={
+          onCancel && (
+            <Button variant="outline" onClick={onCancel}>
+              <ArrowLeft className="h-4 w-4" />
+              {t('schedule:back')}
+            </Button>
+          )
+        }
+      >
+        <Button onClick={handleSave} disabled={saveTimesMutation.isPending}>
+          {saveTimesMutation.isPending ? t('common:common.loading') : t('schedule:next')}
+          <ArrowRight className="h-4 w-4" />
+        </Button>
+      </WizardFooter>
 
       <Dialog open={isErrorDialogOpen} onOpenChange={setIsErrorDialogOpen}>
         <DialogContent>

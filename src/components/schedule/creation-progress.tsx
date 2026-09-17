@@ -4,6 +4,7 @@ import { useTranslation } from 'next-i18next'
 import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Check } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface Step {
   id: string
@@ -20,9 +21,14 @@ const steps: Step[] = [
 ]
 
 /**
- * Renders a vertical progress indicator for the schedule creation process, visually displaying completed, current, and upcoming steps.
+ * Horizontal step indicator for the schedule-creation wizard.
  *
- * The progress indicator highlights the user's current position in the multi-step schedule creation flow, disables navigation to future steps, and preserves the selected class in the URL when navigating between steps.
+ * Sits as a full-width bar directly under the app topbar (see the wizard
+ * `layout.tsx`). Completed steps are clickable and marked with a check, the
+ * current step is highlighted, and upcoming steps are disabled. The selected
+ * class and weekday are kept in the URL so context survives back-navigation.
+ * On narrow screens only the current step keeps its label; the bar scrolls
+ * horizontally rather than forcing a page scroll.
  */
 export function CreationProgress() {
   const { t } = useTranslation('schedule')
@@ -44,66 +50,75 @@ export function CreationProgress() {
   }
 
   return (
-    <div className="sticky top-16 flex flex-col items-start px-4 py-8">
+    <nav
+      aria-label={t('steps.class')}
+      className="bg-card sticky top-16 z-20 flex h-14 items-center gap-2 overflow-x-auto border-b px-4 sm:px-8"
+    >
       {steps.map((step, index) => {
         const isCompleted = index < currentStepIndex
         const isCurrent = index === currentStepIndex
         const isClickable = isCompleted || isCurrent
         const href = hrefFor(step.path)
 
-        const stepInner = (
+        const inner = (
           <>
-            {/* Circle */}
-            <div
-              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+            <span
+              className={cn(
+                'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tabular-nums transition-colors',
                 isCompleted
-                  ? 'border-success bg-success text-success-foreground'
+                  ? 'border-primary bg-primary text-primary-foreground'
                   : isCurrent
-                    ? 'border-primary text-primary bg-primary/10'
-                    : 'border-muted text-muted-foreground'
-              }`}
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border text-muted-foreground',
+              )}
             >
-              {isCompleted ? <Check className="h-5 w-5" /> : <span>{index + 1}</span>}
-            </div>
-
-            {/* Label */}
-            <div
-              className={`ml-3 text-sm font-medium whitespace-nowrap transition-colors ${
-                isCompleted
-                  ? 'text-success'
-                  : isCurrent
-                    ? 'text-primary font-semibold'
-                    : 'text-muted-foreground'
-              }`}
+              {isCompleted ? <Check className="h-3.5 w-3.5" /> : index + 1}
+            </span>
+            <span
+              className={cn(
+                'text-sm whitespace-nowrap transition-colors',
+                isCurrent
+                  ? 'text-foreground font-semibold'
+                  : isCompleted
+                    ? 'text-foreground font-medium'
+                    : 'text-muted-foreground font-medium',
+                // Keep the bar compact on small screens: only the current step
+                // shows its label until there is room for all of them.
+                isCurrent ? 'inline' : 'hidden md:inline',
+              )}
             >
               {t(`steps.${step.id}`)}
-            </div>
-
-            {/* Connecting line */}
-            {index < steps.length - 1 && (
-              <div
-                className={`absolute top-[32px] left-4 h-8 w-0.5 ${
-                  isCompleted ? 'bg-success' : 'bg-muted'
-                }`}
-              />
-            )}
+            </span>
           </>
         )
 
-        const stepClasses = `group relative mb-8 flex w-full items-center ${
-          isClickable ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
-        }`
-
-        return isClickable ? (
-          <Link key={step.id} href={href} className={stepClasses}>
-            {stepInner}
-          </Link>
-        ) : (
-          <div key={step.id} className={stepClasses} aria-disabled="true">
-            {stepInner}
+        return (
+          <div key={step.id} className="flex shrink-0 items-center gap-2">
+            {isClickable ? (
+              <Link
+                href={href}
+                aria-current={isCurrent ? 'step' : undefined}
+                className="flex items-center gap-2 rounded-md py-1"
+              >
+                {inner}
+              </Link>
+            ) : (
+              <div aria-disabled="true" className="flex items-center gap-2 py-1 opacity-50">
+                {inner}
+              </div>
+            )}
+            {index < steps.length - 1 && (
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'h-px w-6 shrink-0 sm:w-10',
+                  isCompleted ? 'bg-primary' : 'bg-border',
+                )}
+              />
+            )}
           </div>
         )
       })}
-    </div>
+    </nav>
   )
 }

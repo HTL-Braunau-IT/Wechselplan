@@ -11,6 +11,7 @@ import type {
 } from '@/types/types'
 import { cn } from '@/lib/utils'
 import { rotatedGroupIndex } from '@/lib/rotation'
+import { groupColor } from '@/lib/group-colors'
 
 interface ScheduleOverviewProps {
   groups: Group[]
@@ -32,16 +33,6 @@ interface ScheduleOverviewProps {
   additionalInfo: string
   weekday: number
 }
-
-/** Soft, theme-aware tint per group, used on both the group columns and the rotation cells. */
-const GROUP_COLORS = [
-  'bg-amber-100 text-amber-900 dark:bg-amber-400/15 dark:text-amber-100',
-  'bg-emerald-100 text-emerald-900 dark:bg-emerald-400/15 dark:text-emerald-100',
-  'bg-sky-100 text-sky-900 dark:bg-sky-400/15 dark:text-sky-100',
-  'bg-rose-100 text-rose-900 dark:bg-rose-400/15 dark:text-rose-100',
-]
-
-const groupColor = (idx: number) => GROUP_COLORS[idx % GROUP_COLORS.length]
 
 /**
  * Determines the group assigned to a teacher for a given turn, using the shared
@@ -333,46 +324,55 @@ export function ScheduleOverview({
           )
         })}
 
-      {/* Turnus calendar — one table per lane when the lanes differ */}
-      {calendars.map(calendar => (
-        <SectionCard
-          key={calendar.label || 'all'}
-          icon={CalendarRange}
-          title={calendar.label ? `Turnusse · ${calendar.label}` : 'Turnusse'}
-        >
-          <div className="overflow-x-auto rounded-lg border">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="bg-muted/50">
-                  <th className={thClass}>Turnus</th>
-                  <th className={thClass}>Datum</th>
-                  <th className={thClass}>Woche</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(calendar.turns).map(([turnusKey, turnus], index) =>
-                  (turnus as { weeks: { date: string; week: string }[] }).weeks.map(
-                    (week, weekIndex) => (
-                      <tr key={`${turnusKey}-${weekIndex}`} className="even:bg-muted/20">
-                        {weekIndex === 0 && (
-                          <td
-                            className={cn(tdClass, 'align-top font-medium')}
-                            rowSpan={(turnus as { weeks: unknown[] }).weeks.length}
-                          >
-                            Turnus {index + 1}
-                          </td>
-                        )}
-                        <td className={cn(tdClass, 'tabular-nums')}>{week.date}</td>
-                        <td className={cn(tdClass, 'text-muted-foreground')}>{week.week}</td>
-                      </tr>
-                    ),
-                  ),
-                )}
-              </tbody>
-            </table>
-          </div>
-        </SectionCard>
-      ))}
+      {/* Turnus year-band — each lane's Turnusse as proportional segments across
+          the school year, so the shape of the year (long vs short terms, where
+          the breaks fall) is legible at a glance rather than as a week table. */}
+      {calendars.map(calendar => {
+        const terms = Object.entries(calendar.turns) as [
+          string,
+          { weeks: { date: string; week: string }[] },
+        ][]
+        return (
+          <SectionCard
+            key={calendar.label || 'all'}
+            icon={CalendarRange}
+            title={calendar.label ? `Turnusse · ${calendar.label}` : 'Turnusse'}
+          >
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-stretch">
+              {terms.map(([turnusKey, turnus], index) => {
+                const weeks = turnus.weeks
+                const first = weeks[0]
+                const last = weeks[weeks.length - 1]
+                return (
+                  <div
+                    key={turnusKey}
+                    className="bg-muted/20 flex min-w-0 flex-col rounded-lg border p-3"
+                    style={{ flexGrow: weeks.length, flexBasis: 0 }}
+                  >
+                    <div className="text-sm font-semibold">Turnus {index + 1}</div>
+                    <div className="text-muted-foreground text-xs tabular-nums">
+                      {first?.week}
+                      {last && last.week !== first?.week ? ` – ${last.week}` : ''} · {weeks.length}{' '}
+                      {weeks.length === 1 ? 'Woche' : 'Wochen'}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {weeks.map((week, weekIndex) => (
+                        <span
+                          key={`${turnusKey}-${weekIndex}`}
+                          title={week.date}
+                          className="border-border/60 text-muted-foreground bg-background inline-flex h-5 min-w-5 items-center justify-center rounded-sm border px-1 text-[11px] tabular-nums"
+                        >
+                          {week.week}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </SectionCard>
+        )
+      })}
 
       {additionalInfo && (
         <SectionCard icon={Info} title="Zusätzliche Informationen">

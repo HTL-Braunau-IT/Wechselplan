@@ -20,8 +20,20 @@ import { ScheduleOverview } from '@/components/schedule-overview'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { PageContainer } from '@/components/ui/page-container'
+import { PageHeader } from '@/components/ui/page-header'
 import { WizardFooter } from '@/components/schedule/wizard-footer'
-import { AlertCircle, ArrowLeft, Check, FileDown } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import {
+  AlertCircle,
+  ArrowLeft,
+  CalendarDays,
+  CalendarRange,
+  Check,
+  FileDown,
+  ListChecks,
+  School,
+  Users,
+} from 'lucide-react'
 import { generatePdf, generateSchedulePDF } from '@/lib/export-utils'
 import { buildRotationForSave } from '@/lib/rotation'
 import { useSchoolYear } from '@/contexts/school-year-context'
@@ -35,6 +47,29 @@ function LoadingScreen() {
     <div className="flex min-h-[400px] flex-col items-center justify-center gap-4">
       <Spinner size="lg" />
       <p className="text-muted-foreground text-lg">{t('loadingData')}</p>
+    </div>
+  )
+}
+
+/** Compact metric card for the overview summary row. */
+function StatTile({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: LucideIcon
+  label: string
+  value: string
+}) {
+  return (
+    <div className="bg-card flex items-center gap-3 rounded-lg border p-4 shadow-sm">
+      <span className="bg-muted text-muted-foreground rounded-lg p-2">
+        <Icon className="h-5 w-5" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">{label}</p>
+        <p className="truncate text-lg font-semibold tabular-nums">{value}</p>
+      </div>
     </div>
   )
 }
@@ -270,8 +305,27 @@ export default function OverviewPage() {
     .filter(a => a.teacherId !== 0)
     .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx)
 
+  const amTurnCount = Object.keys(amTurns).length
+  const pmTurnCount = Object.keys(pmTurns).length
+  const turnusValue =
+    amTurnCount === pmTurnCount ? String(amTurnCount) : `${amTurnCount} / ${pmTurnCount}`
+  const weekdayLabel = t(`weekdays.${urlWeekday ?? weekday}`)
+
   return (
     <PageContainer size="wide" className="space-y-6">
+      <PageHeader
+        icon={ListChecks}
+        title={`${t('steps.overview')} · ${classId ?? ''}`}
+        description={t('overviewDescription')}
+      />
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile icon={School} label={t('class')} value={String(classId ?? '')} />
+        <StatTile icon={CalendarDays} label={t('rotationDay')} value={weekdayLabel} />
+        <StatTile icon={Users} label={t('groupsLabel')} value={String(groups.length)} />
+        <StatTile icon={CalendarRange} label={t('turnusseLabel')} value={turnusValue} />
+      </div>
+
       <ScheduleOverview
         groups={groups}
         amAssignments={amAssignments}

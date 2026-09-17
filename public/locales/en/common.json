@@ -386,7 +386,8 @@
           "selectLunchBreakTime": "Please select a lunch break time",
           "selectPMBreakTime": "Please select a PM break time",
           "saveFailed": "Failed to save times"
-        }
+        },
+        "noBreaksAvailable": "No breaks available."
       }
     },
     "teachers": {

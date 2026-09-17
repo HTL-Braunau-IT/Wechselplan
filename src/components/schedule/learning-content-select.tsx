@@ -10,12 +10,14 @@ interface LearningContentSelectProps {
   value: string | undefined
   onChange: (value: string) => void
   learningContents: LearningContent[]
+  className?: string
 }
 
 export function LearningContentSelect({
   value,
   onChange,
   learningContents,
+  className,
 }: LearningContentSelectProps) {
   const { t } = useTranslation('schedule')
 
@@ -25,6 +27,7 @@ export function LearningContentSelect({
       onChange={onChange}
       options={learningContents}
       placeholder={t('selectLearningContent')}
+      className={className}
     />
   )
 }

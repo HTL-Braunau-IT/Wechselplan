@@ -2,11 +2,20 @@
 
 import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { X } from 'lucide-react'
+import { CircleAlert, X } from 'lucide-react'
 import { useTranslation } from 'next-i18next'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { cn } from '@/lib/utils'
+import { groupColor } from '@/lib/group-colors'
 import { TeacherSelect } from '@/components/schedule/teacher-select'
 import { SubjectSelect } from '@/components/schedule/subject-select'
 import { LearningContentSelect } from '@/components/schedule/learning-content-select'
@@ -72,11 +81,17 @@ const EMPTY_ASSIGNMENT: TeacherAssignment = {
   roomId: 0,
 }
 
+const GRID_HEAD = 'text-muted-foreground h-9 px-3 text-xs font-medium tracking-wide uppercase'
+const CELL = 'px-3 py-2.5 align-middle'
+
 /**
- * Renders the teacher/subject/content/room grid for a single period (AM or PM).
+ * Renders the teacher/subject/content/room assignments for a single period
+ * (AM or PM) as one table — a row per group instead of a stack of repeated
+ * field-label blocks. Once a row is touched, its still-empty required cells are
+ * marked so the missing information is visible at a glance.
  *
- * Both the morning and afternoon sections of the teacher-assignment step share
- * this identical layout — extracting it keeps the two in lockstep.
+ * Both the morning and afternoon sections share this identical layout —
+ * extracting it keeps the two in lockstep.
  */
 export function PeriodAssignments({
   period,
@@ -100,7 +115,9 @@ export function PeriodAssignments({
     field: 'subject' | 'learningContent' | 'room',
   ) => {
     if (field === 'subject') {
-      return assignment.customSubject ?? subjects.find(s => s.id === assignment.subjectId)?.name ?? ''
+      return (
+        assignment.customSubject ?? subjects.find(s => s.id === assignment.subjectId)?.name ?? ''
+      )
     }
     if (field === 'learningContent') {
       return (
@@ -112,80 +129,148 @@ export function PeriodAssignments({
     return assignment.customRoom ?? rooms.find(r => r.id === assignment.roomId)?.name ?? ''
   }
 
+  const rows = groups.map((group, idx) => {
+    const assignment = assignments.find(a => a.groupId === group.id) ?? {
+      ...EMPTY_ASSIGNMENT,
+      groupId: group.id,
+    }
+    const hasTeacher = assignment.teacherId !== 0
+    const hasSubject = displayValue(assignment, 'subject') !== ''
+    const hasContent = displayValue(assignment, 'learningContent') !== ''
+    const hasRoom = displayValue(assignment, 'room') !== ''
+    // A row counts as "started" once any field is filled; from then on the
+    // remaining fields are required, mirroring the step's save-time validation.
+    const active = hasTeacher || hasSubject || hasContent || hasRoom
+    const complete = hasTeacher && hasSubject && hasContent && hasRoom
+    return { group, idx, assignment, hasTeacher, hasSubject, hasContent, hasRoom, active, complete }
+  })
+
+  const completeCount = rows.filter(r => r.complete).length
+  const gapCount = rows.filter(r => r.active && !r.complete).length
+
+  // Highlight a cell only once its row has been started — an all-empty grid
+  // should not look like an error.
+  const missingRing = (active: boolean, filled: boolean) =>
+    cn('rounded-md', active && !filled && 'ring-destructive/50 ring-1')
+
   return (
     <Card>
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <Icon className="text-muted-foreground h-5 w-5" />
-            {title}
-          </CardTitle>
+          <div className="flex items-center gap-3">
+            <span className="bg-muted text-muted-foreground flex rounded-lg p-2">
+              <Icon className="h-5 w-5" />
+            </span>
+            <CardTitle className="text-lg">{title}</CardTitle>
+            <span className="text-muted-foreground text-sm tabular-nums">
+              {completeCount} / {groups.length}
+            </span>
+          </div>
           {headerAction}
         </div>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          {groups.map(group => {
-            const assignment = assignments.find(a => a.groupId === group.id) ?? {
-              ...EMPTY_ASSIGNMENT,
-              groupId: group.id,
-            }
-            return (
-              <div key={group.id} className="rounded-lg border p-4">
-                <div className="mb-4 flex items-center justify-between">
-                  <h3 className="font-semibold">
-                    {t('group')} {group.id}
-                  </h3>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onClearRow(period, group.id)}
-                    className="text-destructive hover:text-destructive/90"
-                  >
-                    <X className="h-4 w-4" />
-                    {t('clearRow')}
-                  </Button>
-                </div>
-                <div className="grid [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))] gap-4">
-                  <div>
-                    <Label className="mb-1 block text-sm font-medium">{t('teacher')}</Label>
-                    <TeacherSelect
-                      value={assignment.teacherId}
-                      onChange={value => onAssignmentChange(period, group.id, 'teacherId', value)}
-                      teachers={teachers}
-                    />
-                  </div>
-                  <div>
-                    <Label className="mb-1 block text-sm font-medium">{t('subject')}</Label>
-                    <SubjectSelect
-                      value={displayValue(assignment, 'subject')}
-                      onChange={value => onStringFieldChange(period, group.id, 'subject', value)}
-                      subjects={subjects}
-                    />
-                  </div>
-                  <div>
-                    <Label className="mb-1 block text-sm font-medium">{t('learningContent')}</Label>
-                    <LearningContentSelect
-                      value={displayValue(assignment, 'learningContent')}
-                      onChange={value =>
-                        onStringFieldChange(period, group.id, 'learningContent', value)
-                      }
-                      learningContents={learningContents}
-                    />
-                  </div>
-                  <div>
-                    <Label className="mb-1 block text-sm font-medium">{t('room')}</Label>
-                    <RoomSelect
-                      value={displayValue(assignment, 'room')}
-                      onChange={value => onStringFieldChange(period, group.id, 'room', value)}
-                      rooms={rooms}
-                    />
-                  </div>
-                </div>
-              </div>
-            )
-          })}
+        <div className="overflow-hidden rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50 hover:bg-muted/50">
+                <TableHead className={cn(GRID_HEAD, 'w-[150px]')}>{t('group')}</TableHead>
+                <TableHead className={GRID_HEAD}>{t('teacher')}</TableHead>
+                <TableHead className={GRID_HEAD}>{t('subject')}</TableHead>
+                <TableHead className={GRID_HEAD}>{t('learningContent')}</TableHead>
+                <TableHead className={cn(GRID_HEAD, 'w-[180px]')}>{t('room')}</TableHead>
+                <TableHead className="h-9 w-11" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map(
+                ({
+                  group,
+                  idx,
+                  assignment,
+                  hasTeacher,
+                  hasSubject,
+                  hasContent,
+                  hasRoom,
+                  active,
+                }) => (
+                  <TableRow key={group.id}>
+                    <TableCell className={CELL}>
+                      <span className="inline-flex items-center gap-2">
+                        <span
+                          className={cn(
+                            'inline-flex h-[22px] min-w-[26px] items-center justify-center rounded-full px-1.5 text-xs font-semibold tabular-nums',
+                            groupColor(idx),
+                          )}
+                        >
+                          {group.id}
+                        </span>
+                        <span className="text-sm font-medium whitespace-nowrap">
+                          {t('group')} {group.id}
+                        </span>
+                      </span>
+                    </TableCell>
+                    <TableCell className={CELL}>
+                      <div className={missingRing(active, hasTeacher)}>
+                        <TeacherSelect
+                          value={assignment.teacherId}
+                          onChange={value =>
+                            onAssignmentChange(period, group.id, 'teacherId', value)
+                          }
+                          teachers={teachers}
+                        />
+                      </div>
+                    </TableCell>
+                    <TableCell className={CELL}>
+                      <SubjectSelect
+                        value={displayValue(assignment, 'subject')}
+                        onChange={value => onStringFieldChange(period, group.id, 'subject', value)}
+                        subjects={subjects}
+                        className={missingRing(active, hasSubject)}
+                      />
+                    </TableCell>
+                    <TableCell className={CELL}>
+                      <LearningContentSelect
+                        value={displayValue(assignment, 'learningContent')}
+                        onChange={value =>
+                          onStringFieldChange(period, group.id, 'learningContent', value)
+                        }
+                        learningContents={learningContents}
+                        className={missingRing(active, hasContent)}
+                      />
+                    </TableCell>
+                    <TableCell className={CELL}>
+                      <RoomSelect
+                        value={displayValue(assignment, 'room')}
+                        onChange={value => onStringFieldChange(period, group.id, 'room', value)}
+                        rooms={rooms}
+                        className={missingRing(active, hasRoom)}
+                      />
+                    </TableCell>
+                    <TableCell className={cn(CELL, 'text-center')}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-destructive h-7 w-7"
+                        onClick={() => onClearRow(period, group.id)}
+                        aria-label={t('clearRow')}
+                        title={t('clearRow')}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ),
+              )}
+            </TableBody>
+          </Table>
         </div>
+        {gapCount > 0 && (
+          <div className="text-destructive mt-3 flex items-center gap-2 text-sm">
+            <CircleAlert className="h-4 w-4 shrink-0" />
+            {t('assignmentGapHint', { count: gapCount })}
+          </div>
+        )}
       </CardContent>
     </Card>
   )

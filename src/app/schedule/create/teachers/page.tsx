@@ -686,7 +686,11 @@ export default function TeacherAssignmentPage() {
   return (
     <PageContainer size="wide">
       <div className="space-y-6">
-        <PageHeader icon={Users} title={`${t('teacherAssignment')} - ${selectedClass}`} />
+        <PageHeader
+          icon={Users}
+          title={`${t('teacherAssignment')} · ${selectedClass}`}
+          description={t('teacherAssignmentDescription')}
+        />
 
         {error && (
           <Alert variant="destructive">

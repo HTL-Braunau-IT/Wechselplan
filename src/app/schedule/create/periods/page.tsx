@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useTranslation } from 'next-i18next'
 import {
@@ -17,7 +17,7 @@ import { PageContainer } from '@/components/ui/page-container'
 import { PageHeader } from '@/components/ui/page-header'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -53,6 +53,27 @@ interface ScheduleShell {
 type Semester = 'full' | 'first' | 'second'
 
 const DEFAULT_LANE: LaneCadence = { enabled: true, interval: 1, offset: 0 }
+
+/** A labelled row inside the plan card: a fixed label column and its control. */
+function FieldRow({
+  label,
+  hint,
+  children,
+}: {
+  label: string
+  hint?: string
+  children: ReactNode
+}) {
+  return (
+    <div className="flex flex-col gap-3 border-b px-6 py-5 sm:flex-row sm:items-start sm:gap-6">
+      <div className="w-40 shrink-0 sm:pt-1.5">
+        <div className="text-sm font-medium">{label}</div>
+        {hint ? <div className="text-muted-foreground mt-1 text-xs">{hint}</div> : null}
+      </div>
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  )
+}
 
 export default function PeriodsPage() {
   const { t } = useTranslation('schedule')
@@ -132,6 +153,19 @@ export default function PeriodsPage() {
     () => existing.filter(s => s.selectedWeekday !== weekday),
     [existing, weekday],
   )
+
+  // One-line recap of the current choices, shown in the card footer strip.
+  const planSummary = useMemo(() => {
+    const lanePart = (label: string, lane: LaneCadence) => {
+      if (!lane.enabled) return `${label}: ${t('periodOff')}`
+      const rhythm =
+        lane.interval > 1
+          ? `${t('everySecondWeek')}, ${lane.offset === 1 ? t('bWeek') : t('aWeek')}`
+          : t('everyWeek')
+      return `${label}: ${rhythm}`
+    }
+    return `${weekdayName(weekday)} · ${lanePart(t('morning'), am)} · ${lanePart(t('afternoon'), pm)}`
+  }, [weekday, am, pm, weekdayName, t])
 
   const handlePickWeekday = (day: number) => {
     setWeekday(day)
@@ -242,43 +276,42 @@ export default function PeriodsPage() {
           </div>
         ) : (
           <>
-            {/* Weekday picker */}
-            <Card>
-              <CardHeader className="gap-4">
-                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-                  <div className="flex items-center gap-2">
-                    <CalendarClock className="text-muted-foreground h-5 w-5" />
-                    <h2 className="text-xl font-semibold tracking-tight">{t('weekday')}</h2>
-                  </div>
-                  {cloneSources.length > 0 && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" disabled={cloning}>
-                          {cloning ? <Spinner size="sm" /> : <Copy className="h-4 w-4" />}
-                          {t('cloneFromDay')}
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-64">
-                        {cloneSources.map(s => (
-                          <DropdownMenuItem
-                            key={s.selectedWeekday}
-                            onSelect={() => handleClone(s.selectedWeekday)}
-                          >
-                            <Copy className="mr-2 h-4 w-4" />
-                            <span className="flex flex-col">
-                              <span>{weekdayName(s.selectedWeekday)}</span>
-                              <span className="text-muted-foreground text-xs">
-                                {t('cloneFromDayItem', { day: weekdayName(weekday) })}
-                              </span>
+            {/* The whole day-plan collapsed into one card: weekday, periods and
+                semester as labelled rows, with a recap strip at the bottom. */}
+            <Card className="overflow-hidden py-0">
+              <div className="flex flex-wrap items-center justify-between gap-3 px-6 pt-6 pb-4">
+                <h3 className="text-lg font-semibold tracking-tight">
+                  {t('planForClass', { class: className })}
+                </h3>
+                {cloneSources.length > 0 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" disabled={cloning}>
+                        {cloning ? <Spinner size="sm" /> : <Copy className="h-4 w-4" />}
+                        {t('cloneFromDay')}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-64">
+                      {cloneSources.map(s => (
+                        <DropdownMenuItem
+                          key={s.selectedWeekday}
+                          onSelect={() => handleClone(s.selectedWeekday)}
+                        >
+                          <Copy className="mr-2 h-4 w-4" />
+                          <span className="flex flex-col">
+                            <span>{weekdayName(s.selectedWeekday)}</span>
+                            <span className="text-muted-foreground text-xs">
+                              {t('cloneFromDayItem', { day: weekdayName(weekday) })}
                             </span>
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
+                          </span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
+
+              <FieldRow label={t('weekday')} hint={t('weekdayHint')}>
                 <div className="flex flex-wrap gap-2">
                   {WEEKDAYS.map(day => {
                     const active = day === weekday
@@ -302,22 +335,26 @@ export default function PeriodsPage() {
                     )
                   })}
                 </div>
-                <p className="text-muted-foreground text-xs">{t('weekdayHint')}</p>
-              </CardContent>
-            </Card>
+              </FieldRow>
 
-            {/* Period lanes */}
-            <div className="grid gap-4 md:grid-cols-2">
-              <PeriodLaneCard title={t('morning')} icon={Sunrise} cadence={am} onChange={setAm} />
-              <PeriodLaneCard title={t('afternoon')} icon={Sunset} cadence={pm} onChange={setPm} />
-            </div>
+              <FieldRow label={t('periods')} hint={t('periodsHint')}>
+                <div className="space-y-3">
+                  <PeriodLaneCard
+                    title={t('morning')}
+                    icon={Sunrise}
+                    cadence={am}
+                    onChange={setAm}
+                  />
+                  <PeriodLaneCard
+                    title={t('afternoon')}
+                    icon={Sunset}
+                    cadence={pm}
+                    onChange={setPm}
+                  />
+                </div>
+              </FieldRow>
 
-            {/* Semester scope */}
-            <Card>
-              <CardHeader className="gap-4">
-                <h2 className="text-xl font-semibold tracking-tight">{t('semesterScope')}</h2>
-              </CardHeader>
-              <CardContent>
+              <FieldRow label={t('semesterScope')}>
                 <Tabs value={semester} onValueChange={v => setSemester(v as Semester)}>
                   <TabsList>
                     <TabsTrigger value="full">{t('wholeYear')}</TabsTrigger>
@@ -325,7 +362,11 @@ export default function PeriodsPage() {
                     <TabsTrigger value="second">{t('secondSemester')}</TabsTrigger>
                   </TabsList>
                 </Tabs>
-              </CardContent>
+              </FieldRow>
+
+              <div className="bg-muted/30 flex items-center gap-2 px-6 py-4">
+                <span className="text-muted-foreground text-sm tabular-nums">{planSummary}</span>
+              </div>
             </Card>
 
             <WizardFooter

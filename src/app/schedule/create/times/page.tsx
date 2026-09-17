@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useTranslation } from 'next-i18next'
 import { Clock } from 'lucide-react'
 import { ScheduleTimesSelector } from '@/components/schedule/schedule-times-selector'
 import { PageContainer } from '@/components/ui/page-container'
@@ -12,6 +13,7 @@ import { PageHeader } from '@/components/ui/page-header'
  * Wraps the ScheduleTimesSelector component and handles navigation after save.
  */
 export default function TimesPage() {
+  const { t } = useTranslation('schedule')
   const router = useRouter()
   const searchParams = useSearchParams()
   const className = searchParams.get('class')
@@ -32,11 +34,7 @@ export default function TimesPage() {
 
   return (
     <PageContainer size="wide" className="space-y-6">
-      <PageHeader
-        icon={Clock}
-        title="Zeiten festlegen"
-        description="Unterrichts- und Pausenzeiten für den Stundenplan auswählen"
-      />
+      <PageHeader icon={Clock} title={t('timesTitle')} description={t('timesDescription')} />
       <ScheduleTimesSelector
         className={className}
         weekday={weekday}
