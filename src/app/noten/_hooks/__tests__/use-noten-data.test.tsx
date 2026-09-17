@@ -158,6 +158,67 @@ describe('useNotenData', () => {
     expect(result.current.hasUnsavedWork).toBe(false)
   })
 
+  it('loads the saved seating layout, keyed by numeric student id', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: RequestInfo | URL) => {
+        const href = String(url)
+        if (href.startsWith('/api/noten/teaching-days')) {
+          return new Response(JSON.stringify({ teachingDays: TEACHING_DAYS }), { status: 200 })
+        }
+        if (href.startsWith('/api/noten/students')) {
+          return new Response(JSON.stringify({ students: STUDENTS }), { status: 200 })
+        }
+        if (href.startsWith('/api/noten/data')) {
+          return new Response(
+            JSON.stringify({ weightConfig: null, lehrstoffByDay: {}, entries: [] }),
+            { status: 200 },
+          )
+        }
+        if (href.startsWith('/api/noten/seating')) {
+          return new Response(JSON.stringify({ positions: { '1': { x: 40, y: 80 } } }), {
+            status: 200,
+          })
+        }
+        return new Response(JSON.stringify({ success: true }), { status: 200 })
+      }),
+    )
+
+    const { result } = setup({ classId: 1, groupId: 2, schoolYearId: 3 })
+    await waitFor(() => expect(result.current.students).toHaveLength(12))
+    expect(result.current.seating[1]).toEqual({ x: 40, y: 80 })
+  })
+
+  it('moves a seat optimistically and PATCHes the whole layout for the group', async () => {
+    const { result } = setup({ classId: 1, groupId: 2, schoolYearId: 3 })
+    await waitFor(() => expect(result.current.students).toHaveLength(12))
+    vi.mocked(fetch).mockClear()
+
+    act(() => {
+      result.current.updateSeat(5, { x: 120, y: 200 })
+    })
+    // Optimistic: the card is already at the new spot before the request lands.
+    expect(result.current.seating[5]).toEqual({ x: 120, y: 200 })
+
+    const isSeatingPatch = (call: unknown[]) =>
+      String(call[0]) === '/api/noten/seating' && (call[1] as RequestInit)?.method === 'PATCH'
+
+    await waitFor(
+      () => expect(vi.mocked(fetch).mock.calls.some(isSeatingPatch)).toBe(true),
+      { timeout: 2000 },
+    )
+
+    const patch = vi.mocked(fetch).mock.calls.find(isSeatingPatch)!
+    const body = JSON.parse(String((patch[1] as RequestInit).body)) as {
+      classId: number
+      groupId: number
+      schoolYearId: number
+      positions: Record<string, { x: number; y: number }>
+    }
+    expect(body).toMatchObject({ classId: 1, groupId: 2, schoolYearId: 3 })
+    expect(body.positions['5']).toEqual({ x: 120, y: 200 })
+  })
+
   /**
    * A failing response used to be parsed as data, so the grid rendered as a
    * group with no students rather than as an error.

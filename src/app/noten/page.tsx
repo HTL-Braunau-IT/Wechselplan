@@ -449,6 +449,7 @@ export default function NotenPage() {
                   <ErfassenTab
                     teachingDays={data.teachingDays}
                     students={data.students}
+                    seating={data.seating}
                     entries={data.entries}
                     summary={summary}
                     lehrstoffByDay={data.lehrstoffByDay}
@@ -465,6 +466,7 @@ export default function NotenPage() {
                     onSetAllAnwesend={(date, period) => void data.setAllAnwesend(date, period)}
                     onCopyAttendance={handleCopyAttendance}
                     onSitzplatzChange={(studentId, value) => data.updateSitzplatz(studentId, value)}
+                    onSeatChange={(studentId, position) => data.updateSeat(studentId, position)}
                     onCommitLehrstoff={handleCommitLehrstoff}
                     onWeightChange={handleWeightChange}
                     onWeightCommit={() => void data.saveWeights()}

@@ -521,6 +521,27 @@ model NotenWeightConfig {
   @@index([schoolYearId])
 }
 
+// A teacher's personal seating layout for one group: where each student's card
+// sits on the free-placement "Sitzplan" canvas in the Noten Erfassen tab.
+// Scoped exactly like NotenWeightConfig (per teacher/class/group/year) so it
+// follows the teacher across devices without being shared with colleagues.
+// `positions` is a JSON map { [studentId]: { x, y } } in canvas pixels.
+model NotenSeatingLayout {
+  id           Int      @id @default(autoincrement())
+  teacherId    Int
+  classId      Int
+  groupId      Int
+  schoolYearId Int
+  positions    Json     @default("{}")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([teacherId, classId, groupId, schoolYearId])
+  @@index([teacherId])
+  @@index([classId])
+  @@index([schoolYearId])
+}
+
 model LehrstoffPerDay {
   id           Int      @id @default(autoincrement())
   teacherId    Int

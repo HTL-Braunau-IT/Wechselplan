@@ -9,6 +9,8 @@ import {
   emptyEntry,
   type FinalGradePerStudent,
   type NotenEntryRow,
+  type SeatingLayout,
+  type SeatPosition,
   type Student,
   type TeachingDay,
   type WeightConfig,
@@ -55,6 +57,7 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
   const [entries, setEntries] = useState<Record<string, NotenEntryRow>>({})
   const [weightConfig, setWeightConfig] = useState<WeightConfig | null>(null)
   const [lehrstoffByDay, setLehrstoffByDay] = useState<Record<string, string>>({})
+  const [seating, setSeating] = useState<SeatingLayout>({})
   const [finalGrades, setFinalGrades] = useState<Record<number, FinalGradePerStudent>>({})
   const [teacherId, setTeacherId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
@@ -70,6 +73,10 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
   // they are now, not as they were when the callback was created.
   const entriesRef = useRef<Record<string, NotenEntryRow>>({})
   entriesRef.current = entries
+  // The seat-plan debounce fires after state has moved on; the ref hands the
+  // writer the whole current layout rather than a value captured at drag time.
+  const seatingRef = useRef<SeatingLayout>({})
+  seatingRef.current = seating
 
   /**
    * Keys whose value has not reached the server. A failed autosave leaves its
@@ -133,6 +140,7 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
       setStudents([])
       setWeightConfig(null)
       setLehrstoffByDay({})
+      setSeating({})
       setEntries({})
       setFinalGrades({})
       return
@@ -148,17 +156,20 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
     setTeachingDays([])
     setStudents([])
     setEntries({})
+    setSeating({})
     const query = `classId=${classId}&groupId=${groupId}&schoolYearId=${schoolYearId}`
 
     void Promise.all([
       fetch(`/api/noten/teaching-days?${query}`),
       fetch(`/api/noten/students?${query}`),
       fetch(`/api/noten/data?${query}`),
+      fetch(`/api/noten/seating?${query}`),
     ])
-      .then(async ([daysRes, studentsRes, dataRes]) => {
+      .then(async ([daysRes, studentsRes, dataRes, seatingRes]) => {
         if (cancelled) return
         // Without this the failing response was parsed as data and the grid
-        // rendered as a class with no students rather than as an error.
+        // rendered as a class with no students rather than as an error. The
+        // seating layout is cosmetic, so its failure never blocks the grid.
         if (!daysRes.ok || !studentsRes.ok || !dataRes.ok) {
           throw new Error('Load failed')
         }
@@ -181,6 +192,22 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
         setLehrstoffByDay(notenData.lehrstoffByDay ?? {})
         setFinalGrades(notenData.finalGrades ?? {})
         setTeacherId(notenData.teacherId ?? null)
+
+        // Positions come back keyed by string studentId; the grid keys by
+        // number. Parse defensively and never let a bad payload break the load.
+        if (seatingRes.ok) {
+          const seatingData = (await seatingRes.json()) as {
+            positions?: Record<string, { x: number; y: number }>
+          }
+          const parsed: SeatingLayout = {}
+          for (const [key, pos] of Object.entries(seatingData.positions ?? {})) {
+            const id = Number(key)
+            if (Number.isInteger(id) && pos && typeof pos.x === 'number' && typeof pos.y === 'number') {
+              parsed[id] = { x: pos.x, y: pos.y }
+            }
+          }
+          if (!cancelled) setSeating(parsed)
+        }
 
         const entriesMap: Record<string, NotenEntryRow> = {}
         for (const entry of notenData.entries ?? []) {
@@ -492,6 +519,38 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
     [schedule, writeSitzplatz],
   )
 
+  const writeSeating = useCallback(
+    async (positions: SeatingLayout) => {
+      if (classId == null || groupId == null || !schoolYearId) return
+      beginSave()
+      try {
+        const res = await fetch('/api/noten/seating', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ classId, groupId, schoolYearId, positions }),
+        })
+        if (!res.ok) throw new Error('Save failed')
+        setSaveError(null)
+        endSave(true)
+      } catch (err) {
+        captureFrontendError(err, { location: 'noten', type: 'save-seating' })
+        setSaveError('Der Sitzplan konnte nicht gespeichert werden.')
+        endSave(false)
+      }
+    },
+    [classId, groupId, schoolYearId, beginSave, endSave],
+  )
+
+  const updateSeat = useCallback(
+    (studentId: number, position: SeatPosition) => {
+      // Optimistic move; one debounced PATCH of the whole (small) layout coalesces
+      // a drag's many pointer updates and, via the ref, always sends the latest.
+      setSeating(prev => ({ ...prev, [studentId]: position }))
+      schedule('seating', () => void writeSeating(seatingRef.current))
+    },
+    [schedule, writeSeating],
+  )
+
   /**
    * Write everything that has not reached the server yet.
    *
@@ -528,6 +587,7 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
     weightsValid,
     lehrstoffByDay,
     setLehrstoffByDay,
+    seating,
     finalGrades,
     finalGradesRef,
     loading,
@@ -545,6 +605,7 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
     saveFinalGrades,
     setAllAnwesend,
     updateSitzplatz,
+    updateSeat,
     saveAll,
   }
 }

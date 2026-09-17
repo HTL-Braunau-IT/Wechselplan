@@ -8,6 +8,12 @@ export type Student = {
   sitzplatz?: string | null
 }
 
+/** A student card's position on the free-placement Sitzplan canvas, in pixels. */
+export type SeatPosition = { x: number; y: number }
+
+/** Teacher's personal seating layout for a group: studentId → canvas position. */
+export type SeatingLayout = Record<number, SeatPosition>
+
 export type ClassItem = { id: number; name: string; groupIds: number[] }
 
 export type WeightConfig = {

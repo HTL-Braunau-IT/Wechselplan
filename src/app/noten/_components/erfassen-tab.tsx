@@ -1,8 +1,29 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowUpDown, BookOpen, Check, Eye, EyeOff, Sun, Sunset } from 'lucide-react'
+import {
+  ArrowUpDown,
+  Armchair,
+  BookOpen,
+  Check,
+  Eye,
+  EyeOff,
+  GripVertical,
+  Info,
+  LayoutGrid,
+  Sun,
+  Sunset,
+} from 'lucide-react'
+import {
+  DndContext,
+  type DragEndEvent,
+  MouseSensor,
+  TouchSensor,
+  useDraggable,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
 import { Badge } from '@/components/ui/badge'
 import { Hint } from '@/components/hint'
 import { entryKey, isSemester2 } from '@/lib/grades'
@@ -15,8 +36,71 @@ import {
   type CategoryKey,
   categoryField,
 } from '../_lib/erfassen'
-import { emptyEntry, type NotenEntryRow, type Student, type TeachingDay, type WeightConfig } from '../_lib/types'
+import {
+  emptyEntry,
+  type NotenEntryRow,
+  type SeatingLayout,
+  type SeatPosition,
+  type Student,
+  type TeachingDay,
+  type WeightConfig,
+} from '../_lib/types'
 import type { StudentSummary } from '../_lib/summary'
+
+/** Fixed card width on the Sitzplan canvas (matches the grid's min column). */
+const SEAT_CARD_W = 268
+/** Gap used when auto-arranging students that have no saved position yet. */
+const SEAT_GAP = 12
+/** Rough card height, only for sizing the scrollable canvas — cards may vary. */
+const SEAT_CARD_H_EST = 250
+
+/**
+ * One student card on the Sitzplan canvas: absolutely positioned at its saved
+ * spot, moved only by the grip handle so taps on the card's own controls are
+ * never read as drags. The live drag offset is applied via `transform`; the new
+ * base position is committed on drag end (see `handleSeatDragEnd`).
+ */
+function DraggableSeat({
+  id,
+  pos,
+  children,
+}: {
+  id: number
+  pos: SeatPosition
+  children: ReactNode
+}) {
+  const { t } = useTranslation('common')
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: String(id),
+    data: { pos },
+  })
+  const style: CSSProperties = {
+    position: 'absolute',
+    left: pos.x,
+    top: pos.y,
+    width: SEAT_CARD_W,
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    zIndex: isDragging ? 30 : 1,
+  }
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn('select-none', isDragging && 'opacity-95')}
+    >
+      <button
+        type="button"
+        {...listeners}
+        {...attributes}
+        aria-label={t('noten.dragSeatHandle', { defaultValue: 'Karte verschieben' })}
+        className="border-input bg-muted/60 text-muted-foreground hover:bg-accent mb-1 flex h-6 w-full touch-none cursor-grab items-center justify-center rounded-md border shadow-xs transition-colors active:cursor-grabbing"
+      >
+        <GripVertical className="h-3.5 w-3.5" aria-hidden />
+      </button>
+      {children}
+    </div>
+  )
+}
 
 /** Long German date, e.g. "Montag, 9. November 2026", from a local YYYY-MM-DD. */
 function longDate(date: string): string {
@@ -57,6 +141,7 @@ function LehrstoffInput({
 export type ErfassenTabProps = {
   teachingDays: TeachingDay[]
   students: Student[]
+  seating: SeatingLayout
   entries: Record<string, NotenEntryRow>
   summary: Record<number, StudentSummary>
   lehrstoffByDay: Record<string, string>
@@ -73,6 +158,7 @@ export type ErfassenTabProps = {
   onSetAllAnwesend: (date: string, period: string) => void
   onCopyAttendance: (from: TeachingDay, to: TeachingDay) => void
   onSitzplatzChange: (studentId: number, value: string | null) => void
+  onSeatChange: (studentId: number, position: SeatPosition) => void
   onCommitLehrstoff: (date: string, period: string, value: string) => void
   onWeightChange: (key: keyof WeightConfig, value: number) => void
   onWeightCommit: () => void
@@ -83,6 +169,7 @@ export function ErfassenTab(props: ErfassenTabProps) {
   const {
     teachingDays,
     students,
+    seating,
     entries,
     summary,
     lehrstoffByDay,
@@ -99,6 +186,7 @@ export function ErfassenTab(props: ErfassenTabProps) {
     onSetAllAnwesend,
     onCopyAttendance,
     onSitzplatzChange,
+    onSeatChange,
     onCommitLehrstoff,
     onWeightChange,
     onWeightCommit,
@@ -107,6 +195,31 @@ export function ErfassenTab(props: ErfassenTabProps) {
   const [active, setActive] = useState<ActiveCell | null>(null)
   const [slot2, setSlot2] = useState<Set<number>>(new Set())
   const [noteOpen, setNoteOpen] = useState<number | null>(null)
+  const [seatingMode, setSeatingMode] = useState(false)
+
+  // Width of the Sitzplan canvas, so students without a saved position can be
+  // auto-arranged into a grid that fills the available space.
+  const canvasRef = useRef<HTMLDivElement | null>(null)
+  const [canvasWidth, setCanvasWidth] = useState(0)
+  useEffect(() => {
+    if (!seatingMode) return
+    const el = canvasRef.current
+    if (!el) return
+    setCanvasWidth(el.clientWidth)
+    const ro = new ResizeObserver(entriesObs => {
+      const w = entriesObs[0]?.contentRect.width
+      if (w) setCanvasWidth(w)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [seatingMode])
+
+  // A small drag distance before a seat starts moving keeps taps on the card's
+  // own buttons from being read as drags, on both mouse and touch.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 120, tolerance: 6 } }),
+  )
 
   const day = teachingDays[dayIndex]
 
@@ -148,6 +261,20 @@ export function ErfassenTab(props: ErfassenTabProps) {
       onEntryChange(entry, { attendance: entry.attendance === value ? null : value })
     },
     [teachingDays, dayIndex, entries, onEntryChange],
+  )
+
+  const handleSeatDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const id = Number(event.active.id)
+      if (!Number.isInteger(id)) return
+      const base = (event.active.data.current as { pos?: SeatPosition } | undefined)?.pos
+      if (!base) return
+      onSeatChange(id, {
+        x: Math.max(0, Math.round(base.x + event.delta.x)),
+        y: Math.max(0, Math.round(base.y + event.delta.y)),
+      })
+    },
+    [onSeatChange],
   )
 
   // Keyboard entry for the focused cell. The listener re-subscribes when the
@@ -207,6 +334,52 @@ export function ErfassenTab(props: ErfassenTabProps) {
 
   const progressTone =
     stats.done === stats.total ? 'bg-success' : stats.done === 0 ? 'bg-muted-foreground' : 'bg-warning'
+
+  // Auto-arrange students that have no saved seat into a grid that fills the
+  // measured canvas width, so first entry into Sitzplan-Modus looks tidy.
+  const perRow = Math.max(1, Math.floor((canvasWidth + SEAT_GAP) / (SEAT_CARD_W + SEAT_GAP)))
+  const seatOf = (index: number, studentId: number): SeatPosition =>
+    seating[studentId] ?? {
+      x: (index % perRow) * (SEAT_CARD_W + SEAT_GAP),
+      y: Math.floor(index / perRow) * (SEAT_CARD_H_EST + SEAT_GAP),
+    }
+  const canvasHeight =
+    students.reduce((max, s, i) => Math.max(max, seatOf(i, s.id).y + SEAT_CARD_H_EST), 0) + SEAT_GAP
+
+  const renderTile = (student: Student) => {
+    const entry =
+      entries[entryKey(student.id, day.date, day.period)] ??
+      emptyEntry(student.id, day.date, day.period)
+    const totals = summary[student.id]
+    return (
+      <StudentTile
+        key={student.id}
+        student={student}
+        entry={entry}
+        dayKey={`${day.date}-${day.period}`}
+        hideGrades={hideGrades}
+        active={active?.studentId === student.id ? active : null}
+        slot2Open={slot2.has(student.id)}
+        noteOpen={noteOpen === student.id}
+        avg={totals?.calculatedGrade ?? null}
+        absent={totals?.nichtAnwesend ?? 0}
+        onSetAttendance={value => setAttendance(student.id, value)}
+        onFocusCell={setActive}
+        onSetMark={(category, slot, value) => setMark(student.id, category, slot, value)}
+        onToggleSlot2={() =>
+          setSlot2(prev => {
+            const next = new Set(prev)
+            if (next.has(student.id)) next.delete(student.id)
+            else next.add(student.id)
+            return next
+          })
+        }
+        onToggleNote={() => setNoteOpen(prev => (prev === student.id ? null : student.id))}
+        onCommitNote={value => onEntryChange(entry, { notizen: value })}
+        onSitzplatzChange={value => onSitzplatzChange(student.id, value)}
+      />
+    )
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -313,6 +486,34 @@ export function ErfassenTab(props: ErfassenTabProps) {
                   : t('noten.hideAllGrades', { defaultValue: 'Noten ausblenden' })}
               </button>
             </Hint>
+
+            <Hint
+              label={t('noten.tooltipSeatingMode', {
+                defaultValue:
+                  'Ordne die Schülerkarten frei an, wie sie im Klassenzimmer sitzen. Deine Anordnung wird pro Gruppe gespeichert.',
+              })}
+            >
+              <button
+                type="button"
+                onClick={() => setSeatingMode(m => !m)}
+                aria-pressed={seatingMode}
+                className={cn(
+                  'flex h-9 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium shadow-sm transition-colors',
+                  seatingMode
+                    ? 'border-primary bg-primary/10 text-foreground'
+                    : 'border-input bg-background text-foreground hover:bg-accent',
+                )}
+              >
+                {seatingMode ? (
+                  <LayoutGrid className="h-4 w-4" />
+                ) : (
+                  <Armchair className="h-4 w-4" />
+                )}
+                {seatingMode
+                  ? t('noten.seatingModeExit', { defaultValue: 'Rasteransicht' })
+                  : t('noten.seatingModeEnter', { defaultValue: 'Sitzplan' })}
+              </button>
+            </Hint>
           </div>
         </div>
 
@@ -329,44 +530,55 @@ export function ErfassenTab(props: ErfassenTabProps) {
         </div>
 
         <div
-          className="grid gap-3 p-5"
-          style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(268px,1fr))' }}
+          className={cn(
+            'mx-5 mt-4 flex items-start gap-2.5 rounded-md border px-3 py-2.5 text-sm',
+            seatingMode
+              ? 'border-primary/40 bg-primary/[.07] text-foreground'
+              : 'border-border/70 bg-muted/40 text-muted-foreground',
+          )}
         >
-          {students.map(student => {
-            const entry =
-              entries[entryKey(student.id, day.date, day.period)] ??
-              emptyEntry(student.id, day.date, day.period)
-            const totals = summary[student.id]
-            return (
-              <StudentTile
-                key={student.id}
-                student={student}
-                entry={entry}
-                dayKey={`${day.date}-${day.period}`}
-                hideGrades={hideGrades}
-                active={active?.studentId === student.id ? active : null}
-                slot2Open={slot2.has(student.id)}
-                noteOpen={noteOpen === student.id}
-                avg={totals?.calculatedGrade ?? null}
-                absent={totals?.nichtAnwesend ?? 0}
-                onSetAttendance={value => setAttendance(student.id, value)}
-                onFocusCell={setActive}
-                onSetMark={(category, slot, value) => setMark(student.id, category, slot, value)}
-                onToggleSlot2={() =>
-                  setSlot2(prev => {
-                    const next = new Set(prev)
-                    if (next.has(student.id)) next.delete(student.id)
-                    else next.add(student.id)
-                    return next
-                  })
-                }
-                onToggleNote={() => setNoteOpen(prev => (prev === student.id ? null : student.id))}
-                onCommitNote={value => onEntryChange(entry, { notizen: value })}
-                onSitzplatzChange={value => onSitzplatzChange(student.id, value)}
-              />
-            )
-          })}
+          {seatingMode ? (
+            <Armchair className="text-primary mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          ) : (
+            <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          )}
+          <span>
+            {seatingMode
+              ? t('noten.seatingBanner', {
+                  defaultValue:
+                    'Sitzplan-Modus: Ziehe die Karten am Griff oben, um sie so anzuordnen, wie deine Klasse sitzt. Deine Anordnung wird automatisch gespeichert — nur für dich.',
+                })
+              : t('noten.seatingHint', {
+                  defaultValue:
+                    'Tipp: Mit „Sitzplan" oben kannst du die Schülerkarten frei anordnen, wie deine Klasse im Raum sitzt.',
+                })}
+          </span>
         </div>
+
+        {seatingMode ? (
+          <div className="p-5">
+            <DndContext sensors={sensors} onDragEnd={handleSeatDragEnd}>
+              <div
+                ref={canvasRef}
+                className="relative w-full overflow-x-auto"
+                style={{ height: canvasHeight, minHeight: 320 }}
+              >
+                {students.map((student, index) => (
+                  <DraggableSeat key={student.id} id={student.id} pos={seatOf(index, student.id)}>
+                    {renderTile(student)}
+                  </DraggableSeat>
+                ))}
+              </div>
+            </DndContext>
+          </div>
+        ) : (
+          <div
+            className="grid gap-3 p-5"
+            style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(268px,1fr))' }}
+          >
+            {students.map(renderTile)}
+          </div>
+        )}
       </div>
     </div>
   )
