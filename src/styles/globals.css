@@ -96,6 +96,24 @@
   --sidebar-accent-foreground: oklch(0.2 0.034 264.665);
   --sidebar-border: oklch(0.9 0.02 264.531);
   --sidebar-ring: oklch(0.55 0.25 240 / 40%);
+
+  /* Rotation-group colours (amber/emerald/sky/rose/violet/cyan 100/900).
+     A Wechselplan splits a class into 2-6 rotating groups; the group number is
+     the most-repeated datum in the product and carries a colour everywhere it
+     shows. Referenced via inline var(--group-N-tint / -ink) — the index is
+     dynamic, so a Tailwind utility class would not survive the JIT scan. */
+  --group-1-tint: oklch(0.962 0.059 95.617);
+  --group-1-ink: oklch(0.414 0.112 45.904);
+  --group-2-tint: oklch(0.95 0.052 163.051);
+  --group-2-ink: oklch(0.378 0.077 168.94);
+  --group-3-tint: oklch(0.951 0.026 236.824);
+  --group-3-ink: oklch(0.391 0.09 240.876);
+  --group-4-tint: oklch(0.941 0.03 12.58);
+  --group-4-ink: oklch(0.41 0.159 10.272);
+  --group-5-tint: oklch(0.943 0.029 294.588);
+  --group-5-ink: oklch(0.38 0.189 293.745);
+  --group-6-tint: oklch(0.956 0.045 203.388);
+  --group-6-ink: oklch(0.358 0.055 229.695);
 }
 
 .dark {
@@ -137,6 +155,21 @@
   --sidebar-accent-foreground: oklch(0.95 0.01 260);
   --sidebar-border: oklch(0.9 0.02 260 / 12%);
   --sidebar-ring: oklch(0.72 0.17 240 / 55%);
+
+  /* Group tints muted to a 15% wash on the dark surface; ink lifted to the
+     light end of each hue so the number stays legible. */
+  --group-1-tint: oklch(0.828 0.189 84.429 / 15%);
+  --group-1-ink: oklch(0.973 0.071 103.193);
+  --group-2-tint: oklch(0.845 0.143 164.978 / 15%);
+  --group-2-ink: oklch(0.95 0.052 163.051);
+  --group-3-tint: oklch(0.746 0.16 232.661 / 15%);
+  --group-3-ink: oklch(0.951 0.026 236.824);
+  --group-4-tint: oklch(0.712 0.194 13.428 / 15%);
+  --group-4-ink: oklch(0.941 0.03 12.58);
+  --group-5-tint: oklch(0.702 0.183 293.541 / 15%);
+  --group-5-ink: oklch(0.943 0.029 294.588);
+  --group-6-tint: oklch(0.789 0.154 211.53 / 15%);
+  --group-6-ink: oklch(0.956 0.045 203.388);
 }
 
 @layer base {
