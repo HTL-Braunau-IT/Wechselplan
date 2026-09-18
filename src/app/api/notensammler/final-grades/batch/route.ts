@@ -6,6 +6,7 @@ import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
 import { ALLOWED_FINAL_GRADES } from '@/lib/grades'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import { resolveGradeClassIds } from '@/lib/combined-classes'
 import {
   canManageSokrates,
   getSokratesStatus,
@@ -189,52 +190,86 @@ export async function POST(request: Request) {
     // The mark state is re-read and every write applied under the shared advisory
     // lock, so a mark committing mid-request cannot leave a hard-locked Zeugnisnote
     // written: whichever runs second sees the other's commit.
+    // A final grade (Zeugnisnote) always belongs to the student's real class.
+    // When the teacher is grading a combined class, resolve each student's own
+    // member class ONCE and file — and lock — against THAT class, never the
+    // combined lens. A student absent from the map is not a member of the
+    // selected class and is skipped. For a normal class every student maps to
+    // the selected class, so this collapses to a single group and behaves as
+    // before.
+    const gradeClassIds = await resolveGradeClassIds(
+      classIdNum,
+      schoolYearId,
+      finalGrades.map(fg => fg.studentId),
+    )
+
+    // Group by the real class each Zeugnisnote files under. Each real class has
+    // its own Sokrates lock, so we process one group at a time under that class's
+    // advisory lock (mirrors the single-cell route).
+    const finalGradesByClass = new Map<number, FinalGradeEntry[]>()
+    for (const fg of finalGrades) {
+      const effectiveClassId = gradeClassIds.get(fg.studentId)
+      if (effectiveClassId == null) continue
+      const list = finalGradesByClass.get(effectiveClassId) ?? []
+      list.push(fg)
+      finalGradesByClass.set(effectiveClassId, list)
+    }
+
     const currentTeacher = await resolveCurrentTeacher(session)
-    const canOverride = await canManageSokrates({
-      classId: classIdNum,
-      role: session.user?.role,
-      teacherId: currentTeacher?.id ?? null,
-      adminOverride: body.adminOverride === true,
-    })
 
-    const { count, skippedLocked } = await withSokratesLock(classIdNum, schoolYearId, async tx => {
-      const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId, tx)
-      let writable = finalGrades
-      let skippedLocked = 0
-      if (sokratesStatus.first.marked || sokratesStatus.second.marked) {
-        writable = finalGrades.filter(
-          fg => !isFinalGradeEditBlocked(sokratesStatus, fg.semester, canOverride),
-        )
-        skippedLocked = finalGrades.length - writable.length
-      }
+    let count = 0
+    let skippedLocked = 0
 
-      for (const fg of writable) {
-        await tx.finalGrade.upsert({
-          where: {
-            studentId_classId_semester_schoolYearId: {
+    for (const [effectiveClassId, classFinalGrades] of finalGradesByClass) {
+      const canOverride = await canManageSokrates({
+        classId: effectiveClassId,
+        role: session.user?.role,
+        teacherId: currentTeacher?.id ?? null,
+        adminOverride: body.adminOverride === true,
+      })
+
+      const result = await withSokratesLock(effectiveClassId, schoolYearId, async tx => {
+        const sokratesStatus = await getSokratesStatus(effectiveClassId, schoolYearId, tx)
+        let writable = classFinalGrades
+        let skipped = 0
+        if (sokratesStatus.first.marked || sokratesStatus.second.marked) {
+          writable = classFinalGrades.filter(
+            fg => !isFinalGradeEditBlocked(sokratesStatus, fg.semester, canOverride),
+          )
+          skipped = classFinalGrades.length - writable.length
+        }
+
+        for (const fg of writable) {
+          await tx.finalGrade.upsert({
+            where: {
+              studentId_classId_semester_schoolYearId: {
+                studentId: fg.studentId,
+                classId: effectiveClassId,
+                semester: fg.semester,
+                schoolYearId,
+              },
+            },
+            update: {
+              grade: fg.grade,
+              conductNoteWish: fg.conductNoteWish,
+            },
+            create: {
               studentId: fg.studentId,
-              classId: classIdNum,
+              classId: effectiveClassId,
               semester: fg.semester,
               schoolYearId,
+              grade: fg.grade,
+              conductNoteWish: fg.conductNoteWish,
             },
-          },
-          update: {
-            grade: fg.grade,
-            conductNoteWish: fg.conductNoteWish,
-          },
-          create: {
-            studentId: fg.studentId,
-            classId: classIdNum,
-            semester: fg.semester,
-            schoolYearId,
-            grade: fg.grade,
-            conductNoteWish: fg.conductNoteWish,
-          },
-        })
-      }
+          })
+        }
 
-      return { count: writable.length, skippedLocked }
-    })
+        return { count: writable.length, skippedLocked: skipped }
+      })
+
+      count += result.count
+      skippedLocked += result.skippedLocked
+    }
 
     return NextResponse.json({ success: true, count, skippedLocked })
   } catch (error) {

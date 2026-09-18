@@ -4,6 +4,7 @@ import { captureError } from '@/lib/sentry'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import { resolveMemberClassIds } from '@/lib/combined-classes'
 import { deriveSubjectForClass, nmNoteFromEndnote } from '@/lib/notenmanagement/grade-mapping'
 
 type Semester = 'first' | 'second'
@@ -58,24 +59,25 @@ export async function POST(request: Request) {
 
     const classRecord = await prisma.class.findUnique({
       where: { id: classId },
-      include: {
-        students: {
-          where: { isActive: true },
-          orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            groupId: true,
-            matrikelnummer: true,
-            nmKlasse: true,
-          },
-        },
-      },
     })
     if (!classRecord) {
       return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }
+
+    // A combined class draws its roster (and grades) from its member classes.
+    const rosterClassIds = await resolveMemberClassIds(classId)
+    const rosterStudents = await prisma.student.findMany({
+      where: { classId: { in: rosterClassIds }, isActive: true },
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        groupId: true,
+        matrikelnummer: true,
+        nmKlasse: true,
+      },
+    })
 
     const assignments = await prisma.teacherAssignment.findMany({
       where: { classId },
@@ -84,15 +86,13 @@ export async function POST(request: Request) {
     const subject = deriveSubjectForClass(assignments)
 
     const finals = await prisma.finalGrade.findMany({
-      where: { classId, semester, schoolYearId },
+      where: { classId: { in: rosterClassIds }, semester, schoolYearId },
       select: { studentId: true, grade: true },
     })
     const finalGradeByStudent = new Map<number, number | null>()
     for (const f of finals) finalGradeByStudent.set(f.studentId, f.grade)
 
-    const scoped = classRecord.students.filter(
-      st => st.groupId !== null && st.groupId !== undefined,
-    )
+    const scoped = rosterStudents.filter(st => st.groupId !== null && st.groupId !== undefined)
 
     const students = scoped.map(st => {
       const endnote = finalGradeByStudent.get(st.id) ?? null

@@ -440,6 +440,10 @@ export async function previewClassStudentSync(
   const classByExternalId = new Map<string, Class>()
   const classByNormalizedName = new Map<string, Class>()
   for (const row of classRows) {
+    // Combined classes are a local-only scheduling/grading lens (src/lib/
+    // combined-classes.ts). They have no Entra group, so sync must never match,
+    // adopt (by name), or deactivate them — keep them out of both lookup maps.
+    if (row.isCombined) continue
     if (row.externalId) classByExternalId.set(row.externalId, row)
     classByNormalizedName.set(normalizeName(row.name), row)
   }
@@ -502,6 +506,7 @@ export async function previewClassStudentSync(
   for (const row of classRows) {
     if (matchedClassIds.has(row.id)) continue
     if (!row.isActive) continue
+    if (row.isCombined) continue // local-only lens; never deactivated by sync
     if (row.externalSource !== EXTERNAL_SOURCE_ENTRA) continue
     // A transient Graph failure on this group is not a deletion — skip it so a
     // one-off 5xx cannot deactivate a real class (finding 9).

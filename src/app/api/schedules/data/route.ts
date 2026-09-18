@@ -5,6 +5,7 @@ import { captureError } from '@/lib/sentry'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { normalizeUsername } from '@/lib/username'
 import { requireAccess } from '@/lib/api-guard'
+import { resolveMemberClassIds } from '@/lib/combined-classes'
 
 // The schedule/roster view only needs display + grouping fields. Selecting them
 // explicitly keeps PII columns (email, username, externalId, sokratesId,
@@ -208,9 +209,12 @@ export async function GET(req: Request) {
         classId: number | null
         sitzplatz: string | null
       }>
+      // A combined class carries no students of its own — expand it to its
+      // member classes so the rotation view shows the whole cohort.
+      const rosterClassIds = await resolveMemberClassIds(classId)
       if (schoolYearId != null) {
         const memberships = await prisma.classMembership.findMany({
-          where: { classId, schoolYearId },
+          where: { classId: { in: rosterClassIds }, schoolYearId },
           select: { studentId: true },
         })
         const ids = memberships.map(m => m.studentId)
@@ -223,7 +227,7 @@ export async function GET(req: Request) {
             : []
       } else {
         studentList = await prisma.student.findMany({
-          where: { classId, isActive: true },
+          where: { classId: { in: rosterClassIds }, isActive: true },
           select: STUDENT_SCHEDULE_SELECT,
         })
       }

@@ -6,6 +6,7 @@ import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { toLocalDateString } from '@/lib/date-utils'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import { resolveMemberClassIds } from '@/lib/combined-classes'
 
 function dateToLocalString(d: Date | string): string {
   return d instanceof Date ? toLocalDateString(d) : String(d)
@@ -60,6 +61,12 @@ export async function GET(request: Request) {
 
     const notensammlerEnabled = await isFeatureEnabled('notensammler')
 
+    // Entries and grades of a combined class are filed under its member classes
+    // (each student's real class), so read them across the union. The teacher's
+    // weight config and Lehrstoff are per teaching context and stay keyed to the
+    // (possibly combined) class the teacher is working.
+    const gradeClassIds = await resolveMemberClassIds(classId)
+
     const [weightConfig, lehrstoffRows, entries, gradeRows, finalGradeRows] = await Promise.all([
       prisma.notenWeightConfig.findUnique({
         where: {
@@ -75,16 +82,16 @@ export async function GET(request: Request) {
         where: { teacherId: teacher.id, classId, groupId, schoolYearId },
       }),
       prisma.notenEntry.findMany({
-        where: { teacherId: teacher.id, classId, groupId, schoolYearId },
+        where: { teacherId: teacher.id, classId: { in: gradeClassIds }, groupId, schoolYearId },
       }),
       notensammlerEnabled
         ? prisma.grade.findMany({
-            where: { teacherId: teacher.id, classId, schoolYearId },
+            where: { teacherId: teacher.id, classId: { in: gradeClassIds }, schoolYearId },
             select: { studentId: true, semester: true, grade: true },
           })
         : Promise.resolve([]),
       prisma.finalGrade.findMany({
-        where: { classId, schoolYearId },
+        where: { classId: { in: gradeClassIds }, schoolYearId },
         select: { studentId: true, semester: true, grade: true, conductNoteWish: true },
       }),
     ])

@@ -79,6 +79,7 @@ export function makeClass(overrides: Partial<Class> = {}): Class {
     description: null,
     classHeadId: null,
     classLeadId: null,
+    isCombined: false,
     ...timestamps,
     ...syncColumns,
     ...overrides,

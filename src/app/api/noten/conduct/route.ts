@@ -5,6 +5,7 @@ import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import { resolveGradeClassIds } from '@/lib/combined-classes'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -122,19 +123,32 @@ export async function PATCH(request: Request) {
       }
     }
 
-    await prisma.$transaction(
-      rawUpdates.map(u => {
-        const studentId =
-          typeof u.studentId === 'string' ? parseInt(u.studentId, 10) : (u.studentId as number)
-        const conductNoteWish =
-          u.conductNoteWish !== null && u.conductNoteWish !== undefined && u.conductNoteWish !== ''
-            ? u.conductNoteWish
-            : null
-        return prisma.finalGrade.upsert({
+    // The conduct note lives on FinalGrade, which always belongs to the student's
+    // real (Zeugnis) class. When the teacher is editing a combined class, file each
+    // note under the student's own member class, never the combined lens. For a
+    // normal class every student maps to classIdNum, so behaviour is identical. A
+    // student with no membership among the members is skipped.
+    const studentIds = rawUpdates.map(u =>
+      typeof u.studentId === 'string' ? parseInt(u.studentId, 10) : (u.studentId as number),
+    )
+    const gradeClassMap = await resolveGradeClassIds(classIdNum, schoolYearId, studentIds)
+
+    const ops = []
+    for (const u of rawUpdates) {
+      const studentId =
+        typeof u.studentId === 'string' ? parseInt(u.studentId, 10) : (u.studentId as number)
+      const effectiveClassId = gradeClassMap.get(studentId)
+      if (effectiveClassId == null) continue
+      const conductNoteWish =
+        u.conductNoteWish !== null && u.conductNoteWish !== undefined && u.conductNoteWish !== ''
+          ? u.conductNoteWish
+          : null
+      ops.push(
+        prisma.finalGrade.upsert({
           where: {
             studentId_classId_semester_schoolYearId: {
               studentId,
-              classId: classIdNum,
+              classId: effectiveClassId,
               semester: u.semester as 'first' | 'second',
               schoolYearId,
             },
@@ -142,17 +156,19 @@ export async function PATCH(request: Request) {
           update: { conductNoteWish },
           create: {
             studentId,
-            classId: classIdNum,
+            classId: effectiveClassId,
             semester: u.semester as 'first' | 'second',
             schoolYearId,
             grade: null,
             conductNoteWish,
           },
-        })
-      }),
-    )
+        }),
+      )
+    }
 
-    return NextResponse.json({ success: true, count: rawUpdates.length })
+    await prisma.$transaction(ops)
+
+    return NextResponse.json({ success: true, count: ops.length })
   } catch (error) {
     captureError(error as Error, {
       location: 'api/noten/conduct',

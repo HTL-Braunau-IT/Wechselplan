@@ -52,6 +52,7 @@ import {
   Minus,
   Plus,
   RotateCcw,
+  Trash2,
   UserPlus,
   Users,
 } from 'lucide-react'
@@ -66,6 +67,13 @@ import {
   adjustGroupCount,
   renumberGroups,
 } from '@/lib/group-distribution'
+import {
+  MIN_GROUPS,
+  MAX_GROUPS,
+  MAX_GROUP_SIZE,
+  MAX_SUPPORTED_STUDENTS,
+  seedGroupCount,
+} from '@/lib/schedule-limits'
 import { StudentItem } from '@/components/schedule/student-item'
 import { GroupContainer } from '@/components/schedule/group-container'
 import { AddStudentDialog } from '@/components/schedule/add-student-dialog'
@@ -97,6 +105,7 @@ interface Class {
   id: number
   name: string
   description: string | null
+  isCombined?: boolean
 }
 
 interface AssignmentsResponse {
@@ -104,10 +113,8 @@ interface AssignmentsResponse {
   unassignedStudents: Student[]
 }
 
-// Maximum size of a single (non-unassigned) group
-const MAX_GROUP_SIZE = 12
-// Maximum supported students (4 groups × 12 students)
-const MAX_SUPPORTED_STUDENTS = 48
+// Group/size limits are shared with the combine-classes endpoint.
+// See src/lib/schedule-limits.ts.
 
 /**
  * Provides an interactive interface for assigning students to groups within a selected class using drag-and-drop.
@@ -157,12 +164,16 @@ export default function ScheduleClassSelectPage() {
     username: '',
   })
   const [showCombineClassesDialog, setShowCombineClassesDialog] = useState(false)
-  const [combineClasses, setCombineClasses] = useState({
-    class1Id: '',
-    class2Id: '',
+  const [combineClasses, setCombineClasses] = useState<{
+    memberClassIds: string[]
+    combinedClassName: string
+  }>({
+    memberClassIds: [],
     combinedClassName: '',
   })
   const [combiningClasses, setCombiningClasses] = useState(false)
+  const [showRemoveCombinedDialog, setShowRemoveCombinedDialog] = useState(false)
+  const [removingCombined, setRemovingCombined] = useState(false)
   const [isManualGroupChange, setIsManualGroupChange] = useState(false)
   const [showTransferDialog, setShowTransferDialog] = useState(false)
   const [transferTargetStudent, setTransferTargetStudent] = useState<Student | null>(null)
@@ -180,7 +191,7 @@ export default function ScheduleClassSelectPage() {
    */
   function handleReset() {
     // Calculate appropriate number of groups based on student count
-    const resetGroups = students.length > 36 ? 4 : students.length > 18 ? 3 : 2
+    const resetGroups = seedGroupCount(students.length)
 
     setNumberOfGroups(resetGroups)
 
@@ -298,7 +309,7 @@ export default function ScheduleClassSelectPage() {
 
     try {
       // Calculate initial number of groups based on student count
-      const initialGroups = studentsData.length > 36 ? 4 : studentsData.length > 18 ? 3 : 2
+      const initialGroups = seedGroupCount(studentsData.length)
       setNumberOfGroups(initialGroups)
 
       // Check if class has too many students
@@ -716,14 +727,10 @@ export default function ScheduleClassSelectPage() {
   async function handleCombineClasses(e: React.FormEvent) {
     e.preventDefault()
 
-    // Validate form
-    if (!combineClasses.class1Id || !combineClasses.class2Id) {
+    // Validate form: at least two distinct member classes plus a name.
+    const memberClassIds = Array.from(new Set(combineClasses.memberClassIds))
+    if (memberClassIds.length < 2) {
       setActionError(t('bothClassesRequired'))
-      return
-    }
-
-    if (combineClasses.class1Id === combineClasses.class2Id) {
-      setActionError(t('selectDifferentClasses'))
       return
     }
 
@@ -742,8 +749,7 @@ export default function ScheduleClassSelectPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          class1Id: parseInt(combineClasses.class1Id),
-          class2Id: parseInt(combineClasses.class2Id),
+          memberClassIds: memberClassIds.map(id => parseInt(id)),
           combinedClassName: combineClasses.combinedClassName.trim(),
         }),
       })
@@ -757,8 +763,7 @@ export default function ScheduleClassSelectPage() {
 
       // Reset form and close dialog
       setCombineClasses({
-        class1Id: '',
-        class2Id: '',
+        memberClassIds: [],
         combinedClassName: '',
       })
       setShowCombineClassesDialog(false)
@@ -790,6 +795,48 @@ export default function ScheduleClassSelectPage() {
       }
     } finally {
       setCombiningClasses(false)
+    }
+  }
+
+  // Un-combine: removes the combined class and its schedule artefacts. Students,
+  // usernames, memberships and grades are untouched (they never lived in the
+  // combined class), so this is safe and reversible by re-combining.
+  async function handleRemoveCombinedClass() {
+    const combined = classes.find(c => c.name === selectedClass && c.isCombined)
+    if (!combined) return
+
+    setRemovingCombined(true)
+    setActionError(null)
+    try {
+      const response = await fetch('/api/classes/combine', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ combinedClassId: combined.id }),
+      })
+      if (!response.ok) {
+        const error = (await response.json()) as { error?: string }
+        throw new Error(error.error ?? 'Failed to remove combined class')
+      }
+
+      setShowRemoveCombinedDialog(false)
+      setSelectedClass('')
+
+      const url =
+        schoolYearId != null ? `/api/classes?schoolYearId=${schoolYearId}` : '/api/classes'
+      const classesRes = await fetch(url)
+      if (classesRes.ok) {
+        const classesData = (await classesRes.json()) as Class[]
+        setClasses(classesData)
+      }
+    } catch (err) {
+      console.error('Error removing combined class:', err)
+      captureFrontendError(err, {
+        location: 'schedule/create',
+        type: 'remove-combined-class',
+      })
+      setActionError(err instanceof Error ? err.message : t('classesCombinedError'))
+    } finally {
+      setRemovingCombined(false)
     }
   }
 
@@ -867,6 +914,7 @@ export default function ScheduleClassSelectPage() {
     }
   }
 
+  const selectedIsCombined = classes.some(c => c.name === selectedClass && c.isCombined)
   const realGroups = groups.filter(g => g.id !== UNASSIGNED_GROUP_ID).sort((a, b) => a.id - b.id)
   const unassignedStudents = groups.find(g => g.id === UNASSIGNED_GROUP_ID)?.students ?? []
   const assignedCount = realGroups.reduce((n, g) => n + g.students.length, 0)
@@ -926,7 +974,7 @@ export default function ScheduleClassSelectPage() {
                   size="icon"
                   className="h-8 w-8 rounded-none"
                   aria-label={t('fewerGroups')}
-                  disabled={!selectedClass || numberOfGroups <= 2}
+                  disabled={!selectedClass || numberOfGroups <= MIN_GROUPS}
                   onClick={() => handleGroupSizeChange(String(numberOfGroups - 1))}
                 >
                   <Minus className="h-3.5 w-3.5" />
@@ -940,7 +988,7 @@ export default function ScheduleClassSelectPage() {
                   size="icon"
                   className="h-8 w-8 rounded-none"
                   aria-label={t('moreGroups')}
-                  disabled={!selectedClass || numberOfGroups >= 4}
+                  disabled={!selectedClass || numberOfGroups >= MAX_GROUPS}
                   onClick={() => handleGroupSizeChange(String(numberOfGroups + 1))}
                 >
                   <Plus className="h-3.5 w-3.5" />
@@ -968,6 +1016,16 @@ export default function ScheduleClassSelectPage() {
                   <Combine className="h-4 w-4" />
                   {t('combineClasses')}
                 </Button>
+                {selectedIsCombined && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowRemoveCombinedDialog(true)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {t('removeCombinedClass')}
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -1117,17 +1175,39 @@ export default function ScheduleClassSelectPage() {
         t={t}
       />
 
-      {/* Combine Classes Dialog */}
+      {/* Combine Classes Dialog — only real classes can be members */}
       <CombineClassesDialog
         open={showCombineClassesDialog}
         onOpenChange={setShowCombineClassesDialog}
-        classes={classes}
+        classes={classes.filter(c => !c.isCombined)}
         combineClasses={combineClasses}
         onCombineClassesChange={setCombineClasses}
         onSubmit={handleCombineClasses}
         combining={combiningClasses}
         t={t}
       />
+
+      {/* Un-combine confirm */}
+      <AlertDialog open={showRemoveCombinedDialog} onOpenChange={setShowRemoveCombinedDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('removeCombinedClass')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('removeCombinedClassMessage')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={removingCombined}>{t('cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={e => {
+                e.preventDefault()
+                void handleRemoveCombinedClass()
+              }}
+              disabled={removingCombined}
+            >
+              {t('removeCombinedClass')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageContainer>
   )
 }

@@ -5,6 +5,7 @@ import { denyUnlessAccess, requireAccess } from '@/lib/api-guard'
 import { resolveCurrentTeacher } from '@/lib/current-teacher'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { bestEffort } from '@/lib/notifications'
+import { resolveMemberClassIds } from '@/lib/combined-classes'
 import { notifyScheduleChange } from '../_notify'
 
 interface Assignment {
@@ -74,10 +75,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }
 
+    // A combined class has no students of its own — its roster is the union of
+    // its member classes. GroupAssignment (the group cache) still lives under the
+    // combined class's own name, and Student.groupId carries the group per student.
+    const rosterClassIds = await resolveMemberClassIds(classRecord.id)
+
     // Get all students with their group assignments for this class
     const students = await prisma.student.findMany({
       where: {
-        classId: classRecord.id,
+        classId: { in: rosterClassIds },
       },
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     })
@@ -237,6 +243,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }
 
+    // A combined class writes group membership onto students who live in its
+    // member classes; scope every student write to that set so the class-scoped
+    // guard below still holds for combined and normal classes alike.
+    const rosterClassIds = await resolveMemberClassIds(classRecord.id)
+
     // First, ensure all groups exist in GroupAssignment table
     const requestedGroupIds = assignments.map(a => a.groupId).filter(id => id !== 0) // Exclude unassigned group
 
@@ -282,7 +293,7 @@ export async function POST(request: Request) {
         await tx.student.updateMany({
           where: {
             id: { in: assignment.studentIds },
-            classId: classRecord.id,
+            classId: { in: rosterClassIds },
           },
           // groupId 0 is the "unassigned" sentinel → clear the group.
           data: { groupId: assignment.groupId === 0 ? null : assignment.groupId },
@@ -294,7 +305,7 @@ export async function POST(request: Request) {
         await tx.student.updateMany({
           where: {
             id: { in: removedStudentIds },
-            classId: classRecord.id,
+            classId: { in: rosterClassIds },
           },
           data: {
             groupId: null,

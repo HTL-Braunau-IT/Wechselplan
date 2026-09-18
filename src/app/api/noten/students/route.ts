@@ -5,6 +5,7 @@ import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import { resolveMemberClassIds } from '@/lib/combined-classes'
 
 /**
  * GET: Returns students in the given class (and optionally group). If groupId is omitted, returns all students in the class (all groups).
@@ -54,8 +55,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Not assigned to this class' }, { status: 403 })
     }
 
+    // The TeacherAssignment guard above stays on the selected class (the teacher
+    // is assigned to the combined class, not its members). The roster, however,
+    // lives in the member classes — expand to them. For a normal class this is
+    // just [classId].
+    const memberClassIds = await resolveMemberClassIds(classId)
     const membershipIds = await prisma.classMembership.findMany({
-      where: { classId, schoolYearId },
+      where: { classId: { in: memberClassIds }, schoolYearId },
       select: { studentId: true },
     })
     const studentIds = membershipIds.map(m => m.studentId)

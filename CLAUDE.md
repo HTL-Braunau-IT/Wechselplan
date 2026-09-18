@@ -83,7 +83,7 @@ CI (`.github/workflows/node.js.yaml`) runs typecheck → vitest → lint on the 
 
 Type is **IBM Plex Sans**, the same family the app renders in. The PDFs use static TTFs vendored under `src/lib/pdf/fonts/` (a variable font is useless here — react-pdf never sets a weight axis, so every weight would come out Regular); `src/lib/pdf/register-fonts.ts` registers them and `renderPdfToBuffer` calls it. They are read through a computed path, so each PDF route is named in `outputFileTracingIncludes` — miss that and the standalone build throws ENOENT on the first export. The browser gets the same family from `@fontsource-variable/ibm-plex-sans` (imported in `src/app/globals.css`), self-hosted out of node_modules: no Google Fonts CDN request, which matters both offline and for GDPR.
 
-Sizes are in pt, budgeted against A4 landscape (841.89 × 595.28) for the worst case the school actually hits — 4 groups of 12 students, 4 AM + 4 PM teachers, 8 turnus columns, which fits one sheet. Plex is a little wider and taller than the metrics the layouts were first tuned to, so a font change is not free: re-check the page counts. Preview any change without a database or a login:
+Sizes are in pt, budgeted against A4 landscape (841.89 × 595.28) for the worst case the school actually hits — 5 groups of 12 students, 5 AM + 5 PM teachers, 8 turnus columns, which fits one sheet (5 groups is the combined-class case; the group/size ceilings live in `src/lib/schedule-limits.ts`). Plex is a little wider and taller than the metrics the layouts were first tuned to, so a font change is not free: re-check the page counts. Preview any change without a database or a login:
 
 ```bash
 npm run pdf:preview           # renders all four documents to .pdf-preview/

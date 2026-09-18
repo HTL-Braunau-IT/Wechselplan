@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
+import { resolveMemberClassIds, resolveGradeClassIds } from '@/lib/combined-classes'
 
 /**
  * POST: Set Anwesenheit for all students in the group for the given day to "Anwesend".
@@ -63,8 +64,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Not assigned to this class' }, { status: 403 })
     }
 
+    // A combined class has no roster of its own — its students live in the member
+    // classes. Expand to the member ids for the roster read; for a normal class
+    // this is just [classId].
+    const memberClassIds = await resolveMemberClassIds(classId)
     const membershipIds = await prisma.classMembership.findMany({
-      where: { classId, schoolYearId },
+      where: { classId: { in: memberClassIds }, schoolYearId },
       select: { studentId: true },
     })
     const studentIds = membershipIds.map(m => m.studentId)
@@ -73,34 +78,46 @@ export async function POST(request: Request) {
       select: { id: true },
     })
 
+    // The attendance NotenEntry is filed under each student's real (Zeugnis) class,
+    // never the combined lens. For a normal class every student maps to classId.
+    const gradeClassMap = await resolveGradeClassIds(
+      classId,
+      schoolYearId,
+      studentsInGroup.map(s => s.id),
+    )
+
     // One transaction so a mid-loop failure doesn't leave the day half-marked.
     await prisma.$transaction(
-      studentsInGroup.map(s =>
-        prisma.notenEntry.upsert({
-          where: {
-            studentId_teacherId_classId_groupId_schoolYearId_date_period: {
+      studentsInGroup
+        .map(s => {
+          const effectiveClassId = gradeClassMap.get(s.id)
+          if (effectiveClassId == null) return null
+          return prisma.notenEntry.upsert({
+            where: {
+              studentId_teacherId_classId_groupId_schoolYearId_date_period: {
+                studentId: s.id,
+                teacherId: teacher.id,
+                classId: effectiveClassId,
+                groupId,
+                schoolYearId,
+                date: dateOnly,
+                period,
+              },
+            },
+            create: {
               studentId: s.id,
               teacherId: teacher.id,
-              classId,
+              classId: effectiveClassId,
               groupId,
               schoolYearId,
               date: dateOnly,
               period,
+              attendance: 'Anwesend',
             },
-          },
-          create: {
-            studentId: s.id,
-            teacherId: teacher.id,
-            classId,
-            groupId,
-            schoolYearId,
-            date: dateOnly,
-            period,
-            attendance: 'Anwesend',
-          },
-          update: { attendance: 'Anwesend' },
-        }),
-      ),
+            update: { attendance: 'Anwesend' },
+          })
+        })
+        .filter((op): op is NonNullable<typeof op> => op != null),
     )
 
     return NextResponse.json({ success: true })

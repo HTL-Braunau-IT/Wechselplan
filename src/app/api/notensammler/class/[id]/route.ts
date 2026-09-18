@@ -5,6 +5,7 @@ import { isFeatureEnabled } from '@/lib/entitlements'
 import { getSubjectKey } from '@/lib/subject-utils'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import { resolveMemberClassIds } from '@/lib/combined-classes'
 
 /**
  * Handles GET requests to retrieve class data with students and unique teachers.
@@ -64,9 +65,14 @@ export async function GET(
       return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }
 
+    // The roster of a combined class is the union of its member classes (students
+    // never move — they stay in their real classes). For a normal class this is
+    // just [classId].
+    const memberIds = await resolveMemberClassIds(classId)
+
     // Students for this class and school year via ClassMembership
     const memberships = await prisma.classMembership.findMany({
-      where: { classId, schoolYearId },
+      where: { classId: { in: memberIds }, schoolYearId },
       select: { studentId: true },
       orderBy: { studentId: 'asc' },
     })

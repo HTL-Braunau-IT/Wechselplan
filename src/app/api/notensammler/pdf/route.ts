@@ -5,6 +5,7 @@ import { generateNotensammlerPDF } from '@/lib/pdf-generator'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import { resolveMemberClassIds } from '@/lib/combined-classes'
 
 /**
  * Handles GET requests to generate and return a PDF of notensammler (grade collector) data for a specific class.
@@ -51,8 +52,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }
 
+    // A combined class expands to its member classes for both the roster and the
+    // grades (which live under each student's real class). For a normal class
+    // this is just [classId].
+    const memberIds = await resolveMemberClassIds(classId)
+
     const memberships = await prisma.classMembership.findMany({
-      where: { classId, schoolYearId },
+      where: { classId: { in: memberIds }, schoolYearId },
       select: { studentId: true },
     })
     const studentIds = memberships.map(m => m.studentId)
@@ -140,9 +146,9 @@ export async function GET(request: Request) {
       subjectName = mostCommonSubject
     }
 
-    // Fetch all grades for this class and year
+    // Fetch all grades for this class and year (union member classes for combined)
     const grades = await prisma.grade.findMany({
-      where: { classId, schoolYearId },
+      where: { classId: { in: memberIds }, schoolYearId },
       select: {
         studentId: true,
         teacherId: true,
@@ -172,9 +178,10 @@ export async function GET(request: Request) {
       }
     }
 
-    // Fetch final grades for this class and year (including Betragensnote Wunsch)
+    // Fetch final grades for this class and year (including Betragensnote Wunsch;
+    // union member classes for combined)
     const finalGradeRecords = await prisma.finalGrade.findMany({
-      where: { classId, schoolYearId },
+      where: { classId: { in: memberIds }, schoolYearId },
       select: { studentId: true, semester: true, grade: true, conductNoteWish: true },
     })
     const finalGrades: Record<

@@ -44,6 +44,9 @@ describe('Students API', () => {
       {
         name: 'should return 200 with students if found',
         setup: () => {
+          vi.mocked(prisma.class.findUnique).mockResolvedValue(
+            makeClass({ id: 1, name: '1A', isCombined: false }),
+          )
           const mockStudents = [
             makeStudent({
               id: 1,
@@ -69,6 +72,9 @@ describe('Students API', () => {
       {
         name: 'should return 500 on error',
         setup: () => {
+          vi.mocked(prisma.class.findUnique).mockResolvedValue(
+            makeClass({ id: 1, name: '1A', isCombined: false }),
+          )
           vi.mocked(prisma.student.findMany).mockRejectedValue(new Error('DB error'))
         },
         request: () => new Request('http://localhost/api/students?class=1A'),

@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
+import { resolveGradeClassIds } from '@/lib/combined-classes'
 
 const ALLOWED_GRADES = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
 const ALLOWED_ATTENDANCE = ['Anwesend', 'Krank', 'Entschuldigt', 'Unentschuldigt']
@@ -64,9 +65,24 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Not assigned to this class' }, { status: 403 })
     }
 
+    // A NotenEntry always belongs to the student's real (Zeugnis) class. When the
+    // teacher is grading a combined class, resolve each student's own member class
+    // and file the entry under THAT class, never the combined lens; groupId/date/
+    // period are unchanged. For a normal class this is just the selected class. A
+    // student absent from the map is not a member of any member class → skip it.
+    const gradeClassIds = await resolveGradeClassIds(
+      classId,
+      schoolYearId,
+      entries
+        .map(e => e.studentId)
+        .filter((id): id is number => typeof id === 'number' && !Number.isNaN(id)),
+    )
+
     for (const e of entries) {
       if (e.studentId == null || !e.date || !e.period) continue
       if (e.period !== 'AM' && e.period !== 'PM') continue
+      const effectiveClassId = gradeClassIds.get(e.studentId)
+      if (effectiveClassId == null) continue
       const dateOnly = new Date(e.date + 'T00:00:00.000Z')
       if (Number.isNaN(dateOnly.getTime())) continue
       const attendance =
@@ -81,7 +97,7 @@ export async function PATCH(request: Request) {
           studentId_teacherId_classId_groupId_schoolYearId_date_period: {
             studentId: e.studentId,
             teacherId: teacher.id,
-            classId,
+            classId: effectiveClassId,
             groupId,
             schoolYearId,
             date: dateOnly,
@@ -91,7 +107,7 @@ export async function PATCH(request: Request) {
         create: {
           studentId: e.studentId,
           teacherId: teacher.id,
-          classId,
+          classId: effectiveClassId,
           groupId,
           schoolYearId,
           date: dateOnly,

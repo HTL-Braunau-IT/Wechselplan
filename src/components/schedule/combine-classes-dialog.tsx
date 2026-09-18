@@ -11,13 +11,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
 
 interface Class {
   id: number
@@ -26,8 +20,7 @@ interface Class {
 }
 
 interface CombineClassesState {
-  class1Id: string
-  class2Id: string
+  memberClassIds: string[]
   combinedClassName: string
 }
 
@@ -64,48 +57,33 @@ export function CombineClassesDialog({
         <form onSubmit={onSubmit} className="space-y-6">
           <div className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="class1" className="text-foreground text-sm font-medium">
-                {t('selectFirstClass')}
-              </Label>
-              <Select
-                value={combineClasses.class1Id}
-                onValueChange={value =>
-                  onCombineClassesChange({ ...combineClasses, class1Id: value })
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder={t('pleaseSelect')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {classes.map(cls => (
-                    <SelectItem key={cls.id} value={cls.id.toString()}>
-                      {cls.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="class2" className="text-foreground text-sm font-medium">
-                {t('selectSecondClass')}
-              </Label>
-              <Select
-                value={combineClasses.class2Id}
-                onValueChange={value =>
-                  onCombineClassesChange({ ...combineClasses, class2Id: value })
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder={t('pleaseSelect')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {classes.map(cls => (
-                    <SelectItem key={cls.id} value={cls.id.toString()}>
-                      {cls.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-foreground text-sm font-medium">{t('selectClasses')}</Label>
+              <div className="max-h-56 space-y-1 overflow-y-auto rounded-md border p-1">
+                {classes.map(cls => {
+                  const id = cls.id.toString()
+                  const checked = combineClasses.memberClassIds.includes(id)
+                  return (
+                    <label
+                      key={cls.id}
+                      htmlFor={`combine-class-${cls.id}`}
+                      className="hover:bg-muted/60 flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm"
+                    >
+                      <Checkbox
+                        id={`combine-class-${cls.id}`}
+                        checked={checked}
+                        onCheckedChange={value => {
+                          const next = value === true
+                          const memberClassIds = next
+                            ? [...combineClasses.memberClassIds, id]
+                            : combineClasses.memberClassIds.filter(x => x !== id)
+                          onCombineClassesChange({ ...combineClasses, memberClassIds })
+                        }}
+                      />
+                      <span className="text-foreground">{cls.name}</span>
+                    </label>
+                  )
+                })}
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="combinedClassName" className="text-foreground text-sm font-medium">
@@ -132,7 +110,15 @@ export function CombineClassesDialog({
             >
               {t('cancel')}
             </Button>
-            <Button type="submit" disabled={combining} className="w-full sm:w-auto">
+            <Button
+              type="submit"
+              disabled={
+                combining ||
+                combineClasses.memberClassIds.length < 2 ||
+                !combineClasses.combinedClassName.trim()
+              }
+              className="w-full sm:w-auto"
+            >
               {combining ? t('combiningClasses') : t('createCombinedClass')}
             </Button>
           </DialogFooter>

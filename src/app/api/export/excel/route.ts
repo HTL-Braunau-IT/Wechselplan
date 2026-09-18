@@ -5,6 +5,7 @@ import { resolveSchoolYearId } from '@/lib/school-year'
 import * as XLSX from 'xlsx'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
 import { denyUnlessAccess } from '@/lib/api-guard'
+import { resolveMemberClassIds } from '@/lib/combined-classes'
 
 interface Week {
   date: string
@@ -73,8 +74,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }
 
+    // A combined class draws its roster from its member classes; its schedule and
+    // teacher assignments still live under the combined class id.
+    const rosterClassIds = await resolveMemberClassIds(class_response.id)
     const membershipIds = await prisma.classMembership.findMany({
-      where: { classId: class_response.id, schoolYearId },
+      where: { classId: { in: rosterClassIds }, schoolYearId },
       select: { studentId: true },
     })
     const studentIds = membershipIds.map(m => m.studentId)

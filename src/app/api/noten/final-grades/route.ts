@@ -12,6 +12,7 @@ import {
   isFinalGradeEditBlocked,
   withSokratesLock,
 } from '@/lib/sokrates-lock'
+import { resolveGradeClassIds } from '@/lib/combined-classes'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -182,38 +183,59 @@ export async function PATCH(request: Request) {
       }
     })
 
+    // A FinalGrade always belongs to the student's real (Zeugnis) class. When the
+    // teacher is grading a combined class, fan each student out to its own member
+    // class and file — and lock-check — under THAT class, never the combined lens.
+    // For a normal class every student maps to classIdNum, so this collapses to a
+    // single group and behaves identically. A student with no membership among the
+    // members is skipped.
+    const gradeClassMap = await resolveGradeClassIds(
+      classIdNum,
+      schoolYearId,
+      parsed.map(fg => fg.studentId),
+    )
+    const byRealClass = new Map<number, typeof parsed>()
+    for (const fg of parsed) {
+      const realClassId = gradeClassMap.get(fg.studentId)
+      if (realClassId == null) continue
+      const list = byRealClass.get(realClassId) ?? []
+      list.push(fg)
+      byRealClass.set(realClassId, list)
+    }
+
     // Respect the Sokrates hard lock exactly as the notensammler batch route
     // does: a marked+locked semester freezes the Zeugnisnote for everyone but the
     // class lead / admin. This route writes the same FinalGrade rows, so without
     // the guard it was an unguarded parallel write path around the lock
     // (finding 5). Re-read the mark state and apply every write under the shared
-    // advisory lock so a mark committing mid-request cannot slip through.
-    const canOverride = await canManageSokrates({
-      classId: classIdNum,
-      role: session.user?.role,
-      teacherId: teacher.id,
-      adminOverride: body.adminOverride === true,
-    })
+    // advisory lock — per real class — so a mark committing mid-request cannot
+    // slip through.
+    let count = 0
+    let skippedLocked = 0
+    for (const [realClassId, groupGrades] of byRealClass) {
+      const canOverride = await canManageSokrates({
+        classId: realClassId,
+        role: session.user?.role,
+        teacherId: teacher.id,
+        adminOverride: body.adminOverride === true,
+      })
 
-    const { count, skippedLocked } = await withSokratesLock(
-      classIdNum,
-      schoolYearId,
-      async tx => {
-        const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId, tx)
-        let writable = parsed
-        let skippedLocked = 0
+      const res = await withSokratesLock(realClassId, schoolYearId, async tx => {
+        const sokratesStatus = await getSokratesStatus(realClassId, schoolYearId, tx)
+        let writable = groupGrades
+        let skipped = 0
         if (sokratesStatus.first.marked || sokratesStatus.second.marked) {
-          writable = parsed.filter(
+          writable = groupGrades.filter(
             fg => !isFinalGradeEditBlocked(sokratesStatus, fg.semester, canOverride),
           )
-          skippedLocked = parsed.length - writable.length
+          skipped = groupGrades.length - writable.length
         }
         for (const fg of writable) {
           await tx.finalGrade.upsert({
             where: {
               studentId_classId_semester_schoolYearId: {
                 studentId: fg.studentId,
-                classId: classIdNum,
+                classId: realClassId,
                 semester: fg.semester,
                 schoolYearId,
               },
@@ -221,7 +243,7 @@ export async function PATCH(request: Request) {
             update: { grade: fg.grade, conductNoteWish: fg.conductNoteWish },
             create: {
               studentId: fg.studentId,
-              classId: classIdNum,
+              classId: realClassId,
               semester: fg.semester,
               schoolYearId,
               grade: fg.grade,
@@ -229,9 +251,11 @@ export async function PATCH(request: Request) {
             },
           })
         }
-        return { count: writable.length, skippedLocked }
-      },
-    )
+        return { count: writable.length, skippedLocked: skipped }
+      })
+      count += res.count
+      skippedLocked += res.skippedLocked
+    }
 
     return NextResponse.json({ success: true, count, skippedLocked })
   } catch (error) {

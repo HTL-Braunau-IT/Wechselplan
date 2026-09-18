@@ -44,10 +44,12 @@ interface Assignment {
 }
 
 /**
- * A rotation plan is read across the page: the worst realistic case is 4 groups
- * of 12 students, 4 teachers in the morning and 4 in the afternoon, spread over
+ * A rotation plan is read across the page: the worst realistic case is 5 groups
+ * of 12 students, 5 teachers in the morning and 5 in the afternoon, spread over
  * 8 turnus columns. Everything below is budgeted against that shape on a single
  * A4 landscape sheet, so the plan never needs a second page in normal use.
+ * (5 groups is the combined-class case, e.g. two classes merged — see
+ * src/lib/schedule-limits.ts.)
  */
 const MARGIN_X = 24
 const CONTENT_WIDTH = page.a4Landscape.width - MARGIN_X * 2
@@ -64,7 +66,7 @@ const MAX_TURNUS = 8
 const styles = StyleSheet.create({
   page: {
     paddingTop: 20,
-    paddingBottom: 32,
+    paddingBottom: 24,
     paddingHorizontal: MARGIN_X,
     backgroundColor: colors.surface,
     ...fonts.regular,
@@ -105,7 +107,7 @@ const styles = StyleSheet.create({
     marginLeft: 'auto',
     opacity: 0.85,
   },
-  studentRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 1.4, paddingLeft: 6 },
+  studentRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 1, paddingLeft: 6 },
   studentIndex: {
     ...fonts.regular,
     fontSize: 6.4,
@@ -189,7 +191,7 @@ const styles = StyleSheet.create({
   cell: {
     justifyContent: 'center',
     paddingHorizontal: 6,
-    paddingVertical: 3.1,
+    paddingVertical: 2.4,
     borderRightWidth: 0.5,
     borderRightColor: colors.line,
   },
