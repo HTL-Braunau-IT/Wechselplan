@@ -2,8 +2,8 @@
  * Renders every PDF the app can produce, filled with worst-case sample data, so
  * the layouts can be eyeballed without a database, a login or a real class.
  *
- * The fixtures deliberately sit at the ceiling the school actually hits — four
- * groups of twelve students, four teachers in the morning and four in the
+ * The fixtures deliberately sit at the ceiling the school actually hits — five
+ * groups of twelve students, five teachers in the morning and five in the
  * afternoon, eight turnus columns — because that is where the layouts either
  * hold or fall apart. Shrinking any of them only makes the sheets emptier.
  *
@@ -91,11 +91,11 @@ const FIRST_NAMES = [
   'Emma',
 ]
 
-/** 4 groups × 12 students — the ceiling a Wechselplan has to survive. */
-const GROUP_COUNT = 4
+/** 5 groups × 12 students — the ceiling a Wechselplan has to survive. */
+const GROUP_COUNT = 5
 const STUDENTS_PER_GROUP = 12
 const TURNUS_COUNT = 8
-const TEACHERS_PER_PERIOD = 4
+const TEACHERS_PER_PERIOD = 5
 
 function student(index: number) {
   return {
@@ -122,6 +122,8 @@ const TEACHER_NAMES = [
   ['Claudia', 'Hofstätter'],
   ['Martin', 'Zeilinger'],
   ['Eva', 'Brunnthaler'],
+  ['Thomas', 'Grabner'],
+  ['Sabine', 'Kohlbacher'],
 ] as const
 
 function teacher(index: number) {

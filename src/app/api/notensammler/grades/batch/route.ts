@@ -14,6 +14,7 @@ import {
 import { actorName, resolveCurrentTeacher } from '@/lib/current-teacher'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { bestEffort } from '@/lib/notifications'
+import { resolveGradeClassIds } from '@/lib/combined-classes'
 import { notifyGradesEntered } from '../_notify'
 
 export const dynamic = 'force-dynamic'
@@ -149,130 +150,176 @@ export async function POST(request: Request) {
 
     const gradeKey = (g: GradeEntry) => `${g.studentId}:${g.teacherId}:${g.semester}`
 
-    const currentTeacher = await resolveCurrentTeacher(session)
-    const canOverride = await canManageSokrates({
-      classId: classIdNum,
-      role: session.user?.role,
-      teacherId: currentTeacher?.id ?? null,
-      adminOverride: body.adminOverride === true,
-    })
+    // A grade always belongs to the student's real (Zeugnis) class. When the
+    // teacher is grading a combined class, resolve each student's own member
+    // class ONCE and file — and lock, and notify — against THAT class, never the
+    // combined lens. A student absent from the map is not a member of the
+    // selected class and is skipped. For a normal class every student maps to
+    // the selected class, so this collapses to a single group and behaves
+    // exactly as before.
+    const gradeClassIds = await resolveGradeClassIds(
+      classIdNum,
+      schoolYearId,
+      grades.map(g => g.studentId),
+    )
 
-    // Sokrates lock: a hard-locked grade that would change is skipped (not
-    // written) rather than failing the whole "Alle speichern" — unrelated edits
-    // in the same batch still persist. Changes that land on a marked semester
-    // are collected so we can notify the class lead after the write. Unchanged
-    // cells are never blocked or reported.
-    //
-    // The mark state is re-read and the write applied under the shared advisory
-    // lock, so a mark committing mid-request cannot leave a hard-locked cell
-    // written: whichever of the two runs second sees the other's commit.
-    const { sokratesStatus, anyMarked, sokratesChanges, blockedKeys, writtenCount, changed } =
-      await withSokratesLock(classIdNum, schoolYearId, async tx => {
-        const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId, tx)
-        const anyMarked = sokratesStatus.first.marked || sokratesStatus.second.marked
-
-        // Read the grades already on file INSIDE the lock (through tx) so change
-        // detection and the hard-lock check see one consistent snapshot. Reading
-        // before the lock let a cell whose incoming value matched a stale read be
-        // classified "unchanged", skip the isEditBlocked check, and overwrite a
-        // concurrent authorised locked-cell edit (finding 20).
-        const existing = await tx.grade.findMany({
-          where: { classId: classIdNum, schoolYearId },
-          select: { studentId: true, teacherId: true, semester: true, grade: true },
-        })
-        const existingMap = new Map<string, number | null>()
-        for (const e of existing) {
-          existingMap.set(`${e.studentId}:${e.teacherId}:${e.semester}`, e.grade)
-        }
-        const changed = grades.filter(g => (existingMap.get(gradeKey(g)) ?? null) !== g.grade)
-
-        const sokratesChanges: GradeChange[] = []
-        const blockedKeys = new Set<string>()
-        if (anyMarked) {
-          for (const g of changed) {
-            if (!sokratesStatus[g.semester].marked) continue
-            const key = gradeKey(g)
-            if (isEditBlocked(sokratesStatus, g.semester, g.teacherId, canOverride)) {
-              blockedKeys.add(key)
-            } else {
-              sokratesChanges.push({
-                studentId: g.studentId,
-                teacherId: g.teacherId,
-                semester: g.semester,
-                oldGrade: existingMap.get(key) ?? null,
-                newGrade: g.grade,
-              })
-            }
-          }
-        }
-
-        // Locked-and-changed cells are dropped from the write; everything else saves.
-        const gradesToWrite =
-          blockedKeys.size === 0
-            ? grades
-            : grades.filter(g => !blockedKeys.has(`${g.studentId}:${g.teacherId}:${g.semester}`))
-
-        for (const g of gradesToWrite) {
-          await tx.grade.upsert({
-            where: {
-              studentId_teacherId_classId_semester_schoolYearId: {
-                studentId: g.studentId,
-                teacherId: g.teacherId,
-                classId: classIdNum,
-                semester: g.semester,
-                schoolYearId,
-              },
-            },
-            update: { grade: g.grade },
-            create: {
-              studentId: g.studentId,
-              teacherId: g.teacherId,
-              classId: classIdNum,
-              semester: g.semester,
-              schoolYearId,
-              grade: g.grade,
-            },
-          })
-        }
-
-        return {
-          sokratesStatus,
-          anyMarked,
-          sokratesChanges,
-          blockedKeys,
-          writtenCount: gradesToWrite.length,
-          changed,
-        }
-      })
-
-    if (anyMarked && sokratesChanges.length > 0) {
-      // Best-effort: the grade batch has committed, so a failure recording the
-      // drift notice must not turn a successful save into a 500 (finding 26).
-      await bestEffort('sokrates:record-changes', async () => {
-        await recordSokratesChanges({
-          classId: classIdNum,
-          schoolYearId,
-          changedById: currentTeacher?.id ?? null,
-          changedByName: actorName(currentTeacher, session),
-          status: sokratesStatus,
-          changes: sokratesChanges,
-        })
-      })
+    // Group the batch by the real class each grade files under. Each real class
+    // has its own Sokrates lock and its own class lead, so we process one group
+    // at a time under that class's advisory lock (mirrors the single-cell route).
+    const gradesByClass = new Map<number, GradeEntry[]>()
+    for (const g of grades) {
+      const effectiveClassId = gradeClassIds.get(g.studentId)
+      if (effectiveClassId == null) continue
+      const list = gradesByClass.get(effectiveClassId) ?? []
+      list.push(g)
+      gradesByClass.set(effectiveClassId, list)
     }
 
-    await notifyGradesEntered({
-      classId: classIdNum,
-      className: classRecord.name,
-      schoolYearId,
-      actor: currentTeacher,
-      session,
-      count: changed.filter(g => !blockedKeys.has(gradeKey(g))).length,
-    })
+    const currentTeacher = await resolveCurrentTeacher(session)
+
+    let totalWritten = 0
+    let totalSkippedLocked = 0
+
+    for (const [effectiveClassId, classGrades] of gradesByClass) {
+      // The class name for the notification: the combined lens's own name is
+      // never used — the real member class is what its class lead manages.
+      const effectiveClass =
+        effectiveClassId === classIdNum
+          ? classRecord
+          : await prisma.class.findUnique({ where: { id: effectiveClassId } })
+      const effectiveClassName = effectiveClass?.name ?? classRecord.name
+
+      const canOverride = await canManageSokrates({
+        classId: effectiveClassId,
+        role: session.user?.role,
+        teacherId: currentTeacher?.id ?? null,
+        adminOverride: body.adminOverride === true,
+      })
+
+      // Sokrates lock: a hard-locked grade that would change is skipped (not
+      // written) rather than failing the whole "Alle speichern" — unrelated edits
+      // in the same batch still persist. Changes that land on a marked semester
+      // are collected so we can notify the class lead after the write. Unchanged
+      // cells are never blocked or reported.
+      //
+      // The mark state is re-read and the write applied under the shared advisory
+      // lock, so a mark committing mid-request cannot leave a hard-locked cell
+      // written: whichever of the two runs second sees the other's commit.
+      const { sokratesStatus, anyMarked, sokratesChanges, blockedKeys, writtenCount, changed } =
+        await withSokratesLock(effectiveClassId, schoolYearId, async tx => {
+          const sokratesStatus = await getSokratesStatus(effectiveClassId, schoolYearId, tx)
+          const anyMarked = sokratesStatus.first.marked || sokratesStatus.second.marked
+
+          // Read the grades already on file INSIDE the lock (through tx) so change
+          // detection and the hard-lock check see one consistent snapshot. Reading
+          // before the lock let a cell whose incoming value matched a stale read be
+          // classified "unchanged", skip the isEditBlocked check, and overwrite a
+          // concurrent authorised locked-cell edit (finding 20).
+          const existing = await tx.grade.findMany({
+            where: { classId: effectiveClassId, schoolYearId },
+            select: { studentId: true, teacherId: true, semester: true, grade: true },
+          })
+          const existingMap = new Map<string, number | null>()
+          for (const e of existing) {
+            existingMap.set(`${e.studentId}:${e.teacherId}:${e.semester}`, e.grade)
+          }
+          const changed = classGrades.filter(
+            g => (existingMap.get(gradeKey(g)) ?? null) !== g.grade,
+          )
+
+          const sokratesChanges: GradeChange[] = []
+          const blockedKeys = new Set<string>()
+          if (anyMarked) {
+            for (const g of changed) {
+              if (!sokratesStatus[g.semester].marked) continue
+              const key = gradeKey(g)
+              if (isEditBlocked(sokratesStatus, g.semester, g.teacherId, canOverride)) {
+                blockedKeys.add(key)
+              } else {
+                sokratesChanges.push({
+                  studentId: g.studentId,
+                  teacherId: g.teacherId,
+                  semester: g.semester,
+                  oldGrade: existingMap.get(key) ?? null,
+                  newGrade: g.grade,
+                })
+              }
+            }
+          }
+
+          // Locked-and-changed cells are dropped from the write; everything else saves.
+          const gradesToWrite =
+            blockedKeys.size === 0
+              ? classGrades
+              : classGrades.filter(
+                  g => !blockedKeys.has(`${g.studentId}:${g.teacherId}:${g.semester}`),
+                )
+
+          for (const g of gradesToWrite) {
+            await tx.grade.upsert({
+              where: {
+                studentId_teacherId_classId_semester_schoolYearId: {
+                  studentId: g.studentId,
+                  teacherId: g.teacherId,
+                  classId: effectiveClassId,
+                  semester: g.semester,
+                  schoolYearId,
+                },
+              },
+              update: { grade: g.grade },
+              create: {
+                studentId: g.studentId,
+                teacherId: g.teacherId,
+                classId: effectiveClassId,
+                semester: g.semester,
+                schoolYearId,
+                grade: g.grade,
+              },
+            })
+          }
+
+          return {
+            sokratesStatus,
+            anyMarked,
+            sokratesChanges,
+            blockedKeys,
+            writtenCount: gradesToWrite.length,
+            changed,
+          }
+        })
+
+      if (anyMarked && sokratesChanges.length > 0) {
+        // Best-effort: the grade batch has committed, so a failure recording the
+        // drift notice must not turn a successful save into a 500 (finding 26).
+        await bestEffort('sokrates:record-changes', async () => {
+          await recordSokratesChanges({
+            classId: effectiveClassId,
+            schoolYearId,
+            changedById: currentTeacher?.id ?? null,
+            changedByName: actorName(currentTeacher, session),
+            status: sokratesStatus,
+            changes: sokratesChanges,
+          })
+        })
+      }
+
+      await notifyGradesEntered({
+        classId: effectiveClassId,
+        className: effectiveClassName,
+        schoolYearId,
+        actor: currentTeacher,
+        session,
+        count: changed.filter(g => !blockedKeys.has(gradeKey(g))).length,
+      })
+
+      totalWritten += writtenCount
+      totalSkippedLocked += blockedKeys.size
+    }
 
     return NextResponse.json({
       success: true,
-      count: writtenCount,
-      skippedLocked: blockedKeys.size,
+      count: totalWritten,
+      skippedLocked: totalSkippedLocked,
     })
   } catch (error) {
     captureError(error as Error, {

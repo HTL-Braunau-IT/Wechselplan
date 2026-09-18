@@ -5,6 +5,7 @@ import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import { resolveMemberClassIds } from '@/lib/combined-classes'
 
 /**
  * PATCH: Update student sitzplatz
@@ -59,16 +60,28 @@ export async function PATCH(request: Request) {
         where: { studentId, schoolYearId },
         select: { classId: true },
       })
-      const isAssigned =
-        memberships.length > 0 &&
-        (await prisma.teacherAssignment.findFirst({
-          where: {
-            teacherId: teacher.id,
-            schoolYearId,
-            classId: { in: memberships.map(m => m.classId) },
-          },
-          select: { id: true },
-        })) != null
+      const studentClassIds = new Set(memberships.map(m => m.classId))
+
+      // The teacher may be assigned to the student's real class directly, or to a
+      // combined class that expands to it (students never live in a combined
+      // class, so its members are the real classes). Expand every assignment to
+      // its member classes and accept the overlap. Sitzplatz itself is stored on
+      // the Student row, so there is no class to re-file — only this guard needs
+      // to see through the combined lens.
+      let isAssigned = false
+      if (studentClassIds.size > 0) {
+        const teacherAssignments = await prisma.teacherAssignment.findMany({
+          where: { teacherId: teacher.id, schoolYearId },
+          select: { classId: true },
+        })
+        for (const assignedId of new Set(teacherAssignments.map(a => a.classId))) {
+          const memberIds = await resolveMemberClassIds(assignedId)
+          if (memberIds.some(id => studentClassIds.has(id))) {
+            isAssigned = true
+            break
+          }
+        }
+      }
       if (!isAssigned) {
         return NextResponse.json({ error: 'Not assigned to this student' }, { status: 403 })
       }

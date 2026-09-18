@@ -7,6 +7,7 @@ import { resolveSessionTeacher } from '@/lib/session-teacher'
 import type { NotensammlerAllClassesClassData } from '@/lib/pdf-generator'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import { resolveMemberClassIds } from '@/lib/combined-classes'
 
 /**
  * Handles GET requests to generate a PDF of the current teacher's grades for all classes they are assigned to in the given school year.
@@ -57,8 +58,13 @@ export async function GET(request: Request) {
     const classesPayload: NotensammlerAllClassesClassData[] = []
 
     for (const classRecord of classRecords) {
+      // A combined class expands to its member classes for both the roster and
+      // the grades (which live under each student's real class). For a normal
+      // class this is just [classRecord.id].
+      const memberIds = await resolveMemberClassIds(classRecord.id)
+
       const memberships = await prisma.classMembership.findMany({
-        where: { classId: classRecord.id, schoolYearId },
+        where: { classId: { in: memberIds }, schoolYearId },
         select: { studentId: true },
       })
       const studentIds = memberships.map(m => m.studentId)
@@ -93,7 +99,7 @@ export async function GET(request: Request) {
       }
 
       const grades = await prisma.grade.findMany({
-        where: { classId: classRecord.id, teacherId: teacher.id, schoolYearId },
+        where: { classId: { in: memberIds }, teacherId: teacher.id, schoolYearId },
         select: { studentId: true, semester: true, grade: true },
       })
       const gradesForTeacher: Record<number, { first: number | null; second: number | null }> = {}
@@ -104,7 +110,7 @@ export async function GET(request: Request) {
       }
 
       const finalGradeRecords = await prisma.finalGrade.findMany({
-        where: { classId: classRecord.id, schoolYearId },
+        where: { classId: { in: memberIds }, schoolYearId },
         select: { studentId: true, semester: true, grade: true, conductNoteWish: true },
       })
       const finalGrades: Record<

@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import { resolveGradeClassIds } from '@/lib/combined-classes'
 import { ALLOWED_FINAL_GRADES } from '@/lib/grades'
 import {
   canManageSokrates,
@@ -146,6 +147,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }
 
+    // A final grade (Zeugnisnote) always belongs to the student's real class.
+    // When the teacher is grading a combined class, resolve the student's own
+    // member class and file — and lock — against THAT class, never the combined
+    // lens. For a normal class this is just the selected class; a student absent
+    // from the map is not a member of the selected class.
+    const gradeClassIds = await resolveGradeClassIds(classIdNum, schoolYearId, [studentIdNum])
+    const effectiveClassId = gradeClassIds.get(studentIdNum)
+    if (effectiveClassId == null) {
+      return NextResponse.json({ error: 'Student is not a member of this class' }, { status: 400 })
+    }
+
     const semesterTyped = semester as 'first' | 'second'
 
     // Parse grade value
@@ -190,14 +202,14 @@ export async function POST(request: Request) {
     // this endpoint decided the semester was still editable.
     const currentTeacher = await resolveCurrentTeacher(session)
     const canOverride = await canManageSokrates({
-      classId: classIdNum,
+      classId: effectiveClassId,
       role: session.user?.role,
       teacherId: currentTeacher?.id ?? null,
       adminOverride: body.adminOverride === true,
     })
 
-    const write = await withSokratesLock(classIdNum, schoolYearId, async tx => {
-      const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId, tx)
+    const write = await withSokratesLock(effectiveClassId, schoolYearId, async tx => {
+      const sokratesStatus = await getSokratesStatus(effectiveClassId, schoolYearId, tx)
       if (isFinalGradeEditBlocked(sokratesStatus, semesterTyped, canOverride)) {
         return { blocked: true as const }
       }
@@ -206,7 +218,7 @@ export async function POST(request: Request) {
         where: {
           studentId_classId_semester_schoolYearId: {
             studentId: studentIdNum,
-            classId: classIdNum,
+            classId: effectiveClassId,
             semester: semesterTyped,
             schoolYearId,
           },
@@ -217,7 +229,7 @@ export async function POST(request: Request) {
         },
         create: {
           studentId: studentIdNum,
-          classId: classIdNum,
+          classId: effectiveClassId,
           semester: semesterTyped,
           schoolYearId,
           grade: gradeValue,

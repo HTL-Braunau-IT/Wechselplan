@@ -13,6 +13,7 @@ import {
 import { actorName, resolveCurrentTeacher } from '@/lib/current-teacher'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { bestEffort } from '@/lib/notifications'
+import { resolveMemberClassIds, resolveGradeClassIds } from '@/lib/combined-classes'
 import { notifyGradesEntered } from './_notify'
 
 // Force dynamic rendering - no caching
@@ -70,9 +71,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }
 
+    // Grades of a combined class live under its member classes (each student's
+    // real Zeugnis class), so read across the union. For a normal class this is
+    // just [classId].
+    const gradeClassIds = await resolveMemberClassIds(classId)
+
     // Fetch all grades for this class and school year
     const grades = await prisma.grade.findMany({
-      where: { classId, schoolYearId },
+      where: { classId: { in: gradeClassIds }, schoolYearId },
       select: {
         studentId: true,
         teacherId: true,
@@ -108,7 +114,7 @@ export async function GET(request: Request) {
 
     // Fetch final grades for this class and school year (including Betragensnote Wunsch)
     const finalGradeRecords = await prisma.finalGrade.findMany({
-      where: { classId, schoolYearId },
+      where: { classId: { in: gradeClassIds }, schoolYearId },
       select: { studentId: true, semester: true, grade: true, conductNoteWish: true },
     })
 
@@ -269,6 +275,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }
 
+    // A grade always belongs to the student's real (Zeugnis) class. When the
+    // teacher is grading a combined class, resolve the student's own member class
+    // and file — and lock, and notify — against THAT class, never the combined
+    // lens. For a normal class this is just the selected class.
+    const gradeClassIds = await resolveGradeClassIds(classIdNum, schoolYearId, [studentIdNum])
+    const effectiveClassId = gradeClassIds.get(studentIdNum)
+    if (effectiveClassId == null) {
+      return NextResponse.json(
+        { error: 'Student is not a member of this class' },
+        { status: 400 },
+      )
+    }
+    const effectiveClass =
+      effectiveClassId === classIdNum
+        ? classRecord
+        : await prisma.class.findUnique({ where: { id: effectiveClassId } })
+    const effectiveClassName = effectiveClass?.name ?? classRecord.name
+
     // Upsert grade (create or update)
     const gradeValue =
       grade === null || grade === undefined
@@ -285,7 +309,7 @@ export async function POST(request: Request) {
     const semesterTyped = semester as 'first' | 'second'
     const currentTeacher = await resolveCurrentTeacher(session)
     const canOverride = await canManageSokrates({
-      classId: classIdNum,
+      classId: effectiveClassId,
       role: session.user?.role,
       teacherId: currentTeacher?.id ?? null,
       adminOverride: body.adminOverride === true,
@@ -295,8 +319,8 @@ export async function POST(request: Request) {
     // so a mark that commits after the last read cannot slip its hard lock in
     // ahead of this grade. The change-recording + notify below run afterwards,
     // outside the lock — they are best-effort and must not hold it.
-    const write = await withSokratesLock(classIdNum, schoolYearId, async tx => {
-      const sokratesStatus = await getSokratesStatus(classIdNum, schoolYearId, tx)
+    const write = await withSokratesLock(effectiveClassId, schoolYearId, async tx => {
+      const sokratesStatus = await getSokratesStatus(effectiveClassId, schoolYearId, tx)
       const semesterMarked = sokratesStatus[semesterTyped].marked
 
       const existingGrade = await tx.grade.findUnique({
@@ -304,7 +328,7 @@ export async function POST(request: Request) {
           studentId_teacherId_classId_semester_schoolYearId: {
             studentId: studentIdNum,
             teacherId: teacherIdNum,
-            classId: classIdNum,
+            classId: effectiveClassId,
             semester: semesterTyped,
             schoolYearId,
           },
@@ -329,7 +353,7 @@ export async function POST(request: Request) {
           studentId_teacherId_classId_semester_schoolYearId: {
             studentId: studentIdNum,
             teacherId: teacherIdNum,
-            classId: classIdNum,
+            classId: effectiveClassId,
             semester: semesterTyped,
             schoolYearId,
           },
@@ -340,7 +364,7 @@ export async function POST(request: Request) {
         create: {
           studentId: studentIdNum,
           teacherId: teacherIdNum,
-          classId: classIdNum,
+          classId: effectiveClassId,
           semester: semesterTyped,
           schoolYearId,
           grade: gradeValue,
@@ -377,7 +401,7 @@ export async function POST(request: Request) {
     if (semesterMarked) {
       await bestEffort('sokrates:record-changes', async () => {
         await recordSokratesChanges({
-          classId: classIdNum,
+          classId: effectiveClassId,
           schoolYearId,
           changedById: currentTeacher?.id ?? null,
           changedByName: actorName(currentTeacher, session),
@@ -396,8 +420,8 @@ export async function POST(request: Request) {
     }
 
     await notifyGradesEntered({
-      classId: classIdNum,
-      className: classRecord.name,
+      classId: effectiveClassId,
+      className: effectiveClassName,
       schoolYearId,
       actor: currentTeacher,
       session,
@@ -486,32 +510,40 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }
 
+    // A combined class clears the teacher's column across its member classes
+    // (grades live under each student's real class). For a normal class this is
+    // just [classId].
+    const gradeClassIds = await resolveMemberClassIds(classId)
+
     // Respect the Sokrates lock the POST and batch write paths enforce: once a
     // class+semester is entered into Sokrates and hard-locked for this teacher,
-    // a bulk delete must not slip past it. Class leads/admins may still override.
+    // a bulk delete must not slip past it — checked per real class. Class
+    // leads/admins may still override.
     const currentTeacher = await resolveCurrentTeacher(session)
-    const canOverride = await canManageSokrates({
-      classId,
-      role: session.user?.role,
-      teacherId: currentTeacher?.id ?? null,
-      adminOverride: false,
-    })
-    const sokratesStatus = await getSokratesStatus(classId, schoolYearId)
-    if (
-      isEditBlocked(sokratesStatus, 'first', teacherId, canOverride) ||
-      isEditBlocked(sokratesStatus, 'second', teacherId, canOverride)
-    ) {
-      return NextResponse.json(
-        { error: 'Diese Klasse ist für Sokrates gesperrt.' },
-        { status: 423 },
-      )
+    for (const memberClassId of gradeClassIds) {
+      const canOverride = await canManageSokrates({
+        classId: memberClassId,
+        role: session.user?.role,
+        teacherId: currentTeacher?.id ?? null,
+        adminOverride: false,
+      })
+      const sokratesStatus = await getSokratesStatus(memberClassId, schoolYearId)
+      if (
+        isEditBlocked(sokratesStatus, 'first', teacherId, canOverride) ||
+        isEditBlocked(sokratesStatus, 'second', teacherId, canOverride)
+      ) {
+        return NextResponse.json(
+          { error: 'Diese Klasse ist für Sokrates gesperrt.' },
+          { status: 423 },
+        )
+      }
     }
 
     // Delete this teacher's grades for the class in the given school year.
     const result = await prisma.grade.deleteMany({
       where: {
         teacherId,
-        classId,
+        classId: { in: gradeClassIds },
         schoolYearId,
       },
     })

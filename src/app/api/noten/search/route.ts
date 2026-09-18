@@ -7,6 +7,7 @@ import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
 import { toLocalDateString } from '@/lib/date-utils'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import { resolveMemberClassIds } from '@/lib/combined-classes'
 
 type SearchByNameResult = {
   classId: number
@@ -78,10 +79,27 @@ export async function GET(request: Request) {
     })
     const classNameById = new Map(classRecords.map(c => [c.id, c.name]))
 
+    // A combined class the teacher is assigned to has no roster of its own — its
+    // students live in the member classes. Expand each assigned class to its member
+    // ids, remember which assigned (possibly combined) class each member id belongs
+    // to, and search across the union — then surface each hit under the assigned
+    // class the teacher actually navigates to. For a normal class an assigned class
+    // is its own only member, so this is identical to the previous behaviour.
+    const assignedClassesByMember = new Map<number, number[]>()
+    for (const assignedId of classIds) {
+      const memberIds = await resolveMemberClassIds(assignedId)
+      for (const memberId of memberIds) {
+        const list = assignedClassesByMember.get(memberId) ?? []
+        if (!list.includes(assignedId)) list.push(assignedId)
+        assignedClassesByMember.set(memberId, list)
+      }
+    }
+    const memberClassIds = [...assignedClassesByMember.keys()]
+
     const byName: SearchByNameResult[] = []
     if (nameQuery.length > 0) {
       const memberships = await prisma.classMembership.findMany({
-        where: { classId: { in: classIds }, schoolYearId },
+        where: { classId: { in: memberClassIds }, schoolYearId },
         select: { classId: true, studentId: true },
       })
       const studentIds = [...new Set(memberships.map(m => m.studentId))]
@@ -92,10 +110,14 @@ export async function GET(request: Request) {
           select: { id: true, firstName: true, lastName: true, groupId: true },
           orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
         })
+        // Map each student to the assigned (possibly combined) classes to surface
+        // it under, resolved from the member class its membership sits in.
         const classIdsByStudent = new Map<number, number[]>()
         for (const m of memberships) {
           const list = classIdsByStudent.get(m.studentId) ?? []
-          list.push(m.classId)
+          for (const assignedId of assignedClassesByMember.get(m.classId) ?? []) {
+            if (!list.includes(assignedId)) list.push(assignedId)
+          }
           classIdsByStudent.set(m.studentId, list)
         }
 

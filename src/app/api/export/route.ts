@@ -5,6 +5,7 @@ import { generateSchedulePDF } from '@/lib/pdf-generator'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
 import { denyUnlessAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import { resolveMemberClassIds } from '@/lib/combined-classes'
 
 /**
  * Handles HTTP POST requests to generate and return a PDF schedule for a specified class.
@@ -64,9 +65,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Class not found' }, { status: 400 })
     }
 
-    // Get students with groupId for this year (via ClassMembership)
+    // Get students with groupId for this year (via ClassMembership). A combined
+    // class has no members of its own — expand it to its real member classes.
+    const rosterClassIds = await resolveMemberClassIds(class_response.id)
     const membershipIds = await prisma.classMembership.findMany({
-      where: { classId: class_response.id, schoolYearId },
+      where: { classId: { in: rosterClassIds }, schoolYearId },
       select: { studentId: true },
     })
     const studentIds = membershipIds.map(m => m.studentId)

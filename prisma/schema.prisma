@@ -100,6 +100,12 @@ model Class {
   isActive         Boolean                   @default(true)
   deactivatedAt    DateTime?
   lastSyncedAt     DateTime?
+  // A combined class is a scheduling/grading LENS over two or more real classes
+  // (e.g. 4AHME + 4BHEM rotating together). It has no synced students of its own:
+  // students stay in their member classes, and directory sync ignores it entirely
+  // (see src/lib/class-student-sync.ts). Its members are listed in
+  // CombinedClassMember; roster resolution expands it via src/lib/combined-classes.ts.
+  isCombined       Boolean                   @default(false)
   schedules        Schedule[]
   students         Student[]
   assignments      TeacherAssignment[]
@@ -107,11 +113,32 @@ model Class {
   finalGrades      FinalGrade[]
   transfers        NotenmanagementTransfer[]
   classMemberships ClassMembership[]
+  // When this row is a combined class, the member classes it spans.
+  combinedMembers  CombinedClassMember[]     @relation("CombinedToMembers")
+  // When this row is a real class, the combined classes it is a member of.
+  memberOf         CombinedClassMember[]     @relation("MemberToCombined")
   classHead        Teacher?                  @relation("ClassHead", fields: [classHeadId], references: [id])
   classLead        Teacher?                  @relation("ClassLead", fields: [classLeadId], references: [id])
 
   @@index([name])
   @@index([isActive])
+  @@index([isCombined])
+}
+
+/// Join between a combined class and each real class it spans. Deleting either
+/// side removes the link (a combined class is dropped cleanly; a real class that
+/// disappears leaves its combined class with fewer members).
+model CombinedClassMember {
+  id              Int      @id @default(autoincrement())
+  combinedClassId Int
+  memberClassId   Int
+  createdAt       DateTime @default(now())
+  combinedClass   Class    @relation("CombinedToMembers", fields: [combinedClassId], references: [id], onDelete: Cascade)
+  memberClass     Class    @relation("MemberToCombined", fields: [memberClassId], references: [id], onDelete: Cascade)
+
+  @@unique([combinedClassId, memberClassId])
+  @@index([combinedClassId])
+  @@index([memberClassId])
 }
 
 model SchoolYear {

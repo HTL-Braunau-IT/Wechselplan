@@ -16,6 +16,7 @@ const mockMembershipFindMany = vi.hoisted(() => vi.fn())
 const mockStudentFindMany = vi.hoisted(() => vi.fn())
 const mockWeightFindMany = vi.hoisted(() => vi.fn())
 const mockEntryFindMany = vi.hoisted(() => vi.fn())
+const mockClassFindUnique = vi.hoisted(() => vi.fn())
 
 vi.mock('next-auth', () => ({
   getServerSession: vi.fn(async () => ({ user: { name: 'Anna Müller', role: 'teacher' } })),
@@ -33,6 +34,7 @@ vi.mock('@/lib/prisma', () => ({
     student: { findMany: mockStudentFindMany },
     notenWeightConfig: { findMany: mockWeightFindMany },
     notenEntry: { findMany: mockEntryFindMany },
+    class: { findUnique: mockClassFindUnique },
   },
 }))
 
@@ -70,6 +72,8 @@ describe('GET /api/notensammler/notenliste-suggestions', () => {
     ])
     mockWeightFindMany.mockResolvedValue([])
     mockEntryFindMany.mockResolvedValue([])
+    // Normal (non-combined) class → resolveMemberClassIds returns [classId].
+    mockClassFindUnique.mockResolvedValue({ isCombined: false })
   })
 
   it('derives the first-semester term grade as the half-step mean of the day grades', async () => {

@@ -5,6 +5,7 @@ import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import { resolveMemberClassIds } from '@/lib/combined-classes'
 
 /**
  * Handles GET requests to retrieve classes where the current teacher has an assignment for the given school year,
@@ -60,17 +61,22 @@ export async function GET(request: Request) {
 
     const result = await Promise.all(
       classRecords.map(async cls => {
+        // A combined class has no roster or grades of its own — union its member
+        // classes so both the roster count and the per-semester completion check
+        // span the whole combined roster (grades are filed under each student's
+        // real class). For a normal class this is just [cls.id].
+        const memberIds = await resolveMemberClassIds(cls.id)
         const [activeStudentCount, firstCount, secondCount] = await Promise.all([
           prisma.classMembership.count({
             where: {
-              classId: cls.id,
+              classId: { in: memberIds },
               schoolYearId,
               student: { groupId: { not: null } },
             },
           }),
           prisma.grade.count({
             where: {
-              classId: cls.id,
+              classId: { in: memberIds },
               teacherId: teacher.id,
               schoolYearId,
               semester: 'first',
@@ -79,7 +85,7 @@ export async function GET(request: Request) {
           }),
           prisma.grade.count({
             where: {
-              classId: cls.id,
+              classId: { in: memberIds },
               teacherId: teacher.id,
               schoolYearId,
               semester: 'second',

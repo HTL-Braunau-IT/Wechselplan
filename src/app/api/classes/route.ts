@@ -33,6 +33,10 @@ export async function GET(request: Request) {
               { schedules: { some: { schoolYearId } } },
               { classMemberships: { some: { schoolYearId } } },
               { assignments: { some: { schoolYearId } } },
+              // Combined classes carry no memberships of their own and start with
+              // no schedule, so they'd never satisfy the clauses above — always
+              // surface them so a freshly combined class can be scheduled.
+              { isCombined: true },
             ],
           }
         : undefined
@@ -45,6 +49,7 @@ export async function GET(request: Request) {
         description: true,
         classHeadId: true,
         classLeadId: true,
+        isCombined: true,
       },
       orderBy: { name: 'asc' },
     })

@@ -5,6 +5,7 @@ import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import { resolveMemberClassIds } from '@/lib/combined-classes'
 
 type WeightConfig = {
   weightWiederholung: number
@@ -136,15 +137,21 @@ export async function GET(request: Request) {
       assignedGroupIds = [groupId]
     }
 
+    // A combined class has no roster or grades of its own — they live under each
+    // student's real (Zeugnis) member class. Union the member classes for every
+    // read below; for a normal class this is just [classId]. The TeacherAssignment
+    // check above stays on the selected class.
+    const memberClassIds = await resolveMemberClassIds(classId)
+
     const notensammlerEnabled = await isFeatureEnabled('notensammler')
     const [finalGradeRows, gradeRows] = await Promise.all([
       prisma.finalGrade.findMany({
-        where: { classId, schoolYearId },
+        where: { classId: { in: memberClassIds }, schoolYearId },
         select: { studentId: true, semester: true, grade: true },
       }),
       notensammlerEnabled
         ? prisma.grade.findMany({
-            where: { teacherId: teacher.id, classId, schoolYearId },
+            where: { teacherId: teacher.id, classId: { in: memberClassIds }, schoolYearId },
             select: { studentId: true, semester: true, grade: true },
           })
         : Promise.resolve([]),
@@ -161,7 +168,7 @@ export async function GET(request: Request) {
       : undefined
 
     const membershipIds = await prisma.classMembership.findMany({
-      where: { classId, schoolYearId },
+      where: { classId: { in: memberClassIds }, schoolYearId },
       select: { studentId: true },
     })
     const studentIds = membershipIds.map(m => m.studentId)
@@ -244,7 +251,7 @@ export async function GET(request: Request) {
           },
         }),
         prisma.notenEntry.findMany({
-          where: { teacherId: teacher.id, classId, groupId: gid, schoolYearId },
+          where: { teacherId: teacher.id, classId: { in: memberClassIds }, groupId: gid, schoolYearId },
         }),
       ])
 

@@ -5,6 +5,7 @@ import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import { resolveMemberClassIds } from '@/lib/combined-classes'
 import { isSemester2 } from '@/lib/grades'
 import { dayGradeValue } from '@/app/noten/_lib/summary'
 import { roundHalf } from '@/app/noten/_lib/erfassen'
@@ -79,8 +80,11 @@ export async function GET(request: Request) {
         : String(schoolYear.semesterChangeDate)
       : undefined
 
+    // The roster of a combined class is the union of its member classes (students
+    // never move). For a normal class this is just [classId].
+    const memberIds = await resolveMemberClassIds(classId)
     const memberships = await prisma.classMembership.findMany({
-      where: { classId, schoolYearId },
+      where: { classId: { in: memberIds }, schoolYearId },
       select: { studentId: true },
     })
     const studentIds = memberships.map(m => m.studentId)

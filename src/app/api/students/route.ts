@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { normalizeUsername } from '@/lib/username'
 import { denyUnlessAccess } from '@/lib/api-guard'
+import { resolveMemberClassIds } from '@/lib/combined-classes'
 
 interface CreateStudentRequest {
   firstName: string
@@ -30,24 +31,35 @@ export async function GET(request: Request) {
   }
 
   try {
+    // A combined class resolves to the union of its member classes' students;
+    // a normal class resolves to itself. Students always keep their real class
+    // and username — provenance comes from each student's real class name, not
+    // from any username prefix.
+    const classRecord = await prisma.class.findUnique({
+      where: { name: className },
+      select: { id: true, isCombined: true },
+    })
+
+    if (!classRecord) {
+      return NextResponse.json([])
+    }
+
+    const rosterClassIds = await resolveMemberClassIds(classRecord.id)
+
     const students = await prisma.student.findMany({
       where: {
-        class: {
-          name: className,
-        },
+        classId: { in: rosterClassIds },
       },
       include: {
         class: {
           select: {
             name: true,
-            description: true,
           },
         },
       },
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     })
 
-    // Process students to include original class information for combined classes
     const processedStudents = students
       .map(student => {
         // Ensure we have valid student data
@@ -71,19 +83,9 @@ export async function GET(request: Request) {
           username: student.username ?? '',
         }
 
-        // Check if this is a combined class by looking at the description
-        if (student.class?.description?.includes('Combined class from')) {
-          // Extract original class information from username
-          // Format: "10A_john.doe" or "10B_john.doe1"
-          const usernameRegex = /^([^_]+)_(.+)$/
-          const usernameMatch = usernameRegex.exec(student.username ?? '')
-          if (usernameMatch?.[1] && usernameMatch?.[2]) {
-            const originalClass = usernameMatch[1]
-            const actualUsername = usernameMatch[2]
-
-            studentData.originalClass = originalClass
-            studentData.username = actualUsername // Show the clean username
-          }
+        // For a combined class, surface which real class each student belongs to.
+        if (classRecord.isCombined) {
+          studentData.originalClass = student.class?.name ?? undefined
         }
 
         return studentData
