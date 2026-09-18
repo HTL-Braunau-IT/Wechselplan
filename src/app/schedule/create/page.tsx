@@ -91,6 +91,11 @@ interface Student {
   originalClass?: string // For combined classes, shows which class the student originally came from
 }
 
+// The class a student is grouped under. For a combined class this is the
+// student's own member class (`originalClass`), so auto-distribution can keep
+// each real class in its own groups instead of mixing them.
+const studentClassKey = (student: Student): string => student.originalClass ?? student.class
+
 interface Group {
   id: number
   students: Student[]
@@ -202,7 +207,10 @@ export default function ScheduleClassSelectPage() {
       return
     }
 
-    const newGroups = distributeStudentsEvenly(students, resetGroups)
+    const newGroups = distributeStudentsEvenly(students, resetGroups, {
+      classKey: studentClassKey,
+      maxSize: MAX_GROUP_SIZE,
+    })
     setGroups(newGroups)
     setDirty(true)
   }
@@ -346,8 +354,12 @@ export default function ScheduleClassSelectPage() {
         setGroups(existingGroups)
         setNumberOfGroups(regularAssignments.length)
       } else {
-        // Otherwise, create default groups with even distribution
-        const newGroups = distributeStudentsEvenly(studentsData, initialGroups)
+        // Otherwise, create default groups with even distribution (kept
+        // class-true for combined classes — see studentClassKey).
+        const newGroups = distributeStudentsEvenly(studentsData, initialGroups, {
+          classKey: studentClassKey,
+          maxSize: MAX_GROUP_SIZE,
+        })
         setGroups(newGroups)
       }
     } catch (err) {
@@ -382,7 +394,10 @@ export default function ScheduleClassSelectPage() {
     if (!isManualGroupChange) return
 
     setGroups(current =>
-      renumberGroups(adjustGroupCount(current, numberOfGroups, MAX_GROUP_SIZE), numberOfGroups),
+      renumberGroups(
+        adjustGroupCount(current, numberOfGroups, MAX_GROUP_SIZE, studentClassKey),
+        numberOfGroups,
+      ),
     )
     setIsManualGroupChange(false)
   }, [numberOfGroups, students, isManualGroupChange])

@@ -30,6 +30,60 @@ describe('distributeStudentsEvenly', () => {
     const firstNames = groups[1]!.students.map(s => s.lastName)
     expect([...firstNames].sort()).toEqual(firstNames)
   })
+
+  describe('class-true distribution (combined classes)', () => {
+    type CS = { id: number; lastName: string; cls: string }
+    const mkc = (cls: string, n: number, from = 0): CS[] =>
+      Array.from({ length: n }, (_, i) => ({
+        id: from + i + 1,
+        lastName: `${cls}-${String(i).padStart(2, '0')}`,
+        cls,
+      }))
+    const key = (s: CS) => s.cls
+
+    it('never mixes two classes in one group and packs toward maxSize', () => {
+      // 22 + 21 across 5 groups, cap 12 → A:[11,11], B:[11,10], one empty group.
+      const students = [...mkc('A', 22), ...mkc('B', 21, 22)]
+      const groups = distributeStudentsEvenly(students, 5, { classKey: key, maxSize: 12 })
+      const regular = groups.filter(g => g.id !== UNASSIGNED_GROUP_ID)
+      expect(regular.map(g => g.id)).toEqual([1, 2, 3, 4, 5])
+      // No group holds more than one class.
+      for (const g of regular) {
+        const classes = new Set(g.students.map(key))
+        expect(classes.size).toBeLessThanOrEqual(1)
+      }
+      expect(regular.map(g => g.students.length)).toEqual([11, 11, 11, 10, 0])
+    })
+
+    it('leaves the extra groups empty rather than spreading a class thinner', () => {
+      const students = [...mkc('A', 12), ...mkc('B', 12, 12)]
+      const groups = distributeStudentsEvenly(students, 5, { classKey: key, maxSize: 12 })
+      const sizes = groups.filter(g => g.id !== UNASSIGNED_GROUP_ID).map(g => g.students.length)
+      expect(sizes).toEqual([12, 12, 0, 0, 0])
+    })
+
+    it('falls back to an even split for a single class', () => {
+      const students = mkc('A', 7)
+      const groups = distributeStudentsEvenly(students, 3, { classKey: key, maxSize: 12 })
+      const sizes = groups
+        .filter(g => g.id !== UNASSIGNED_GROUP_ID)
+        .map(g => g.students.length)
+        .sort((a, b) => b - a)
+      expect(sizes).toEqual([3, 2, 2])
+    })
+
+    it('keeps classes pure even when groups are under-provisioned', () => {
+      // 22 + 21 but only 3 groups: still no mixing (some groups exceed the cap,
+      // which the size validation flags separately).
+      const students = [...mkc('A', 22), ...mkc('B', 21, 22)]
+      const groups = distributeStudentsEvenly(students, 3, { classKey: key, maxSize: 12 })
+      const regular = groups.filter(g => g.id !== UNASSIGNED_GROUP_ID)
+      expect(regular.length).toBe(3)
+      for (const g of regular) {
+        expect(new Set(g.students.map(key)).size).toBeLessThanOrEqual(1)
+      }
+    })
+  })
 })
 
 describe('checkGroupSizes', () => {
@@ -113,6 +167,28 @@ describe('adjustGroupCount', () => {
 
   it('returns the same reference when the count is unchanged', () => {
     expect(adjustGroupCount(base, 2, 12)).toBe(base)
+  })
+
+  it('keeps classes pure when shrinking with a classKey', () => {
+    type CS = { id: number; lastName: string; cls: string }
+    const g = (id: number, cls: string, ids: number[]): { id: number; students: CS[] } => ({
+      id,
+      students: ids.map(n => ({ id: n, lastName: `${cls}${n}`, cls })),
+    })
+    const groups = [
+      { id: UNASSIGNED_GROUP_ID, students: [] as CS[] },
+      g(1, 'A', [1, 2, 3]),
+      g(2, 'A', [4, 5, 6]),
+      g(3, 'B', [7, 8, 9]),
+    ]
+    // Drop group 3 (class B); its students must not land in the class-A groups.
+    const shrunk = adjustGroupCount(groups, 2, 12, s => s.cls)
+    const regular = shrunk.filter(gr => gr.id !== UNASSIGNED_GROUP_ID)
+    for (const gr of regular) {
+      expect(new Set(gr.students.map(s => s.cls)).size).toBeLessThanOrEqual(1)
+    }
+    // The B students had no pure home with room → unassigned, not mixed in.
+    expect(shrunk[0]!.students.map(s => s.cls)).toEqual(['B', 'B', 'B'])
   })
 })
 
