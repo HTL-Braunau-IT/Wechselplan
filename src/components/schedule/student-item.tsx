@@ -88,11 +88,18 @@ export function StudentItem({
         lastName={student.lastName}
         size={22}
         nameFormat="lastFirst"
-        className="min-w-0"
+        avatarOnly
+        className="shrink-0"
       />
+      <span className="min-w-0 flex-1 truncate">
+        {student.lastName}, {student.firstName}
+      </span>
       {student.originalClass && (
-        <span className="text-muted-foreground bg-muted/50 shrink-0 rounded-md px-1.5 py-0.5 text-xs">
-          {t('originallyFrom')}: {student.originalClass}
+        <span
+          className="text-muted-foreground bg-muted/50 shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium"
+          title={`${t('originallyFrom')}: ${student.originalClass}`}
+        >
+          {student.originalClass}
         </span>
       )}
       <div
