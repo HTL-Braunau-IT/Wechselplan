@@ -7,9 +7,29 @@ import { toLocalDateString } from '@/lib/date-utils'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
+import { type WeightConfig } from '@/lib/noten-weights'
 
 function dateToLocalString(d: Date | string): string {
   return d instanceof Date ? toLocalDateString(d) : String(d)
+}
+
+/** Pull just the four weight fields off a stored row, or null when absent. */
+function toWeightConfig(
+  row: {
+    weightWiederholung: number
+    weightBericht: number
+    weightMitarbeit: number
+    weightPraktischeArbeit: number
+  } | null,
+): WeightConfig | null {
+  return row
+    ? {
+        weightWiederholung: row.weightWiederholung,
+        weightBericht: row.weightBericht,
+        weightMitarbeit: row.weightMitarbeit,
+        weightPraktischeArbeit: row.weightPraktischeArbeit,
+      }
+    : null
 }
 
 /**
@@ -67,18 +87,25 @@ export async function GET(request: Request) {
     // (possibly combined) class the teacher is working.
     const gradeClassIds = await resolveMemberClassIds(classId)
 
-    const [weightConfig, lehrstoffRows, entries, gradeRows, finalGradeRows] = await Promise.all([
-      prisma.notenWeightConfig.findUnique({
-        where: {
-          teacherId_classId_groupId_schoolYearId: {
-            teacherId: teacher.id,
-            classId,
-            groupId,
-            schoolYearId,
+    const [weightGroup, weightClass, weightGlobal, lehrstoffRows, entries, gradeRows, finalGradeRows] =
+      await Promise.all([
+        prisma.notenWeightConfig.findUnique({
+          where: {
+            teacherId_classId_groupId_schoolYearId: {
+              teacherId: teacher.id,
+              classId,
+              groupId,
+              schoolYearId,
+            },
           },
-        },
-      }),
-      prisma.lehrstoffPerDay.findMany({
+        }),
+        prisma.notenWeightClassConfig.findUnique({
+          where: {
+            teacherId_classId_schoolYearId: { teacherId: teacher.id, classId, schoolYearId },
+          },
+        }),
+        prisma.notenWeightGlobalConfig.findUnique({ where: { teacherId: teacher.id } }),
+        prisma.lehrstoffPerDay.findMany({
         where: { teacherId: teacher.id, classId, groupId, schoolYearId },
       }),
       prisma.notenEntry.findMany({
@@ -147,14 +174,14 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({
-      weightConfig: weightConfig
-        ? {
-            weightWiederholung: weightConfig.weightWiederholung,
-            weightBericht: weightConfig.weightBericht,
-            weightMitarbeit: weightConfig.weightMitarbeit,
-            weightPraktischeArbeit: weightConfig.weightPraktischeArbeit,
-          }
-        : null,
+      // The three raw override levels for this (teacher, class, group); the
+      // client resolves the effective split (group → class → global → default)
+      // via resolveWeights so it can also show what is set at each level.
+      weights: {
+        group: toWeightConfig(weightGroup),
+        class: toWeightConfig(weightClass),
+        global: toWeightConfig(weightGlobal),
+      },
       lehrstoffByDay,
       finalGrades,
       ...(notensammlerEnabled ? { teacherId: teacher.id } : {}),

@@ -1,3 +1,8 @@
+// WeightConfig and DEFAULT_WEIGHTS live in the shared resolver so the server
+// routes, the client hook and this UI layer all agree on one definition and one
+// fallback. Re-exported here so the many `from '../_lib/types'` imports still work.
+export { DEFAULT_WEIGHTS, type WeightConfig } from '@/lib/noten-weights'
+
 export type TeachingDay = { date: string; period: string }
 
 export type Student = {
@@ -15,13 +20,6 @@ export type SeatPosition = { x: number; y: number }
 export type SeatingLayout = Record<number, SeatPosition>
 
 export type ClassItem = { id: number; name: string; groupIds: number[] }
-
-export type WeightConfig = {
-  weightWiederholung: number
-  weightBericht: number
-  weightMitarbeit: number
-  weightPraktischeArbeit: number
-}
 
 export type NotenEntryRow = {
   studentId: number
@@ -58,13 +56,6 @@ export type SearchByDateMatch = {
 export type FinalGradePerStudent = {
   first: { grade: number | null; conductNoteWish: string | null }
   second: { grade: number | null; conductNoteWish: string | null }
-}
-
-export const DEFAULT_WEIGHTS: WeightConfig = {
-  weightWiederholung: 25,
-  weightBericht: 25,
-  weightMitarbeit: 25,
-  weightPraktischeArbeit: 25,
 }
 
 /** A blank entry, used whenever a student/day pair has nothing recorded yet. */

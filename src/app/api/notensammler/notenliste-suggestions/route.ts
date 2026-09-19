@@ -9,7 +9,8 @@ import { resolveMemberClassIds } from '@/lib/combined-classes'
 import { isSemester2 } from '@/lib/grades'
 import { dayGradeValue } from '@/app/noten/_lib/summary'
 import { roundHalf } from '@/app/noten/_lib/erfassen'
-import { DEFAULT_WEIGHTS, type NotenEntryRow, type WeightConfig } from '@/app/noten/_lib/types'
+import { type NotenEntryRow } from '@/app/noten/_lib/types'
+import { resolveWeights, type WeightConfig } from '@/lib/noten-weights'
 
 /**
  * Notenliste suggestions for the Notensammler entry screen.
@@ -96,15 +97,22 @@ export async function GET(request: Request) {
       select: { id: true, groupId: true },
     })
 
-    const [weightRows, entries] = await Promise.all([
+    const [weightRows, weightClassRow, weightGlobalRow, entries] = await Promise.all([
       prisma.notenWeightConfig.findMany({
         where: { teacherId: teacher.id, classId, schoolYearId },
       }),
+      prisma.notenWeightClassConfig.findUnique({
+        where: { teacherId_classId_schoolYearId: { teacherId: teacher.id, classId, schoolYearId } },
+      }),
+      prisma.notenWeightGlobalConfig.findUnique({ where: { teacherId: teacher.id } }),
       prisma.notenEntry.findMany({
         where: { teacherId: teacher.id, classId, schoolYearId },
       }),
     ])
 
+    // Each group's own override, if any; the class and global defaults below fill
+    // in for groups without one (a group row may have been collapsed into the
+    // class default). Resolution matches the Noten grid via resolveWeights.
     const weightByGroup = new Map<number, WeightConfig>()
     for (const row of weightRows) {
       weightByGroup.set(row.groupId, {
@@ -142,8 +150,11 @@ export async function GET(request: Request) {
       const list = entriesByStudent.get(student.id)
       if (!list || list.length === 0) continue
 
-      const weights =
-        (student.groupId != null ? weightByGroup.get(student.groupId) : undefined) ?? DEFAULT_WEIGHTS
+      const weights = resolveWeights({
+        group: student.groupId != null ? weightByGroup.get(student.groupId) : null,
+        class: weightClassRow,
+        global: weightGlobalRow,
+      })
 
       const firstDays: number[] = []
       const secondDays: number[] = []

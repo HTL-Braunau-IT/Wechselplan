@@ -16,7 +16,7 @@ import { useSchoolYear } from '@/contexts/school-year-context'
 import { useEntitlements } from '@/contexts/entitlements-context'
 import { useUnsavedWarning } from '@/hooks/use-unsaved-warning'
 import { entryKey, isSemester2 } from '@/lib/grades'
-import { emptyEntry, type NotenEntryRow, type SearchByNameMatch, type TeachingDay, type WeightConfig } from './_lib/types'
+import { emptyEntry, type NotenEntryRow, type SearchByNameMatch, type TeachingDay } from './_lib/types'
 import { computeStudentSummary } from './_lib/summary'
 import { useNotenClasses } from './_hooks/use-noten-classes'
 import { useNotenData } from './_hooks/use-noten-data'
@@ -216,12 +216,6 @@ export default function NotenPage() {
     [data],
   )
 
-  const handleWeightChange = useCallback(
-    (key: keyof WeightConfig, value: number) => {
-      data.setWeightConfig(prev => ({ ...(prev ?? data.weights), [key]: value }))
-    },
-    [data],
-  )
 
   if (!isFeatureEnabled('noten')) return null
 
@@ -453,8 +447,11 @@ export default function NotenPage() {
                     entries={data.entries}
                     summary={summary}
                     lehrstoffByDay={data.lehrstoffByDay}
+                    weightLevels={data.weightLevels}
                     weights={data.weights}
                     weightsValid={data.weightsValid}
+                    classLabel={selectedClass!.name}
+                    groupLabel={`${t('noten.gruppe')} ${selectedGroupId}`}
                     dayIndex={safeDayIndex}
                     hideGrades={hideGrades}
                     saving={data.saveState === 'saving'}
@@ -468,7 +465,9 @@ export default function NotenPage() {
                     onSitzplatzChange={(studentId, value) => data.updateSitzplatz(studentId, value)}
                     onSeatChange={(studentId, position) => data.updateSeat(studentId, position)}
                     onCommitLehrstoff={handleCommitLehrstoff}
-                    onWeightChange={handleWeightChange}
+                    onWeightChange={data.setWeightLevel}
+                    onWeightEnableOverride={data.enableWeightOverride}
+                    onWeightClearOverride={level => void data.clearWeightOverride(level)}
                     onWeightCommit={() => void data.saveWeights()}
                   />
                 ) : (

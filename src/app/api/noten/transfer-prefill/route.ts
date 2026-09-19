@@ -6,13 +6,7 @@ import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
-
-type WeightConfig = {
-  weightWiederholung: number
-  weightBericht: number
-  weightMitarbeit: number
-  weightPraktischeArbeit: number
-}
+import { resolveWeights, type WeightConfig } from '@/lib/noten-weights'
 
 function isSemester2(dateStr: string, semesterChangeDate: string | undefined): boolean {
   if (!semesterChangeDate) return false
@@ -238,8 +232,17 @@ export async function GET(request: Request) {
       })
     }
 
+    // The coarser weight levels are the same for every group in this class, so
+    // read them once and resolve each group's effective split against them.
+    const [weightClassRow, weightGlobalRow] = await Promise.all([
+      prisma.notenWeightClassConfig.findUnique({
+        where: { teacherId_classId_schoolYearId: { teacherId: teacher.id, classId, schoolYearId } },
+      }),
+      prisma.notenWeightGlobalConfig.findUnique({ where: { teacherId: teacher.id } }),
+    ])
+
     for (const gid of assignedGroupIds) {
-      const [weightConfigRow, entries] = await Promise.all([
+      const [weightGroupRow, entries] = await Promise.all([
         prisma.notenWeightConfig.findUnique({
           where: {
             teacherId_classId_groupId_schoolYearId: {
@@ -255,19 +258,11 @@ export async function GET(request: Request) {
         }),
       ])
 
-      const w: WeightConfig = weightConfigRow
-        ? {
-            weightWiederholung: weightConfigRow.weightWiederholung,
-            weightBericht: weightConfigRow.weightBericht,
-            weightMitarbeit: weightConfigRow.weightMitarbeit,
-            weightPraktischeArbeit: weightConfigRow.weightPraktischeArbeit,
-          }
-        : {
-            weightWiederholung: 25,
-            weightBericht: 25,
-            weightMitarbeit: 25,
-            weightPraktischeArbeit: 25,
-          }
+      const w: WeightConfig = resolveWeights({
+        group: weightGroupRow,
+        class: weightClassRow,
+        global: weightGlobalRow,
+      })
 
       const entriesByStudent = new Map<
         number,

@@ -5,7 +5,6 @@ import type { SaveState } from '@/components/save-status'
 import { captureFrontendError } from '@/lib/frontend-error'
 import { entryKey } from '@/lib/grades'
 import {
-  DEFAULT_WEIGHTS,
   emptyEntry,
   type FinalGradePerStudent,
   type NotenEntryRow,
@@ -13,8 +12,23 @@ import {
   type SeatPosition,
   type Student,
   type TeachingDay,
-  type WeightConfig,
 } from '../_lib/types'
+import {
+  inheritedWeights,
+  isWeightConfigValid,
+  resolveWeights,
+  type WeightConfig,
+  type WeightLevel,
+} from '@/lib/noten-weights'
+
+/** The three raw override levels held client-side; null = inherits from below. */
+export type WeightLevels = {
+  global: WeightConfig | null
+  class: WeightConfig | null
+  group: WeightConfig | null
+}
+
+const EMPTY_WEIGHT_LEVELS: WeightLevels = { global: null, class: null, group: null }
 
 type Params = {
   classId: number | null
@@ -55,7 +69,7 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
   const [teachingDays, setTeachingDays] = useState<TeachingDay[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [entries, setEntries] = useState<Record<string, NotenEntryRow>>({})
-  const [weightConfig, setWeightConfig] = useState<WeightConfig | null>(null)
+  const [weightLevels, setWeightLevels] = useState<WeightLevels>(EMPTY_WEIGHT_LEVELS)
   const [lehrstoffByDay, setLehrstoffByDay] = useState<Record<string, string>>({})
   const [seating, setSeating] = useState<SeatingLayout>({})
   const [finalGrades, setFinalGrades] = useState<Record<number, FinalGradePerStudent>>({})
@@ -77,6 +91,14 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
   // writer the whole current layout rather than a value captured at drag time.
   const seatingRef = useRef<SeatingLayout>({})
   seatingRef.current = seating
+  // Weights commit when the popover closes, by which time state has moved on;
+  // the ref hands the writer the current levels rather than captured ones.
+  const weightLevelsRef = useRef<WeightLevels>(EMPTY_WEIGHT_LEVELS)
+  weightLevelsRef.current = weightLevels
+  // Which weight levels the teacher edited since the last save — only these are
+  // written on commit, so an untouched level is never persisted as an explicit
+  // (and possibly redundant) row.
+  const dirtyWeightsRef = useRef<Set<WeightLevel>>(new Set())
 
   /**
    * Keys whose value has not reached the server. A failed autosave leaves its
@@ -138,7 +160,8 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
     if (classId == null || groupId == null || !schoolYearId) {
       setTeachingDays([])
       setStudents([])
-      setWeightConfig(null)
+      setWeightLevels(EMPTY_WEIGHT_LEVELS)
+      dirtyWeightsRef.current.clear()
       setLehrstoffByDay({})
       setSeating({})
       setEntries({})
@@ -177,7 +200,11 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
           daysRes.json() as Promise<{ teachingDays?: TeachingDay[] }>,
           studentsRes.json() as Promise<{ students?: Student[] }>,
           dataRes.json() as Promise<{
-            weightConfig: WeightConfig | null
+            weights: {
+              global: WeightConfig | null
+              class: WeightConfig | null
+              group: WeightConfig | null
+            }
             lehrstoffByDay: Record<string, string>
             finalGrades?: Record<number, FinalGradePerStudent>
             teacherId?: number
@@ -188,7 +215,12 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
 
         setTeachingDays(daysData.teachingDays ?? [])
         setStudents(studentsData.students ?? [])
-        setWeightConfig(notenData.weightConfig ?? null)
+        setWeightLevels({
+          global: notenData.weights?.global ?? null,
+          class: notenData.weights?.class ?? null,
+          group: notenData.weights?.group ?? null,
+        })
+        dirtyWeightsRef.current.clear()
         setLehrstoffByDay(notenData.lehrstoffByDay ?? {})
         setFinalGrades(notenData.finalGrades ?? {})
         setTeacherId(notenData.teacherId ?? null)
@@ -297,27 +329,105 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
     [classId, groupId, schoolYearId, beginSave, endSave, markClean, markDirty],
   )
 
-  const weights = weightConfig ?? DEFAULT_WEIGHTS
-  const weightSum =
-    weights.weightWiederholung +
-    weights.weightBericht +
-    weights.weightMitarbeit +
-    weights.weightPraktischeArbeit
-  const weightsValid = weightSum === 100
+  // The effective split the grid scores with: group override → class → global →
+  // 25/25/25/25. Everything downstream (summary, Verlauf, Erfassen) reads this.
+  const weights = resolveWeights(weightLevels)
+  const weightsValid = isWeightConfigValid(weights)
 
-  const saveWeights = useCallback(
-    async (options?: { silent?: boolean }) => {
-      if (classId == null || groupId == null || !schoolYearId || !weightConfig) return true
-      // The server rejects a split that does not add up; don't bother asking.
-      if (!weightsValid) return true
-      if (!options?.silent) beginSave()
+  // Edit one field of one level. When the level has no row yet (an override just
+  // switched on, or the global default untouched) seed it from what it inherits
+  // so the other three fields are sensible rather than zero.
+  const setWeightLevel = useCallback(
+    (level: WeightLevel, key: keyof WeightConfig, value: number) => {
+      setWeightLevels(prev => {
+        const base = prev[level] ?? inheritedWeights(level, prev)
+        return { ...prev, [level]: { ...base, [key]: value } }
+      })
+      dirtyWeightsRef.current.add(level)
+    },
+    [],
+  )
+
+  // Turn on a class/group override, seeded with the value it currently inherits
+  // so nothing visibly changes until the teacher edits it.
+  const enableWeightOverride = useCallback((level: WeightLevel) => {
+    setWeightLevels(prev =>
+      prev[level] ? prev : { ...prev, [level]: inheritedWeights(level, prev) },
+    )
+    dirtyWeightsRef.current.add(level)
+  }, [])
+
+  // Delete a level's row so the context inherits again (and, for global, falls
+  // back to 25/25/25/25 — that is what the global "reset" does).
+  const clearWeightOverride = useCallback(
+    async (level: WeightLevel) => {
+      if (level !== 'global' && (classId == null || !schoolYearId)) return true
+      if (level === 'group' && groupId == null) return true
+      dirtyWeightsRef.current.delete(level)
+      setWeightLevels(prev => ({ ...prev, [level]: null }))
+      beginSave()
       try {
         const res = await fetch('/api/noten/weights', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ classId, groupId, schoolYearId, ...weightConfig }),
+          body: JSON.stringify({
+            level,
+            clear: true,
+            ...(level !== 'global' ? { classId, schoolYearId } : {}),
+            ...(level === 'group' ? { groupId } : {}),
+          }),
         })
         if (!res.ok) throw new Error('Save failed')
+        setSaveError(null)
+        endSave(true)
+        return true
+      } catch (err) {
+        captureFrontendError(err, { location: 'noten', type: 'clear-weights' })
+        setSaveError('Die Gewichtung konnte nicht gespeichert werden.')
+        endSave(false)
+        return false
+      }
+    },
+    [classId, groupId, schoolYearId, beginSave, endSave],
+  )
+
+  // Persist every level the teacher touched since the last save. Levels whose
+  // split does not add up are skipped (the server would reject them anyway),
+  // staying dirty so a later valid edit still gets written.
+  const saveWeights = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const dirty = [...dirtyWeightsRef.current]
+      const levelsNow = weightLevelsRef.current
+      const toSave = dirty
+        .map(level => ({ level, config: levelsNow[level] }))
+        .filter(
+          (x): x is { level: WeightLevel; config: WeightConfig } =>
+            x.config != null && isWeightConfigValid(x.config),
+        )
+        // Class/group writes need the class + year (and group), so drop them
+        // when we have no group selected; a global edit can still go through.
+        .filter(({ level }) =>
+          level === 'global'
+            ? true
+            : classId != null && schoolYearId != null && (level !== 'group' || groupId != null),
+        )
+      if (toSave.length === 0) return true
+      if (!options?.silent) beginSave()
+      try {
+        for (const { level, config } of toSave) {
+          const res = await fetch('/api/noten/weights', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              level,
+              ...(level !== 'global' ? { classId, schoolYearId } : {}),
+              ...(level === 'group' ? { groupId } : {}),
+              ...config,
+            }),
+          })
+          if (!res.ok) throw new Error('Save failed')
+          dirtyWeightsRef.current.delete(level)
+        }
         setSaveError(null)
         if (!options?.silent) endSave(true)
         return true
@@ -328,7 +438,7 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
         return false
       }
     },
-    [classId, groupId, schoolYearId, weightConfig, weightsValid, beginSave, endSave],
+    [classId, groupId, schoolYearId, beginSave, endSave],
   )
 
   const saveLehrstoff = useCallback(
@@ -581,10 +691,12 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
     teachingDays,
     students,
     entries,
-    weightConfig,
-    setWeightConfig,
+    weightLevels,
     weights,
     weightsValid,
+    setWeightLevel,
+    enableWeightOverride,
+    clearWeightOverride,
     lehrstoffByDay,
     setLehrstoffByDay,
     seating,

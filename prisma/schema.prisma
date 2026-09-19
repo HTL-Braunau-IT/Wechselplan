@@ -539,6 +539,15 @@ model NotenmanagementTransfer {
 }
 
 // Noten (daily grades) feature: weights, Lehrstoff per day, and per-student-per-day entries
+//
+// Weights (the four-way % split across Wiederholung/Bericht/Mitarbeit/Praktische
+// Arbeit) resolve per teacher along a three-level chain, most specific first:
+//   NotenWeightConfig (group) → NotenWeightClassConfig (class) → NotenWeightGlobalConfig (global) → 25/25/25/25
+// A level exists only when the teacher explicitly set it; deleting a row makes
+// that context re-inherit from the next level. Resolution lives in
+// src/lib/noten-weights.ts and is the single source of truth for all readers.
+
+// Group level (most specific). One row per (teacher, class, group, year).
 model NotenWeightConfig {
   id                     Int      @id @default(autoincrement())
   teacherId              Int
@@ -556,6 +565,40 @@ model NotenWeightConfig {
   @@index([teacherId])
   @@index([classId])
   @@index([schoolYearId])
+}
+
+// Class level. One row per (teacher, class, year); applies to every group in the
+// class the teacher has not overridden individually.
+model NotenWeightClassConfig {
+  id                     Int      @id @default(autoincrement())
+  teacherId              Int
+  classId                Int
+  schoolYearId           Int
+  weightWiederholung     Int      @default(25) // percentage, sum with others = 100
+  weightBericht          Int      @default(25)
+  weightMitarbeit        Int      @default(25)
+  weightPraktischeArbeit Int      @default(25)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@unique([teacherId, classId, schoolYearId])
+  @@index([teacherId])
+  @@index([classId])
+  @@index([schoolYearId])
+}
+
+// Global level (least specific). One row per teacher, deliberately NOT scoped by
+// school year — a teacher's personal default split carries across years. Used
+// wherever no class- or group-level override applies.
+model NotenWeightGlobalConfig {
+  id                     Int      @id @default(autoincrement())
+  teacherId              Int      @unique
+  weightWiederholung     Int      @default(25) // percentage, sum with others = 100
+  weightBericht          Int      @default(25)
+  weightMitarbeit        Int      @default(25)
+  weightPraktischeArbeit Int      @default(25)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 }
 
 // A teacher's personal seating layout for one group: where each student's card

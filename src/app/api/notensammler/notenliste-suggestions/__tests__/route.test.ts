@@ -15,6 +15,8 @@ const mockSchoolYearFindUnique = vi.hoisted(() => vi.fn())
 const mockMembershipFindMany = vi.hoisted(() => vi.fn())
 const mockStudentFindMany = vi.hoisted(() => vi.fn())
 const mockWeightFindMany = vi.hoisted(() => vi.fn())
+const mockWeightClassFindUnique = vi.hoisted(() => vi.fn())
+const mockWeightGlobalFindUnique = vi.hoisted(() => vi.fn())
 const mockEntryFindMany = vi.hoisted(() => vi.fn())
 const mockClassFindUnique = vi.hoisted(() => vi.fn())
 
@@ -33,6 +35,8 @@ vi.mock('@/lib/prisma', () => ({
     classMembership: { findMany: mockMembershipFindMany },
     student: { findMany: mockStudentFindMany },
     notenWeightConfig: { findMany: mockWeightFindMany },
+    notenWeightClassConfig: { findUnique: mockWeightClassFindUnique },
+    notenWeightGlobalConfig: { findUnique: mockWeightGlobalFindUnique },
     notenEntry: { findMany: mockEntryFindMany },
     class: { findUnique: mockClassFindUnique },
   },
@@ -71,6 +75,8 @@ describe('GET /api/notensammler/notenliste-suggestions', () => {
       { id: 101, groupId: 1 },
     ])
     mockWeightFindMany.mockResolvedValue([])
+    mockWeightClassFindUnique.mockResolvedValue(null)
+    mockWeightGlobalFindUnique.mockResolvedValue(null)
     mockEntryFindMany.mockResolvedValue([])
     // Normal (non-combined) class → resolveMemberClassIds returns [classId].
     mockClassFindUnique.mockResolvedValue({ isCombined: false })
@@ -101,6 +107,42 @@ describe('GET /api/notensammler/notenliste-suggestions', () => {
       suggestions: Record<string, { first: number | null; second: number | null }>
     }
     expect(body.suggestions['100']).toEqual({ first: 1, second: 4 })
+  })
+
+  it('applies the class-level weighting when a group has no override of its own', async () => {
+    // One day scoring Wiederholung 2 and Bericht 4. Default 25/25/25/25 → 3.0;
+    // a class default of 75/25/0/0 → (2·75 + 4·25) / 100 = 2.5. The group has no
+    // row of its own, so the class default must be what gets used.
+    mockWeightFindMany.mockResolvedValue([])
+    mockWeightClassFindUnique.mockResolvedValue({
+      weightWiederholung: 75,
+      weightBericht: 25,
+      weightMitarbeit: 0,
+      weightPraktischeArbeit: 0,
+    })
+    mockEntryFindMany.mockResolvedValue([
+      {
+        studentId: 100,
+        date: '2026-01-10',
+        period: 'AM',
+        attendance: 'Anwesend',
+        wiederholung1: 2,
+        wiederholung2: null,
+        bericht1: 4,
+        bericht2: null,
+        mitarbeit1: null,
+        mitarbeit2: null,
+        praktischeArbeit1: null,
+        praktischeArbeit2: null,
+        notizen: null,
+      },
+    ])
+
+    const response = await get('classId=3')
+    const body = (await response.json()) as {
+      suggestions: Record<string, { first: number | null; second: number | null }>
+    }
+    expect(body.suggestions['100']).toEqual({ first: 2.5, second: null })
   })
 
   it('rejects a teacher not assigned to the class', async () => {

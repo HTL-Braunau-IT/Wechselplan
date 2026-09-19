@@ -1,13 +1,22 @@
 'use client'
 
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, RotateCcw, Scale } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
-import { DEFAULT_WEIGHTS, type WeightConfig } from '../_lib/types'
+import {
+  inheritedWeights,
+  WEIGHT_KEYS,
+  weightSum,
+  type WeightConfig,
+  type WeightLevel,
+} from '@/lib/noten-weights'
+import type { WeightLevels } from '../_hooks/use-noten-data'
 
 const WEIGHT_FIELDS: Array<{ key: keyof WeightConfig; labelKey: string }> = [
   { key: 'weightWiederholung', labelKey: 'noten.wiederholung' },
@@ -16,30 +25,75 @@ const WEIGHT_FIELDS: Array<{ key: keyof WeightConfig; labelKey: string }> = [
   { key: 'weightPraktischeArbeit', labelKey: 'noten.praktischeArbeit' },
 ]
 
+const LEVELS: WeightLevel[] = ['global', 'class', 'group']
+
+/** The most specific level the teacher has actually set, else group (what they work in). */
+function initialLevel(levels: WeightLevels): WeightLevel {
+  if (levels.group) return 'group'
+  if (levels.class) return 'class'
+  if (levels.global) return 'global'
+  return 'group'
+}
+
 /**
  * How the four assessment categories are weighted; must total 100.
  *
- * This was a permanent full-width bar of number fields above the grid — four
- * inputs a teacher touches once a term, sitting between them and the thing they
- * came to do. It is behind a toolbar button now, which shows the current split
- * so it still reads at a glance.
+ * The split resolves per teacher along a chain — a group's own weights win, else
+ * the class default, else the teacher's global default, else 25/25/25/25. This
+ * popover edits any level: Global is always editable; Klasse and Gruppe carry an
+ * "eigene Gewichtung" switch and, while off, show the value they inherit. The
+ * trigger button shows the effective split so it still reads at a glance.
  */
 export function WeightsPopover({
-  weights,
+  levels,
+  effective,
   weightsValid,
+  classLabel,
+  groupLabel,
   onChange,
+  onEnableOverride,
+  onClearOverride,
   onCommit,
 }: {
-  weights: WeightConfig
+  levels: WeightLevels
+  effective: WeightConfig
   weightsValid: boolean
-  onChange: (key: keyof WeightConfig, value: number) => void
+  classLabel: string
+  groupLabel: string
+  onChange: (level: WeightLevel, key: keyof WeightConfig, value: number) => void
+  /** Turn on a class/group override (seeded from what it inherits). */
+  onEnableOverride: (level: WeightLevel) => void
+  /** Clear a level back to inheriting; for global this resets to 25/25/25/25. */
+  onClearOverride: (level: WeightLevel) => void
   /** Called when the popover closes — the fields have no separate save. */
   onCommit: () => void
 }) {
   const { t } = useTranslation('common')
+  const [level, setLevel] = useState<WeightLevel>(() => initialLevel(levels))
 
-  const valueOf = (key: keyof WeightConfig) => weights[key] ?? DEFAULT_WEIGHTS[key]
-  const sum = WEIGHT_FIELDS.reduce((total, { key }) => total + valueOf(key), 0)
+  const tabLabel = (l: WeightLevel) =>
+    l === 'global'
+      ? t('noten.weightLevelGlobal', { defaultValue: 'Global' })
+      : l === 'class'
+        ? classLabel
+        : groupLabel
+
+  const raw = levels[level]
+  const overridden = raw != null
+  // Global is always "on" (it has no parent to inherit from); class/group show
+  // the value they inherit while their override is off.
+  const shown = raw ?? inheritedWeights(level, levels)
+  const editable = level === 'global' || overridden
+  const sum = weightSum(shown)
+  const sumValid = sum === 100
+
+  // Where an inheriting level takes its value from, for the hint line.
+  const inheritSource =
+    level === 'group'
+      ? levels.class
+        ? classLabel
+        : t('noten.weightLevelGlobal', { defaultValue: 'Global' })
+      : t('noten.weightLevelGlobal', { defaultValue: 'Global' })
 
   return (
     <Popover
@@ -56,7 +110,7 @@ export function WeightsPopover({
           )}
           {t('noten.weights')}
           <span className="text-muted-foreground ml-1 tabular-nums">
-            {WEIGHT_FIELDS.map(({ key }) => valueOf(key)).join('/')}
+            {WEIGHT_FIELDS.map(({ key }) => effective[key]).join('/')}
           </span>
         </Button>
       </PopoverTrigger>
@@ -64,13 +118,62 @@ export function WeightsPopover({
       <PopoverContent align="start" className="w-80">
         <p className="text-sm font-medium">{t('noten.weights')}</p>
         <p className="text-muted-foreground mt-1 mb-3 text-xs">
-          {t('noten.weightsDescription', {
+          {t('noten.weightsHierarchyDescription', {
             defaultValue:
-              'Anteil jeder Kategorie an der berechneten Note. Kategorien ohne Eintrag zählen an dem Tag nicht mit.',
+              'Gilt global, je Klasse oder je Gruppe. Die feinste eigene Einstellung zählt.',
           })}
         </p>
 
-        <div className="space-y-2.5">
+        {/* Level switcher */}
+        <div className="bg-muted mb-3 grid grid-cols-3 gap-1 rounded-md p-1">
+          {LEVELS.map(l => (
+            <button
+              key={l}
+              type="button"
+              onClick={() => setLevel(l)}
+              className={cn(
+                'truncate rounded-sm px-2 py-1 text-xs font-medium transition-colors',
+                level === l
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+                levels[l] && level !== l && 'text-foreground',
+              )}
+              title={tabLabel(l)}
+            >
+              {tabLabel(l)}
+              {levels[l] && <span className="text-primary ml-0.5">•</span>}
+            </button>
+          ))}
+        </div>
+
+        {/* Override switch for class/group */}
+        {level !== 'global' && (
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <Label htmlFor="weight-override" className="text-sm font-normal">
+              {level === 'class'
+                ? t('noten.weightOverrideClass', { defaultValue: 'Eigene Gewichtung für die Klasse' })
+                : t('noten.weightOverrideGroup', { defaultValue: 'Eigene Gewichtung für die Gruppe' })}
+            </Label>
+            <Switch
+              id="weight-override"
+              checked={overridden}
+              onCheckedChange={checked =>
+                checked ? onEnableOverride(level) : onClearOverride(level)
+              }
+            />
+          </div>
+        )}
+
+        {!editable && (
+          <p className="text-muted-foreground mb-3 text-xs">
+            {t('noten.weightInheritsFrom', {
+              defaultValue: 'Erbt von {{source}}.',
+              source: inheritSource,
+            })}
+          </p>
+        )}
+
+        <div className={cn('space-y-2.5', !editable && 'opacity-50')}>
           {WEIGHT_FIELDS.map(({ key, labelKey }) => (
             <div key={key} className="flex items-center justify-between gap-3">
               <Label htmlFor={`weight-${key}`} className="text-sm font-normal">
@@ -82,9 +185,10 @@ export function WeightsPopover({
                   type="number"
                   min={0}
                   max={100}
+                  disabled={!editable}
                   className="h-8 w-20"
-                  value={valueOf(key)}
-                  onChange={e => onChange(key, parseInt(e.target.value, 10) || 0)}
+                  value={shown[key]}
+                  onChange={e => onChange(level, key, parseInt(e.target.value, 10) || 0)}
                 />
                 <span className="text-muted-foreground w-3 text-xs">%</span>
               </div>
@@ -97,25 +201,27 @@ export function WeightsPopover({
           <span
             className={cn(
               'tabular-nums',
-              weightsValid ? 'text-success font-medium' : 'text-destructive font-semibold',
+              sumValid ? 'text-success font-medium' : 'text-destructive font-semibold',
             )}
           >
             {sum} %
           </span>
         </div>
-        {!weightsValid && (
+        {editable && !sumValid && (
           <p className="text-destructive mt-1 text-xs">{t('noten.weightsMustSum100')}</p>
         )}
 
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-muted-foreground mt-2 w-full"
-          onClick={() => WEIGHT_FIELDS.forEach(({ key }) => onChange(key, DEFAULT_WEIGHTS[key]))}
-        >
-          <RotateCcw className="h-4 w-4" />
-          {t('noten.weightsReset', { defaultValue: 'Auf 25/25/25/25 zurücksetzen' })}
-        </Button>
+        {level === 'global' && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground mt-2 w-full"
+            onClick={() => onClearOverride('global')}
+          >
+            <RotateCcw className="h-4 w-4" />
+            {t('noten.weightsReset', { defaultValue: 'Auf 25/25/25/25 zurücksetzen' })}
+          </Button>
+        )}
       </PopoverContent>
     </Popover>
   )

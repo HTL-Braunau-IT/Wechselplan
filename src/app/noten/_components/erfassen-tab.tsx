@@ -45,6 +45,8 @@ import {
   type TeachingDay,
   type WeightConfig,
 } from '../_lib/types'
+import type { WeightLevel } from '@/lib/noten-weights'
+import type { WeightLevels } from '../_hooks/use-noten-data'
 import type { StudentSummary } from '../_lib/summary'
 
 /** Fixed card width on the Sitzplan canvas (matches the grid's min column). */
@@ -145,8 +147,11 @@ export type ErfassenTabProps = {
   entries: Record<string, NotenEntryRow>
   summary: Record<number, StudentSummary>
   lehrstoffByDay: Record<string, string>
+  weightLevels: WeightLevels
   weights: WeightConfig
   weightsValid: boolean
+  classLabel: string
+  groupLabel: string
   dayIndex: number
   hideGrades: boolean
   saving: boolean
@@ -160,7 +165,9 @@ export type ErfassenTabProps = {
   onSitzplatzChange: (studentId: number, value: string | null) => void
   onSeatChange: (studentId: number, position: SeatPosition) => void
   onCommitLehrstoff: (date: string, period: string, value: string) => void
-  onWeightChange: (key: keyof WeightConfig, value: number) => void
+  onWeightChange: (level: WeightLevel, key: keyof WeightConfig, value: number) => void
+  onWeightEnableOverride: (level: WeightLevel) => void
+  onWeightClearOverride: (level: WeightLevel) => void
   onWeightCommit: () => void
 }
 
@@ -173,8 +180,11 @@ export function ErfassenTab(props: ErfassenTabProps) {
     entries,
     summary,
     lehrstoffByDay,
+    weightLevels,
     weights,
     weightsValid,
+    classLabel,
+    groupLabel,
     dayIndex,
     hideGrades,
     saving,
@@ -189,6 +199,8 @@ export function ErfassenTab(props: ErfassenTabProps) {
     onSeatChange,
     onCommitLehrstoff,
     onWeightChange,
+    onWeightEnableOverride,
+    onWeightClearOverride,
     onWeightCommit,
   } = props
 
@@ -458,9 +470,14 @@ export function ErfassenTab(props: ErfassenTabProps) {
             )}
 
             <WeightsPopover
-              weights={weights}
+              levels={weightLevels}
+              effective={weights}
               weightsValid={weightsValid}
+              classLabel={classLabel}
+              groupLabel={groupLabel}
               onChange={onWeightChange}
+              onEnableOverride={onWeightEnableOverride}
+              onClearOverride={onWeightClearOverride}
               onCommit={onWeightCommit}
             />
 

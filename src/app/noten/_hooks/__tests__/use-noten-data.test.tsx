@@ -44,7 +44,7 @@ function mockLoad(ok = true) {
       }
       if (href.startsWith('/api/noten/data')) {
         return new Response(
-          JSON.stringify({ weightConfig: null, lehrstoffByDay: {}, entries: [] }),
+          JSON.stringify({ weights: { global: null, class: null, group: null }, lehrstoffByDay: {}, entries: [] }),
           { status: 200 },
         )
       }
@@ -171,7 +171,7 @@ describe('useNotenData', () => {
         }
         if (href.startsWith('/api/noten/data')) {
           return new Response(
-            JSON.stringify({ weightConfig: null, lehrstoffByDay: {}, entries: [] }),
+            JSON.stringify({ weights: { global: null, class: null, group: null }, lehrstoffByDay: {}, entries: [] }),
             { status: 200 },
           )
         }
