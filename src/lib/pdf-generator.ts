@@ -6,8 +6,9 @@ import NotensammlerAllClassesDocument, {
   type NotensammlerAllClassesClassData,
   type NotensammlerAllClassesData,
 } from '@/components/pdf/NotensammlerAllClassesDocument'
+import KlassenlisteDocument, { type KlassenlisteData } from '@/components/pdf/KlassenlisteDocument'
 
-export type { NotensammlerAllClassesClassData, NotensammlerAllClassesData }
+export type { NotensammlerAllClassesClassData, NotensammlerAllClassesData, KlassenlisteData }
 
 /**
  * Renders the rotation plan for one class: group rosters, the AM/PM teacher
@@ -27,4 +28,9 @@ export async function generateNotensammlerAllClassesPDF(
   data: NotensammlerAllClassesData,
 ): Promise<Buffer> {
   return renderPdfToBuffer(createElement(NotensammlerAllClassesDocument, { data }))
+}
+
+/** Renders one class's printable roster, split into its rotation groups. */
+export async function generateKlassenlistePDF(data: KlassenlisteData): Promise<Buffer> {
+  return renderPdfToBuffer(createElement(KlassenlisteDocument, { data }))
 }

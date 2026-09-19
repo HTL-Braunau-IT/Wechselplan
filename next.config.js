@@ -24,6 +24,7 @@ const nextConfig = {
     '/api/export/schedule-dates': ['./src/lib/pdf/fonts/**'],
     '/api/notensammler/pdf': ['./src/lib/pdf/fonts/**'],
     '/api/notensammler/pdf/all': ['./src/lib/pdf/fonts/**'],
+    '/api/klassenliste/pdf': ['./src/lib/pdf/fonts/**'],
   },
   // `next build` re-runs eslint and tsc, which the CI `verify` job has already
   // done — and the `image` job depends on `verify`, so a build that gets this

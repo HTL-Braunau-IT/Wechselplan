@@ -14,6 +14,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import {
+  generateKlassenlistePDF,
   generateNotensammlerAllClassesPDF,
   generateNotensammlerPDF,
   generateSchedulePDF,
@@ -302,6 +303,41 @@ async function main() {
     })),
   })
   writeFileSync(resolve(outDir, 'notensammler-alle-klassen.pdf'), allClasses)
+
+  // Klassenliste — the worst case (5 groups × 12) in each writing-space layout,
+  // plus a plan-less class that prints as one flat list.
+  const klSections = groups.map(g => ({
+    id: g.id,
+    students: g.students.map(s => ({ firstName: s.firstName, lastName: s.lastName })),
+  }))
+  const klBase = {
+    className: '4AHME',
+    schoolYearLabel: '2026/27',
+    classHead: 'Mag. Andrea Huber',
+    classLead: 'DI Martin Reiter',
+    createdAt: '19.09.2026',
+    total: allStudents.length,
+  }
+  for (const space of ['split', 'columns', 'notes', 'blank'] as const) {
+    const buffer = await generateKlassenlistePDF({
+      ...klBase,
+      space,
+      hasPlan: true,
+      sections: klSections,
+      plain: [],
+    })
+    writeFileSync(resolve(outDir, `klassenliste-${space}.pdf`), buffer)
+  }
+  const klNoPlan = await generateKlassenlistePDF({
+    ...klBase,
+    className: '2AHME',
+    space: 'split',
+    hasPlan: false,
+    sections: [],
+    plain: allStudents.slice(0, 26).map(s => ({ firstName: s.firstName, lastName: s.lastName })),
+    total: 26,
+  })
+  writeFileSync(resolve(outDir, 'klassenliste-ohne-plan.pdf'), klNoPlan)
 
   console.log(`PDFs written to ${outDir}`)
 }

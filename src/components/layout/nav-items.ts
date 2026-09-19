@@ -8,6 +8,7 @@ import {
   ListChecks,
   ShieldCheck,
   GraduationCap,
+  FileText,
   type LucideIcon,
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
@@ -47,6 +48,7 @@ export function useNavItems(): NavItem[] {
       icon: CalendarPlus,
     },
     { href: '/students', label: t('navigation.students'), icon: Users },
+    { href: '/klassenlisten', label: t('navigation.klassenlisten'), icon: FileText },
   ]
 
   // Assigning a class's Klassenvorstand/Klassenleiter decides who may lock the
