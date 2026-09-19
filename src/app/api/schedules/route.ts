@@ -32,6 +32,19 @@ const scheduleSchema = z.object({
   amWeekOffset: z.number().int().min(0).max(3).optional(),
   pmWeekInterval: z.number().int().min(1).max(4).optional(),
   pmWeekOffset: z.number().int().min(0).max(3).optional(),
+  // Optional per-lane "first meeting" date (ISO). Null clears it.
+  amStartDate: z
+    .string()
+    .refine(date => !isNaN(Date.parse(date)), { message: 'Invalid amStartDate format' })
+    .nullable()
+    .optional(),
+  pmStartDate: z
+    .string()
+    .refine(date => !isNaN(Date.parse(date)), { message: 'Invalid pmStartDate format' })
+    .nullable()
+    .optional(),
+  // Specific weekday dates ("dd.MM.yy") the class is not at school.
+  excludedDates: z.array(z.string()).optional(),
   amScheduleData: z.any().optional(),
   pmScheduleData: z.any().optional(),
   scheduleData: z.any().optional(),
@@ -76,6 +89,9 @@ export async function POST(req: Request) {
       amWeekOffset,
       pmWeekInterval,
       pmWeekOffset,
+      amStartDate,
+      pmStartDate,
+      excludedDates,
       amScheduleData,
       pmScheduleData,
       scheduleData,
@@ -112,6 +128,16 @@ export async function POST(req: Request) {
       amWeekOffset: amWeekOffset ?? 0,
       pmWeekInterval: pmWeekInterval ?? 1,
       pmWeekOffset: pmWeekOffset ?? 0,
+      // Only touch these when the caller sent them, so a step that omits one
+      // (the periods step never sends excludedDates; neither step should wipe a
+      // start date it didn't render) leaves the stored value intact.
+      ...(amStartDate !== undefined
+        ? { amStartDate: amStartDate ? new Date(amStartDate) : null }
+        : {}),
+      ...(pmStartDate !== undefined
+        ? { pmStartDate: pmStartDate ? new Date(pmStartDate) : null }
+        : {}),
+      ...(excludedDates !== undefined ? { excludedDates } : {}),
     }
 
     // Turn replacement is per-lane. A metadata-only save (the "Tag & Perioden"

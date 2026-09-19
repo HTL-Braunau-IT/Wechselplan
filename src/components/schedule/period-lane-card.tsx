@@ -3,6 +3,7 @@
 import type { LucideIcon } from 'lucide-react'
 import { useTranslation } from 'next-i18next'
 
+import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
@@ -11,8 +12,13 @@ export interface LaneCadence {
   enabled: boolean
   /** 1 = every week, 2 = every 2nd week. */
   interval: number
-  /** 0 = A-week start, 1 = B-week start. */
+  /** 0 = A-week start, 1 = B-week start. Legacy anchor when no `startDate` is set. */
   offset: number
+  /**
+   * Optional "first meeting" date ("yyyy-MM-dd") for a biweekly lane: anchors the
+   * rhythm and trims earlier weeks. Empty = start at the plan window (A-week).
+   */
+  startDate?: string
 }
 
 interface PeriodLaneCardProps {
@@ -71,19 +77,21 @@ export function PeriodLaneCard({ title, icon: Icon, cadence, onChange }: PeriodL
             </TabsList>
           </Tabs>
           {biweekly && (
-            <Tabs
-              value={cadence.offset === 1 ? 'b' : 'a'}
-              onValueChange={value => onChange({ ...cadence, offset: value === 'b' ? 1 : 0 })}
-            >
-              <TabsList className="h-8">
-                <TabsTrigger value="a" className="text-xs">
-                  {t('aWeek')}
-                </TabsTrigger>
-                <TabsTrigger value="b" className="text-xs">
-                  {t('bWeek')}
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                {t('firstMeeting')}
+              </span>
+              <Input
+                type="date"
+                value={cadence.startDate ?? ''}
+                onChange={event =>
+                  onChange({ ...cadence, startDate: event.target.value, offset: 0 })
+                }
+                aria-label={`${title} · ${t('firstMeeting')}`}
+                className="h-8 w-[9.5rem]"
+              />
+              <span className="text-muted-foreground text-xs">{t('firstMeetingHint')}</span>
+            </div>
           )}
         </div>
       )}

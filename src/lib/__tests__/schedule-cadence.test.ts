@@ -202,4 +202,63 @@ describe('computePeriodTurns', () => {
       expect(teachingFromAll).toEqual(term.weeks.map(w => w.date))
     }
   })
+
+  it('a start date trims earlier weeks and anchors the biweekly rhythm on itself', () => {
+    const terms = computePeriodTurns({
+      ...window,
+      numberOfTerms: 1,
+      holidays: [],
+      // Offset is ignored when a start date is supplied: the date itself meets.
+      cadence: { weekInterval: 2, weekOffset: 1 },
+      patternStart: new Date('2025-09-15'),
+    })
+    const dates = terms[0]!.weeks.map(w => w.date)
+    expect(dates[0]).toBe('15.09.25') // the start date is the first meeting
+    expect(dates).toContain('29.09.25') // +2 weeks from the anchor
+    expect(dates).not.toContain('01.09.25') // trimmed
+    expect(dates).not.toContain('08.09.25') // trimmed
+    expect(dates).not.toContain('22.09.25') // off-rhythm relative to the anchor
+  })
+
+  it('ignores a start date that predates the plan window', () => {
+    const early = computePeriodTurns({
+      ...window,
+      numberOfTerms: 1,
+      holidays: [],
+      patternStart: new Date('2025-08-01'),
+    })
+    const plain = computePeriodTurns({ ...window, numberOfTerms: 1, holidays: [] })
+    expect(early[0]!.weeks.map(w => w.date)).toEqual(plain[0]!.weeks.map(w => w.date))
+  })
+
+  it('skips excluded days like holidays and flags them in allWeeks', () => {
+    const terms = computePeriodTurns({
+      ...window,
+      numberOfTerms: 1,
+      holidays: [],
+      excludedDates: ['08.09.25'],
+    })
+    const teaching = terms[0]!.weeks.map(w => w.date)
+    expect(teaching).not.toContain('08.09.25')
+    expect(teaching.length).toBe(12) // 13 Mondays minus the one excluded day
+
+    const excludedWeek = terms[0]!.allWeeks!.find(w => w.date === '08.09.25')
+    expect(excludedWeek).toMatchObject({ isExcluded: true, isHoliday: false })
+  })
+
+  it('keeps biweekly parity stable across an excluded day', () => {
+    // Exclude the 2nd Monday (index 1); an A-week lane meets on even indices, so
+    // the exclusion must not shift which later weeks it meets on.
+    const aWeek = computePeriodTurns({
+      ...window,
+      numberOfTerms: 1,
+      holidays: [],
+      cadence: { weekInterval: 2, weekOffset: 0 },
+      excludedDates: ['08.09.25'],
+    })
+    const dates = aWeek[0]!.weeks.map(w => w.date)
+    expect(dates).toContain('01.09.25')
+    expect(dates).toContain('15.09.25')
+    expect(dates).not.toContain('08.09.25')
+  })
 })

@@ -194,6 +194,16 @@ model Schedule {
   amWeekOffset     Int            @default(0)
   pmWeekInterval   Int            @default(1)
   pmWeekOffset     Int            @default(0)
+  // Optional per-lane "first meeting" date for non-weekly cadences. When set it
+  // both anchors the A/B rhythm (parity is counted from this date, which is
+  // itself a meeting week) and trims everything before it. Null = start at the
+  // plan window (school year / semester) with weekOffset, the legacy behaviour.
+  amStartDate      DateTime?
+  pmStartDate      DateTime?
+  // Specific weekday dates the class is not at school (excursions etc.), stored
+  // as "dd.MM.yy" to match ScheduleWeek.date. Treated like holidays: shown but
+  // never taught, so following weeks shift. Whole-day (applies to both lanes).
+  excludedDates    String[]       @default([])
   scheduleData     Json? // Deprecated: null on all rows, kept for legacy read paths
   additionalInfo   String?
   semesterPlanning String? // "first", "second", or null for full year

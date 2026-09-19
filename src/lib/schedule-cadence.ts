@@ -12,6 +12,12 @@
  * The A/B alternation is evaluated over the ABSOLUTE weekday-week index within
  * the plan window, before holidays are removed, so a holiday week never flips
  * the parity of the weeks that follow it.
+ *
+ * A lane may also carry a `patternStart` date (the "first meeting"): when set it
+ * replaces the window start, so it both trims everything before it and anchors
+ * the rhythm on itself (that date is a meeting week — parity is counted from it,
+ * offset 0). `excludedDates` are specific dates the class is not at school; like
+ * holidays they are shown but never taught, so later weeks shift.
  */
 import { addWeeks, format, isWithinInterval, setDay } from 'date-fns'
 
@@ -110,6 +116,15 @@ export interface ComputePeriodTurnsOptions {
   holidays: Holiday[]
   /** Defaults to weekly. */
   cadence?: Partial<PeriodCadence> | null
+  /**
+   * Optional "first meeting" date for a non-weekly lane. When set (and later than
+   * `start`), it replaces `start` as the range/parity origin: weeks before it are
+   * trimmed and the rhythm is anchored on it (that date meets, so `weekOffset` is
+   * ignored). Null/undefined keeps the legacy window-start + `weekOffset` origin.
+   */
+  patternStart?: Date | null
+  /** Dates ("dd.MM.yy") the class is not at school; skipped like holidays. */
+  excludedDates?: string[]
 }
 
 /**
@@ -126,13 +141,25 @@ export interface ComputePeriodTurnsOptions {
  */
 export function computePeriodTurns(options: ComputePeriodTurnsOptions): ScheduleTerm[] {
   const { start, end, weekday, numberOfTerms, customLengths = {}, holidays } = options
-  const cadence = normalizeCadence(options.cadence)
+  const excludedSet = new Set(options.excludedDates ?? [])
+  const isExcludedDate = (date: Date) => excludedSet.has(format(date, 'dd.MM.yy'))
 
-  const absoluteWeeks = weekdayDatesInRange(start, end, weekday)
-  // Every calendar week the lane meets on (holidays included) …
+  // A per-lane "first meeting" date trims the window and anchors the rhythm on
+  // itself (offset 0); otherwise parity runs from the window start + weekOffset.
+  const patternStart = options.patternStart
+  const hasPatternStart = patternStart != null && patternStart > start
+  const rangeStart = hasPatternStart ? patternStart : start
+  const cadence = hasPatternStart
+    ? { weekInterval: normalizeCadence(options.cadence).weekInterval, weekOffset: 0 }
+    : normalizeCadence(options.cadence)
+
+  const absoluteWeeks = weekdayDatesInRange(rangeStart, end, weekday)
+  // Every calendar week the lane meets on (holidays + exclusions included) …
   const cadenceDates = absoluteWeeks.filter((_, index) => periodMeetsOnWeek(index, cadence))
-  // … and the subset that are real teaching weeks (holidays removed).
-  const teachingDates = cadenceDates.filter(date => !isHolidayDate(date, holidays))
+  // … and the subset that are real teaching weeks (holidays + exclusions removed).
+  const teachingDates = cadenceDates.filter(
+    date => !isHolidayDate(date, holidays) && !isExcludedDate(date),
+  )
 
   const terms = Math.max(0, Math.floor(numberOfTerms))
   const weeksPerTerm: number[] = new Array(terms).fill(0)
@@ -175,6 +202,7 @@ export function computePeriodTurns(options: ComputePeriodTurnsOptions): Schedule
   let teachingSeen = 0
   for (const date of cadenceDates) {
     const holiday = holidayForDate(date, holidays)
+    const excluded = holiday === undefined && isExcludedDate(date)
     const turnIdx =
       turnForTeaching.length === 0
         ? 0
@@ -184,8 +212,9 @@ export function computePeriodTurns(options: ComputePeriodTurnsOptions): Schedule
       date: format(date, 'dd.MM.yy'),
       isHoliday: holiday !== undefined,
       ...(holiday ? { holidayName: holiday.name } : {}),
+      ...(excluded ? { isExcluded: true } : {}),
     })
-    if (!holiday) teachingSeen++
+    if (!holiday && !excluded) teachingSeen++
   }
 
   const result: ScheduleTerm[] = []

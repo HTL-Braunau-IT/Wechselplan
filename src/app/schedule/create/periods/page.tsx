@@ -47,12 +47,20 @@ interface ScheduleShell {
   amWeekOffset: number
   pmWeekInterval: number
   pmWeekOffset: number
+  amStartDate: string | null
+  pmStartDate: string | null
   semesterPlanning: string | null
 }
 
 type Semester = 'full' | 'first' | 'second'
 
-const DEFAULT_LANE: LaneCadence = { enabled: true, interval: 1, offset: 0 }
+const DEFAULT_LANE: LaneCadence = { enabled: true, interval: 1, offset: 0, startDate: '' }
+
+/** "yyyy-MM-dd" → "dd.MM." for the compact recap strip. */
+const shortDate = (iso: string) => {
+  const [, m, d] = iso.split('-')
+  return m && d ? `${d}.${m}.` : iso
+}
 
 /** A labelled row inside the plan card: a fixed label column and its control. */
 function FieldRow({
@@ -102,11 +110,13 @@ export default function PeriodsPage() {
       enabled: shell.amEnabled,
       interval: shell.amWeekInterval,
       offset: shell.amWeekOffset,
+      startDate: shell.amStartDate ? shell.amStartDate.slice(0, 10) : '',
     })
     setPm({
       enabled: shell.pmEnabled,
       interval: shell.pmWeekInterval,
       offset: shell.pmWeekOffset,
+      startDate: shell.pmStartDate ? shell.pmStartDate.slice(0, 10) : '',
     })
     setSemester((shell.semesterPlanning as Semester | null) ?? 'full')
   }, [])
@@ -160,7 +170,9 @@ export default function PeriodsPage() {
       if (!lane.enabled) return `${label}: ${t('periodOff')}`
       const rhythm =
         lane.interval > 1
-          ? `${t('everySecondWeek')}, ${lane.offset === 1 ? t('bWeek') : t('aWeek')}`
+          ? lane.startDate
+            ? `${t('everySecondWeek')}, ${t('fromDate', { date: shortDate(lane.startDate) })}`
+            : t('everySecondWeek')
           : t('everyWeek')
       return `${label}: ${rhythm}`
     }
@@ -242,6 +254,12 @@ export default function PeriodsPage() {
           amWeekOffset: am.offset,
           pmWeekInterval: pm.interval,
           pmWeekOffset: pm.offset,
+          // A start date only applies to a biweekly lane; clear it otherwise so a
+          // stale anchor never lingers after switching back to weekly.
+          amStartDate:
+            am.interval > 1 && am.startDate ? new Date(am.startDate).toISOString() : null,
+          pmStartDate:
+            pm.interval > 1 && pm.startDate ? new Date(pm.startDate).toISOString() : null,
           semesterPlanning: semester === 'full' ? null : semester,
         }),
       })

@@ -42,6 +42,9 @@ interface Shell {
   amWeekOffset: number
   pmWeekInterval: number
   pmWeekOffset: number
+  amStartDate: string | null
+  pmStartDate: string | null
+  excludedDates?: string[]
   semesterPlanning: string | null
   amScheduleData?: Record<string, ScheduleTerm> | null
   pmScheduleData?: Record<string, ScheduleTerm> | null
@@ -111,6 +114,9 @@ export function TurnusEditor({
   const [holidays, setHolidays] = useState<Holiday[]>([])
   const [am, setAm] = useState<LaneState>({ numberOfTerms: 4, customLengths: {} })
   const [pm, setPm] = useState<LaneState>({ numberOfTerms: 4, customLengths: {} })
+  // Dates ("dd.MM.yy") the class is not at school — whole-day, so both lanes skip
+  // them. Toggled by clicking a teaching week in the band; treated like holidays.
+  const [excludedDates, setExcludedDates] = useState<string[]>([])
   const [additionalInfo, setAdditionalInfo] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -137,6 +143,7 @@ export function TurnusEditor({
           if (s) {
             setShell(s)
             setAdditionalInfo(s.additionalInfo ?? '')
+            setExcludedDates(s.excludedDates ?? [])
             // Restore both the Turnus count AND any per-Turnus custom lengths, so
             // revisiting the step and clicking Next doesn't silently drop them.
             const toLane = (data?: Record<string, ScheduleTerm> | null): LaneState | null => {
@@ -182,7 +189,7 @@ export function TurnusEditor({
   }, [shell?.semesterPlanning, schoolYearStart, schoolYearEnd, schoolYearMiddle])
 
   const buildTerms = useCallback(
-    (lane: LaneState, cadence: PeriodCadence): ScheduleTerm[] => {
+    (lane: LaneState, cadence: PeriodCadence, patternStart: Date | null): ScheduleTerm[] => {
       if (!windowStart || !windowEnd) return []
       return computePeriodTurns({
         start: windowStart,
@@ -192,9 +199,11 @@ export function TurnusEditor({
         customLengths: lane.customLengths,
         holidays,
         cadence,
+        patternStart,
+        excludedDates,
       })
     },
-    [windowStart, windowEnd, weekday, holidays],
+    [windowStart, windowEnd, weekday, holidays, excludedDates],
   )
 
   const amCadence: PeriodCadence = {
@@ -205,14 +214,18 @@ export function TurnusEditor({
     weekInterval: shell?.pmWeekInterval ?? 1,
     weekOffset: shell?.pmWeekOffset ?? 0,
   }
+  const amStart = shell?.amStartDate ? new Date(shell.amStartDate) : null
+  const pmStart = shell?.pmStartDate ? new Date(shell.pmStartDate) : null
 
   const amTerms = useMemo(
-    () => (shell?.amEnabled ? buildTerms(am, amCadence) : []),
-    [shell?.amEnabled, am, buildTerms, shell?.amWeekInterval, shell?.amWeekOffset],
+    () => (shell?.amEnabled ? buildTerms(am, amCadence, amStart) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [shell?.amEnabled, am, buildTerms, shell?.amWeekInterval, shell?.amWeekOffset, shell?.amStartDate],
   )
   const pmTerms = useMemo(
-    () => (shell?.pmEnabled ? buildTerms(pm, pmCadence) : []),
-    [shell?.pmEnabled, pm, buildTerms, shell?.pmWeekInterval, shell?.pmWeekOffset],
+    () => (shell?.pmEnabled ? buildTerms(pm, pmCadence, pmStart) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [shell?.pmEnabled, pm, buildTerms, shell?.pmWeekInterval, shell?.pmWeekOffset, shell?.pmStartDate],
   )
 
   // Shared month ruler + holiday strip, positioned by date fraction across the
@@ -263,6 +276,14 @@ export function TurnusEditor({
   const toRecord = (terms: ScheduleTerm[]): Record<string, ScheduleTerm> =>
     Object.fromEntries(terms.map(({ allWeeks: _allWeeks, ...term }) => [term.name, term]))
 
+  // A day the class is not at school. Whole-day, so it drops out of both lanes;
+  // recomputing the terms then shifts the following weeks (see computePeriodTurns).
+  const toggleExcluded = useCallback((date: string) => {
+    setExcludedDates(prev =>
+      prev.includes(date) ? prev.filter(d => d !== date) : [...prev, date],
+    )
+  }, [])
+
   const handleSave = async () => {
     setSaving(true)
     setError(null)
@@ -288,6 +309,9 @@ export function TurnusEditor({
           amWeekOffset: amCadence.weekOffset,
           pmWeekInterval: pmCadence.weekInterval,
           pmWeekOffset: pmCadence.weekOffset,
+          amStartDate: shell?.amStartDate ?? null,
+          pmStartDate: shell?.pmStartDate ?? null,
+          excludedDates,
           amScheduleData: shell?.amEnabled ? toRecord(amTerms) : null,
           pmScheduleData: shell?.pmEnabled ? toRecord(pmTerms) : null,
           additionalInfo,
@@ -415,6 +439,7 @@ export function TurnusEditor({
               lane={am}
               terms={amTerms}
               onChange={setAm}
+              onToggleExclude={toggleExcluded}
             />
           )}
           {shell?.pmEnabled && (
@@ -425,6 +450,7 @@ export function TurnusEditor({
               lane={pm}
               terms={pmTerms}
               onChange={setPm}
+              onToggleExclude={toggleExcluded}
             />
           )}
         </CardContent>
@@ -470,6 +496,8 @@ interface LaneBandProps {
   lane: LaneState
   terms: ScheduleTerm[]
   onChange: (next: LaneState) => void
+  /** Toggle a specific date ("dd.MM.yy") as a day the class is not at school. */
+  onToggleExclude: (date: string) => void
 }
 
 interface DragState {
@@ -486,7 +514,15 @@ interface DragState {
  * draggable boundaries between them, plus a Turnusse stepper and a per-Turnus
  * manual week-length control.
  */
-function LaneBand({ title, icon: Icon, biweekly, lane, terms, onChange }: LaneBandProps) {
+function LaneBand({
+  title,
+  icon: Icon,
+  biweekly,
+  lane,
+  terms,
+  onChange,
+  onToggleExclude,
+}: LaneBandProps) {
   const { t } = useTranslation('schedule')
   const bandRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<DragState | null>(null)
@@ -631,20 +667,44 @@ function LaneBand({ title, icon: Icon, biweekly, lane, terms, onChange }: LaneBa
                   </div>
                 </div>
                 <div className="flex gap-px">
-                  {cells.map((week, cellIndex) => (
-                    <div
-                      key={`${week.date}-${cellIndex}`}
-                      title={week.isHoliday ? (week.holidayName ?? week.date) : week.date}
-                      className={cn(
-                        'flex h-6 min-w-0 flex-1 items-center justify-center rounded-sm text-[10px] tabular-nums',
-                        week.isHoliday
-                          ? 'bg-muted text-muted-foreground'
-                          : 'bg-primary/10 text-foreground',
-                      )}
-                    >
-                      {kwNumber(week.week)}
-                    </div>
-                  ))}
+                  {cells.map((week, cellIndex) => {
+                    const cellBase =
+                      'flex h-6 min-w-0 flex-1 items-center justify-center rounded-sm text-[10px] tabular-nums'
+                    // Holidays are fixed — only teaching / excluded weeks toggle.
+                    if (week.isHoliday) {
+                      return (
+                        <div
+                          key={`${week.date}-${cellIndex}`}
+                          title={week.holidayName ?? week.date}
+                          className={cn(cellBase, 'bg-muted text-muted-foreground')}
+                        >
+                          {kwNumber(week.week)}
+                        </div>
+                      )
+                    }
+                    return (
+                      <button
+                        key={`${week.date}-${cellIndex}`}
+                        type="button"
+                        onClick={() => onToggleExclude(week.date)}
+                        aria-pressed={week.isExcluded ?? false}
+                        title={
+                          week.isExcluded
+                            ? t('restoreDayHint', { date: week.date })
+                            : t('excludeDayHint', { date: week.date })
+                        }
+                        className={cn(
+                          cellBase,
+                          'cursor-pointer transition-colors',
+                          week.isExcluded
+                            ? 'bg-muted text-muted-foreground/70 line-through'
+                            : 'bg-primary/10 text-foreground hover:bg-primary/20',
+                        )}
+                      >
+                        {kwNumber(week.week)}
+                      </button>
+                    )
+                  })}
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-2 px-0.5">
                   <Input

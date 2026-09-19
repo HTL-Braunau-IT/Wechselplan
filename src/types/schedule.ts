@@ -9,6 +9,12 @@ export type ScheduleWeek = {
   isHoliday: boolean
   /** Name of the holiday this week falls in, when `isHoliday` is true. Display-only. */
   holidayName?: string
+  /**
+   * Set when the week was manually excluded because the class is not at school
+   * that day. Like a holiday it never counts as teaching; display-only, and
+   * present only on `allWeeks` (teaching `weeks` omit these entirely).
+   */
+  isExcluded?: boolean
 }
 
 export type ScheduleTerm = {
