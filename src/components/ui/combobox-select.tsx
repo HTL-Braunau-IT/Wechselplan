@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { createPortal } from 'react-dom'
 import { CheckIcon, ChevronDownIcon, PlusIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Input } from './input'
@@ -24,6 +25,31 @@ export function ComboboxSelect({
   const [isOpen, setIsOpen] = React.useState(false)
   const [inputValue, setInputValue] = React.useState(value)
   const [filteredOptions, setFilteredOptions] = React.useState(options)
+  const [menuPosition, setMenuPosition] = React.useState<{
+    top: number
+    left: number
+    width: number
+  } | null>(null)
+  const containerRef = React.useRef<HTMLDivElement>(null)
+
+  // Keep the portaled menu aligned to the trigger while open
+  React.useEffect(() => {
+    if (!isOpen) return
+
+    const updatePosition = () => {
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      setMenuPosition({ top: rect.bottom, left: rect.left, width: rect.width })
+    }
+
+    updatePosition()
+    window.addEventListener('scroll', updatePosition, true)
+    window.addEventListener('resize', updatePosition)
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true)
+      window.removeEventListener('resize', updatePosition)
+    }
+  }, [isOpen])
 
   // Update input value when external value changes
   React.useEffect(() => {
@@ -86,7 +112,7 @@ export function ComboboxSelect({
   )
 
   return (
-    <div className={cn('relative', className)}>
+    <div ref={containerRef} className={cn('relative', className)}>
       <div className="relative">
         <Input
           value={inputValue}
@@ -108,45 +134,57 @@ export function ComboboxSelect({
         </Button>
       </div>
 
-      {isOpen && (
-        <div className="bg-popover border-border absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border shadow-lg">
-          {filteredOptions.length > 0 && (
-            <div className="p-1">
-              {filteredOptions.map(option => (
+      {isOpen &&
+        menuPosition &&
+        createPortal(
+          <div
+            className="bg-popover border-border fixed z-50 mt-1 max-h-60 overflow-auto rounded-md border shadow-lg"
+            style={{
+              top: menuPosition.top,
+              left: menuPosition.left,
+              width: menuPosition.width,
+            }}
+            // Prevent the input's onBlur from firing before an option's onClick
+            onMouseDown={e => e.preventDefault()}
+          >
+            {filteredOptions.length > 0 && (
+              <div className="p-1">
+                {filteredOptions.map(option => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    className={cn(
+                      'hover:bg-accent hover:text-accent-foreground flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-left text-sm',
+                      value === option.name && 'bg-accent text-accent-foreground',
+                    )}
+                    onClick={() => handleOptionSelect(option.name)}
+                  >
+                    <span>{option.name}</span>
+                    {value === option.name && <CheckIcon className="h-4 w-4" />}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {showCustomOption && (
+              <div className="border-border border-t p-1">
                 <button
-                  key={option.id}
                   type="button"
-                  className={cn(
-                    'hover:bg-accent hover:text-accent-foreground flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-left text-sm',
-                    value === option.name && 'bg-accent text-accent-foreground',
-                  )}
-                  onClick={() => handleOptionSelect(option.name)}
+                  className="hover:bg-accent hover:text-accent-foreground flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm"
+                  onClick={handleCustomValueConfirm}
                 >
-                  <span>{option.name}</span>
-                  {value === option.name && <CheckIcon className="h-4 w-4" />}
+                  <PlusIcon className="h-4 w-4" />
+                  <span>Add &quot;{inputValue}&quot;</span>
                 </button>
-              ))}
-            </div>
-          )}
+              </div>
+            )}
 
-          {showCustomOption && (
-            <div className="border-border border-t p-1">
-              <button
-                type="button"
-                className="hover:bg-accent hover:text-accent-foreground flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm"
-                onClick={handleCustomValueConfirm}
-              >
-                <PlusIcon className="h-4 w-4" />
-                <span>Add &quot;{inputValue}&quot;</span>
-              </button>
-            </div>
-          )}
-
-          {filteredOptions.length === 0 && !showCustomOption && inputValue && (
-            <div className="text-muted-foreground p-2 text-center text-sm">No options found</div>
-          )}
-        </div>
-      )}
+            {filteredOptions.length === 0 && !showCustomOption && inputValue && (
+              <div className="text-muted-foreground p-2 text-center text-sm">No options found</div>
+            )}
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }
