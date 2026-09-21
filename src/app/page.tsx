@@ -8,6 +8,7 @@ import { CalendarClock, LayoutDashboard, LogIn, Tag } from 'lucide-react'
 import React from 'react'
 import { TeacherOverview } from '@/components/overviews/teacher'
 import { StudentOverview } from '@/components/overviews/students'
+import { StudentRoomHighlight } from '@/components/overviews/student-room-highlight'
 import { ChangelogDialog } from '@/components/changelog-dialog'
 import { useGitHubVersion } from '@/hooks/use-github-version'
 import { PageContainer } from '@/components/ui/page-container'
@@ -94,7 +95,12 @@ export default function Home() {
           </>
         }
       />
-      {role === 'student' && <StudentOverview />}
+      {role === 'student' && (
+        <>
+          <StudentRoomHighlight />
+          <StudentOverview />
+        </>
+      )}
     </PageContainer>
   )
 }

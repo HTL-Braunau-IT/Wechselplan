@@ -1,7 +1,11 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import type { StudentPlacementResult, WeekOccupancy } from '@/lib/raumplan/types'
+import type {
+  StudentPlacementResult,
+  StudentSelfPlacement,
+  WeekOccupancy,
+} from '@/lib/raumplan/types'
 
 const FIVE_MIN = 1000 * 60 * 5
 
@@ -42,6 +46,24 @@ export function useStudentPlacement(
       return res.json() as Promise<StudentPlacementResult>
     },
     enabled: studentId != null,
+    staleTime: FIVE_MIN,
+  })
+}
+
+/** The signed-in student's own room for today / the next workshop day. Returns
+ * undefined data (not an error the UI must surface) when the caller is not a
+ * student — the endpoint 404s and the query is left to fail silently. */
+export function useMyRoom(schoolYearId?: number) {
+  return useQuery<StudentSelfPlacement>({
+    queryKey: ['raumplan', 'me', schoolYearId ?? null],
+    queryFn: async () => {
+      const params = withYear(new URLSearchParams(), schoolYearId)
+      const qs = params.toString()
+      const res = await fetch(`/api/raumplan/me${qs ? `?${qs}` : ''}`)
+      if (!res.ok) throw new Error('no-room')
+      return res.json() as Promise<StudentSelfPlacement>
+    },
+    retry: false,
     staleTime: FIVE_MIN,
   })
 }

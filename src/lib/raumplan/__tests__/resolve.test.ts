@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  addDays,
   findInvariantViolations,
   formatPlanDate,
+  isScheduledPlacement,
   isoWeekday,
   mondayOf,
   parsePlanDate,
@@ -11,7 +13,13 @@ import {
   resolveTurnusName,
   weekdayDates,
 } from '../resolve'
-import type { AssignmentRow, Period, RotationRow, TurnDates } from '../types'
+import type {
+  AssignmentRow,
+  Period,
+  RotationRow,
+  StudentPlacementPeriod,
+  TurnDates,
+} from '../types'
 
 // ── Fixture ──────────────────────────────────────────────────────────────────
 // Class 10, Monday (weekday 1), AM lane. Two groups, two teachers, two rooms:
@@ -126,6 +134,47 @@ describe('isoWeekday / mondayOf / weekdayDates', () => {
       4: '11.09.25',
       5: '12.09.25',
     })
+  })
+})
+
+describe('addDays', () => {
+  it('shifts by whole days and crosses month boundaries', () => {
+    expect(formatPlanDate(addDays(new Date(2025, 8, 30), 1))).toBe('01.10.25')
+    expect(formatPlanDate(addDays(new Date(2025, 8, 8), 7))).toBe('15.09.25')
+    expect(formatPlanDate(addDays(new Date(2025, 8, 8), 0))).toBe('08.09.25')
+  })
+})
+
+describe('isScheduledPlacement', () => {
+  const period = (over: Partial<StudentPlacementPeriod>): StudentPlacementPeriod => ({
+    period: 'AM',
+    state: 'none',
+    roomName: null,
+    level: null,
+    teacherName: null,
+    subjectName: null,
+    learningContentName: null,
+    groupId: null,
+    turnName: null,
+    ...over,
+  })
+
+  it('is true only when a period is placed in a real Turnus week', () => {
+    expect(
+      isScheduledPlacement([period({ state: 'placed', roomName: 'E83', turnName: 'TURNUS 1' })]),
+    ).toBe(true)
+  })
+
+  it('is false when placed but outside any week (base-only, turnName null)', () => {
+    // A base assignment resolves a room on the class weekday even outside a
+    // meeting week — that must NOT count as a scheduled day.
+    expect(
+      isScheduledPlacement([period({ state: 'placed', roomName: 'E83', turnName: null })]),
+    ).toBe(false)
+  })
+
+  it('is false when nothing is placed', () => {
+    expect(isScheduledPlacement([period({}), period({ period: 'PM' })])).toBe(false)
   })
 })
 

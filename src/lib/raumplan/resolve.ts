@@ -61,6 +61,11 @@ export function mondayOf(date: Date): Date {
   return d
 }
 
+/** `date` shifted by `n` whole days (local midnight). */
+export function addDays(date: Date, n: number): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + n)
+}
+
 /** Mon–Fri dates ("dd.MM.yy") for the week containing `date`, keyed by weekday. */
 export function weekdayDates(date: Date): Record<number, string> {
   const monday = mondayOf(date)
@@ -302,6 +307,18 @@ function emptyStudentPeriod(period: Period, turnName: string | null): StudentPla
     groupId: null,
     turnName,
   }
+}
+
+/**
+ * Whether a resolved day is a genuine workshop day for the student: at least one
+ * period lands the group in a room AND that period is a real Turnus week
+ * (`turnName != null`). The `turnName` gate matters because a base assignment
+ * still resolves a room on the class's weekday even outside any meeting week —
+ * we must not present that as a scheduled day. Drives the "next scheduled day"
+ * search when today has nothing.
+ */
+export function isScheduledPlacement(periods: readonly StudentPlacementPeriod[]): boolean {
+  return periods.some(p => p.turnName != null && p.state === 'placed')
 }
 
 /**

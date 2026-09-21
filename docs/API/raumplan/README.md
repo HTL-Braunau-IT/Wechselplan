@@ -15,14 +15,11 @@ Both endpoints are **`staff`** tier (`src/lib/api-access.ts`,
 guards itself with `denyUnlessAccess('staff')`. They return full rosters and
 room bindings across the workshop, the same sensitivity as `/api/schedules/data`.
 
-> **Student self-view (not yet built).** The "where should I be?" endpoint is
-> staff-only for now, driven by a staff picker (HANDOFF §8.3). A student-facing
-> self-view would need (a) a `session`-tier rule placed _before_ the `staff` rule
-> (e.g. `{ prefix: '/api/raumplan/student', tier: 'session' }`), and (b) an
-> ownership check in the handler resolving the caller's own `Student` from the
-> session and rejecting any other `studentId`. There is currently no
-> student-session → `Student` identity mapping in the app (teachers resolve via
-> `Teacher.username`; students have no equivalent), which is why it is deferred.
+> **Student self-view.** `GET /api/raumplan/me` (`session`-tier, below) is the
+> student-facing endpoint: it is self-scoped — the `Student` is resolved from the
+> session via `resolveSessionStudent`, never a query param — so any signed-in user
+> may reach it and only ever sees their own room. `GET /api/raumplan/student`
+> (staff, takes a `studentId`) remains the staff picker.
 
 ## `GET /api/raumplan`
 
@@ -142,6 +139,37 @@ Response (`200`):
 
 Errors: `400` (missing/invalid `studentId` or no school year), `404` (student not
 found or has no class), `500` (unexpected).
+
+## `GET /api/raumplan/me`
+
+The **signed-in student's own** room for today, or the next workshop day when
+today has nothing. `session`-tier and self-scoped: the `Student` is resolved from
+the session (`resolveSessionStudent`), never a param. A signed-in user who is not
+a student (or matches no `Student`) gets `404`. Powers the room highlight on the
+student home page.
+
+Query params: `date` (optional `"dd.MM.yy"`, defaults today), `schoolYearId`.
+
+Response (`200`) — same period shape as `/student`, plus a day resolution:
+
+```jsonc
+{
+  "student": { "id": 7, "name": "Max Mustermann", "className": "1AHET", "groupId": 1 },
+  "date": "22.09.25", // the resolved day (may be later than today)
+  "weekday": 1,
+  "isToday": true, // false → date is the next workshop day
+  "hasUpcoming": true, // false → no scheduled day found in the search window (~4 weeks)
+  "periods": [
+    /* StudentPlacementPeriod[], AM then PM — same fields as /student */
+  ],
+}
+```
+
+The forward search treats a day as "scheduled" only when a period is `placed` in
+a real Turnus week (`turnName != null`) — a base assignment resolving a room on
+the class's weekday outside any meeting week does not count.
+
+Errors: `400` (no school year), `404` (no student for the session), `500`.
 
 ## Turnus / date resolution (important)
 

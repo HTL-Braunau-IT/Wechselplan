@@ -8,8 +8,10 @@ import { levelOfRoom } from './levels'
 import {
   PERIODS,
   WEEKDAYS,
+  addDays,
   findInvariantViolations,
   formatPlanDate,
+  isScheduledPlacement,
   isoWeekday,
   parsePlanDate,
   resolveRoomOccupancy,
@@ -23,7 +25,9 @@ import type {
   Period,
   RoomCell,
   RotationRow,
+  StudentPlacementPeriod,
   StudentPlacementResult,
+  StudentSelfPlacement,
   TurnDates,
   WeekOccupancy,
 } from './types'
@@ -199,6 +203,84 @@ export async function getStudentPlacement(
     date: dateStr,
     weekday,
     periods,
+  }
+}
+
+export interface StudentLike {
+  id: number
+  firstName: string
+  lastName: string
+  classId: number
+  groupId: number | null
+  className: string | null
+}
+
+/**
+ * The signed-in student's own room for today, or — when today is not a workshop
+ * day for them — the next scheduled day within `searchDays`. The route resolves
+ * the `Student` from the session (see resolveSessionStudent) and passes it here,
+ * so a student only ever gets their own data.
+ */
+export async function getStudentSelfPlacement(
+  student: StudentLike,
+  fromDate: string | null,
+  schoolYearId: number,
+  searchDays = 28,
+): Promise<StudentSelfPlacement> {
+  const from = (fromDate ? parsePlanDate(fromDate) : null) ?? new Date()
+
+  const [assignments, rotations, classTurnsMap] = await Promise.all([
+    loadAssignments(schoolYearId),
+    loadRotations(schoolYearId),
+    loadClassTurns([student.classId], schoolYearId),
+  ])
+
+  const summary = {
+    id: student.id,
+    name: `${student.firstName} ${student.lastName}`.trim(),
+    className: student.className,
+    groupId: student.groupId ?? null,
+  }
+
+  const placeOn = (date: Date): StudentPlacementPeriod[] => {
+    const weekday = isoWeekday(date)
+    const turns = classTurnsMap.get(student.classId)?.get(weekday) ?? []
+    return resolveStudentPlacement(
+      { classId: student.classId, groupId: student.groupId ?? null },
+      assignments,
+      rotations,
+      turns,
+      formatPlanDate(date),
+      weekday,
+      levelOfRoom,
+    )
+  }
+
+  for (let d = 0; d < searchDays; d++) {
+    const date = addDays(from, d)
+    const weekday = isoWeekday(date)
+    if (weekday > 5) continue
+    const periods = placeOn(date)
+    if (isScheduledPlacement(periods)) {
+      return {
+        student: summary,
+        date: formatPlanDate(date),
+        weekday,
+        isToday: d === 0,
+        hasUpcoming: true,
+        periods,
+      }
+    }
+  }
+
+  // Nothing found in the window — report today (all empty) so the UI can say so.
+  return {
+    student: summary,
+    date: formatPlanDate(from),
+    weekday: isoWeekday(from),
+    isToday: true,
+    hasUpcoming: false,
+    periods: placeOn(from),
   }
 }
 

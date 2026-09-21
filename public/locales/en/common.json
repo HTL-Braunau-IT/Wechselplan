@@ -233,6 +233,11 @@
       "nothingScheduled": "No class",
       "whereTitle": "Where should I be?"
     },
+    "home": {
+      "todayTitle": "Your room today",
+      "nextTitle": "Your next workshop day",
+      "none": "No workshop lessons are scheduled in the coming weeks."
+    },
     "empty": {
       "title": "No occupancy",
       "description": "There is no room occupancy for this selection."

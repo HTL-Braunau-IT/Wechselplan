@@ -123,3 +123,15 @@ export interface StudentPlacementResult {
   weekday: number
   periods: StudentPlacementPeriod[]
 }
+
+/** The signed-in student's own placement for today, or the next workshop day if
+ * today has nothing. `isToday` distinguishes the two; `hasUpcoming` is false when
+ * the forward search found no scheduled day in its window. */
+export interface StudentSelfPlacement {
+  student: { id: number; name: string; className: string | null; groupId: number | null }
+  date: string
+  weekday: number
+  isToday: boolean
+  hasUpcoming: boolean
+  periods: StudentPlacementPeriod[]
+}

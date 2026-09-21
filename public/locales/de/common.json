@@ -264,6 +264,11 @@
       "nothingScheduled": "Kein Unterricht",
       "whereTitle": "Wo bin ich?"
     },
+    "home": {
+      "todayTitle": "Dein Raum heute",
+      "nextTitle": "Dein nächster Werkstättentag",
+      "none": "In den nächsten Wochen ist kein Werkstättenunterricht geplant."
+    },
     "empty": {
       "title": "Keine Belegung",
       "description": "Für diese Auswahl gibt es keine Raumbelegung."
