@@ -1,0 +1,118 @@
+/* Theme-aware floor-plan styling. Only `.plan` is a (hashed) CSS-module class —
+   everything else is keyed by data-* attributes set in JSX, which CSS modules do
+   not rename, so the semantic SVG contract from the generator survives. Colours
+   come from the app theme tokens (src/styles/globals.css), so light/dark and any
+   future re-theme are automatic. */
+
+.plan {
+  width: 100%;
+  height: auto;
+  display: block;
+  font-family: inherit;
+  user-select: none;
+}
+
+.plan text {
+  fill: var(--foreground);
+  paint-order: stroke;
+}
+
+/* Orientation-only fills. */
+.plan [data-cell='gang'] {
+  fill: var(--muted);
+}
+.plan [data-cell='hof'] {
+  fill: var(--secondary);
+  stroke: var(--border);
+  stroke-width: 1.5;
+}
+.plan [data-cell='hof-t'],
+.plan [data-cell='gang-t'] {
+  fill: var(--muted-foreground);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+
+/* Labels. */
+.plan [data-cell='r-name'] {
+  font-size: 22px;
+  font-weight: 600;
+}
+.plan [data-cell='r-label'] {
+  font-size: 19px;
+  fill: var(--muted-foreground);
+}
+
+/* Room boxes — default (DB room, not classified yet). */
+.plan [data-cell='room-box'] {
+  fill: var(--card);
+  stroke: var(--border);
+  stroke-width: 3;
+  transition:
+    fill 120ms ease,
+    stroke 120ms ease;
+}
+
+/* Context (non-teaching) rooms: muted, non-interactive. */
+.plan [data-db='false'] [data-cell='room-box'] {
+  fill: var(--muted);
+  stroke: var(--border);
+  stroke-width: 2;
+}
+.plan [data-db='false'] [data-cell='r-name'] {
+  fill: var(--muted-foreground);
+  font-weight: 500;
+}
+
+/* Interactive DB rooms. */
+.plan [data-db='true'] {
+  cursor: pointer;
+}
+.plan [data-db='true'][data-state='unused'] [data-cell='room-box'] {
+  fill: url(#rp-hatch);
+  stroke: var(--border);
+}
+.plan [data-db='true'][data-state='free'] [data-cell='room-box'] {
+  fill: var(--card);
+  stroke: var(--border);
+  stroke-width: 2;
+}
+.plan [data-db='true'][data-state='occupied'] [data-cell='room-box'] {
+  fill: color-mix(in oklch, var(--success) 22%, var(--card));
+  stroke: var(--success);
+  stroke-width: 3.4;
+}
+.plan [data-db='true'][data-state='occupied'] [data-cell='r-name'] {
+  fill: var(--success-foreground);
+}
+
+/* Hover + selection accents. */
+.plan [data-db='true']:hover [data-cell='room-box'] {
+  stroke: var(--primary);
+}
+.plan [data-db='true'][data-selected='true'] [data-cell='room-box'] {
+  stroke: var(--primary);
+  stroke-width: 6;
+}
+.plan [data-db='true'][data-selected='true'] [data-cell='r-name'],
+.plan [data-db='true'][data-selected='true'] [data-cell='r-label'] {
+  fill: var(--foreground);
+}
+
+/* Doors: the gap "cuts" the wall with the page background, the line is the leaf. */
+.plan [data-cell='door-gap'] {
+  fill: var(--background);
+}
+.plan [data-cell='door-line'] {
+  fill: none;
+  stroke: var(--muted-foreground);
+  stroke-width: 2.5;
+}
+
+/* Hatch pattern strokes (referenced from the inline <pattern>). */
+.plan [data-cell='hatch-line'] {
+  stroke: var(--muted-foreground);
+  stroke-width: 1.6;
+  opacity: 0.5;
+}

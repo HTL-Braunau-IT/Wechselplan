@@ -166,7 +166,78 @@
     "notenmanagement": "Grade Management",
     "support": "Help & Support",
     "changelog": "View changelog",
-    "classSettings": "Class settings"
+    "classSettings": "Class settings",
+    "raumplan": "Room Plan"
+  },
+  "raumplan": {
+    "title": "Room Plan",
+    "description": "Which teacher is in which workshop room on each weekday and half-day.",
+    "views": {
+      "grundriss": "Floor plan",
+      "matrix": "Room matrix",
+      "student": "Student view"
+    },
+    "levels": {
+      "eg-e": "GF · Electrical workshop",
+      "eg-m": "GF · Mechanical workshop",
+      "og1": "1st floor · Electrical workshop"
+    },
+    "periods": {
+      "AM": "Morning",
+      "PM": "Afternoon",
+      "amShort": "AM",
+      "pmShort": "PM"
+    },
+    "weekdays": {
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday"
+    },
+    "state": {
+      "occupied": "Occupied",
+      "free": "Free",
+      "unused": "Not used"
+    },
+    "controls": {
+      "level": "Level",
+      "day": "Day",
+      "period": "Half-day",
+      "week": "Week",
+      "today": "Today"
+    },
+    "detail": {
+      "teacher": "Teacher",
+      "subject": "Subject",
+      "learningContent": "Learning content",
+      "group": "Group",
+      "groups": "Groups",
+      "room": "Room",
+      "turnus": "Turnus",
+      "noGroup": "No group assigned",
+      "selectHint": "Tap a room for details."
+    },
+    "matrix": {
+      "room": "Room",
+      "empty": "—"
+    },
+    "student": {
+      "pickTitle": "Select student",
+      "pickPlaceholder": "Choose class and student",
+      "pickClass": "Class",
+      "pickStudent": "Student",
+      "date": "Date",
+      "amRoom": "Morning room",
+      "pmRoom": "Afternoon room",
+      "nothingScheduled": "No class",
+      "whereTitle": "Where should I be?"
+    },
+    "empty": {
+      "title": "No occupancy",
+      "description": "There is no room occupancy for this selection."
+    },
+    "loadError": "Could not load room occupancy."
   },
   "overview": {
     "studentTitle": "Student Overview",

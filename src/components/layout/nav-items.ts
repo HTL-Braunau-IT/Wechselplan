@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   GraduationCap,
   FileText,
+  DoorOpen,
   type LucideIcon,
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
@@ -76,6 +77,11 @@ export function useNavItems(): NavItem[] {
       label: t('navigation.notensammler'),
       icon: ClipboardList,
     })
+  }
+  // Room-occupancy overview: returns full workshop rosters/room bindings, so it
+  // is a staff view (teacher or admin), matching the /api/raumplan access tier.
+  if (role === 'teacher' || role === 'admin') {
+    items.push({ href: '/raumplan', label: t('navigation.raumplan'), icon: DoorOpen })
   }
   if (role === 'teacher' || role === 'admin') {
     items.push({

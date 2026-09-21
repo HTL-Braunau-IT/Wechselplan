@@ -16,6 +16,7 @@
     "db:audit-entra-adoption": "npx tsx scripts/audit-entra-adoption.ts",
     "db:merge-teacher-identities": "npx tsx scripts/merge-teacher-identities.ts",
     "db:studio": "prisma studio",
+    "verify:raumplan-invariant": "npx tsx scripts/verify-raumplan-invariant.ts",
     "dev": "next dev --turbo",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
     "format:write": "prettier --write \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",

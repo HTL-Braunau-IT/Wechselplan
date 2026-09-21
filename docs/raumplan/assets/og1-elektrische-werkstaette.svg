@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 1400" width="2000" height="1400" font-family="'IBM Plex Sans', system-ui, sans-serif">
+  <title>1. Stock – Elektrische Werkstätte (1:1 Trace)</title>
+  <defs>
+    <pattern id="hof" width="10" height="10" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+      <rect width="10" height="10" fill="#f4f5f7"/><line x1="0" y1="0" x2="0" y2="10" stroke="#dde1e7" stroke-width="1.4"/>
+    </pattern>
+  </defs>
+  <style>
+    .titlebar{fill:#cfd2d6}.title-t{font-size:44px;font-weight:600;fill:#20242b}
+    .gang{fill:#c9ccd1}.gang-t{font-size:22px;letter-spacing:.06em;fill:#5f656d;font-weight:500}
+    .hof{fill:url(#hof);stroke:#c9ccd1;stroke-width:1.5}.hof-t{font-size:24px;letter-spacing:.12em;fill:#9aa0a8;font-weight:600}
+    .room-box{fill:#eef3ff;stroke:#2f4bc0;stroke-width:3.2}
+    .r-name{font-size:22px;font-weight:600;fill:#233b9c}.r-label{font-size:18px;fill:#4c535d}
+  </style>
+  <rect x="0" y="0" width="2000" height="1400" fill="#ffffff"/>
+  <rect class="titlebar" x="520" y="90" width="930" height="86" rx="2"/>
+  <text class="title-t" x="985" y="150" text-anchor="middle">1. Stock · Elektrische Werkstätte</text>
+  <rect class="gang" x="840" y="300" width="290" height="950"/>
+  <rect class="hof" x="370" y="300" width="150" height="950"/>
+  <rect class="hof" x="1450" y="300" width="150" height="950"/>
+  <text class="hof-t" x="445" y="780" text-anchor="middle">HOF</text>
+  <text class="hof-t" x="1525" y="780" text-anchor="middle">HOF</text>
+  <text class="gang-t" x="985" y="780" text-anchor="middle">GANG</text>
+  <g class="room room--db" data-room="145">
+    <rect class="room-box" x="520" y="300" width="320" height="225"/>
+    <text class="r-name" x="680" y="393.5" text-anchor="middle">145</text><text class="r-label" x="680" y="417.5" text-anchor="middle">Werkstätte</text><text class="r-label" x="680" y="441.5" text-anchor="middle">Kommunikationssysteme</text>
+  </g>
+  <g class="room room--db" data-room="144">
+    <rect class="room-box" x="520" y="525" width="320" height="250"/>
+    <text class="r-name" x="680" y="631" text-anchor="middle">144</text><text class="r-label" x="680" y="655" text-anchor="middle">Werkstätte</text><text class="r-label" x="680" y="679" text-anchor="middle">Löttechnik</text>
+  </g>
+  <g class="room room--db" data-room="143">
+    <rect class="room-box" x="520" y="775" width="320" height="225"/>
+    <text class="r-name" x="680" y="868.5" text-anchor="middle">143</text><text class="r-label" x="680" y="892.5" text-anchor="middle">Werkstätte</text><text class="r-label" x="680" y="916.5" text-anchor="middle">Steuerungstechnik</text>
+  </g>
+  <g class="room room--db" data-room="142">
+    <rect class="room-box" x="520" y="1000" width="320" height="250"/>
+    <text class="r-name" x="680" y="1094" text-anchor="middle">142</text><text class="r-label" x="680" y="1118" text-anchor="middle">Werkstätte</text><text class="r-label" x="680" y="1142" text-anchor="middle">Grundlagen ET</text><text class="r-label" x="680" y="1166" text-anchor="middle">Steuerungstechnik</text>
+  </g>
+  <g class="room room--db" data-room="146">
+    <rect class="room-box" x="1130" y="300" width="320" height="225"/>
+    <text class="r-name" x="1290" y="393.5" text-anchor="middle">146</text><text class="r-label" x="1290" y="417.5" text-anchor="middle">Werkstätte</text><text class="r-label" x="1290" y="441.5" text-anchor="middle">CAD Anwendungen</text>
+  </g>
+  <g class="room room--db" data-room="147">
+    <rect class="room-box" x="1130" y="525" width="320" height="250"/>
+    <text class="r-name" x="1290" y="619" text-anchor="middle">147</text><text class="r-label" x="1290" y="643" text-anchor="middle">Werkstätte</text><text class="r-label" x="1290" y="667" text-anchor="middle">Computer- und</text><text class="r-label" x="1290" y="691" text-anchor="middle">Netzwerktechnik</text>
+  </g>
+  <g class="room room--db" data-room="148">
+    <rect class="room-box" x="1130" y="775" width="320" height="225"/>
+    <text class="r-name" x="1290" y="868.5" text-anchor="middle">148</text><text class="r-label" x="1290" y="892.5" text-anchor="middle">Elektronik und</text><text class="r-label" x="1290" y="916.5" text-anchor="middle">E-Mobilität</text>
+  </g>
+  <g class="room room--db" data-room="149">
+    <rect class="room-box" x="1130" y="1000" width="320" height="250"/>
+    <text class="r-name" x="1290" y="1106" text-anchor="middle">149</text><text class="r-label" x="1290" y="1130" text-anchor="middle">Werkstätte</text><text class="r-label" x="1290" y="1154" text-anchor="middle">SMD-Technik</text>
+  </g>
+<g class="door" transform="rotate(0 840 412.5)"><rect x="827" y="399.5" width="26" height="26" fill="#fff"/><path d="M 832 403.5 L 847 412.5 L 832 421.5" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(0 840 650)"><rect x="827" y="637" width="26" height="26" fill="#fff"/><path d="M 832 641 L 847 650 L 832 659" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(0 840 887.5)"><rect x="827" y="874.5" width="26" height="26" fill="#fff"/><path d="M 832 878.5 L 847 887.5 L 832 896.5" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(0 840 1125)"><rect x="827" y="1112" width="26" height="26" fill="#fff"/><path d="M 832 1116 L 847 1125 L 832 1134" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(180 1130 412.5)"><rect x="1117" y="399.5" width="26" height="26" fill="#fff"/><path d="M 1122 403.5 L 1137 412.5 L 1122 421.5" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(180 1130 650)"><rect x="1117" y="637" width="26" height="26" fill="#fff"/><path d="M 1122 641 L 1137 650 L 1122 659" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(180 1130 887.5)"><rect x="1117" y="874.5" width="26" height="26" fill="#fff"/><path d="M 1122 878.5 L 1137 887.5 L 1122 896.5" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(180 1130 1125)"><rect x="1117" y="1112" width="26" height="26" fill="#fff"/><path d="M 1122 1116 L 1137 1125 L 1122 1134" fill="none" stroke="#242830" stroke-width="2.4"/></g>
+</svg>

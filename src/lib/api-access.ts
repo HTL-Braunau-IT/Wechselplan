@@ -80,6 +80,13 @@ export const API_ACCESS_RULES: readonly ApiAccessRule[] = [
   // Students read their own class schedule from the home page overview.
   { prefix: '/api/schedules', tier: 'session', methods: ['GET'] },
 
+  // Room-occupancy view. Returns full rosters/room bindings across the workshop,
+  // so it is a staff task (same reasoning as /api/schedules/data). The student
+  // "where should I be?" endpoint under /api/raumplan/student is staff-only for
+  // now too — a student self-view would need its own session-tier rule and an
+  // ownership check (see docs/API/raumplan/README.md).
+  { prefix: '/api/raumplan', tier: 'staff', methods: ['GET'] },
+
   // Unattended directory sync, authenticated by a shared secret header rather
   // than a session (see api/admin/sync/run). Declared public here so the
   // session check does not reject the cron caller; the handler enforces the

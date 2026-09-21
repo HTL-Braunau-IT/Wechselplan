@@ -196,8 +196,79 @@
     "noten": "Noten - In Testphase",
     "notenliste": "Notenliste",
     "notenmanagement": "Notenmanagement",
+    "raumplan": "Raumplan",
     "support": "Hilfe & Support",
     "changelog": "Changelog anzeigen"
+  },
+  "raumplan": {
+    "title": "Raumplan",
+    "description": "Welcher Lehrer ist an welchem Tag und Halbtag in welchem Werkstättenraum.",
+    "views": {
+      "grundriss": "Grundriss",
+      "matrix": "Raum-Matrix",
+      "student": "Schüler-Ansicht"
+    },
+    "levels": {
+      "eg-e": "EG · Elektrische Werkstätte",
+      "eg-m": "EG · Mechanische Werkstätte",
+      "og1": "1. Stock · Elektrische Werkstätte"
+    },
+    "periods": {
+      "AM": "Vormittag",
+      "PM": "Nachmittag",
+      "amShort": "VM",
+      "pmShort": "NM"
+    },
+    "weekdays": {
+      "1": "Montag",
+      "2": "Dienstag",
+      "3": "Mittwoch",
+      "4": "Donnerstag",
+      "5": "Freitag"
+    },
+    "state": {
+      "occupied": "Belegt",
+      "free": "Frei",
+      "unused": "Nicht genutzt"
+    },
+    "controls": {
+      "level": "Ebene",
+      "day": "Tag",
+      "period": "Halbtag",
+      "week": "Woche",
+      "today": "Heute"
+    },
+    "detail": {
+      "teacher": "Lehrer",
+      "subject": "Fach",
+      "learningContent": "Lerninhalt",
+      "group": "Gruppe",
+      "groups": "Gruppen",
+      "room": "Raum",
+      "turnus": "Turnus",
+      "noGroup": "Keine Gruppe zugeteilt",
+      "selectHint": "Auf einen Raum tippen für Details."
+    },
+    "matrix": {
+      "room": "Raum",
+      "empty": "—"
+    },
+    "student": {
+      "pickTitle": "Schüler auswählen",
+      "pickPlaceholder": "Klasse und Schüler wählen",
+      "pickClass": "Klasse",
+      "pickStudent": "Schüler",
+      "date": "Datum",
+      "amRoom": "Raum am Vormittag",
+      "pmRoom": "Raum am Nachmittag",
+      "nothingScheduled": "Kein Unterricht",
+      "whereTitle": "Wo bin ich?"
+    },
+    "empty": {
+      "title": "Keine Belegung",
+      "description": "Für diese Auswahl gibt es keine Raumbelegung."
+    },
+    "loadError": "Raumbelegung konnte nicht geladen werden."
   },
   "overview": {
     "studentTitle": "Schülerübersicht",

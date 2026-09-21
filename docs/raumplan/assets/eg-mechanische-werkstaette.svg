@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2000 1400" width="2000" height="1400" font-family="'IBM Plex Sans', system-ui, sans-serif">
+  <title>Erdgeschoss – Mechanische Werkstätte (1:1 Trace)</title>
+  <style>
+    .titlebar { fill:#cfd2d6; }
+    .title-t { font-size:44px; font-weight:600; fill:#20242b; }
+    .gang { fill:#c9ccd1; }
+    .gang-t { font-size:22px; letter-spacing:.06em; fill:#5f656d; font-weight:500; }
+    .room-box { fill:#ffffff; stroke:#242830; stroke-width:3; }
+    .room--db .room-box { fill:#eef3ff; stroke:#2f4bc0; stroke-width:3.2; }
+    .room--ctx .room-box { fill:#fafafa; stroke:#9aa0a8; stroke-width:2; }
+    .r-name { font-size:21px; font-weight:600; fill:#1a1e25; }
+    .room--db .r-name { fill:#233b9c; }
+    .room--ctx .r-name { fill:#71777f; font-weight:500; }
+    .r-label { font-size:17px; fill:#4c535d; }
+    .room--ctx .r-label { fill:#8b919a; }
+  </style>
+  <rect x="0" y="0" width="2000" height="1400" fill="#ffffff"/>
+  <rect class="titlebar" x="200" y="60" width="1700" height="86" rx="2"/>
+  <text class="title-t" x="1050" y="120" text-anchor="middle">Erdgeschoss · Mechanische Werkstätte</text>
+  <rect class="gang" x="950" y="180" width="110" height="1120"/>
+  <rect class="gang" x="1300" y="720" width="120" height="175"/>
+  <rect class="gang" x="1060" y="895" width="840" height="65"/>
+  <rect class="gang" x="200" y="1300" width="1700" height="60"/>
+  <text class="gang-t" x="1005" y="745" text-anchor="middle">GANG</text>
+  <text class="gang-t" x="1480" y="932.5" text-anchor="middle">GANG</text>
+  <text class="gang-t" x="1050" y="1335" text-anchor="middle">GANG</text>
+  <g class="room room--ctx" data-room="E59">
+    <rect class="room-box" x="200" y="195" width="275" height="90"/>
+    <text class="r-name" x="337.5" y="233" text-anchor="middle">E59</text><text class="r-label" x="337.5" y="257" text-anchor="middle">Zuschneiden</text>
+  </g>
+  <g class="room room--ctx" data-room="E58">
+    <rect class="room-box" x="200" y="285" width="275" height="125"/>
+    <text class="r-name" x="337.5" y="340.5" text-anchor="middle">E58</text><text class="r-label" x="337.5" y="364.5" text-anchor="middle">Spänebunker</text>
+  </g>
+  <g class="room room--db" data-room="E61">
+    <rect class="room-box" x="475" y="195" width="245" height="215"/>
+    <text class="r-name" x="597.5" y="295.5" text-anchor="middle">E61</text><text class="r-label" x="597.5" y="319.5" text-anchor="middle">Schweißtechnik</text>
+  </g>
+  <g class="room room--db" data-room="E62">
+    <rect class="room-box" x="720" y="195" width="230" height="215"/>
+    <text class="r-name" x="835" y="295.5" text-anchor="middle">E62</text><text class="r-label" x="835" y="319.5" text-anchor="middle">Schweißtechnik</text>
+  </g>
+  <g class="room room--db" data-room="E57">
+    <rect class="room-box" x="200" y="410" width="275" height="165"/>
+    <text class="r-name" x="337.5" y="485.5" text-anchor="middle">E57</text><text class="r-label" x="337.5" y="509.5" text-anchor="middle">Blechbearbeitung</text>
+  </g>
+  <g class="room room--db" data-room="E64">
+    <rect class="room-box" x="475" y="410" width="475" height="165"/>
+    <text class="r-name" x="712.5" y="485.5" text-anchor="middle">E64</text><text class="r-label" x="712.5" y="509.5" text-anchor="middle">Mechanische Grundausbildung</text>
+  </g>
+  <g class="room room--db" data-room="E56">
+    <rect class="room-box" x="200" y="575" width="160" height="155"/>
+    <text class="r-name" x="280" y="645.5" text-anchor="middle">E56</text><text class="r-label" x="280" y="669.5" text-anchor="middle">CNC Drehen</text>
+  </g>
+  <g class="room room--ctx" data-room="E67">
+    <rect class="room-box" x="360" y="575" width="215" height="120"/>
+    <text class="r-name" x="467.5" y="628" text-anchor="middle">E67</text><text class="r-label" x="467.5" y="652" text-anchor="middle">Unterweisung</text>
+  </g>
+  <g class="room room--db" data-room="E66">
+    <rect class="room-box" x="575" y="575" width="375" height="155"/>
+    <text class="r-name" x="762.5" y="645.5" text-anchor="middle">E66</text><text class="r-label" x="762.5" y="669.5" text-anchor="middle">Ingenieurprojekte</text>
+  </g>
+  <g class="room room--ctx" data-room="E55">
+    <rect class="room-box" x="200" y="730" width="750" height="165"/>
+    <text class="r-name" x="575" y="805.5" text-anchor="middle">E55</text><text class="r-label" x="575" y="829.5" text-anchor="middle">Zentrallager</text>
+  </g>
+  <g class="room room--ctx" data-room="E54">
+    <rect class="room-box" x="200" y="895" width="255" height="125"/>
+    <text class="r-name" x="327.5" y="950.5" text-anchor="middle">E54</text><text class="r-label" x="327.5" y="974.5" text-anchor="middle">Hochspannungsraum</text>
+  </g>
+  <g class="room room--ctx" data-room="E49">
+    <rect class="room-box" x="200" y="1020" width="255" height="210"/>
+    <text class="r-name" x="327.5" y="1118" text-anchor="middle">E49</text><text class="r-label" x="327.5" y="1142" text-anchor="middle">Niederspannungsraum</text>
+  </g>
+  <g class="room room--ctx" data-room="E50">
+    <rect class="room-box" x="200" y="1230" width="255" height="70"/>
+    <text class="r-name" x="327.5" y="1258" text-anchor="middle">E50</text><text class="r-label" x="327.5" y="1282" text-anchor="middle">Müllraum</text>
+  </g>
+  <g class="room room--db" data-room="E46">
+    <rect class="room-box" x="455" y="895" width="120" height="265"/>
+    <text class="r-name" x="515" y="1027.5" text-anchor="middle" transform="rotate(-90 515 1027.5) translate(0 -12)">E46</text><text class="r-label" x="515" y="1027.5" text-anchor="middle" transform="rotate(-90 515 1027.5) translate(0 12)">3D Drucker</text>
+  </g>
+  <g class="room room--db" data-room="E48">
+    <rect class="room-box" x="455" y="1160" width="120" height="140"/>
+    <text class="r-name" x="515" y="1230" text-anchor="middle" transform="rotate(-90 515 1230) translate(0 -12)">E48</text><text class="r-label" x="515" y="1230" text-anchor="middle" transform="rotate(-90 515 1230) translate(0 12)">Kunststofftechnik</text>
+  </g>
+  <g class="room room--db" data-room="E45">
+    <rect class="room-box" x="575" y="895" width="145" height="140"/>
+    <text class="r-name" x="647.5" y="946" text-anchor="middle">E45</text><text class="r-label" x="647.5" y="970" text-anchor="middle">Instrumenten-</text><text class="r-label" x="647.5" y="994" text-anchor="middle">raum</text>
+  </g>
+  <g class="room room--db" data-room="E47">
+    <rect class="room-box" x="575" y="1035" width="145" height="265"/>
+    <text class="r-name" x="647.5" y="1148.5" text-anchor="middle">E47</text><text class="r-label" x="647.5" y="1172.5" text-anchor="middle">Leiterplatten-</text><text class="r-label" x="647.5" y="1196.5" text-anchor="middle">fertigung</text>
+  </g>
+  <g class="room room--ctx" data-room="E44">
+    <rect class="room-box" x="720" y="895" width="230" height="115"/>
+    <text class="r-name" x="835" y="945.5" text-anchor="middle">E44</text><text class="r-label" x="835" y="969.5" text-anchor="middle">Dunkelkammer</text>
+  </g>
+  <g class="room room--db" data-room="E43">
+    <rect class="room-box" x="720" y="1010" width="230" height="140"/>
+    <text class="r-name" x="835" y="1073" text-anchor="middle">E43</text><text class="r-label" x="835" y="1097" text-anchor="middle">Lehrer</text>
+  </g>
+  <g class="room room--db" data-room="E42">
+    <rect class="room-box" x="720" y="1150" width="230" height="150"/>
+    <text class="r-name" x="835" y="1218" text-anchor="middle">E42</text><text class="r-label" x="835" y="1242" text-anchor="middle">Lehrer</text>
+  </g>
+  <g class="room room--db" data-room="E63">
+    <rect class="room-box" x="1060" y="195" width="840" height="210"/>
+    <text class="r-name" x="1480" y="281" text-anchor="middle">E63</text><text class="r-label" x="1480" y="305" text-anchor="middle">Dreherei</text><text class="r-label" x="1480" y="329" text-anchor="middle">Zerspannungstechnik II</text>
+  </g>
+  <g class="room room--db" data-room="E65">
+    <rect class="room-box" x="1060" y="405" width="840" height="175"/>
+    <text class="r-name" x="1480" y="473.5" text-anchor="middle">E65</text><text class="r-label" x="1480" y="497.5" text-anchor="middle">Dreherei</text><text class="r-label" x="1480" y="521.5" text-anchor="middle">Zerspannungstechnik I</text>
+  </g>
+  <g class="room room--db" data-room="E68">
+    <rect class="room-box" x="1060" y="580" width="260" height="140"/>
+    <text class="r-name" x="1190" y="643" text-anchor="middle">E68</text><text class="r-label" x="1190" y="667" text-anchor="middle">Hydraulik</text>
+  </g>
+  <g class="room room--db" data-room="E68a">
+    <rect class="room-box" x="1320" y="580" width="280" height="140"/>
+    <text class="r-name" x="1460" y="631" text-anchor="middle">E068a</text><text class="r-label" x="1460" y="655" text-anchor="middle">Werkstätte</text><text class="r-label" x="1460" y="679" text-anchor="middle">Antriebstechnik I</text>
+  </g>
+  <g class="room room--db" data-room="E68b">
+    <rect class="room-box" x="1600" y="580" width="300" height="140"/>
+    <text class="r-name" x="1750" y="631" text-anchor="middle">E068b</text><text class="r-label" x="1750" y="655" text-anchor="middle">Werkstätte</text><text class="r-label" x="1750" y="679" text-anchor="middle">Antriebstechnik II</text>
+  </g>
+  <g class="room room--db" data-room="E69">
+    <rect class="room-box" x="1060" y="720" width="240" height="175"/>
+    <text class="r-name" x="1180" y="800.5" text-anchor="middle">E69</text><text class="r-label" x="1180" y="824.5" text-anchor="middle">CNC-Technik-I</text>
+  </g>
+  <g class="room room--db" data-room="E78a">
+    <rect class="room-box" x="1420" y="720" width="480" height="175"/>
+    <text class="r-name" x="1660" y="800.5" text-anchor="middle">E78a</text><text class="r-label" x="1660" y="824.5" text-anchor="middle">E-Installation</text>
+  </g>
+  <g class="room room--db" data-room="E72">
+    <rect class="room-box" x="1060" y="960" width="840" height="340"/>
+    <text class="r-name" x="1480" y="1123" text-anchor="middle">E72</text><text class="r-label" x="1480" y="1147" text-anchor="middle">Maschinenlabor</text>
+  </g>
+<g class="door" transform="rotate(90 337.5 410)"><rect x="324.5" y="397" width="26" height="26" fill="#fff"/><path d="M 329.5 401 L 344.5 410 L 329.5 419" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(0 720 302.5)"><rect x="707" y="289.5" width="26" height="26" fill="#fff"/><path d="M 712 293.5 L 727 302.5 L 712 311.5" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(0 950 302.5)"><rect x="937" y="289.5" width="26" height="26" fill="#fff"/><path d="M 942 293.5 L 957 302.5 L 942 311.5" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(0 475 492.5)"><rect x="462" y="479.5" width="26" height="26" fill="#fff"/><path d="M 467 483.5 L 482 492.5 L 467 501.5" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(0 950 492.5)"><rect x="937" y="479.5" width="26" height="26" fill="#fff"/><path d="M 942 483.5 L 957 492.5 L 942 501.5" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(90 280 730)"><rect x="267" y="717" width="26" height="26" fill="#fff"/><path d="M 272 721 L 287 730 L 272 739" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(0 950 652.5)"><rect x="937" y="639.5" width="26" height="26" fill="#fff"/><path d="M 942 643.5 L 957 652.5 L 942 661.5" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(0 950 812.5)"><rect x="937" y="799.5" width="26" height="26" fill="#fff"/><path d="M 942 803.5 L 957 812.5 L 942 821.5" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(90 327.5 1300)"><rect x="314.5" y="1287" width="26" height="26" fill="#fff"/><path d="M 319.5 1291 L 334.5 1300 L 319.5 1309" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(-90 515 895)"><rect x="502" y="882" width="26" height="26" fill="#fff"/><path d="M 507 886 L 522 895 L 507 904" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(90 515 1300)"><rect x="502" y="1287" width="26" height="26" fill="#fff"/><path d="M 507 1291 L 522 1300 L 507 1309" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(0 720 965)"><rect x="707" y="952" width="26" height="26" fill="#fff"/><path d="M 712 956 L 727 965 L 712 974" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(90 647.5 1300)"><rect x="634.5" y="1287" width="26" height="26" fill="#fff"/><path d="M 639.5 1291 L 654.5 1300 L 639.5 1309" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(0 950 952.5)"><rect x="937" y="939.5" width="26" height="26" fill="#fff"/><path d="M 942 943.5 L 957 952.5 L 942 961.5" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(0 950 1080)"><rect x="937" y="1067" width="26" height="26" fill="#fff"/><path d="M 942 1071 L 957 1080 L 942 1089" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(0 950 1225)"><rect x="937" y="1212" width="26" height="26" fill="#fff"/><path d="M 942 1216 L 957 1225 L 942 1234" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(90 1480 405)"><rect x="1467" y="392" width="26" height="26" fill="#fff"/><path d="M 1472 396 L 1487 405 L 1472 414" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(180 1060 492.5)"><rect x="1047" y="479.5" width="26" height="26" fill="#fff"/><path d="M 1052 483.5 L 1067 492.5 L 1052 501.5" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(180 1060 650)"><rect x="1047" y="637" width="26" height="26" fill="#fff"/><path d="M 1052 641 L 1067 650 L 1052 659" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(90 1750 720)"><rect x="1737" y="707" width="26" height="26" fill="#fff"/><path d="M 1742 711 L 1757 720 L 1742 729" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(180 1060 807.5)"><rect x="1047" y="794.5" width="26" height="26" fill="#fff"/><path d="M 1052 798.5 L 1067 807.5 L 1052 816.5" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(90 1660 895)"><rect x="1647" y="882" width="26" height="26" fill="#fff"/><path d="M 1652 886 L 1667 895 L 1652 904" fill="none" stroke="#242830" stroke-width="2.4"/></g><g class="door" transform="rotate(-90 1480 960)"><rect x="1467" y="947" width="26" height="26" fill="#fff"/><path d="M 1472 951 L 1487 960 L 1472 969" fill="none" stroke="#242830" stroke-width="2.4"/></g>
+</svg>
