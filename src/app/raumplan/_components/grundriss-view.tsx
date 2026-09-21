@@ -11,32 +11,47 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { LEVEL_KEYS, type LevelKey } from '@/lib/raumplan/levels'
-import type { Period, RoomCell, WeekOccupancy } from '@/lib/raumplan/types'
+import type { RoomCell, WeekOccupancy } from '@/lib/raumplan/types'
 import { FloorPlan } from './floor-plan'
 import { Legend } from './legend'
 import { RoomDetail } from './room-detail'
 
 const WEEKDAYS = [1, 2, 3, 4, 5]
-const PERIODS: Period[] = ['AM', 'PM']
 
-/** Primary view: a level's floor plan for one weekday + half-day, with a detail
- * panel for the selected room. */
+/** Primary view: a level's floor plan for one weekday, with a detail panel that
+ * shows the selected room's Vormittag and Nachmittag occupancy at once. A room
+ * is coloured occupied when a teacher is there in either half-day. */
 export function GrundrissView({ data }: { data: WeekOccupancy }) {
   const { t } = useTranslation()
   const [level, setLevel] = useState<LevelKey>('eg-e')
   const [weekday, setWeekday] = useState(defaultWeekday())
-  const [period, setPeriod] = useState<Period>('AM')
   const [selectedRoom, setSelectedRoom] = useState<string | null>(null)
 
-  const occupancy = useMemo(() => {
-    const m = new Map<string, RoomCell>()
+  // roomName → its cells (AM, PM) for the selected weekday.
+  const dayCellsByRoom = useMemo(() => {
+    const m = new Map<string, RoomCell[]>()
     for (const c of data.cells) {
-      if (c.weekday === weekday && c.period === period) m.set(c.roomName, c)
+      if (c.weekday !== weekday) continue
+      const list = m.get(c.roomName) ?? []
+      list.push(c)
+      m.set(c.roomName, list)
     }
     return m
-  }, [data.cells, weekday, period])
+  }, [data.cells, weekday])
 
-  const selectedCell = selectedRoom ? (occupancy.get(selectedRoom) ?? null) : null
+  // One merged cell per room drives the floor-plan colour: occupied if a teacher
+  // is there in either half-day, else free (used elsewhere this year), else unused.
+  const occupancy = useMemo(() => {
+    const m = new Map<string, RoomCell>()
+    for (const [room, cells] of dayCellsByRoom) {
+      const merged =
+        cells.find(c => c.state === 'occupied') ?? cells.find(c => c.state === 'free') ?? cells[0]
+      if (merged) m.set(room, merged)
+    }
+    return m
+  }, [dayCellsByRoom])
+
+  const selectedPeriods = selectedRoom ? (dayCellsByRoom.get(selectedRoom) ?? []) : []
 
   return (
     <div className="space-y-4">
@@ -73,21 +88,6 @@ export function GrundrissView({ data }: { data: WeekOccupancy }) {
             </TabsList>
           </Tabs>
         </div>
-
-        <div className="space-y-1.5">
-          <label className="text-muted-foreground text-xs font-medium">
-            {t('raumplan.controls.period')}
-          </label>
-          <Tabs value={period} onValueChange={v => setPeriod(v as Period)}>
-            <TabsList>
-              {PERIODS.map(p => (
-                <TabsTrigger key={p} value={p}>
-                  {t(`raumplan.periods.${p === 'AM' ? 'amShort' : 'pmShort'}`)}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
@@ -102,7 +102,7 @@ export function GrundrissView({ data }: { data: WeekOccupancy }) {
             <Legend />
           </div>
         </div>
-        <RoomDetail cell={selectedCell} />
+        <RoomDetail roomName={selectedRoom} periods={selectedPeriods} />
       </div>
     </div>
   )

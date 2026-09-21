@@ -247,7 +247,8 @@
       "room": "Raum",
       "turnus": "Turnus",
       "noGroup": "Keine Gruppe zugeteilt",
-      "selectHint": "Auf einen Raum tippen für Details."
+      "selectHint": "Auf einen Raum tippen für Details.",
+      "freeHint": "Kein Unterricht in diesem Raum."
     },
     "matrix": {
       "room": "Raum",
@@ -267,7 +268,8 @@
     "home": {
       "todayTitle": "Dein Raum heute",
       "nextTitle": "Dein nächster Werkstättentag",
-      "none": "In den nächsten Wochen ist kein Werkstättenunterricht geplant."
+      "none": "In den nächsten Wochen ist kein Werkstättenunterricht geplant.",
+      "mapTitle": "Wo ist dein Raum?"
     },
     "empty": {
       "title": "Keine Belegung",

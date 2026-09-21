@@ -9,6 +9,7 @@ import { LEVELS } from '@/lib/raumplan/levels'
 import type { StudentPlacementPeriod } from '@/lib/raumplan/types'
 import { useMyRoom } from '@/app/raumplan/_hooks/use-raumplan'
 import { GroupBadge } from '@/app/raumplan/_components/group-badge'
+import { StudentFloorPlan } from './student-floor-plan'
 
 function levelTitle(level: string | null): string | null {
   return LEVELS.find(l => l.key === level)?.title ?? null
@@ -57,11 +58,14 @@ export function StudentRoomHighlight() {
         {!data.hasUpcoming ? (
           <p className="text-muted-foreground py-2 text-sm">{t('raumplan.home.none')}</p>
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {data.periods.map(p => (
-              <PeriodTile key={p.period} period={p} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {data.periods.map(p => (
+                <PeriodTile key={p.period} period={p} />
+              ))}
+            </div>
+            <StudentFloorPlan periods={data.periods} weekday={data.weekday} />
+          </>
         )}
       </CardContent>
     </Card>

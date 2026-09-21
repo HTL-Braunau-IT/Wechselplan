@@ -216,7 +216,8 @@
       "room": "Room",
       "turnus": "Turnus",
       "noGroup": "No group assigned",
-      "selectHint": "Tap a room for details."
+      "selectHint": "Tap a room for details.",
+      "freeHint": "No class in this room."
     },
     "matrix": {
       "room": "Room",
@@ -236,7 +237,8 @@
     "home": {
       "todayTitle": "Your room today",
       "nextTitle": "Your next workshop day",
-      "none": "No workshop lessons are scheduled in the coming weeks."
+      "none": "No workshop lessons are scheduled in the coming weeks.",
+      "mapTitle": "Where is your room?"
     },
     "empty": {
       "title": "No occupancy",
