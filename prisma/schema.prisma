@@ -622,6 +622,36 @@ model NotenSeatingLayout {
   @@index([schoolYearId])
 }
 
+// A teacher's personal seat number for a student in the Noten Erfassen view.
+// Per teacher and school year, so each teacher keeps their own numbering and it
+// does not carry across years. The freetext value lives here rather than on the
+// shared Student row (Student.sitzplatz), which stays global and untouched.
+model NotenSeatNumber {
+  id           Int      @id @default(autoincrement())
+  teacherId    Int
+  studentId    Int
+  schoolYearId Int
+  seatNumber   String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([teacherId, studentId, schoolYearId])
+  @@index([teacherId])
+  @@index([studentId])
+  @@index([schoolYearId])
+}
+
+// A teacher's personal Noten view preferences. One row per teacher, not scoped
+// by year — a preference like "open the Sitzplan view by default" carries across
+// classes and years. Written whenever the teacher toggles the Sitzplan view.
+model NotenViewPreference {
+  id                 Int      @id @default(autoincrement())
+  teacherId          Int      @unique
+  seatingModeDefault Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
 model LehrstoffPerDay {
   id           Int      @id @default(autoincrement())
   teacherId    Int

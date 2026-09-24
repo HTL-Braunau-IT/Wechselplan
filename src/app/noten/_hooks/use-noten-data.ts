@@ -599,12 +599,15 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
 
   const writeSitzplatz = useCallback(
     async (studentId: number, sitzplatz: string | null) => {
+      // The seat number is stored per teacher and school year, so the year has to
+      // go with the write; without it the server can't file the row.
+      if (!schoolYearId) return
       beginSave()
       try {
         const res = await fetch('/api/noten/student-sitzplatz', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ studentId, sitzplatz }),
+          body: JSON.stringify({ studentId, sitzplatz, schoolYearId }),
         })
         if (!res.ok) throw new Error('Save failed')
         setSaveError(null)
@@ -615,7 +618,7 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
         endSave(false)
       }
     },
-    [beginSave, endSave],
+    [schoolYearId, beginSave, endSave],
   )
 
   const updateSitzplatz = useCallback(

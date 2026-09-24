@@ -164,6 +164,10 @@ export type ErfassenTabProps = {
   onCopyAttendance: (from: TeachingDay, to: TeachingDay) => void
   onSitzplatzChange: (studentId: number, value: string | null) => void
   onSeatChange: (studentId: number, position: SeatPosition) => void
+  /** Saved default for the Sitzplan view; null until the preference has loaded. */
+  seatingDefault: boolean | null
+  /** Persist the teacher's Sitzplan-view choice as their new default. */
+  onSeatingModeChange: (on: boolean) => void
   onCommitLehrstoff: (date: string, period: string, value: string) => void
   onWeightChange: (level: WeightLevel, key: keyof WeightConfig, value: number) => void
   onWeightEnableOverride: (level: WeightLevel) => void
@@ -197,6 +201,8 @@ export function ErfassenTab(props: ErfassenTabProps) {
     onCopyAttendance,
     onSitzplatzChange,
     onSeatChange,
+    seatingDefault,
+    onSeatingModeChange,
     onCommitLehrstoff,
     onWeightChange,
     onWeightEnableOverride,
@@ -208,6 +214,25 @@ export function ErfassenTab(props: ErfassenTabProps) {
   const [slot2, setSlot2] = useState<Set<number>>(new Set())
   const [noteOpen, setNoteOpen] = useState<number | null>(null)
   const [seatingMode, setSeatingMode] = useState(false)
+
+  // Seed the Sitzplan view from the teacher's saved default, once it has loaded.
+  // Render-time state-init pattern (like page.tsx's dayInitedFor): applied once,
+  // so the teacher can still switch views freely afterwards.
+  const [seatingSeeded, setSeatingSeeded] = useState(false)
+  if (!seatingSeeded && seatingDefault != null) {
+    setSeatingSeeded(true)
+    if (seatingDefault) setSeatingMode(true)
+  }
+
+  // Toggling the view also stores it as the teacher's new default, so the choice
+  // is remembered next time they open the page.
+  const toggleSeatingMode = useCallback(() => {
+    setSeatingMode(prev => {
+      const next = !prev
+      onSeatingModeChange(next)
+      return next
+    })
+  }, [onSeatingModeChange])
 
   // Width of the Sitzplan canvas, so students without a saved position can be
   // auto-arranged into a grid that fills the available space.
@@ -512,7 +537,7 @@ export function ErfassenTab(props: ErfassenTabProps) {
             >
               <button
                 type="button"
-                onClick={() => setSeatingMode(m => !m)}
+                onClick={toggleSeatingMode}
                 aria-pressed={seatingMode}
                 className={cn(
                   'flex h-9 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium shadow-sm transition-colors',

@@ -71,15 +71,25 @@ export async function GET(request: Request) {
 
     // Grade entry student picker: only show active students. Historical grades
     // still look up by studentId directly (no filter), so past records stay visible.
-    const students = await prisma.student.findMany({
+    const roster = await prisma.student.findMany({
       where: {
         id: { in: studentIds },
         isActive: true,
         ...(groupId !== null ? { groupId } : {}),
       },
-      select: { id: true, firstName: true, lastName: true, groupId: true, sitzplatz: true },
+      select: { id: true, firstName: true, lastName: true, groupId: true },
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     })
+
+    // The seat number (Sitzplatz) is personal to the teacher and the school year,
+    // so it comes from NotenSeatNumber rather than the shared Student row. Overlay
+    // it onto each student under the same `sitzplatz` key the client already reads.
+    const seatNumbers = await prisma.notenSeatNumber.findMany({
+      where: { teacherId: teacher.id, schoolYearId, studentId: { in: roster.map(s => s.id) } },
+      select: { studentId: true, seatNumber: true },
+    })
+    const seatByStudent = new Map(seatNumbers.map(s => [s.studentId, s.seatNumber]))
+    const students = roster.map(s => ({ ...s, sitzplatz: seatByStudent.get(s.id) ?? null }))
 
     return NextResponse.json({ students })
   } catch (error) {

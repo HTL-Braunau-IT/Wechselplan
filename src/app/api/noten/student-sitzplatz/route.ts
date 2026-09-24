@@ -5,11 +5,15 @@ import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
-import { resolveMemberClassIds } from '@/lib/combined-classes'
 
 /**
- * PATCH: Update student sitzplatz
- * Body: { studentId: number, sitzplatz: string | null }
+ * PATCH: Update the seat number a teacher has given a student.
+ * Body: { studentId: number, sitzplatz: string | null, schoolYearId?: number }
+ *
+ * The seat number is personal to the teacher and scoped to the school year — it
+ * lives in NotenSeatNumber, not on the shared Student row. An empty/null value
+ * clears the teacher's row so it no longer shows up. Staff without a Teacher row
+ * (an admin who does not teach) has no personal seat numbering to write to.
  */
 export async function PATCH(request: Request) {
   const gate = await requireAccess('staff')
@@ -24,77 +28,58 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
     }
 
-    const body = await request.json()
-    const { studentId, sitzplatz } = body as {
+    const body = (await request.json()) as {
       studentId?: number
       sitzplatz?: string | null
+      schoolYearId?: number
     }
+    const { studentId, sitzplatz } = body
 
     if (!studentId || typeof studentId !== 'number') {
       return NextResponse.json({ error: 'studentId required' }, { status: 400 })
     }
 
-    // Verify the student exists
-    const student = await prisma.student.findUnique({ where: { id: studentId } })
+    const teacher = await resolveSessionTeacher(session)
+    if (!teacher) {
+      return NextResponse.json({ error: 'Teacher not found' }, { status: 403 })
+    }
+
+    const schoolYearId = await resolveSchoolYearId(
+      typeof body.schoolYearId === 'number' ? String(body.schoolYearId) : null,
+    )
+    if (schoolYearId == null) {
+      return NextResponse.json({ error: 'No active school year' }, { status: 400 })
+    }
+
+    // Verify the student exists so a typo'd id doesn't silently create a row.
+    const student = await prisma.student.findUnique({
+      where: { id: studentId },
+      select: { id: true },
+    })
     if (!student) {
       return NextResponse.json({ error: 'Student not found' }, { status: 404 })
     }
 
-    // A teacher may only edit the seat of a student they currently teach —
-    // i.e. a student in a class the teacher is assigned to in the active school
-    // year. Admins may edit any student. Without this, any staff user could
-    // overwrite any student's Sitzplatz by id. The teacher lookup lives inside
-    // this branch so an admin without a Teacher row isn't wrongly rejected.
-    if (session.user.role !== 'admin') {
-      const teacher = await resolveSessionTeacher(session)
-      if (!teacher) {
-        return NextResponse.json({ error: 'Teacher not found' }, { status: 403 })
-      }
-
-      const schoolYearId = await resolveSchoolYearId()
-      if (schoolYearId == null) {
-        return NextResponse.json({ error: 'No active school year' }, { status: 403 })
-      }
-
-      const memberships = await prisma.classMembership.findMany({
-        where: { studentId, schoolYearId },
-        select: { classId: true },
-      })
-      const studentClassIds = new Set(memberships.map(m => m.classId))
-
-      // The teacher may be assigned to the student's real class directly, or to a
-      // combined class that expands to it (students never live in a combined
-      // class, so its members are the real classes). Expand every assignment to
-      // its member classes and accept the overlap. Sitzplatz itself is stored on
-      // the Student row, so there is no class to re-file — only this guard needs
-      // to see through the combined lens.
-      let isAssigned = false
-      if (studentClassIds.size > 0) {
-        const teacherAssignments = await prisma.teacherAssignment.findMany({
-          where: { teacherId: teacher.id, schoolYearId },
-          select: { classId: true },
-        })
-        for (const assignedId of new Set(teacherAssignments.map(a => a.classId))) {
-          const memberIds = await resolveMemberClassIds(assignedId)
-          if (memberIds.some(id => studentClassIds.has(id))) {
-            isAssigned = true
-            break
-          }
-        }
-      }
-      if (!isAssigned) {
-        return NextResponse.json({ error: 'Not assigned to this student' }, { status: 403 })
-      }
+    const value = typeof sitzplatz === 'string' ? sitzplatz.trim() : ''
+    const key = {
+      teacherId_studentId_schoolYearId: { teacherId: teacher.id, studentId, schoolYearId },
     }
 
-    // Update the sitzplatz
-    const updated = await prisma.student.update({
-      where: { id: studentId },
-      data: { sitzplatz: sitzplatz ?? null },
-      select: { id: true, firstName: true, lastName: true, groupId: true, sitzplatz: true },
+    if (value === '') {
+      // Clearing: drop the row rather than storing an empty string.
+      await prisma.notenSeatNumber.deleteMany({
+        where: { teacherId: teacher.id, studentId, schoolYearId },
+      })
+      return NextResponse.json({ ok: true, sitzplatz: null })
+    }
+
+    await prisma.notenSeatNumber.upsert({
+      where: key,
+      create: { teacherId: teacher.id, studentId, schoolYearId, seatNumber: value },
+      update: { seatNumber: value },
     })
 
-    return NextResponse.json({ student: updated })
+    return NextResponse.json({ ok: true, sitzplatz: value })
   } catch (error) {
     captureError(error, {
       location: 'api/noten/student-sitzplatz',

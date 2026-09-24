@@ -20,6 +20,7 @@ import { emptyEntry, type NotenEntryRow, type SearchByNameMatch, type TeachingDa
 import { computeStudentSummary } from './_lib/summary'
 import { useNotenClasses } from './_hooks/use-noten-classes'
 import { useNotenData } from './_hooks/use-noten-data'
+import { useNotenViewPreference } from './_hooks/use-noten-view-preference'
 import { useNotenSearch } from './_hooks/use-noten-search'
 import { useNmTransfer } from './_hooks/use-nm-transfer'
 import { ClassGroupPicker } from './_components/class-group-picker'
@@ -74,6 +75,9 @@ export default function NotenPage() {
   // Marks are written as they are entered, but a seat plan is debounced and a
   // failed write stays queued — closing the tab on either used to lose it.
   useUnsavedWarning(data.hasUnsavedWork)
+
+  // Whether the Sitzplan view opens by default, remembered per teacher.
+  const viewPref = useNotenViewPreference()
 
   const [tab, setTab] = useState<NotenTab>('erfassen')
   const [hideGrades, setHideGrades] = useState(false)
@@ -464,6 +468,8 @@ export default function NotenPage() {
                     onCopyAttendance={handleCopyAttendance}
                     onSitzplatzChange={(studentId, value) => data.updateSitzplatz(studentId, value)}
                     onSeatChange={(studentId, position) => data.updateSeat(studentId, position)}
+                    seatingDefault={viewPref.loaded ? viewPref.seatingDefault : null}
+                    onSeatingModeChange={viewPref.saveSeatingDefault}
                     onCommitLehrstoff={handleCommitLehrstoff}
                     onWeightChange={data.setWeightLevel}
                     onWeightEnableOverride={data.enableWeightOverride}
