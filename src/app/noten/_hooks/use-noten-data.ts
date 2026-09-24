@@ -34,6 +34,8 @@ type Params = {
   classId: number | null
   groupId: number | null
   schoolYearId: number | null
+  /** The weekday whose grouping `groupId` refers to (groups are per weekday). */
+  weekday?: number | null
 }
 
 /**
@@ -63,7 +65,7 @@ function chunk<T>(items: T[], size: number): T[][] {
  * left the mark on screen looking entered — reloading the page was the first
  * anyone heard of it.
  */
-export function useNotenData({ classId, groupId, schoolYearId }: Params) {
+export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params) {
   const { isFeatureEnabled } = useEntitlements()
 
   const [teachingDays, setTeachingDays] = useState<TeachingDay[]>([])
@@ -180,7 +182,9 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
     setStudents([])
     setEntries({})
     setSeating({})
-    const query = `classId=${classId}&groupId=${groupId}&schoolYearId=${schoolYearId}`
+    const query = `classId=${classId}&groupId=${groupId}&schoolYearId=${schoolYearId}${
+      weekday != null ? `&weekday=${weekday}` : ''
+    }`
 
     void Promise.all([
       fetch(`/api/noten/teaching-days?${query}`),
@@ -280,7 +284,7 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
         })
       }
     }
-  }, [classId, groupId, schoolYearId, flushAll])
+  }, [classId, groupId, schoolYearId, weekday, flushAll])
 
   const updateEntry = useCallback(
     (studentId: number, date: string, period: string, patch: Partial<NotenEntryRow>) => {
@@ -374,7 +378,7 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
             level,
             clear: true,
             ...(level !== 'global' ? { classId, schoolYearId } : {}),
-            ...(level === 'group' ? { groupId } : {}),
+            ...(level === 'group' ? { groupId, ...(weekday != null ? { weekday } : {}) } : {}),
           }),
         })
         if (!res.ok) throw new Error('Save failed')
@@ -388,7 +392,7 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
         return false
       }
     },
-    [classId, groupId, schoolYearId, beginSave, endSave],
+    [classId, groupId, schoolYearId, weekday, beginSave, endSave],
   )
 
   // Persist every level the teacher touched since the last save. Levels whose
@@ -421,7 +425,7 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
             body: JSON.stringify({
               level,
               ...(level !== 'global' ? { classId, schoolYearId } : {}),
-              ...(level === 'group' ? { groupId } : {}),
+              ...(level === 'group' ? { groupId, ...(weekday != null ? { weekday } : {}) } : {}),
               ...config,
             }),
           })
@@ -438,7 +442,7 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
         return false
       }
     },
-    [classId, groupId, schoolYearId, beginSave, endSave],
+    [classId, groupId, schoolYearId, weekday, beginSave, endSave],
   )
 
   const saveLehrstoff = useCallback(
@@ -640,7 +644,8 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
         const res = await fetch('/api/noten/seating', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ classId, groupId, schoolYearId, positions }),
+          // The seat plan is per weekday, like the group it lays out.
+          body: JSON.stringify({ classId, groupId, schoolYearId, weekday, positions }),
         })
         if (!res.ok) throw new Error('Save failed')
         setSaveError(null)
@@ -651,7 +656,7 @@ export function useNotenData({ classId, groupId, schoolYearId }: Params) {
         endSave(false)
       }
     },
-    [classId, groupId, schoolYearId, beginSave, endSave],
+    [classId, groupId, schoolYearId, weekday, beginSave, endSave],
   )
 
   const updateSeat = useCallback(

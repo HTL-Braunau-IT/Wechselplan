@@ -14,6 +14,7 @@ const collectGroupMembers = vi.fn()
 const getSyncedClassGroupIds = vi.fn<() => Promise<string[]>>()
 const recordSyncRun = vi.fn()
 
+vi.mock('@/lib/weekday-groups', () => import('@/test/weekday-groups-passthrough'))
 vi.mock('@/lib/graph', () => ({ getGroup, collectGroupMembers }))
 vi.mock('@/lib/directory-sync-settings', () => ({ getSyncedClassGroupIds, recordSyncRun }))
 vi.mock('@/lib/sentry', () => ({ captureError: vi.fn() }))

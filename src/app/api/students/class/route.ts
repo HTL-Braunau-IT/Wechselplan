@@ -5,6 +5,24 @@ import { normalizeUsername } from '@/lib/username'
 import { requireAccess } from '@/lib/api-guard'
 import { isStaffRole } from '@/lib/api-access'
 import { resolveSessionStudent } from '@/lib/session-student'
+import { resolveSchoolYearId } from '@/lib/school-year'
+import { studentGroupByWeekday } from '@/lib/weekday-groups'
+
+/** The student's group on each school weekday (groups are per weekday). */
+async function groupsByWeekday(
+  student: { id: number; groupId: number | null },
+  classId: number,
+  schoolYearId: number | null,
+): Promise<Record<number, number | null>> {
+  if (schoolYearId == null) return {}
+  const groupOn = await studentGroupByWeekday({
+    studentId: student.id,
+    classId,
+    schoolYearId,
+    fallback: student.groupId,
+  })
+  return Object.fromEntries([1, 2, 3, 4, 5].map(day => [day, groupOn(day)]))
+}
 /**
  * Processes a GET request to retrieve the class name and group ID assigned to a student by username.
  *
@@ -59,6 +77,7 @@ export async function GET(request: Request) {
         return NextResponse.json({
           class: membership.class.name,
           groupId: student.groupId,
+          groupsByWeekday: await groupsByWeekday(student, membership.class.id, schoolYearId),
         })
       }
     }
@@ -70,6 +89,11 @@ export async function GET(request: Request) {
     return NextResponse.json({
       class: student.class.name,
       groupId: student.groupId,
+      groupsByWeekday: await groupsByWeekday(
+        student,
+        student.class.id,
+        await resolveSchoolYearId(schoolYearId),
+      ),
     })
   } catch (error) {
     captureError(error, {

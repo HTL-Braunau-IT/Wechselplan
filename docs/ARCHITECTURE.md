@@ -1,6 +1,32 @@
 # Architecture Decisions
 
-## Group Storage (Phase 2.2)
+## Group Storage — per weekday (2026-09)
+
+**Status**: Implemented. Supersedes the Phase 2.2 decision below.
+
+Each weekday is its own plan (#98), and classes are split into different groups on different days,
+so group membership is stored per plan day in `StudentWeekdayGroup`
+(`studentId`, plan `classId`, `schoolYearId`, `selectedWeekday` → `groupId`). The wizard picks the
+class and weekday first (step 1), then edits that day's groups (step 2).
+
+- **Readers with a weekday** (dashboard `/api/schedules/data`, Raumplan, schedule PDF, Excel and
+  Notenliste exports, `/schedules`) overlay that day's grouping onto the students.
+- **Grade screens** (Noten, Notensammler, NM transfer, Klassenliste) have no weekday of their own;
+  they use the day the requesting teacher teaches the class (earliest if several, `?weekday=`
+  overrides; a non-teaching viewer gets the class's first planned day).
+- All of it goes through `src/lib/weekday-groups.ts` (`overlayWeekdayGroups`, `gradeGroupDay`, …),
+  which keeps the existing `{ groupId }` student shape, so clients did not change.
+- Settings attached to a group number are per weekday too: `NotenWeightConfig` (group-level
+  weights) and `NotenSeatingLayout` (Sitzplan) carry `selectedWeekday`, resolved with
+  `groupSettingsWeekday`. Class- and global-level weights stay day-independent.
+- The grade screens offer a day switch when the teacher teaches the class on several days (Noten)
+  or the class has several planned days (Notensammler, Klassenlisten); the chosen day travels as
+  `?weekday=` / `weekday` in the body.
+- `Student.groupId` is no longer written by the wizard. It is the fallback for classes without
+  per-day rows and is still cleared by directory sync on a class move (which also drops the
+  student's per-day rows outside the new class).
+
+## Group Storage (Phase 2.2) — superseded
 
 ### Decision: Keep `Student.groupId` as Source of Truth
 

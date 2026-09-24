@@ -127,7 +127,7 @@ export function useNotenSearch({ schoolYearId, onNavigate }: Params) {
         matches.map(async match => {
           const key = `${match.classId}-${match.groupId}`
           const studentsRes = await fetch(
-            `/api/noten/students?classId=${match.classId}&groupId=${match.groupId}&schoolYearId=${schoolYearId}`,
+            `/api/noten/students?classId=${match.classId}&groupId=${match.groupId}&schoolYearId=${schoolYearId}&weekday=${match.weekday}`,
           )
           if (!studentsRes.ok) return [key, [] as Student[]] as const
           const studentsData = (await studentsRes.json()) as { students?: Student[] }

@@ -19,7 +19,29 @@ export type SeatPosition = { x: number; y: number }
 /** Teacher's personal seating layout for a group: studentId → canvas position. */
 export type SeatingLayout = Record<number, SeatPosition>
 
-export type ClassItem = { id: number; name: string; groupIds: number[] }
+export type ClassItem = {
+  id: number
+  name: string
+  /** Every group of the class across all days. */
+  groupIds: number[]
+  /** The weekdays the teacher teaches this class — groups are per weekday. */
+  weekdays?: number[]
+  /** The class's groups on each of those weekdays. */
+  groupIdsByWeekday?: Record<number, number[]>
+}
+
+/** The group tabs for a class on a weekday (all groups when the day is unknown). */
+export function groupIdsOn(cls: ClassItem | undefined, weekday: number | null): number[] {
+  if (!cls) return []
+  if (weekday != null && cls.groupIdsByWeekday?.[weekday]) return cls.groupIdsByWeekday[weekday]
+  return cls.groupIds
+}
+
+/** A class's default day: today when the teacher teaches it today, else their first day. */
+export function defaultWeekdayFor(cls: ClassItem | undefined, today = new Date().getDay()) {
+  const days = cls?.weekdays ?? []
+  return days.includes(today) ? today : (days[0] ?? null)
+}
 
 export type NotenEntryRow = {
   studentId: number
@@ -44,12 +66,15 @@ export type SearchByNameMatch = {
   classId: number
   className: string
   groupId: number
+  /** The weekday whose grouping `groupId` refers to (groups are per weekday). */
+  weekday: number | null
 }
 
 export type SearchByDateMatch = {
   classId: number
   className: string
   groupId: number
+  weekday: number
   period: string
 }
 

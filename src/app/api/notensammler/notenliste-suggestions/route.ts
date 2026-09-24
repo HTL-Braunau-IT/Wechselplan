@@ -3,6 +3,7 @@ import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
+import { gradeGroupDay, overlayWeekdayGroups } from '@/lib/weekday-groups'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
@@ -92,14 +93,30 @@ export async function GET(request: Request) {
     if (studentIds.length === 0) {
       return NextResponse.json({ suggestions: {} })
     }
-    const students = await prisma.student.findMany({
-      where: { id: { in: studentIds } },
-      select: { id: true, groupId: true },
+    // Group weights follow the grouping on the teacher's own day (groups are per weekday).
+    const groupDay = await gradeGroupDay({
+      classId,
+      schoolYearId,
+      teacherId: teacher.id,
+      weekday: searchParams.get('weekday'),
     })
+    const students = await overlayWeekdayGroups(
+      await prisma.student.findMany({
+        where: { id: { in: studentIds } },
+        select: { id: true, groupId: true },
+      }),
+      groupDay,
+    )
 
     const [weightRows, weightClassRow, weightGlobalRow, entries] = await Promise.all([
+      // Group weights of the same day as the grouping above (both are per weekday).
       prisma.notenWeightConfig.findMany({
-        where: { teacherId: teacher.id, classId, schoolYearId },
+        where: {
+          teacherId: teacher.id,
+          classId,
+          schoolYearId,
+          selectedWeekday: groupDay?.weekday ?? 1,
+        },
       }),
       prisma.notenWeightClassConfig.findUnique({
         where: { teacherId_classId_schoolYearId: { teacherId: teacher.id, classId, schoolYearId } },

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { requireAccess } from '@/lib/api-guard'
+import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { buildKlassenlisteView, getClassRoster } from '@/lib/klassenliste'
 
@@ -33,7 +34,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
     }
 
-    const roster = await getClassRoster(classId, schoolYearId)
+    const viewer = await resolveSessionTeacher(gate.session)
+    const roster = await getClassRoster(classId, schoolYearId, {
+      teacherId: viewer?.id,
+      weekday: searchParams.get('weekday'),
+    })
     if (!roster) {
       return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }
@@ -45,6 +50,8 @@ export async function GET(request: Request) {
       schoolYearLabel: roster.schoolYearLabel,
       classHead: roster.classHead,
       classLead: roster.classLead,
+      groupWeekday: roster.groupWeekday,
+      weekdays: roster.weekdays,
       hasPlan: view.hasPlan,
       sections: view.sections,
       plain: view.plain,

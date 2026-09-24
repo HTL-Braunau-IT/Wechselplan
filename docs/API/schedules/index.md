@@ -705,3 +705,24 @@ function validateScheduleData(scheduleData) {
 - [Assignments](./assignments.md) - Teacher assignment retrieval
 - [API Overview](../README.md) - General API information
 - [Prisma Documentation](https://www.prisma.io/docs) - Database ORM 
+### DELETE /api/schedules
+
+Deletes **one weekday's** plan for a class. The class's other weekdays are left untouched.
+
+```http
+DELETE /api/schedules?classId=4&weekday=3&schoolYearId=1
+```
+
+| Parameter      | Type   | Required | Description                                  |
+| -------------- | ------ | -------- | -------------------------------------------- |
+| `classId`      | number | Yes      | Numeric class id                             |
+| `weekday`      | number | Yes      | Weekday of the plan to delete (0–6)          |
+| `schoolYearId` | number | No       | Defaults to the current school year          |
+
+Removes, in one transaction, the `Schedule` row (its Turnusse cascade) together with that day's
+`TeacherAssignment`, `TeacherRotation` and `StudentWeekdayGroup` rows. Teachers who were assigned
+that day are notified. Staff only.
+
+- **200** `{ "success": true }`
+- **400** missing/invalid `classId` or `weekday`
+- **404** the class has no plan on that weekday

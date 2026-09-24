@@ -14,6 +14,8 @@ export type NotenlisteSuggestions = Record<number, NotenlisteSuggestion>
 export function useNotenlisteSuggestions(
   selectedClassId: string,
   schoolYearId: number | undefined,
+  /** The weekday whose grouping decides the group weights (groups are per weekday). */
+  weekday: number | null = null,
 ): NotenlisteSuggestions {
   const [suggestions, setSuggestions] = useState<NotenlisteSuggestions>({})
 
@@ -27,7 +29,9 @@ export function useNotenlisteSuggestions(
     const load = async () => {
       try {
         const response = await fetch(
-          `/api/notensammler/notenliste-suggestions?classId=${selectedClassId}&schoolYearId=${schoolYearId}`,
+          `/api/notensammler/notenliste-suggestions?classId=${selectedClassId}&schoolYearId=${schoolYearId}${
+            weekday != null ? `&weekday=${weekday}` : ''
+          }`,
           { cache: 'no-store', signal: controller.signal },
         )
         if (!response.ok) {
@@ -53,7 +57,7 @@ export function useNotenlisteSuggestions(
 
     void load()
     return () => controller.abort()
-  }, [selectedClassId, schoolYearId])
+  }, [selectedClassId, schoolYearId, weekday])
 
   return suggestions
 }

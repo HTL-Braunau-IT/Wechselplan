@@ -30,6 +30,8 @@ Authorization: Bearer <jwt-token>
 ### Main Schedule Management
 - `GET /api/schedules` - Retrieve schedules for a class with optional weekday filtering
 - `POST /api/schedules` - Create or replace schedules for a class on specific weekdays
+- `DELETE /api/schedules?classId=&weekday=[&schoolYearId=]` - Delete one weekday's plan (with its
+  groups, teacher assignments and rotation); the class's other weekdays are untouched
 
 ### Schedule Times
 - `GET /api/schedule/times` - Retrieve schedule and break times for a class
@@ -45,7 +47,9 @@ Authorization: Bearer <jwt-token>
 - `GET /api/schedules/pdf-data` - Retrieve student data for PDF generation
 
 ### Assignments
-- `GET /api/schedules/assignments` - Retrieve teacher assignments for a class
+- `GET /api/schedules/assignments?classId=&weekday=[&schoolYearId=]` - One weekday's student groups
+- `POST /api/schedules/assignments` - Save one weekday's student groups (body carries `weekday`)
+  — see [assignments.md](assignments.md)
 
 ### Rotation & Clone
 - `POST /api/schedules/rotation` - Persist the teacher rotation (weekday- and year-scoped, per lane)
@@ -72,7 +76,14 @@ intact (except lanes just switched off). `GET /api/schedules` returns `amSchedul
 `selectedWeekday` (and school year), so the same class holds a different plan on each day — writing
 one weekday never touches the others. `POST /api/schedules/clone` copies a source weekday's
 Schedule (both lanes + cadence), teacher assignments and rotation onto a target weekday as an
-editable starting point; student groups are class-wide and come along automatically.
+editable starting point, together with the source day's student grouping.
+
+**Student groups are per weekday too.** `StudentWeekdayGroup` holds each student's group per
+`(plan class, school year, weekday)` — a class can be split differently on each day. Readers with a
+weekday (dashboard, Raumplan, schedule/Notenliste/Excel exports) use that day's grouping; grade
+screens (Noten, Notensammler, NM transfer, Klassenliste) use the day the requesting teacher teaches
+the class (`gradeGroupDay` in `src/lib/weekday-groups.ts`, overridable with `?weekday=`).
+`Student.groupId` is only the fallback for classes without per-day rows.
 
 ## Data Models
 

@@ -6,6 +6,7 @@ import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
+import { gradeGroupDay, overlayWeekdayGroups } from '@/lib/weekday-groups'
 import { resolveWeights, type WeightConfig } from '@/lib/noten-weights'
 
 function isSemester2(dateStr: string, semesterChangeDate: string | undefined): boolean {
@@ -175,14 +176,21 @@ export async function GET(request: Request) {
       })
     }
 
-    const students = await prisma.student.findMany({
-      where: {
-        id: { in: studentIds },
-        ...(groupId !== null ? { groupId } : {}),
-      },
+    const classRoster = await prisma.student.findMany({
+      where: { id: { in: studentIds } },
       select: { id: true, firstName: true, lastName: true, groupId: true },
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     })
+    // Groups are per weekday: the grouping on the day this teacher teaches the class.
+    const groupDay = await gradeGroupDay({
+      classId,
+      schoolYearId,
+      teacherId: teacher.id,
+      weekday: searchParams.get('weekday'),
+    })
+    const students = (await overlayWeekdayGroups(classRoster, groupDay)).filter(
+      s => groupId === null || s.groupId === groupId,
+    )
 
     const prefill: Record<number, { first: number | null; second: number | null }> = {}
     for (const s of students) {
@@ -245,11 +253,13 @@ export async function GET(request: Request) {
       const [weightGroupRow, entries] = await Promise.all([
         prisma.notenWeightConfig.findUnique({
           where: {
-            teacherId_classId_groupId_schoolYearId: {
+            teacherId_classId_groupId_schoolYearId_selectedWeekday: {
               teacherId: teacher.id,
               classId,
               groupId: gid,
               schoolYearId,
+              // Group weights are per weekday: the day the groups were resolved on.
+              selectedWeekday: groupDay?.weekday ?? 1,
             },
           },
         }),

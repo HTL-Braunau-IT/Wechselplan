@@ -38,7 +38,7 @@ export async function GET(request: Request) {
 
     const myAssignments = await prisma.teacherAssignment.findMany({
       where: { teacherId: teacher.id, schoolYearId },
-      select: { classId: true },
+      select: { classId: true, selectedWeekday: true },
     })
     const classIds = [...new Set(myAssignments.map(a => a.classId))]
     if (classIds.length === 0) {
@@ -48,13 +48,28 @@ export async function GET(request: Request) {
     // All groups for these classes (from any teacher's assignment), so the UI can show all group tabs
     const allAssignments = await prisma.teacherAssignment.findMany({
       where: { classId: { in: classIds }, schoolYearId },
-      select: { classId: true, groupId: true },
+      select: { classId: true, groupId: true, selectedWeekday: true },
     })
     const byClass = new Map<number, Set<number>>()
+    // Groups are per weekday, so the group tabs are too: a class split into two
+    // groups on Monday and three on Thursday offers the tabs of the chosen day.
+    const byClassDay = new Map<number, Map<number, Set<number>>>()
     for (const a of allAssignments) {
       if (!byClass.has(a.classId)) byClass.set(a.classId, new Set())
       byClass.get(a.classId)!.add(a.groupId)
+      const days = byClassDay.get(a.classId) ?? new Map<number, Set<number>>()
+      days.set(a.selectedWeekday, (days.get(a.selectedWeekday) ?? new Set()).add(a.groupId))
+      byClassDay.set(a.classId, days)
     }
+    // The days THIS teacher teaches each class — the day switch's options.
+    const myDaysByClass = new Map<number, Set<number>>()
+    for (const a of myAssignments) {
+      myDaysByClass.set(
+        a.classId,
+        (myDaysByClass.get(a.classId) ?? new Set()).add(a.selectedWeekday),
+      )
+    }
+    const sorted = (set: Set<number> | undefined) => Array.from(set ?? []).sort((a, b) => a - b)
 
     const classRecords = await prisma.class.findMany({
       where: { id: { in: classIds } },
@@ -62,11 +77,17 @@ export async function GET(request: Request) {
       orderBy: { name: 'asc' },
     })
 
-    const classes = classRecords.map(cls => ({
-      id: cls.id,
-      name: cls.name,
-      groupIds: Array.from(byClass.get(cls.id) ?? []).sort((a, b) => a - b),
-    }))
+    const classes = classRecords.map(cls => {
+      const weekdays = sorted(myDaysByClass.get(cls.id))
+      const days = byClassDay.get(cls.id)
+      return {
+        id: cls.id,
+        name: cls.name,
+        groupIds: sorted(byClass.get(cls.id)),
+        weekdays,
+        groupIdsByWeekday: Object.fromEntries(weekdays.map(day => [day, sorted(days?.get(day))])),
+      }
+    })
 
     return NextResponse.json({ classes })
   } catch (error) {

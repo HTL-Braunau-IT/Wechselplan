@@ -155,6 +155,7 @@ export async function DELETE(request: Request) {
       await tx.teacherAssignment.deleteMany({ where: { classId: combinedClassId } })
       await tx.teacherRotation.deleteMany({ where: { classId: combinedClassId } })
       await tx.groupAssignment.deleteMany({ where: { class: cls.name } })
+      await tx.studentWeekdayGroup.deleteMany({ where: { classId: combinedClassId } })
       // Schedules cascade to their turns/weeks via onDelete: Cascade.
       await tx.schedule.deleteMany({ where: { classId: combinedClassId } })
       // The class row; CombinedClassMember links cascade away with it.

@@ -13,7 +13,7 @@ interface Step {
 
 const steps: Step[] = [
   { id: 'class', path: '/schedule/create' },
-  { id: 'periods', path: '/schedule/create/periods' },
+  { id: 'groups', path: '/schedule/create/groups' },
   { id: 'teachers', path: '/schedule/create/teachers' },
   { id: 'rotation', path: '/schedule/create/rotation' },
   { id: 'times', path: '/schedule/create/times' },
@@ -40,7 +40,7 @@ export function CreationProgress() {
   const currentStepIndex = steps.findIndex(step => pathname === step.path)
 
   // Keep the class (and, once chosen, the weekday) in the URL as the user steps
-  // back and forth — every step past "periods" is scoped to a single weekday.
+  // back and forth — every step after the first is scoped to a single weekday.
   const hrefFor = (path: string) => {
     const params = new URLSearchParams()
     if (selectedClass) params.set('class', selectedClass)

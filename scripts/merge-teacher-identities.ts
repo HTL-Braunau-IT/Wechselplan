@@ -330,6 +330,7 @@ async function performMerge(
             classId: (row as unknown as { classId: number }).classId,
             groupId: (row as unknown as { groupId: number }).groupId,
             schoolYearId: (row as unknown as { schoolYearId: number }).schoolYearId,
+            selectedWeekday: (row as unknown as { selectedWeekday: number }).selectedWeekday,
           },
         }),
       (id, teacherId) =>

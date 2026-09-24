@@ -2,6 +2,61 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { denyUnlessAccess } from '@/lib/api-guard'
+import { resolveSchoolYearId } from '@/lib/school-year'
+
+export interface WeekdayGroupEntry {
+  weekday: number
+  groupId: number
+  /** The plan's class when it differs from the student's own (a combined class). */
+  planClassName: string | null
+}
+
+/**
+ * Each student's group per weekday in a school year (groups are per weekday).
+ * Sorted by weekday; a student without per-day rows maps to an empty list.
+ */
+async function weekdayGroupsByStudent(
+  studentIds: number[],
+  schoolYearId: number | null,
+): Promise<Map<number, Array<WeekdayGroupEntry & { planClassId: number }>>> {
+  const byStudent = new Map<number, Array<WeekdayGroupEntry & { planClassId: number }>>()
+  if (schoolYearId == null || studentIds.length === 0) return byStudent
+  const rows = await prisma.studentWeekdayGroup.findMany({
+    where: { studentId: { in: studentIds }, schoolYearId },
+    select: { studentId: true, classId: true, selectedWeekday: true, groupId: true },
+    orderBy: [{ selectedWeekday: 'asc' }, { classId: 'asc' }],
+  })
+  const classes = await prisma.class.findMany({
+    where: { id: { in: [...new Set(rows.map(r => r.classId))] } },
+    select: { id: true, name: true },
+  })
+  const nameById = new Map(classes.map(c => [c.id, c.name]))
+  for (const r of rows) {
+    const list = byStudent.get(r.studentId) ?? []
+    list.push({
+      weekday: r.selectedWeekday,
+      groupId: r.groupId,
+      planClassId: r.classId,
+      planClassName: nameById.get(r.classId) ?? null,
+    })
+    byStudent.set(r.studentId, list)
+  }
+  return byStudent
+}
+
+/** Attach `weekdayGroups`, naming the plan class only when it is not the student's own. */
+function withWeekdayGroups<T extends { id: number; classId: number | null }>(
+  students: T[],
+  byStudent: Awaited<ReturnType<typeof weekdayGroupsByStudent>>,
+): Array<T & { weekdayGroups: WeekdayGroupEntry[] }> {
+  return students.map(s => ({
+    ...s,
+    weekdayGroups: (byStudent.get(s.id) ?? []).map(({ planClassId, ...entry }) => ({
+      ...entry,
+      planClassName: planClassId === s.classId ? null : entry.planClassName,
+    })),
+  }))
+}
 
 /**
  * Handles GET requests to retrieve student records.
@@ -33,14 +88,22 @@ export async function GET(request: Request) {
         classId: m.classId,
         class: m.class,
       }))
-      return NextResponse.json(students)
+      const groups = await weekdayGroupsByStudent(
+        students.map(s => s.id),
+        schoolYearId,
+      )
+      return NextResponse.json(withWeekdayGroups(students, groups))
     }
 
     const students = await prisma.student.findMany({
       include: { class: true },
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     })
-    return NextResponse.json(students)
+    const groups = await weekdayGroupsByStudent(
+      students.map(s => s.id),
+      await resolveSchoolYearId(),
+    )
+    return NextResponse.json(withWeekdayGroups(students, groups))
   } catch (error) {
     captureError(error, {
       location: 'api/students/all',

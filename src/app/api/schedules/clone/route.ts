@@ -26,8 +26,8 @@ interface CloneRequest {
  * different teachers and can even have a different number of Turnusse — so this
  * copies the source day as an editable starting point rather than sharing config:
  * the Schedule (both AM/PM lanes + cadence), the teacher assignments and the
- * rotation are duplicated onto the target weekday. Student groups are class-wide,
- * so they are already shared and are not touched here.
+ * rotation are duplicated onto the target weekday, along with the source day's
+ * student grouping (StudentWeekdayGroup) that those assignments refer to.
  */
 export async function POST(request: Request) {
   const gate = await requireAccess('staff')
@@ -183,6 +183,26 @@ export async function POST(request: Request) {
             period: r.period,
             selectedWeekday: toWeekday,
             schoolYearId,
+          })),
+        })
+      }
+
+      // Groups: the source day's grouping, since the copied teacher assignments
+      // and rotation refer to its group numbers.
+      await tx.studentWeekdayGroup.deleteMany({
+        where: { classId, schoolYearId, selectedWeekday: toWeekday },
+      })
+      const sourceGroups = await tx.studentWeekdayGroup.findMany({
+        where: { classId, schoolYearId, selectedWeekday: fromWeekday },
+      })
+      if (sourceGroups.length > 0) {
+        await tx.studentWeekdayGroup.createMany({
+          data: sourceGroups.map(g => ({
+            studentId: g.studentId,
+            classId,
+            schoolYearId,
+            selectedWeekday: toWeekday,
+            groupId: g.groupId,
           })),
         })
       }

@@ -8,6 +8,7 @@ import type { NotensammlerAllClassesClassData } from '@/lib/pdf-generator'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
+import { gradeGroupDay, overlayWeekdayGroups } from '@/lib/weekday-groups'
 
 /**
  * Handles GET requests to generate a PDF of the current teacher's grades for all classes they are assigned to in the given school year.
@@ -68,14 +69,17 @@ export async function GET(request: Request) {
         select: { studentId: true },
       })
       const studentIds = memberships.map(m => m.studentId)
-      const studentsList =
+      // Groups are per weekday: the teacher's own day for this class.
+      const studentsList = await overlayWeekdayGroups(
         studentIds.length > 0
           ? await prisma.student.findMany({
               where: { id: { in: studentIds } },
               orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
               select: { id: true, firstName: true, lastName: true, groupId: true },
             })
-          : []
+          : [],
+        await gradeGroupDay({ classId: classRecord.id, schoolYearId, teacherId: teacher.id }),
+      )
 
       const assignmentsForClass = await prisma.teacherAssignment.findMany({
         where: { classId: classRecord.id, schoolYearId },

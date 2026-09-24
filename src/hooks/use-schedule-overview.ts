@@ -28,6 +28,8 @@ interface UseScheduleOverviewResult {
   classLead: string
   additionalInfo: string
   weekday: number
+  /** Every weekday the class has a plan on (ascending) — for a day picker. */
+  availableWeekdays: number[]
   loading: boolean
   error: string | null
 }
@@ -60,6 +62,7 @@ export function useScheduleOverview(
   const [classLead, setClassLead] = useState<string>('—')
   const [additionalInfo, setAdditionalInfo] = useState<string>('')
   const [weekday, setWeekday] = useState<number>(0)
+  const [availableWeekdays, setAvailableWeekdays] = useState<number[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [resolvedClassId, setResolvedClassId] = useState<number | null>(null)
@@ -122,9 +125,56 @@ export function useScheduleOverview(
         if (!studentsRes.ok) throw new Error('Failed to fetch students')
         const students: Student[] = await studentsRes.json()
 
-        // Fetch group assignments
+        // Fetch rotation/turn schedule (filtered by school year when provided)
+        // All weekdays, not just the requested one: the list of planned days feeds
+        // the day picker, and the requested day is picked out client-side below.
+        const schedulesRes = await fetch(`/api/schedules?classId=${classId}${yearQ}`, {
+          cache: 'no-store',
+        })
+        // The schedule row carries the per-lane blobs the API splits out.
+        type ScheduleRow = ScheduleResponse & {
+          selectedWeekday?: number
+          amEnabled?: boolean
+          pmEnabled?: boolean
+          amScheduleData?: TurnSchedule | null
+          pmScheduleData?: TurnSchedule | null
+        }
+        let latestSchedule: ScheduleRow | undefined
+        let selectedWeekday = 6
+        let plannedWeekdays: number[] = []
+
+        if (schedulesRes.ok) {
+          const schedules = (await schedulesRes.json()) as ScheduleRow[]
+          plannedWeekdays = [
+            ...new Set(schedules.map(s => s.selectedWeekday).filter((d): d is number => d != null)),
+          ].sort((a, b) => a - b)
+          // Prefer the requested weekday; otherwise the earliest day of the week, so
+          // a class with several plans opens on a predictable one rather than on
+          // whichever was created last.
+          const byDay = (day: number | undefined) =>
+            day != null ? schedules.find(s => s.selectedWeekday === day) : undefined
+          latestSchedule = byDay(weekdayFilter) ?? byDay(plannedWeekdays[0]) ?? schedules[0]
+          selectedWeekday = latestSchedule?.selectedWeekday ?? 6
+        } else if (schedulesRes.status === 404) {
+          // No schedules found - this is okay, we'll use defaults
+          console.warn(`No schedules found for class ${classId}`)
+        } else {
+          throw new Error('Failed to fetch rotation schedule')
+        }
+
+        if (cancelled) return
+        setAdditionalInfo(latestSchedule?.additionalInfo ?? '')
+        setWeekday(selectedWeekday)
+        setAvailableWeekdays(plannedWeekdays)
+
+        // Everything below belongs to ONE weekday's plan. Reading it unscoped
+        // merged every day's teachers into one list (#98 made plans per-weekday).
+        const effectiveWeekday = weekdayFilter ?? latestSchedule?.selectedWeekday
+        const dayQ = effectiveWeekday != null ? `&selectedWeekday=${effectiveWeekday}` : ''
+
+        // This weekday's groups (groups are per weekday, like everything else).
         const groupRes = await fetch(
-          `/api/schedules/assignments?classId=${resolvedClassId}${yearQ}`,
+          `/api/schedules/assignments?classId=${resolvedClassId}${yearQ}${effectiveWeekday != null ? `&weekday=${effectiveWeekday}` : ''}`,
           { cache: 'no-store' },
         )
         if (!groupRes.ok) throw new Error('Failed to fetch group assignments')
@@ -140,60 +190,6 @@ export function useScheduleOverview(
           })),
         )
 
-        // Fetch selected schedule times (optional - continue if this fails)
-        try {
-          const timesRes = await fetch(`/api/schedules/times?classId=${resolvedClassId}`)
-          if (cancelled) return
-          if (timesRes.ok) {
-            const timesData: { times: { scheduleTimes: ScheduleTime[]; breakTimes: BreakTime[] } } =
-              await timesRes.json()
-            setScheduleTimes(timesData.times.scheduleTimes)
-            setBreakTimes(timesData.times.breakTimes)
-          } else {
-            console.warn(`Failed to fetch schedule times for class ${classId}`)
-            setScheduleTimes([])
-            setBreakTimes([])
-          }
-        } catch (err) {
-          console.warn(`Error fetching schedule times for class ${classId}:`, err)
-          setScheduleTimes([])
-          setBreakTimes([])
-        }
-
-        // Fetch rotation/turn schedule (filtered by school year when provided)
-        const weekdayQ = weekdayFilter != null ? `&weekday=${weekdayFilter}` : ''
-        const schedulesRes = await fetch(`/api/schedules?classId=${classId}${yearQ}${weekdayQ}`, {
-          cache: 'no-store',
-        })
-        // The schedule row carries the per-lane blobs the API splits out.
-        type ScheduleRow = ScheduleResponse & {
-          selectedWeekday?: number
-          amEnabled?: boolean
-          pmEnabled?: boolean
-          amScheduleData?: TurnSchedule | null
-          pmScheduleData?: TurnSchedule | null
-        }
-        let latestSchedule: ScheduleRow | undefined
-        let selectedWeekday = 6
-
-        if (schedulesRes.ok) {
-          const schedules = (await schedulesRes.json()) as ScheduleRow[]
-          // Prefer the requested weekday; otherwise the most recent.
-          latestSchedule =
-            weekdayFilter != null
-              ? (schedules.find(s => s.selectedWeekday === weekdayFilter) ?? schedules[0])
-              : schedules[0]
-          selectedWeekday = latestSchedule?.selectedWeekday ?? 6
-        } else if (schedulesRes.status === 404) {
-          // No schedules found - this is okay, we'll use defaults
-          console.warn(`No schedules found for class ${classId}`)
-        } else {
-          throw new Error('Failed to fetch rotation schedule')
-        }
-
-        if (cancelled) return
-        setAdditionalInfo(latestSchedule?.additionalInfo ?? '')
-        setWeekday(selectedWeekday)
         setAmEnabled(latestSchedule?.amEnabled ?? true)
         setPmEnabled(latestSchedule?.pmEnabled ?? true)
 
@@ -216,12 +212,30 @@ export function useScheduleOverview(
           setTurns({})
         }
 
+        // Fetch selected schedule times (optional - continue if this fails)
+        try {
+          const timesRes = await fetch(`/api/schedules/times?classId=${resolvedClassId}${dayQ}`)
+          if (cancelled) return
+          if (timesRes.ok) {
+            const timesData: { times: { scheduleTimes: ScheduleTime[]; breakTimes: BreakTime[] } } =
+              await timesRes.json()
+            setScheduleTimes(timesData.times.scheduleTimes)
+            setBreakTimes(timesData.times.breakTimes)
+          } else {
+            console.warn(`Failed to fetch schedule times for class ${classId}`)
+            setScheduleTimes([])
+            setBreakTimes([])
+          }
+        } catch (err) {
+          console.warn(`Error fetching schedule times for class ${classId}:`, err)
+          setScheduleTimes([])
+          setBreakTimes([])
+        }
+
         // Fetch teacher assignments for this weekday (each weekday is its own plan).
         try {
           const teacherRes = await fetch(
-            `/api/schedules/teacher-assignments?classId=${resolvedClassId}${yearQ}${
-              weekdayFilter != null ? `&selectedWeekday=${weekdayFilter}` : ''
-            }`,
+            `/api/schedules/teacher-assignments?classId=${resolvedClassId}${yearQ}${dayQ}`,
             { cache: 'no-store' },
           )
           if (cancelled) return
@@ -296,6 +310,7 @@ export function useScheduleOverview(
     classLead,
     additionalInfo,
     weekday,
+    availableWeekdays,
     loading,
     error,
   }

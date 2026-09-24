@@ -101,16 +101,28 @@ export async function GET(request: Request) {
     // When classId is provided: return groupId for that class's current turn (week-based), regardless of today's weekday
     const requestedClassId = classIdParam != null ? parseInt(classIdParam, 10) : NaN
     if (!Number.isNaN(requestedClassId)) {
-      const classAssignments = await prisma.teacherAssignment.findMany({
+      const allClassAssignments = await prisma.teacherAssignment.findMany({
         where: { teacherId: teacher.id, schoolYearId, classId: requestedClassId },
         select: { classId: true, groupId: true, selectedWeekday: true, period: true },
+        orderBy: { selectedWeekday: 'asc' },
       })
-      if (classAssignments.length === 0) {
-        return NextResponse.json({ classId: requestedClassId, groupId: null })
+      if (allClassAssignments.length === 0) {
+        return NextResponse.json({ classId: requestedClassId, groupId: null, weekday: null })
       }
+      // Groups are per weekday: resolve on the requested day, else today when the
+      // teacher teaches the class today, else their first day with it.
+      const weekdayParam = Number(searchParams.get('weekday'))
+      const teachingDays = new Set(allClassAssignments.map(a => a.selectedWeekday))
+      const day =
+        Number.isInteger(weekdayParam) && teachingDays.has(weekdayParam)
+          ? weekdayParam
+          : teachingDays.has(currentWeekday)
+            ? currentWeekday
+            : allClassAssignments[0]!.selectedWeekday
+      const classAssignments = allClassAssignments.filter(a => a.selectedWeekday === day)
       const firstAssignment = classAssignments[0]
       if (!firstAssignment) {
-        return NextResponse.json({ classId: requestedClassId, groupId: null })
+        return NextResponse.json({ classId: requestedClassId, groupId: null, weekday: day })
       }
       const schedule = await prisma.schedule.findFirst({
         where: {
@@ -149,13 +161,18 @@ export async function GET(request: Request) {
               r.teacherId === teacher.id,
           )
           if (rot && classAssignments.some(a => a.groupId === rot.groupId)) {
-            return NextResponse.json({ classId: requestedClassId, groupId: rot.groupId })
+            return NextResponse.json({
+              classId: requestedClassId,
+              groupId: rot.groupId,
+              weekday: day,
+            })
           }
         }
       }
       return NextResponse.json({
         classId: requestedClassId,
         groupId: firstAssignment.groupId,
+        weekday: day,
       })
     }
 
@@ -208,7 +225,11 @@ export async function GET(request: Request) {
           rot &&
           assignments.some(as => as.classId === rot.classId && as.groupId === rot.groupId)
         ) {
-          return NextResponse.json({ classId: rot.classId, groupId: rot.groupId })
+          return NextResponse.json({
+            classId: rot.classId,
+            groupId: rot.groupId,
+            weekday: currentWeekday,
+          })
         }
       }
       const firstAssignment = periodAssignments[0]
@@ -216,11 +237,12 @@ export async function GET(request: Request) {
         return NextResponse.json({
           classId: firstAssignment.classId,
           groupId: firstAssignment.groupId,
+          weekday: currentWeekday,
         })
       }
     }
 
-    return NextResponse.json({ classId: null, groupId: null })
+    return NextResponse.json({ classId: null, groupId: null, weekday: null })
   } catch (error) {
     captureError(error, {
       location: 'api/noten/auto-select',

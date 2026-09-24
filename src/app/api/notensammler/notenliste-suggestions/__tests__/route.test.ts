@@ -20,6 +20,7 @@ const mockWeightGlobalFindUnique = vi.hoisted(() => vi.fn())
 const mockEntryFindMany = vi.hoisted(() => vi.fn())
 const mockClassFindUnique = vi.hoisted(() => vi.fn())
 
+vi.mock('@/lib/weekday-groups', () => import('@/test/weekday-groups-passthrough'))
 vi.mock('next-auth', () => ({
   getServerSession: vi.fn(async () => ({ user: { name: 'Anna Müller', role: 'teacher' } })),
 }))

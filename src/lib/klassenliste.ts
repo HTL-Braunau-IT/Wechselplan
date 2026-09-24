@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
+import { gradeGroupDay, overlayWeekdayGroups } from '@/lib/weekday-groups'
 
 /**
  * Class-list ("Klassenliste") data access.
@@ -10,8 +11,8 @@ import { resolveMemberClassIds } from '@/lib/combined-classes'
  * the single roster source shared by the preview endpoint and the PDF endpoint,
  * so both always agree.
  *
- * `Student.groupId` is the source of truth for group membership (see CLAUDE.md).
- * A class with at least one grouped student "has a plan" and prints grouped; a
+ * Groups are per weekday (StudentWeekdayGroup): the list prints the grouping of
+ * the requesting teacher's own day for the class (see gradeGroupDay). A class with at least one grouped student "has a plan" and prints grouped; a
  * class with none prints as one flat, ungrouped list. Students left unassigned in
  * an otherwise-grouped class are never dropped — they print in a trailing
  * "Ohne Gruppe" section (id {@link UNGROUPED_SECTION_ID}).
@@ -43,6 +44,10 @@ export interface ClassRoster {
   classLead: string | null
   schoolYearLabel: string
   students: RosterStudent[]
+  /** The weekday whose grouping `students` carry (groups are per weekday). */
+  groupWeekday: number | null
+  /** Every weekday the class has a plan on. */
+  weekdays: number[]
 }
 
 export interface RosterPerson {
@@ -91,6 +96,8 @@ export function shortSchoolYearLabel(label: string): string {
 export async function getClassRoster(
   classId: number,
   schoolYearId: number,
+  /** Whose teaching day decides the grouping, or an explicit weekday (groups are per weekday). */
+  groupDayFor: { teacherId?: number | null; weekday?: string | number | null } = {},
 ): Promise<ClassRoster | null> {
   const classRecord = await prisma.class.findUnique({
     where: { id: classId },
@@ -113,14 +120,22 @@ export async function getClassRoster(
   })
   const studentIds = memberships.map(m => m.studentId)
 
-  const students =
+  const groupDay = await gradeGroupDay({ classId, schoolYearId, ...groupDayFor })
+  const students = await overlayWeekdayGroups(
     studentIds.length > 0
       ? await prisma.student.findMany({
           where: { id: { in: studentIds }, isActive: true },
           orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
           select: { id: true, firstName: true, lastName: true, groupId: true },
         })
-      : []
+      : [],
+    groupDay,
+  )
+  const plans = await prisma.schedule.findMany({
+    where: { classId, schoolYearId },
+    select: { selectedWeekday: true },
+    orderBy: { selectedWeekday: 'asc' },
+  })
 
   return {
     classId: classRecord.id,
@@ -129,6 +144,8 @@ export async function getClassRoster(
     classLead: fullName(classRecord.classLead),
     schoolYearLabel: schoolYear ? shortSchoolYearLabel(schoolYear.label) : '',
     students,
+    groupWeekday: groupDay?.weekday ?? null,
+    weekdays: [...new Set(plans.map(p => p.selectedWeekday))],
   }
 }
 

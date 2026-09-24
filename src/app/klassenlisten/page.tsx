@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { captureFrontendError } from '@/lib/frontend-error'
 import { errorMessageOf } from '@/lib/api-client'
 import { formatDateGerman } from '@/lib/pdf-helpers'
@@ -53,7 +54,15 @@ export default function KlassenlistenPage() {
   const selectedClassId = classParam ? parseInt(classParam, 10) : null
   const selectedValid = selectedClassId != null && classes.some(c => c.id === selectedClassId)
 
-  const dataQuery = useKlassenlisteData(selectedValid ? selectedClassId : null, schoolYearId)
+  // Groups are per weekday: `?day=` picks whose groups the list is split into.
+  const dayParam = Number(searchParams.get('day'))
+  const requestedDay =
+    Number.isInteger(dayParam) && dayParam >= 1 && dayParam <= 5 ? dayParam : null
+  const dataQuery = useKlassenlisteData(
+    selectedValid ? selectedClassId : null,
+    schoolYearId,
+    requestedDay,
+  )
   const data = dataQuery.data
 
   const [space, setSpace] = useState<WritingSpace>('split')
@@ -94,6 +103,7 @@ export default function KlassenlistenPage() {
     try {
       const params = new URLSearchParams({ classId: String(selectedClassId), space })
       if (schoolYearId != null) params.set('schoolYearId', String(schoolYearId))
+      if (data.groupWeekday != null) params.set('weekday', String(data.groupWeekday))
       if (data.hasPlan && selectedGroupIds.length > 0) {
         params.set('groups', selectedGroupIds.join(','))
       }
@@ -167,6 +177,23 @@ export default function KlassenlistenPage() {
             selectedClassId={selectedValid ? selectedClassId : null}
             onSelect={onSelectClass}
           />
+
+          {selectedValid && data && data.weekdays.length > 1 && (
+            <Tabs
+              value={String(data.groupWeekday ?? '')}
+              onValueChange={v => router.push(`/klassenlisten?class=${selectedClassId}&day=${v}`)}
+            >
+              <TabsList>
+                {data.weekdays.map(day => (
+                  <TabsTrigger key={day} value={String(day)}>
+                    {t('klassenlisten.groupsOnDay', 'Gruppen {{day}}', {
+                      day: t(`raumplan.weekdays.${day}`),
+                    })}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          )}
 
           {!selectedValid ? (
             <EmptyState

@@ -52,7 +52,7 @@ export function StudentTab() {
         sortable: true,
         options: (classes ?? []).map(c => ({ value: c.id as number, label: c.name as string })),
       },
-      { key: 'groupId', label: 'Gruppen-ID', type: 'number', sortable: true },
+      { key: 'groupId', label: 'Gruppen-ID (klassenweit)', type: 'number', sortable: true },
       {
         key: 'isActive',
         label: 'Status',

@@ -7,6 +7,7 @@ import { toLocalDateString } from '@/lib/date-utils'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
+import { groupSettingsWeekday } from '@/lib/weekday-groups'
 import { type WeightConfig } from '@/lib/noten-weights'
 
 function dateToLocalString(d: Date | string): string {
@@ -80,6 +81,13 @@ export async function GET(request: Request) {
     }
 
     const notensammlerEnabled = await isFeatureEnabled('notensammler')
+    // Group weights are per weekday, like the group they belong to.
+    const groupWeekday = await groupSettingsWeekday({
+      classId,
+      schoolYearId,
+      teacherId: teacher.id,
+      weekday: searchParams.get('weekday'),
+    })
 
     // Entries and grades of a combined class are filed under its member classes
     // (each student's real class), so read them across the union. The teacher's
@@ -91,11 +99,12 @@ export async function GET(request: Request) {
       await Promise.all([
         prisma.notenWeightConfig.findUnique({
           where: {
-            teacherId_classId_groupId_schoolYearId: {
+            teacherId_classId_groupId_schoolYearId_selectedWeekday: {
               teacherId: teacher.id,
               classId,
               groupId,
               schoolYearId,
+              selectedWeekday: groupWeekday,
             },
           },
         }),

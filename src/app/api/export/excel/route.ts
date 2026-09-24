@@ -5,6 +5,7 @@ import { resolveSchoolYearId } from '@/lib/school-year'
 import * as XLSX from 'xlsx'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
 import { denyUnlessAccess } from '@/lib/api-guard'
+import { overlayWeekdayGroups } from '@/lib/weekday-groups'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
 
 interface Week {
@@ -86,10 +87,16 @@ export async function POST(request: Request) {
       studentIds.length > 0
         ? await prisma.student.findMany({
             where: { id: { in: studentIds } },
-            orderBy: [{ groupId: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }],
+            orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
           })
         : []
-    const classWithStudents = { ...class_response, students: studentsList }
+    // Groups are per weekday: this sheet's day decides who is in which group.
+    const studentsOnDay = await overlayWeekdayGroups(studentsList, {
+      classId: class_response.id,
+      schoolYearId,
+      weekday,
+    })
+    const classWithStudents = { ...class_response, students: studentsOnDay }
 
     const schedule = await prisma.schedule.findFirst({
       where: {

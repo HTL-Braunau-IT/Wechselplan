@@ -6,6 +6,7 @@ import { captureError } from '@/lib/sentry'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
 import { toLocalDateString } from '@/lib/date-utils'
 import { requireAccess } from '@/lib/api-guard'
+import { teacherWeekdaysForClass, weekdayGroupMap } from '@/lib/weekday-groups'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
 
@@ -13,6 +14,8 @@ type SearchByNameResult = {
   classId: number
   className: string
   groupId: number
+  /** The weekday this group belongs to (groups are per weekday); null without a plan. */
+  weekday: number | null
   studentId: number
   firstName: string
   lastName: string
@@ -22,6 +25,7 @@ type SearchByDateResult = {
   classId: number
   className: string
   groupId: number
+  weekday: number
   period: string
 }
 
@@ -121,20 +125,54 @@ export async function GET(request: Request) {
           classIdsByStudent.set(m.studentId, list)
         }
 
+        // Groups are per weekday: one hit per day this teacher teaches the class,
+        // in that day's group (a student can sit in a different group each day).
+        const dayGroupsByClass = new Map<
+          number,
+          { weekday: number; groups: Map<number, number> }[]
+        >()
+        for (const classId of new Set([...classIdsByStudent.values()].flat())) {
+          const days = await teacherWeekdaysForClass({
+            classId,
+            schoolYearId,
+            teacherId: teacher.id,
+          })
+          dayGroupsByClass.set(
+            classId,
+            await Promise.all(
+              days.map(async weekday => ({
+                weekday,
+                groups: await weekdayGroupMap({ classId, schoolYearId, weekday }),
+              })),
+            ),
+          )
+        }
+
         for (const s of students) {
-          if (s.groupId == null) continue
           const fullName = `${s.lastName} ${s.firstName}`.toLowerCase()
           const reverseName = `${s.firstName} ${s.lastName}`.toLowerCase()
           if (!fullName.includes(lowered) && !reverseName.includes(lowered)) continue
           for (const classId of classIdsByStudent.get(s.id) ?? []) {
-            byName.push({
-              classId,
-              className: classNameById.get(classId) ?? `Klasse ${classId}`,
-              groupId: s.groupId,
-              studentId: s.id,
-              firstName: s.firstName,
-              lastName: s.lastName,
-            })
+            const days = dayGroupsByClass.get(classId) ?? []
+            const hits =
+              days.length > 0
+                ? days.map(d => ({
+                    weekday: d.weekday as number | null,
+                    groupId: d.groups.size ? (d.groups.get(s.id) ?? null) : s.groupId,
+                  }))
+                : [{ weekday: null, groupId: s.groupId }]
+            for (const hit of hits) {
+              if (hit.groupId == null) continue
+              byName.push({
+                classId,
+                className: classNameById.get(classId) ?? `Klasse ${classId}`,
+                groupId: hit.groupId,
+                weekday: hit.weekday,
+                studentId: s.id,
+                firstName: s.firstName,
+                lastName: s.lastName,
+              })
+            }
           }
         }
       }
@@ -203,6 +241,7 @@ export async function GET(request: Request) {
             classId: rot.classId,
             className: classNameById.get(rot.classId) ?? `Klasse ${rot.classId}`,
             groupId: rot.groupId,
+            weekday: rot.selectedWeekday,
             period: rot.period,
           })
         }

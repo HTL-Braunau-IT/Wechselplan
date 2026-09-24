@@ -122,7 +122,7 @@ export function DateMatchList({
 }: {
   matches: SearchByDateMatch[]
   studentsByGroup: Record<string, Student[]>
-  onOpenGroup: (classId: number, groupId: number) => void
+  onOpenGroup: (classId: number, groupId: number, weekday: number) => void
   onDismiss: () => void
 }) {
   const { t } = useTranslation('common')
@@ -154,7 +154,7 @@ export function DateMatchList({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => onOpenGroup(match.classId, match.groupId)}
+                onClick={() => onOpenGroup(match.classId, match.groupId, match.weekday)}
               >
                 {t('noten.searchOpenGroup', { defaultValue: 'In Tabelle öffnen' })}
               </Button>

@@ -85,6 +85,8 @@ export default function NotensammlerPage() {
     classes,
     selectedClassId,
     handleClassChange,
+    groupWeekday,
+    selectWeekday,
     classData,
     grades,
     setGrades,
@@ -114,7 +116,7 @@ export default function NotensammlerPage() {
   const [deleting, setDeleting] = useState(false)
   const [showFullGrid, setShowFullGrid] = useState(false)
 
-  const suggestions = useNotenlisteSuggestions(selectedClassId, schoolYearId)
+  const suggestions = useNotenlisteSuggestions(selectedClassId, schoolYearId, groupWeekday)
 
   const sokrates = useSokrates({ classId: classData?.id, schoolYearId, setError })
   const { refresh: refreshSokrates } = sokrates
@@ -172,6 +174,7 @@ export default function NotensammlerPage() {
       selectedClassId,
       className: classData?.name,
       schoolYearId,
+      weekday: groupWeekday,
       setError,
     })
 
@@ -410,6 +413,23 @@ export default function NotensammlerPage() {
                 <Users className="h-3.5 w-3.5" />
                 {t('notensammler.studentCount', '{{count}} Schüler', { count: sortedStudents.length })}
               </span>
+              {/* Groups are per weekday; a class planned on several days picks whose groups to show. */}
+              {(classData.weekdays?.length ?? 0) > 1 && (
+                <Tabs
+                  value={String(groupWeekday ?? '')}
+                  onValueChange={v => selectWeekday(Number(v))}
+                >
+                  <TabsList className="h-8">
+                    {classData.weekdays!.map(day => (
+                      <TabsTrigger key={day} value={String(day)} className="px-2.5 text-xs">
+                        {t('notensammler.groupsOnDay', 'Gruppen {{day}}', {
+                          day: t(`raumplan.weekdays.${day}`),
+                        })}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </Tabs>
+              )}
 
               <span className="ml-auto flex items-center gap-2">
                 <SaveStatus state={saveState} />

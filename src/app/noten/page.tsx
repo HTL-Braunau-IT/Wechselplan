@@ -16,7 +16,13 @@ import { useSchoolYear } from '@/contexts/school-year-context'
 import { useEntitlements } from '@/contexts/entitlements-context'
 import { useUnsavedWarning } from '@/hooks/use-unsaved-warning'
 import { entryKey, isSemester2 } from '@/lib/grades'
-import { emptyEntry, type NotenEntryRow, type SearchByNameMatch, type TeachingDay } from './_lib/types'
+import {
+  emptyEntry,
+  groupIdsOn,
+  type NotenEntryRow,
+  type SearchByNameMatch,
+  type TeachingDay,
+} from './_lib/types'
 import { computeStudentSummary } from './_lib/summary'
 import { useNotenClasses } from './_hooks/use-noten-classes'
 import { useNotenData } from './_hooks/use-noten-data'
@@ -62,14 +68,18 @@ export default function NotenPage() {
     setSelectedClassId,
     selectedGroupId,
     setSelectedGroupId,
+    selectedWeekday,
+    setSelectedWeekday,
     currentSlot,
     selectClass,
+    selectWeekday,
   } = useNotenClasses(schoolYearId)
 
   const data = useNotenData({
     classId: selectedClassId,
     groupId: selectedGroupId,
     schoolYearId,
+    weekday: selectedWeekday,
   })
 
   // Marks are written as they are entered, but a seat plan is debounced and a
@@ -87,7 +97,7 @@ export default function NotenPage() {
   // class/group loads. Re-applied only when the class/group changes, using the
   // documented render-time "reset state on key change" pattern, so paging
   // through days is preserved across a plain refetch.
-  const dayInitKey = `${selectedClassId}-${selectedGroupId}`
+  const dayInitKey = `${selectedClassId}-${selectedWeekday}-${selectedGroupId}`
   const [dayInitedFor, setDayInitedFor] = useState<string | null>(null)
   if (data.teachingDays.length > 0 && dayInitedFor !== dayInitKey) {
     setDayInitedFor(dayInitKey)
@@ -106,9 +116,10 @@ export default function NotenPage() {
   const onSearchNavigate = useCallback(
     (match: SearchByNameMatch) => {
       setSelectedClassId(match.classId)
+      setSelectedWeekday(match.weekday)
       setSelectedGroupId(match.groupId)
     },
-    [setSelectedClassId, setSelectedGroupId],
+    [setSelectedClassId, setSelectedGroupId, setSelectedWeekday],
   )
   const search = useNotenSearch({ schoolYearId, onNavigate: onSearchNavigate })
 
@@ -118,7 +129,8 @@ export default function NotenPage() {
     classId: selectedClassId,
     schoolYearId,
     selectedGroupId,
-    allGroupIds: selectedClass?.groupIds ?? [],
+    allGroupIds: groupIdsOn(selectedClass, selectedWeekday),
+    weekday: selectedWeekday,
   })
 
   const summary = useMemo(() => {
@@ -306,9 +318,11 @@ export default function NotenPage() {
               classes={classes}
               selectedClassId={selectedClassId}
               selectedGroupId={selectedGroupId}
+              selectedWeekday={selectedWeekday}
               currentSlot={currentSlot}
               onSelectClass={selectClass}
               onSelectGroup={setSelectedGroupId}
+              onSelectWeekday={selectWeekday}
             />
 
             {data.loading && (
@@ -409,8 +423,9 @@ export default function NotenPage() {
                 <DateMatchList
                   matches={search.dateMatches}
                   studentsByGroup={search.studentsByGroup}
-                  onOpenGroup={(classId, groupId) => {
+                  onOpenGroup={(classId, groupId, weekday) => {
                     setSelectedClassId(classId)
+                    setSelectedWeekday(weekday)
                     setSelectedGroupId(groupId)
                   }}
                   onDismiss={search.clearDateSearch}

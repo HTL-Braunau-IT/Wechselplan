@@ -14,6 +14,8 @@ import {
   toLfDate,
   type NmNoteResult,
 } from '@/lib/notenmanagement/grade-mapping'
+import { gradeGroupDay, overlayWeekdayGroups } from '@/lib/weekday-groups'
+import { resolveSessionTeacher } from '@/lib/session-teacher'
 
 type Semester = 'first' | 'second'
 
@@ -146,18 +148,28 @@ export async function POST(request: Request) {
     // already carries its real NM class (nmKlasse), which the LF split below uses
     // to file one Leistungsfeststellung per real NM class.
     const rosterClassIds = await resolveMemberClassIds(classId)
-    const rosterStudents = await prisma.student.findMany({
-      where: { classId: { in: rosterClassIds }, isActive: true },
-      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        groupId: true,
-        matrikelnummer: true,
-        nmKlasse: true,
-      },
-    })
+    // Groups are per weekday: the caller's own teaching day for this class.
+    const groupViewer = await resolveSessionTeacher(session)
+    const rosterStudents = await overlayWeekdayGroups(
+      await prisma.student.findMany({
+        where: { classId: { in: rosterClassIds }, isActive: true },
+        orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          groupId: true,
+          matrikelnummer: true,
+          nmKlasse: true,
+        },
+      }),
+      await gradeGroupDay({
+        classId,
+        schoolYearId,
+        teacherId: groupViewer?.id,
+        weekday: typeof body.weekday === 'number' ? body.weekday : null,
+      }),
+    )
 
     const assignments = await prisma.teacherAssignment.findMany({
       where: { classId },

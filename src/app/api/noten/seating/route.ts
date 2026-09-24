@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
+import { groupSettingsWeekday } from '@/lib/weekday-groups'
 
 /** { [studentId]: { x, y } } in canvas pixels — a teacher's personal Sitzplan. */
 type Positions = Record<string, { x: number; y: number }>
@@ -64,13 +65,21 @@ export async function GET(request: Request) {
     const teacher = await resolveSessionTeacher(session)
     if (!teacher) return NextResponse.json({ positions: {} })
 
+    // A seat plan is per weekday, like the group it lays out.
+    const selectedWeekday = await groupSettingsWeekday({
+      classId,
+      schoolYearId,
+      teacherId: teacher.id,
+      weekday: searchParams.get('weekday'),
+    })
     const layout = await prisma.notenSeatingLayout.findUnique({
       where: {
-        teacherId_classId_groupId_schoolYearId: {
+        teacherId_classId_groupId_schoolYearId_selectedWeekday: {
           teacherId: teacher.id,
           classId,
           groupId,
           schoolYearId,
+          selectedWeekday,
         },
       },
       select: { positions: true },
@@ -104,6 +113,8 @@ export async function PATCH(request: Request) {
       classId?: number
       groupId?: number
       schoolYearId?: number
+      /** The weekday whose group this layout is for (groups are per weekday). */
+      weekday?: number
       positions?: unknown
     }
     const classId = typeof body.classId === 'number' ? body.classId : null
@@ -122,16 +133,23 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Teacher not found' }, { status: 403 })
     }
 
+    const selectedWeekday = await groupSettingsWeekday({
+      classId,
+      schoolYearId,
+      teacherId: teacher.id,
+      weekday: body.weekday,
+    })
     await prisma.notenSeatingLayout.upsert({
       where: {
-        teacherId_classId_groupId_schoolYearId: {
+        teacherId_classId_groupId_schoolYearId_selectedWeekday: {
           teacherId: teacher.id,
           classId,
           groupId,
           schoolYearId,
+          selectedWeekday,
         },
       },
-      create: { teacherId: teacher.id, classId, groupId, schoolYearId, positions },
+      create: { teacherId: teacher.id, classId, groupId, schoolYearId, selectedWeekday, positions },
       update: { positions },
     })
 

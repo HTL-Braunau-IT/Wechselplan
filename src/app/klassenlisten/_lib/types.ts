@@ -32,6 +32,10 @@ export interface KlassenlisteData {
   schoolYearLabel: string
   classHead: string | null
   classLead: string | null
+  /** Groups are per weekday: the day whose grouping the sections show. */
+  groupWeekday: number | null
+  /** Every weekday the class has a plan on (offered as a switch when > 1). */
+  weekdays: number[]
   hasPlan: boolean
   /** Group sections (plus a trailing ungrouped one) when the class has a plan. */
   sections: KlassenlisteSection[]

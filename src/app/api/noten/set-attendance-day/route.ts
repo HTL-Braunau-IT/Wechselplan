@@ -5,6 +5,7 @@ import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveMemberClassIds, resolveGradeClassIds } from '@/lib/combined-classes'
+import { gradeGroupDay, overlayWeekdayGroups, teacherWeekdaysForClass } from '@/lib/weekday-groups'
 
 /**
  * POST: Set Anwesenheit for all students in the group for the given day to "Anwesend".
@@ -73,10 +74,27 @@ export async function POST(request: Request) {
       select: { studentId: true },
     })
     const studentIds = membershipIds.map(m => m.studentId)
-    const studentsInGroup = await prisma.student.findMany({
-      where: { id: { in: studentIds }, groupId },
-      select: { id: true },
+    const roster = await prisma.student.findMany({
+      where: { id: { in: studentIds } },
+      select: { id: true, groupId: true },
     })
+    // Groups are per weekday: the group on the attendance date's weekday when the
+    // teacher teaches the class that day, otherwise their usual day's grouping.
+    const dateWeekday = dateOnly.getUTCDay()
+    const teachingDays = await teacherWeekdaysForClass({
+      classId,
+      schoolYearId,
+      teacherId: teacher.id,
+    })
+    const groupDay = await gradeGroupDay({
+      classId,
+      schoolYearId,
+      teacherId: teacher.id,
+      weekday: teachingDays.includes(dateWeekday) ? dateWeekday : null,
+    })
+    const studentsInGroup = (await overlayWeekdayGroups(roster, groupDay)).filter(
+      s => s.groupId === groupId,
+    )
 
     // The attendance NotenEntry is filed under each student's real (Zeugnis) class,
     // never the combined lens. For a normal class every student maps to classId.

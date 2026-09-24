@@ -9,6 +9,7 @@ import {
   type EntraUserMappingIssue,
 } from '@/lib/entra-user-mapper'
 import { EXTERNAL_SOURCE_ENTRA } from '@/lib/teacher-sync'
+import { dropGroupsOutsideClass } from '@/lib/weekday-groups'
 import { assertDeactivationWithinLimit, resolveMaxDeactivationRatio } from '@/lib/sync-guard'
 
 /**
@@ -1041,6 +1042,7 @@ export async function applyClassStudentSync(
           // in the rotation editor's "unassigned" bucket, where a human decides.
           if (update.existing.classId !== classId) {
             data.groupId = null
+            await dropGroupsOutsideClass(tx, update.existing.id, classId)
           }
         }
         if (update.willAdopt) {
@@ -1081,6 +1083,9 @@ export async function applyClassStudentSync(
         })
         if (classId != null) {
           await upsertMembership(reactivate.existing.id, classId)
+          if (reactivate.existing.classId !== classId) {
+            await dropGroupsOutsideClass(tx, reactivate.existing.id, classId)
+          }
         }
       }
 

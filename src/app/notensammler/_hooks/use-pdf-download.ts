@@ -21,11 +21,19 @@ type Params = {
   selectedClassId: string
   className: string | undefined
   schoolYearId: number | undefined
+  /** The weekday whose grouping the class PDF prints (groups are per weekday). */
+  weekday?: number | null
   setError: (message: string | null) => void
 }
 
 /** PDF exports for the selected class and for all of the teacher's classes. */
-export function usePdfDownload({ selectedClassId, className, schoolYearId, setError }: Params) {
+export function usePdfDownload({
+  selectedClassId,
+  className,
+  schoolYearId,
+  weekday,
+  setError,
+}: Params) {
   const [downloadingPdf, setDownloadingPdf] = useState(false)
   const [downloadingAllPdf, setDownloadingAllPdf] = useState(false)
 
@@ -38,7 +46,10 @@ export function usePdfDownload({ selectedClassId, className, schoolYearId, setEr
     if (!selectedClassId || !className) return
     try {
       setDownloadingPdf(true)
-      const response = await fetch(withYear(`/api/notensammler/pdf?classId=${selectedClassId}`))
+      const dayQ = weekday != null ? `&weekday=${weekday}` : ''
+      const response = await fetch(
+        withYear(`/api/notensammler/pdf?classId=${selectedClassId}${dayQ}`),
+      )
       if (!response.ok) throw new Error('Failed to generate PDF')
       const today = new Date().toLocaleDateString('de-DE')
       await downloadBlob(response, `notensammler-${className}-${today}.pdf`)
@@ -48,7 +59,7 @@ export function usePdfDownload({ selectedClassId, className, schoolYearId, setEr
     } finally {
       setDownloadingPdf(false)
     }
-  }, [selectedClassId, className, schoolYearId, setError])
+  }, [selectedClassId, className, schoolYearId, weekday, setError])
 
   const downloadAllClassesPdf = useCallback(async () => {
     try {

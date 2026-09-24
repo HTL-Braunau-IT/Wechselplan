@@ -5,6 +5,7 @@ import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
 import { type WeightLevel } from '@/lib/noten-weights'
+import { groupSettingsWeekday } from '@/lib/weekday-groups'
 
 /**
  * PATCH: Set or clear a teacher's Noten weights at one level of the override
@@ -32,6 +33,8 @@ export async function PATCH(request: Request) {
       classId?: number
       groupId?: number
       schoolYearId?: number
+      /** Group level only: the weekday whose group this is (groups are per weekday). */
+      weekday?: number
       weightWiederholung?: number
       weightBericht?: number
       weightMitarbeit?: number
@@ -73,6 +76,17 @@ export async function PATCH(request: Request) {
       }
     }
 
+    // Group weights are per weekday, like the groups they belong to.
+    const groupDay =
+      level === 'group'
+        ? await groupSettingsWeekday({
+            classId: classId!,
+            schoolYearId: schoolYearId!,
+            teacherId: teacher.id,
+            weekday: body.weekday,
+          })
+        : null
+
     if (body.clear) {
       // Deleting the level's row makes the context inherit again. deleteMany is
       // a no-op (not an error) when nothing was set, which is what we want.
@@ -89,6 +103,7 @@ export async function PATCH(request: Request) {
             classId: classId!,
             groupId: groupId!,
             schoolYearId: schoolYearId!,
+            selectedWeekday: groupDay!,
           },
         })
       }
@@ -153,11 +168,12 @@ export async function PATCH(request: Request) {
     } else {
       await prisma.notenWeightConfig.upsert({
         where: {
-          teacherId_classId_groupId_schoolYearId: {
+          teacherId_classId_groupId_schoolYearId_selectedWeekday: {
             teacherId: teacher.id,
             classId: classId!,
             groupId: groupId!,
             schoolYearId: schoolYearId!,
+            selectedWeekday: groupDay!,
           },
         },
         create: {
@@ -165,6 +181,7 @@ export async function PATCH(request: Request) {
           classId: classId!,
           groupId: groupId!,
           schoolYearId: schoolYearId!,
+          selectedWeekday: groupDay!,
           ...weightData,
         },
         update: weightData,

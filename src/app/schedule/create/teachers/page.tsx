@@ -170,7 +170,11 @@ export default function TeacherAssignmentPage() {
       setLoading(true)
       try {
         // Fetch groups
-        const groupsRes = await fetch(`/api/schedules/assignments?classId=${selectedClassId}`)
+        // This weekday's groups — a class can be split differently on each day.
+        const groupsYearQ = schoolYearId != null ? `&schoolYearId=${schoolYearId}` : ''
+        const groupsRes = await fetch(
+          `/api/schedules/assignments?classId=${selectedClassId}&weekday=${weekdayParam ?? selectedWeekday ?? ''}${groupsYearQ}`,
+        )
         if (!groupsRes.ok) throw new Error('Failed to fetch groups')
         const groupsData = (await groupsRes.json()) as AssignmentsResponse
         setGroups(

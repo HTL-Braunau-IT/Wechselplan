@@ -8,6 +8,13 @@ import { bestEffort } from '@/lib/notifications'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
 import { notifyScheduleChange } from '../_notify'
 
+/** A weekday query/body value (0–6), or null when absent/invalid. */
+function parseWeekday(raw: unknown): number | null {
+  if (raw == null || raw === '') return null
+  const n = Number(raw)
+  return Number.isInteger(n) && n >= 0 && n <= 6 ? n : null
+}
+
 interface Assignment {
   groupId: number
   studentIds: number[]
@@ -17,6 +24,9 @@ interface RequestBody {
   classId: number
   assignments: Assignment[]
   removedStudentIds?: number[]
+  /** The weekday plan being edited. Groups are per weekday; see StudentWeekdayGroup. */
+  weekday?: number
+  schoolYearId?: number
 }
 
 /**
@@ -87,6 +97,52 @@ export async function GET(request: Request) {
       },
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     })
+
+    // Per-weekday grouping: each day's plan has its own groups.
+    const weekday = parseWeekday(searchParams.get('weekday'))
+    if (weekday != null) {
+      const schoolYearId = await resolveSchoolYearId(searchParams.get('schoolYearId'))
+      if (schoolYearId == null) {
+        return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
+      }
+      const rows = await prisma.studentWeekdayGroup.findMany({
+        where: { classId: classRecord.id, schoolYearId },
+        select: { studentId: true, groupId: true, selectedWeekday: true },
+        orderBy: { selectedWeekday: 'asc' },
+      })
+      // This day's rows; a day not grouped yet starts from the earliest other
+      // day's grouping, and a class never grouped per day from Student.groupId.
+      const seedDay = rows.some(r => r.selectedWeekday === weekday)
+        ? weekday
+        : rows[0]?.selectedWeekday
+      const dayGroups =
+        seedDay != null
+          ? new Map(
+              rows.filter(r => r.selectedWeekday === seedDay).map(r => [r.studentId, r.groupId]),
+            )
+          : new Map(students.flatMap(s => (s.groupId != null ? [[s.id, s.groupId] as const] : [])))
+
+      const byGroup = new Map<number, number[]>()
+      for (const student of students) {
+        const groupId = dayGroups.get(student.id)
+        if (groupId == null) continue
+        const list = byGroup.get(groupId) ?? []
+        list.push(student.id)
+        byGroup.set(groupId, list)
+      }
+      const dayAssignments: Assignment[] = [...byGroup.keys()]
+        .sort((a, b) => a - b)
+        .map(groupId => ({ groupId, studentIds: byGroup.get(groupId) ?? [] }))
+
+      return NextResponse.json({
+        assignments: dayAssignments,
+        unassignedStudents: students
+          .filter(s => !dayGroups.has(s.id))
+          .map(s => ({ ...s, groupId: null })),
+        weekday,
+        seededFromWeekday: seedDay != null && seedDay !== weekday ? seedDay : null,
+      })
+    }
 
     // Group students by their groupId
     const groups = new Map<number, typeof students>()
@@ -186,6 +242,7 @@ export async function POST(request: Request) {
     }
 
     const { classId, assignments, removedStudentIds } = body
+    const weekday = parseWeekday(body.weekday)
 
     if (!classId || typeof classId !== 'number') {
       captureError(new Error('Class ID parameter is required'), {
@@ -248,6 +305,57 @@ export async function POST(request: Request) {
     // guard below still holds for combined and normal classes alike.
     const rosterClassIds = await resolveMemberClassIds(classRecord.id)
 
+    if (weekday != null) {
+      const schoolYearId = await resolveSchoolYearId(body.schoolYearId)
+      if (schoolYearId == null) {
+        return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
+      }
+
+      // Only students on this class's roster may be grouped into its plan.
+      const roster = await prisma.student.findMany({
+        where: { classId: { in: rosterClassIds } },
+        select: { id: true },
+      })
+      const rosterIds = new Set(roster.map(s => s.id))
+      const rows = assignments
+        .filter(a => a.groupId !== 0)
+        .flatMap(a =>
+          a.studentIds
+            .filter(id => rosterIds.has(id))
+            .map(studentId => ({
+              studentId,
+              classId: classRecord.id,
+              schoolYearId,
+              selectedWeekday: weekday,
+              groupId: a.groupId,
+            })),
+        )
+
+      // Replace this day's grouping wholesale. Other weekdays, and the class-wide
+      // Student.groupId, are deliberately left alone: editing one day's groups
+      // must never regroup the class on another day.
+      await prisma.$transaction([
+        prisma.studentWeekdayGroup.deleteMany({
+          where: { classId: classRecord.id, schoolYearId, selectedWeekday: weekday },
+        }),
+        prisma.studentWeekdayGroup.createMany({ data: rows, skipDuplicates: true }),
+      ])
+
+      await bestEffort('notify:schedule-assignments', async () => {
+        const session = gate.session
+        await notifyScheduleChange({
+          type: 'schedule-students-changed',
+          classId,
+          schoolYearId,
+          actor: await resolveCurrentTeacher(session),
+          session,
+        })
+      })
+
+      return NextResponse.json({ success: true })
+    }
+
+    // Legacy class-wide path (no weekday): kept for callers outside the wizard.
     // First, ensure all groups exist in GroupAssignment table
     const requestedGroupIds = assignments.map(a => a.groupId).filter(id => id !== 0) // Exclude unassigned group
 

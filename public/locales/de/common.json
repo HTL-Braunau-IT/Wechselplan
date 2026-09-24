@@ -172,7 +172,8 @@
     "verlaufFehlt": "Fehlt",
     "verlaufAvg": "Ø Note",
     "endnotenTitle": "Endnoten & Betragen",
-    "endnotenHint": "Vorschlag aus dem Durchschnitt, überschreibbar"
+    "endnotenHint": "Vorschlag aus dem Durchschnitt, überschreibbar",
+    "day": "Tag"
   },
   "theme": {
     "light": "Hell",
@@ -713,7 +714,8 @@
     "hintEnter": "nächster offener Schüler",
     "openFullGrid": "Ganzes Raster aller Lehrer öffnen",
     "suggestEndnoten": "Endnoten aus Ø vorschlagen",
-    "fullGridTitle": "Gesamtraster · {{name}}"
+    "fullGridTitle": "Gesamtraster · {{name}}",
+    "groupsOnDay": "Gruppen {{day}}"
   },
   "schedules": {
     "title": "Wechselpläne",

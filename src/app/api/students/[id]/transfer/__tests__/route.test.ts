@@ -4,8 +4,10 @@ import { getServerSession } from 'next-auth'
 import { prisma } from '@/lib/prisma'
 import { resolveCurrentTeacher } from '@/lib/current-teacher'
 import { notifyScheduleChange } from '@/app/api/schedules/_notify'
+import { dropGroupsOutsideClass } from '@/lib/weekday-groups'
 import { POST } from '../route'
 
+vi.mock('@/lib/weekday-groups', () => import('@/test/weekday-groups-passthrough'))
 vi.mock('next-auth', () => ({ getServerSession: vi.fn() }))
 vi.mock('@/lib/auth', () => ({ authOptions: {} }))
 vi.mock('@/lib/sentry', () => ({ captureError: vi.fn() }))
@@ -28,6 +30,8 @@ const request = (body: unknown) =>
 
 const context = { params: Promise.resolve({ id: '5' }) }
 
+let lastTx: { studentWeekdayGroup: { upsert: ReturnType<typeof vi.fn> } } | undefined
+
 describe('POST /api/students/[id]/transfer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -44,7 +48,13 @@ describe('POST /api/students/[id]/transfer', () => {
         student: { update: vi.fn() },
         classMembership: { upsert: vi.fn() },
         groupAssignment: { upsert: vi.fn() },
+        studentWeekdayGroup: {
+          // Class 2 already groups students into group 1 on Monday.
+          findMany: vi.fn(async () => [{ selectedWeekday: 1 }]),
+          upsert: vi.fn(),
+        },
       }
+      lastTx = tx
       return fn(tx)
     }) as never)
   })
@@ -63,5 +73,24 @@ describe('POST /api/students/[id]/transfer', () => {
       expect(arg.type).toBe('schedule-students-changed')
       expect(arg.schoolYearId).toBe(9)
     }
+  })
+
+  it('drops per-day groups outside the target class and places the student on each day', async () => {
+    const res = await POST(
+      request({ targetClassId: 2, targetGroupId: 1, schoolYearId: 9, weekday: 3 }),
+      context,
+    )
+
+    expect(res.status).toBe(200)
+    expect(dropGroupsOutsideClass).toHaveBeenCalledWith(expect.anything(), 5, 2)
+    // Monday (where group 1 exists) and the transfer's own weekday, Wednesday.
+    const days = lastTx!.studentWeekdayGroup.upsert.mock.calls
+      .map(([arg]) => (arg as { create: { selectedWeekday: number; groupId: number } }).create)
+      .map(c => [c.selectedWeekday, c.groupId])
+      .sort()
+    expect(days).toEqual([
+      [1, 1],
+      [3, 1],
+    ])
   })
 })

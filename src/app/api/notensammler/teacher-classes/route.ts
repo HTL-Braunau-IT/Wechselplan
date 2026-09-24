@@ -3,6 +3,7 @@ import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
+import { gradeGroupDay, weekdayGroupMap } from '@/lib/weekday-groups'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
@@ -66,12 +67,22 @@ export async function GET(request: Request) {
         // span the whole combined roster (grades are filed under each student's
         // real class). For a normal class this is just [cls.id].
         const memberIds = await resolveMemberClassIds(cls.id)
+        // "Grouped" students: on the teacher's own day for this class (groups are
+        // per weekday), or by Student.groupId for a plan without per-day groups.
+        const groupDay = await gradeGroupDay({
+          classId: cls.id,
+          schoolYearId,
+          teacherId: teacher.id,
+        })
+        const dayGroups = groupDay ? await weekdayGroupMap(groupDay) : new Map<number, number>()
         const [activeStudentCount, firstCount, secondCount] = await Promise.all([
           prisma.classMembership.count({
             where: {
               classId: { in: memberIds },
               schoolYearId,
-              student: { groupId: { not: null } },
+              ...(dayGroups.size > 0
+                ? { studentId: { in: [...dayGroups.keys()] } }
+                : { student: { groupId: { not: null } } }),
             },
           }),
           prisma.grade.count({

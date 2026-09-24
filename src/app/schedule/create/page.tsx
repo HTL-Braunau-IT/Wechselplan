@@ -1,18 +1,19 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import {
-  DndContext,
-  DragOverlay,
-  MouseSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core'
-import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import { useTranslation } from 'next-i18next'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
+import { AlertCircle, ArrowRight, CalendarClock, Copy, Sunrise, Sunset, Trash2 } from 'lucide-react'
+
+import { PageContainer } from '@/components/ui/page-container'
+import { PageHeader } from '@/components/ui/page-header'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Spinner } from '@/components/ui/spinner'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -20,1209 +21,528 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Label } from '@/components/ui/label'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from '@/components/ui/dialog'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import {
   AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
   AlertDialogDescription,
   AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Spinner } from '@/components/ui/spinner'
-import { PageContainer } from '@/components/ui/page-container'
-import { PageHeader } from '@/components/ui/page-header'
 import {
-  AlertCircle,
-  ArrowRight,
-  Combine,
-  Info,
-  Minus,
-  Plus,
-  RotateCcw,
-  Trash2,
-  UserPlus,
-  Users,
-} from 'lucide-react'
-import { captureFrontendError } from '@/lib/frontend-error'
-import { useUnsavedWarning } from '@/hooks/use-unsaved-warning'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { WizardFooter } from '@/components/schedule/wizard-footer'
-import {
-  UNASSIGNED_GROUP_ID,
-  distributeStudentsEvenly,
-  checkGroupSizes,
-  ensureUnassignedGroup,
-  adjustGroupCount,
-  renumberGroups,
-} from '@/lib/group-distribution'
-import {
-  MIN_GROUPS,
-  MAX_GROUPS,
-  MAX_GROUP_SIZE,
-  MAX_SUPPORTED_STUDENTS,
-  seedGroupCount,
-} from '@/lib/schedule-limits'
-import { StudentItem } from '@/components/schedule/student-item'
-import { GroupContainer } from '@/components/schedule/group-container'
-import { AddStudentDialog } from '@/components/schedule/add-student-dialog'
-import { CombineClassesDialog } from '@/components/schedule/combine-classes-dialog'
-import { TransferStudentDialog } from '@/components/schedule/transfer-student-dialog'
-import { useClassDataByName } from '@/hooks/use-class-data'
-import { useGroupAssignments } from '@/hooks/use-group-assignments'
+import { PeriodLaneCard, type LaneCadence } from '@/components/schedule/period-lane-card'
 import { useSchoolYear } from '@/contexts/school-year-context'
+import { captureFrontendError } from '@/lib/frontend-error'
+import { cn } from '@/lib/utils'
 
-interface Student {
-  id: number
-  firstName: string
-  lastName: string
-  class: string
-  originalClass?: string // For combined classes, shows which class the student originally came from
+const CHIP_CLASS =
+  'focus-visible:ring-ring flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none'
+const CHIP_ACTIVE = 'border-primary bg-primary/10 text-foreground'
+const CHIP_IDLE = 'border-border bg-background hover:bg-muted/60'
+const WEEKDAYS = [1, 2, 3, 4, 5] as const
+
+interface ScheduleShell {
+  selectedWeekday: number
+  amEnabled: boolean
+  pmEnabled: boolean
+  amWeekInterval: number
+  amWeekOffset: number
+  pmWeekInterval: number
+  pmWeekOffset: number
+  amStartDate: string | null
+  pmStartDate: string | null
+  semesterPlanning: string | null
 }
 
-// The class a student is grouped under. For a combined class this is the
-// student's own member class (`originalClass`), so auto-distribution can keep
-// each real class in its own groups instead of mixing them.
-const studentClassKey = (student: Student): string => student.originalClass ?? student.class
+type Semester = 'full' | 'first' | 'second'
 
-interface Group {
-  id: number
-  students: Student[]
+const DEFAULT_LANE: LaneCadence = { enabled: true, interval: 1, offset: 0, startDate: '' }
+
+/** "yyyy-MM-dd" → "dd.MM." for the compact recap strip. */
+const shortDate = (iso: string) => {
+  const [, m, d] = iso.split('-')
+  return m && d ? `${d}.${m}.` : iso
 }
 
-interface Assignment {
-  groupId: number
-  studentIds: number[]
+/** A labelled row inside the plan card: a fixed label column and its control. */
+function FieldRow({
+  label,
+  hint,
+  children,
+}: {
+  label: string
+  hint?: string
+  children: ReactNode
+}) {
+  return (
+    <div className="flex flex-col gap-3 border-b px-6 py-5 sm:flex-row sm:items-start sm:gap-6">
+      <div className="w-40 shrink-0 sm:pt-1.5">
+        <div className="text-sm font-medium">{label}</div>
+        {hint ? <div className="text-muted-foreground mt-1 text-xs">{hint}</div> : null}
+      </div>
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  )
 }
-
-interface Class {
-  id: number
-  name: string
-  description: string | null
-  isCombined?: boolean
-}
-
-interface AssignmentsResponse {
-  assignments: Assignment[]
-  unassignedStudents: Student[]
-}
-
-// Group/size limits are shared with the combine-classes endpoint.
-// See src/lib/schedule-limits.ts.
 
 /**
- * Provides an interactive interface for assigning students to groups within a selected class using drag-and-drop.
+ * Step 1 of the wizard: class, weekday, periods and cadence.
  *
- * Enables teachers to select a class, view and manage its students, create groups, assign students to groups, add or remove students, and save group assignments. Integrates with backend APIs for data retrieval and persistence, enforces maximum group size constraints, and prompts for confirmation when updating existing assignments.
- *
- * @returns The React component for the class scheduling and group assignment interface.
- *
- * @remark The unassigned group (ID 0) is always present and preserved across group changes. Students cannot be moved into the unassigned group via drag-and-drop, but can be moved there using the remove action. If a group assignment would exceed the maximum group size, a warning dialog is shown and the action is blocked. When existing assignments are detected and changes are made, a confirmation dialog is displayed before updating assignments.
+ * The day comes first because everything after it — groups included — belongs to
+ * one weekday's plan: a class can be split differently on each day.
  */
-export default function ScheduleClassSelectPage() {
-  const router = useRouter()
+export default function ClassDayPage() {
   const { t } = useTranslation('schedule')
+  const router = useRouter()
   const searchParams = useSearchParams()
-
-  const [classes, setClasses] = useState<Class[]>([])
-  const [selectedClass, setSelectedClass] = useState<string>(searchParams.get('class') ?? '')
-  const [selectedClassId, setSelectedClassId] = useState<number | null>(null)
-  const [students, setStudents] = useState<Student[]>([])
-  const [loading, setLoading] = useState<boolean>(false)
-  const [loadingClasses, setLoadingClasses] = useState<boolean>(true)
-  // Fatal errors (class/student load failed, class too large) — these replace the
-  // whole editor. `sizeError` is a live validation flag shown inline that blocks
-  // "Next"; `actionError` holds non-fatal action failures shown inline. Keeping
-  // them separate stops a transient validation message from wiping the editor.
-  const [error, setError] = useState<string | null>(null)
-  const [sizeError, setSizeError] = useState<boolean>(false)
-  const [actionError, setActionError] = useState<string | null>(null)
-  const [numberOfGroups, setNumberOfGroups] = useState<number>(2)
-  const [groups, setGroups] = useState<Group[]>([
-    {
-      id: UNASSIGNED_GROUP_ID,
-      students: [],
-    },
-  ])
-  const [activeStudent, setActiveStudent] = useState<Student | null>(null)
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
-  const [showMaxSizeDialog, setShowMaxSizeDialog] = useState(false)
-  const [pendingAssignments, setPendingAssignments] = useState<{
-    assignments: Assignment[]
-    removedStudentIds: number[]
-  } | null>(null)
-  const [showAddStudentDialog, setShowAddStudentDialog] = useState(false)
-  const [newStudent, setNewStudent] = useState({
-    firstName: '',
-    lastName: '',
-    username: '',
-  })
-  const [showCombineClassesDialog, setShowCombineClassesDialog] = useState(false)
-  const [combineClasses, setCombineClasses] = useState<{
-    memberClassIds: string[]
-    combinedClassName: string
-  }>({
-    memberClassIds: [],
-    combinedClassName: '',
-  })
-  const [combiningClasses, setCombiningClasses] = useState(false)
-  const [showRemoveCombinedDialog, setShowRemoveCombinedDialog] = useState(false)
-  const [removingCombined, setRemovingCombined] = useState(false)
-  const [isManualGroupChange, setIsManualGroupChange] = useState(false)
-  const [showTransferDialog, setShowTransferDialog] = useState(false)
-  const [transferTargetStudent, setTransferTargetStudent] = useState<Student | null>(null)
-  const [transferring, setTransferring] = useState(false)
-  // Unsaved in-step edits (group drag/reset/remove) — lost on reload before "Next".
-  const [dirty, setDirty] = useState(false)
-  const queryClient = useQueryClient()
-
-  useUnsavedWarning(dirty)
-
-  /**
-   * Resets the group assignments to two groups, evenly distributing students by last name.
-   *
-   * If redistributing students would cause any group to exceed the maximum allowed size, displays a warning dialog instead of resetting.
-   */
-  function handleReset() {
-    // Calculate appropriate number of groups based on student count
-    const resetGroups = seedGroupCount(students.length)
-
-    setNumberOfGroups(resetGroups)
-
-    // Check if any group would exceed the maximum size
-    const maxStudentsPerGroup = Math.ceil(students.length / resetGroups)
-    if (maxStudentsPerGroup > MAX_GROUP_SIZE) {
-      setShowMaxSizeDialog(true)
-      return
-    }
-
-    const newGroups = distributeStudentsEvenly(students, resetGroups, {
-      classKey: studentClassKey,
-      maxSize: MAX_GROUP_SIZE,
-    })
-    setGroups(newGroups)
-    setDirty(true)
-  }
-
-  // Add effect to automatically generate username
-  useEffect(() => {
-    if (newStudent.firstName && newStudent.lastName) {
-      setNewStudent(prev => ({
-        ...prev,
-        username: `${newStudent.firstName.toLowerCase()}.${newStudent.lastName.toLowerCase()}`,
-      }))
-    }
-  }, [newStudent.firstName, newStudent.lastName])
-
-  const sensors = useSensors(
-    useSensor(MouseSensor, {
-      activationConstraint: {
-        distance: 10,
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 250,
-        tolerance: 5,
-      },
-    }),
-  )
-
+  const className = searchParams.get('class')
+  const weekdayParam = searchParams.get('weekday')
   const { selectedYear } = useSchoolYear()
   const schoolYearId = selectedYear?.id
 
-  // Fetch classes using React Query (filtered by selected school year)
-  const { data: classesData, isLoading: isLoadingClassesData } = useQuery<Class[]>({
+  const { data: classes = [] } = useQuery<{ id: number; name: string }[]>({
     queryKey: ['classes', schoolYearId],
     queryFn: async () => {
-      const url =
-        schoolYearId != null ? `/api/classes?schoolYearId=${schoolYearId}` : '/api/classes'
-      const res = await fetch(url)
+      const res = await fetch(`/api/classes?schoolYearId=${schoolYearId}`)
       if (!res.ok) throw new Error('Failed to fetch classes')
-      return res.json() as Promise<Class[]>
+      return res.json() as Promise<{ id: number; name: string }[]>
     },
     enabled: schoolYearId != null,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5,
   })
 
-  useEffect(() => {
-    if (classesData) {
-      setClasses(classesData)
-      setLoadingClasses(false)
-    }
-    if (isLoadingClassesData !== undefined) {
-      setLoadingClasses(isLoadingClassesData)
-    }
-  }, [classesData, isLoadingClassesData])
+  // No silent default: entering the step without a weekday used to preselect
+  // Monday, so clicking "Weiter" on a class planned for another day saved a stray
+  // Monday plan instead of editing the real one. The day is always picked here.
+  const [weekday, setWeekday] = useState<number | null>(weekdayParam ? Number(weekdayParam) : null)
+  const [am, setAm] = useState<LaneCadence>(DEFAULT_LANE)
+  const [pm, setPm] = useState<LaneCadence>({ ...DEFAULT_LANE, enabled: false })
+  const [semester, setSemester] = useState<Semester>('full')
+  const [existing, setExisting] = useState<ScheduleShell[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [cloning, setCloning] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  // Resolve className to classId when selectedClass changes
-  const { data: classData } = useClassDataByName(selectedClass || null)
+  const weekdayName = useCallback((day: number) => t(`weekdays.${day}`), [t])
 
-  useEffect(() => {
-    if (classData) {
-      setSelectedClassId(classData.id)
-    } else if (!selectedClass) {
-      setSelectedClassId(null)
-    }
-  }, [classData, selectedClass])
-
-  // Fetch students
-  const { data: studentsData, isLoading: isLoadingStudents } = useQuery<Student[]>({
-    queryKey: ['students', selectedClass],
-    queryFn: async () => {
-      if (!selectedClass) throw new Error('Class name is required')
-      const res = await fetch(`/api/students?class=${selectedClass}`)
-      if (!res.ok) throw new Error('Failed to fetch students')
-      return res.json() as Promise<Student[]>
-    },
-    enabled: !!selectedClass,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-  })
-
-  // Fetch group assignments
-  const { data: assignmentsData, isLoading: isLoadingAssignments } =
-    useGroupAssignments(selectedClassId)
-
-  // Update students when data is fetched
-  useEffect(() => {
-    if (studentsData) {
-      setStudents(studentsData)
-    }
-  }, [studentsData])
-
-  // Initialize groups when students and assignments are loaded
-  useEffect(() => {
-    if (!selectedClass || !selectedClassId || isLoadingStudents || isLoadingAssignments) {
-      setLoading(isLoadingStudents || isLoadingAssignments)
-      return
-    }
-
-    if (!studentsData) return
-
-    setLoading(true)
-    setIsManualGroupChange(false) // Reset manual change flag when loading new class
-    setError(null) // Clear any fatal/action error from a previously selected class
-    setActionError(null)
-
-    try {
-      // Calculate initial number of groups based on student count
-      const initialGroups = seedGroupCount(studentsData.length)
-      setNumberOfGroups(initialGroups)
-
-      // Check if class has too many students
-      if (studentsData.length > MAX_SUPPORTED_STUDENTS) {
-        setError(
-          t('tooManyStudentsError', { max: MAX_SUPPORTED_STUDENTS, count: studentsData.length }),
-        )
-        setLoading(false)
-        return
-      }
-
-      if (assignmentsData?.assignments && assignmentsData.assignments.length > 0) {
-        // Only count real groups: exclude unassigned (groupId 0) and empty rows
-        const regularAssignments = assignmentsData.assignments.filter(
-          a => a.groupId !== UNASSIGNED_GROUP_ID && a.studentIds.length > 0,
-        )
-        const existingGroups: Group[] = [
-          // Always include unassigned group first
-          {
-            id: UNASSIGNED_GROUP_ID,
-            students: (assignmentsData.unassignedStudents || []).map(s => ({
-              ...s,
-              class: selectedClass || '',
-            })),
-          },
-          // Then add only regular (non-empty, non-unassigned) groups
-          ...regularAssignments.map(assignment => ({
-            id: assignment.groupId,
-            students: assignment.studentIds
-              .map(id => studentsData.find(s => s.id === id))
-              .filter((s): s is Student => s !== undefined),
-          })),
-        ]
-        setGroups(existingGroups)
-        setNumberOfGroups(regularAssignments.length)
-      } else {
-        // Otherwise, create default groups with even distribution (kept
-        // class-true for combined classes — see studentClassKey).
-        const newGroups = distributeStudentsEvenly(studentsData, initialGroups, {
-          classKey: studentClassKey,
-          maxSize: MAX_GROUP_SIZE,
-        })
-        setGroups(newGroups)
-      }
-    } catch (err) {
-      console.error('Error processing students and assignments:', err)
-      captureFrontendError(err, {
-        location: 'schedule/create',
-        type: 'process-students-assignments',
-        extra: {
-          selectedClass,
-        },
-      })
-      setError('Fehler beim Laden der Schüler und Zuweisungen.')
-    } finally {
-      setLoading(false)
-    }
-  }, [
-    selectedClass,
-    selectedClassId,
-    studentsData,
-    assignmentsData,
-    isLoadingStudents,
-    isLoadingAssignments,
-    t,
-  ])
-
-  // Apply a manual change to the number of groups in a single pass: grow/shrink
-  // (redistributing students) and then renumber to 1..n. Consolidates what used to
-  // be two separate, order-sensitive effects. Both steps are pure + unit-tested in
-  // src/lib/__tests__/group-distribution.test.ts.
-  useEffect(() => {
-    if (students.length === 0) return
-    if (!isManualGroupChange) return
-
-    setGroups(current =>
-      renumberGroups(
-        adjustGroupCount(current, numberOfGroups, MAX_GROUP_SIZE, studentClassKey),
-        numberOfGroups,
-      ),
-    )
-    setIsManualGroupChange(false)
-  }, [numberOfGroups, students, isManualGroupChange])
-
-  // Ensure the unassigned group is always present.
-  useEffect(() => {
-    setGroups(ensureUnassignedGroup)
+  // Prefill from the plan already stored for this weekday, and remember which
+  // other weekdays have a plan (for the "copy from an existing day" action).
+  const applyShell = useCallback((shell: ScheduleShell) => {
+    setAm({
+      enabled: shell.amEnabled,
+      interval: shell.amWeekInterval,
+      offset: shell.amWeekOffset,
+      startDate: shell.amStartDate ? shell.amStartDate.slice(0, 10) : '',
+    })
+    setPm({
+      enabled: shell.pmEnabled,
+      interval: shell.pmWeekInterval,
+      offset: shell.pmWeekOffset,
+      startDate: shell.pmStartDate ? shell.pmStartDate.slice(0, 10) : '',
+    })
+    setSemester((shell.semesterPlanning as Semester | null) ?? 'full')
   }, [])
 
-  // Track group-size validity (shown inline, blocks "Next" — see sizeError).
   useEffect(() => {
-    setSizeError(!checkGroupSizes(groups, MAX_GROUP_SIZE))
-  }, [groups])
-
-  /**
-   * Updates the number of groups based on the selected value from the group size dropdown.
-   *
-   * @param value - The selected number of groups as a string.
-   */
-  function handleGroupSizeChange(value: string) {
-    setNumberOfGroups(Number(value))
-    setIsManualGroupChange(true)
-    setDirty(true)
-  }
-
-  async function handleNext() {
-    try {
-      // Get all students that are still in groups
-      const activeStudents = groups.flatMap(group => group.students)
-      const activeStudentIds = activeStudents.map(student => student.id)
-
-      // Get all students that were removed
-      const removedStudents = students.filter(student => !activeStudentIds.includes(student.id))
-
-      // Store the group assignments
-      const assignments = groups.map(group => ({
-        groupId: group.id,
-        studentIds: group.students.map(student => student.id),
-      }))
-
-      // Check if there are existing assignments
-      if (!selectedClassId) throw new Error('Class ID not available')
-      const existingAssignmentsRes = await fetch(
-        `/api/schedules/assignments?classId=${selectedClassId}`,
-      )
-      if (!existingAssignmentsRes.ok) throw new Error('Failed to fetch existing assignments')
-      const existingAssignmentsData = (await existingAssignmentsRes.json()) as AssignmentsResponse
-
-      // Only show confirmation if there are existing assignments
-      if (existingAssignmentsData.assignments && existingAssignmentsData.assignments.length > 0) {
-        // Check if the assignments are different from what's currently on screen
-        const hasChanges =
-          existingAssignmentsData.assignments.some(existingAssignment => {
-            const currentAssignment = assignments.find(
-              a => a.groupId === existingAssignment.groupId,
-            )
-            if (!currentAssignment) return true // Group was removed
-
-            // Check if student IDs are different
-            if (currentAssignment.studentIds.length !== existingAssignment.studentIds.length)
-              return true
-
-            // Check if any student IDs are different
-            return (
-              currentAssignment.studentIds.some(
-                id => !existingAssignment.studentIds.includes(id),
-              ) ||
-              existingAssignment.studentIds.some(id => !currentAssignment.studentIds.includes(id))
-            )
-          }) ||
-          assignments.some(currentAssignment => {
-            // Check if there are any new groups that weren't in the existing assignments
-            return !existingAssignmentsData.assignments.some(
-              existingAssignment => existingAssignment.groupId === currentAssignment.groupId,
-            )
-          })
-
-        if (hasChanges) {
-          setPendingAssignments({
-            assignments,
-            removedStudentIds: removedStudents.map(student => student.id),
-          })
-          setShowConfirmDialog(true)
-          return
+    if (!className) {
+      setExisting([])
+      setLoading(false)
+      return
+    }
+    let active = true
+    const load = async () => {
+      try {
+        setLoading(true)
+        const yearQ = selectedYear?.id != null ? `&schoolYearId=${selectedYear.id}` : ''
+        const res = await fetch(`/api/schedules?classId=${encodeURIComponent(className)}${yearQ}`, {
+          cache: 'no-store',
+        })
+        if (!active) return
+        if (res.ok) {
+          const shells = (await res.json()) as ScheduleShell[]
+          setExisting(shells)
+          const forWeekday =
+            weekday != null ? shells.find(s => s.selectedWeekday === weekday) : undefined
+          if (forWeekday) applyShell(forWeekday)
+        } else {
+          setExisting([])
         }
+      } catch (err) {
+        captureFrontendError(err, { location: 'schedule/create/periods', type: 'load' })
+      } finally {
+        if (active) setLoading(false)
       }
+    }
+    void load()
+    return () => {
+      active = false
+    }
+    // Reload when the class or year changes; weekday prefill is handled on click.
+  }, [className, selectedYear?.id])
 
-      // If no changes or no existing assignments, proceed with saving
-      if (!selectedClassId) throw new Error('Class ID not available')
-      const response = await fetch('/api/schedules/assignments', {
+  const plannedWeekdays = useMemo(() => new Set(existing.map(s => s.selectedWeekday)), [existing])
+  const cloneSources = useMemo(
+    () => (weekday == null ? [] : existing.filter(s => s.selectedWeekday !== weekday)),
+    [existing, weekday],
+  )
+  const weekdayHasPlan = weekday != null && plannedWeekdays.has(weekday)
+
+  // One-line recap of the current choices, shown in the card footer strip.
+  const planSummary = useMemo(() => {
+    const lanePart = (label: string, lane: LaneCadence) => {
+      if (!lane.enabled) return `${label}: ${t('periodOff')}`
+      const rhythm =
+        lane.interval > 1
+          ? lane.startDate
+            ? `${t('everySecondWeek')}, ${t('fromDate', { date: shortDate(lane.startDate) })}`
+            : t('everySecondWeek')
+          : t('everyWeek')
+      return `${label}: ${rhythm}`
+    }
+    const dayPart = weekday != null ? weekdayName(weekday) : t('pickWeekday')
+    return `${dayPart} · ${lanePart(t('morning'), am)} · ${lanePart(t('afternoon'), pm)}`
+  }, [weekday, am, pm, weekdayName, t])
+
+  const handlePickClass = (name: string) => {
+    // A different class starts with no day picked; its plans load via the URL.
+    setWeekday(null)
+    setAm(DEFAULT_LANE)
+    setPm({ ...DEFAULT_LANE, enabled: false })
+    setSemester('full')
+    setError(null)
+    router.replace(`/schedule/create?class=${encodeURIComponent(name)}`)
+  }
+
+  const handlePickWeekday = (day: number) => {
+    setWeekday(day)
+    const shell = existing.find(s => s.selectedWeekday === day)
+    if (shell) {
+      applyShell(shell)
+    } else {
+      // A day with no plan yet starts fresh rather than inheriting the last day's
+      // cadence/semester.
+      setAm(DEFAULT_LANE)
+      setPm({ ...DEFAULT_LANE, enabled: false })
+      setSemester('full')
+    }
+  }
+
+  const resolveClassId = async (): Promise<number> => {
+    const res = await fetch(`/api/classes/get-by-name?name=${encodeURIComponent(className ?? '')}`)
+    if (!res.ok) throw new Error('Failed to resolve class')
+    const data = (await res.json()) as { id: number }
+    return data.id
+  }
+
+  const handleClone = async (fromWeekday: number) => {
+    if (!className || weekday == null) return
+    setCloning(true)
+    setError(null)
+    try {
+      const classId = await resolveClassId()
+      const res = await fetch('/api/schedules/clone', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          classId: selectedClassId,
-          assignments,
-          removedStudentIds: removedStudents.map(student => student.id),
+          classId,
+          fromWeekday,
+          toWeekday: weekday,
+          schoolYearId: selectedYear?.id,
+          overwrite: true,
         }),
       })
-
-      if (!response.ok) {
-        throw new Error('Failed to store assignments')
-      }
-
-      // Groups are saved; move on to choosing the weekday and periods.
-      setDirty(false)
-      router.push(`/schedule/create/periods?class=${selectedClass}`)
+      if (!res.ok) throw new Error('clone failed')
+      // The target day now mirrors the source (groups included); review from the groups step.
+      router.push(`/schedule/create/groups?class=${className}&weekday=${weekday}`)
     } catch (err) {
-      console.error('Error saving assignments:', err)
-      captureFrontendError(err, {
-        location: 'schedule/create',
-        type: 'save-assignments',
-        extra: {
-          selectedClass,
-          numberOfGroups,
-          assignments: pendingAssignments,
-        },
-      })
-      setActionError('Fehler beim Speichern der Zuweisungen.')
+      captureFrontendError(err, { location: 'schedule/create/periods', type: 'clone' })
+      setError(t('cloneError'))
+      setCloning(false)
     }
   }
 
-  async function handleConfirmUpdate() {
-    if (!pendingAssignments || !selectedClassId) return
-
+  const handleDeleteDay = async () => {
+    if (!className || weekday == null) return
+    setDeleting(true)
+    setError(null)
     try {
-      const response = await fetch('/api/schedules/assignments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          classId: selectedClassId,
-          assignments: pendingAssignments.assignments,
-          removedStudentIds: pendingAssignments.removedStudentIds,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to update assignments')
-      }
-
-      // Groups are saved; move on to choosing the weekday and periods.
-      setDirty(false)
-      router.push(`/schedule/create/periods?class=${selectedClass}`)
-    } catch (err) {
-      console.error('Error updating assignments:', err)
-      captureFrontendError(err, {
-        location: 'schedule/create',
-        type: 'update-assignments',
-        extra: {
-          selectedClass,
-          assignments: pendingAssignments,
-        },
-      })
-      setActionError('Fehler beim Aktualisieren der Zuweisungen.')
-    } finally {
-      setShowConfirmDialog(false)
-      setPendingAssignments(null)
-    }
-  }
-
-  /**
-   * Closes the assignment update confirmation dialog and discards any pending assignment changes.
-   */
-  function handleCancelUpdate() {
-    setShowConfirmDialog(false)
-    setPendingAssignments(null)
-  }
-
-  /**
-   * Moves a student from their current group to the unassigned group.
-   *
-   * Updates the groups state by removing the specified student from their group and adding them to the unassigned group, maintaining alphabetical order by last name in the unassigned group.
-   *
-   * @param studentId - The ID of the student to move to the unassigned group.
-   */
-  function handleStudentRemoval(studentId: number) {
-    setGroups(currentGroups => {
-      const newGroups = [...currentGroups]
-
-      // Find the source group
-      const sourceGroupIndex = newGroups.findIndex(group =>
-        group.students.some(student => student.id === studentId),
-      )
-
-      if (sourceGroupIndex === -1) return currentGroups
-
-      // Find the student
-      const student = newGroups[sourceGroupIndex]!.students.find(s => s.id === studentId)
-      if (!student) return currentGroups
-
-      // Remove student from source group
-      newGroups[sourceGroupIndex]!.students = newGroups[sourceGroupIndex]!.students.filter(
-        s => s.id !== studentId,
-      )
-
-      // Add student to unassigned group
-      const unassignedGroupIndex = newGroups.findIndex(group => group.id === UNASSIGNED_GROUP_ID)
-      if (unassignedGroupIndex !== -1) {
-        newGroups[unassignedGroupIndex]!.students.push(student)
-        // Sort students in the unassigned group by last name
-        newGroups[unassignedGroupIndex]!.students.sort((a, b) =>
-          a.lastName.localeCompare(b.lastName),
-        )
-      }
-
-      return newGroups
-    })
-    setDirty(true)
-  }
-
-  /**
-   * Sets the currently active student when a drag operation starts.
-   *
-   * Extracts the student ID from the drag event and updates the active student state if a matching student is found.
-   *
-   * @param event - The drag start event containing the active draggable item.
-   */
-  function handleDragStart(event: DragStartEvent) {
-    const { active } = event
-    if (!active?.id) return
-
-    // Extract the student ID from the prefixed string
-    const studentId = Number(active.id.toString().replace('student-', ''))
-    const student = students.find(s => s.id === studentId)
-    if (student) {
-      setActiveStudent(student)
-    }
-  }
-
-  /**
-   * Handles the completion of a drag-and-drop action for a student, moving the student to a new group if allowed.
-   *
-   * Prevents moving students to the unassigned group via drag-and-drop and enforces the maximum group size constraint. If the target group is full, displays a dialog warning the user.
-   *
-   * @param event - The drag end event containing information about the dragged student and target group.
-   */
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event
-
-    if (!over?.id || !active?.id) return
-
-    // Extract the IDs from the prefixed strings
-    const studentId = Number(active.id.toString().replace('student-', ''))
-    const targetGroupId = Number(over.id.toString().replace('group-', ''))
-
-    // Don't allow moving to unassigned group if it's not the source
-    if (targetGroupId === UNASSIGNED_GROUP_ID) {
-      setActiveStudent(null)
-      return
-    }
-
-    setGroups(currentGroups => {
-      const newGroups = [...currentGroups]
-
-      // Find the source group
-      const sourceGroupIndex = newGroups.findIndex(group =>
-        group.students.some(student => student.id === studentId),
-      )
-
-      if (sourceGroupIndex === -1) return currentGroups
-
-      // Find the student
-      const student = newGroups[sourceGroupIndex]!.students.find(s => s.id === studentId)
-      if (!student) return currentGroups
-
-      // Find the target group
-      const targetGroupIndex = newGroups.findIndex(group => group.id === targetGroupId)
-      if (targetGroupIndex === -1) return currentGroups
-
-      // Check if adding the student would exceed the maximum group size
-      if (newGroups[targetGroupIndex]!.students.length >= MAX_GROUP_SIZE) {
-        setShowMaxSizeDialog(true)
-        return currentGroups
-      }
-
-      // Remove student from source group
-      newGroups[sourceGroupIndex]!.students = newGroups[sourceGroupIndex]!.students.filter(
-        s => s.id !== studentId,
-      )
-
-      // Add student to target group
-      newGroups[targetGroupIndex]!.students.push(student)
-      // Sort students in the target group by last name
-      newGroups[targetGroupIndex]!.students.sort((a, b) => a.lastName.localeCompare(b.lastName))
-
-      return newGroups
-    })
-
-    setActiveStudent(null)
-    setDirty(true)
-  }
-
-  async function handleAddStudent(e: React.FormEvent) {
-    e.preventDefault() // Prevent form submission
-    if (!selectedClass) return
-
-    try {
-      // Create the new student
-      const response = await fetch('/api/students', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...newStudent,
-          className: selectedClass,
-        }),
-      })
-
-      if (!response.ok) {
-        const error = (await response.json()) as { error?: string }
-        throw new Error(error.error ?? 'Failed to create student')
-      }
-
-      // Reset form and close dialog
-      setNewStudent({
-        firstName: '',
-        lastName: '',
-        username: '',
-      })
-      setShowAddStudentDialog(false)
-
-      // Reload the page with the class parameter
-      router.push(`/schedule/create?class=${selectedClass}`)
-    } catch (err) {
-      console.error('Error adding student:', err)
-      captureFrontendError(err, {
-        location: 'schedule/create',
-        type: 'add-student',
-        extra: {
-          selectedClass,
-          newStudent,
-        },
-      })
-      setActionError('Fehler beim Hinzufügen des Schülers.')
-    }
-  }
-
-  async function handleCombineClasses(e: React.FormEvent) {
-    e.preventDefault()
-
-    // Validate form: at least two distinct member classes plus a name.
-    const memberClassIds = Array.from(new Set(combineClasses.memberClassIds))
-    if (memberClassIds.length < 2) {
-      setActionError(t('bothClassesRequired'))
-      return
-    }
-
-    if (!combineClasses.combinedClassName.trim()) {
-      setActionError(t('combinedClassNameRequired'))
-      return
-    }
-
-    setCombiningClasses(true)
-    setActionError(null)
-
-    try {
-      const response = await fetch('/api/classes/combine', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          memberClassIds: memberClassIds.map(id => parseInt(id)),
-          combinedClassName: combineClasses.combinedClassName.trim(),
-        }),
-      })
-
-      if (!response.ok) {
-        const error = (await response.json()) as { error?: string; details?: unknown }
-        throw new Error(error.error ?? 'Failed to combine classes')
-      }
-
-      await response.json()
-
-      // Reset form and close dialog
-      setCombineClasses({
-        memberClassIds: [],
-        combinedClassName: '',
-      })
-      setShowCombineClassesDialog(false)
-
-      // Refresh classes list
-      const url =
-        schoolYearId != null ? `/api/classes?schoolYearId=${schoolYearId}` : '/api/classes'
-      const classesRes = await fetch(url)
-      if (classesRes.ok) {
-        const classesData = (await classesRes.json()) as Class[]
-        setClasses(classesData)
-      }
-    } catch (err) {
-      console.error('Error combining classes:', err)
-      captureFrontendError(err, {
-        location: 'schedule/create',
-        type: 'combine-classes',
-        extra: {
-          combineClasses,
-        },
-      })
-
-      // Check if it's a "too many students" error
-      const errorMessage = err instanceof Error ? err.message : String(err)
-      if (errorMessage.includes('Cannot combine classes') && errorMessage.includes('students')) {
-        setActionError(errorMessage)
-      } else {
-        setActionError(t('classesCombinedError'))
-      }
-    } finally {
-      setCombiningClasses(false)
-    }
-  }
-
-  // Un-combine: removes the combined class and its schedule artefacts. Students,
-  // usernames, memberships and grades are untouched (they never lived in the
-  // combined class), so this is safe and reversible by re-combining.
-  async function handleRemoveCombinedClass() {
-    const combined = classes.find(c => c.name === selectedClass && c.isCombined)
-    if (!combined) return
-
-    setRemovingCombined(true)
-    setActionError(null)
-    try {
-      const response = await fetch('/api/classes/combine', {
+      const classId = await resolveClassId()
+      const yearQ = selectedYear?.id != null ? `&schoolYearId=${selectedYear.id}` : ''
+      const res = await fetch(`/api/schedules?classId=${classId}&weekday=${weekday}${yearQ}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ combinedClassId: combined.id }),
       })
-      if (!response.ok) {
-        const error = (await response.json()) as { error?: string }
-        throw new Error(error.error ?? 'Failed to remove combined class')
-      }
-
-      setShowRemoveCombinedDialog(false)
-      setSelectedClass('')
-
-      const url =
-        schoolYearId != null ? `/api/classes?schoolYearId=${schoolYearId}` : '/api/classes'
-      const classesRes = await fetch(url)
-      if (classesRes.ok) {
-        const classesData = (await classesRes.json()) as Class[]
-        setClasses(classesData)
-      }
+      if (!res.ok) throw new Error('delete failed')
+      setExisting(prev => prev.filter(s => s.selectedWeekday !== weekday))
+      setWeekday(null)
+      setAm(DEFAULT_LANE)
+      setPm({ ...DEFAULT_LANE, enabled: false })
+      setSemester('full')
+      router.replace(`/schedule/create?class=${encodeURIComponent(className)}`)
     } catch (err) {
-      console.error('Error removing combined class:', err)
-      captureFrontendError(err, {
-        location: 'schedule/create',
-        type: 'remove-combined-class',
-      })
-      setActionError(err instanceof Error ? err.message : t('classesCombinedError'))
+      captureFrontendError(err, { location: 'schedule/create/periods', type: 'delete' })
+      setError(t('deleteDayError'))
     } finally {
-      setRemovingCombined(false)
+      setDeleting(false)
+      setConfirmDelete(false)
     }
   }
 
-  function handleOpenTransferDialog(student: Student) {
-    setTransferTargetStudent(student)
-    setShowTransferDialog(true)
-  }
-
-  async function handleTransferStudent(targetClassId: number, targetGroupId: number | null) {
-    if (!transferTargetStudent) return
-    if (!schoolYearId) {
-      setActionError(t('transferError'))
-      throw new Error('School year not selected')
+  const handleNext = async () => {
+    if (!className) return
+    if (weekday == null) {
+      setError(t('pickWeekday'))
+      return
     }
-
-    setTransferring(true)
+    if (!am.enabled && !pm.enabled) {
+      setError(t('atLeastOnePeriod'))
+      return
+    }
+    setSaving(true)
+    setError(null)
     try {
-      const response = await fetch(`/api/students/${transferTargetStudent.id}/transfer`, {
+      const classId = await resolveClassId()
+      const res = await fetch('/api/schedules', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          targetClassId,
-          targetGroupId,
-          schoolYearId,
+          name: `Wechselplan ${className}`,
+          description: `Wechselplan für Klasse ${className}`,
+          startDate: (selectedYear ? new Date(selectedYear.startDate) : new Date()).toISOString(),
+          endDate: (selectedYear ? new Date(selectedYear.endDate) : new Date()).toISOString(),
+          selectedWeekday: weekday,
+          classId: String(classId),
+          ...(selectedYear?.id != null ? { schoolYearId: selectedYear.id } : {}),
+          amEnabled: am.enabled,
+          pmEnabled: pm.enabled,
+          amWeekInterval: am.interval,
+          amWeekOffset: am.offset,
+          pmWeekInterval: pm.interval,
+          pmWeekOffset: pm.offset,
+          // A start date only applies to a biweekly lane; clear it otherwise so a
+          // stale anchor never lingers after switching back to weekly.
+          amStartDate:
+            am.interval > 1 && am.startDate ? new Date(am.startDate).toISOString() : null,
+          pmStartDate:
+            pm.interval > 1 && pm.startDate ? new Date(pm.startDate).toISOString() : null,
+          semesterPlanning: semester === 'full' ? null : semester,
         }),
       })
-
-      if (!response.ok) {
-        const err = (await response.json().catch(() => ({}))) as { error?: string }
-        throw new Error(err.error ?? 'Failed to transfer student')
-      }
-
-      const transferredId = transferTargetStudent.id
-
-      setStudents(prev => prev.filter(s => s.id !== transferredId))
-      setGroups(prev =>
-        prev.map(group => ({
-          ...group,
-          students: group.students.filter(s => s.id !== transferredId),
-        })),
-      )
-
-      // The students query is keyed by class NAME, but the transfer only knows
-      // targetClassId — resolve the name so the destination roster is refetched
-      // too. Without this the target class keeps serving a cached roster that is
-      // missing the just-transferred-in student (finding 31).
-      const targetClassName = classes.find(c => c.id === targetClassId)?.name
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['students', selectedClass] }),
-        ...(targetClassName
-          ? [queryClient.invalidateQueries({ queryKey: ['students', targetClassName] })]
-          : []),
-        queryClient.invalidateQueries({ queryKey: ['group-assignments', selectedClassId] }),
-        queryClient.invalidateQueries({ queryKey: ['group-assignments', targetClassId] }),
-      ])
-
-      setShowTransferDialog(false)
-      setTransferTargetStudent(null)
+      if (!res.ok) throw new Error('save failed')
+      router.push(`/schedule/create/groups?class=${className}&weekday=${weekday}`)
     } catch (err) {
-      console.error('Error transferring student:', err)
-      captureFrontendError(err, {
-        location: 'schedule/create',
-        type: 'transfer-student',
-        extra: {
-          studentId: transferTargetStudent.id,
-          targetClassId,
-          targetGroupId,
-          schoolYearId,
-        },
-      })
-      setActionError(err instanceof Error ? err.message : t('transferError'))
-      throw err
-    } finally {
-      setTransferring(false)
+      captureFrontendError(err, { location: 'schedule/create/periods', type: 'save' })
+      setError(t('saveFailed'))
+      setSaving(false)
     }
   }
-
-  const selectedIsCombined = classes.some(c => c.name === selectedClass && c.isCombined)
-  const realGroups = groups.filter(g => g.id !== UNASSIGNED_GROUP_ID).sort((a, b) => a.id - b.id)
-  const unassignedStudents = groups.find(g => g.id === UNASSIGNED_GROUP_ID)?.students ?? []
-  const assignedCount = realGroups.reduce((n, g) => n + g.students.length, 0)
 
   return (
-    <PageContainer size="wide">
-      <div className="space-y-6">
+    <TooltipProvider delayDuration={200}>
+      <PageContainer size="wide" className="space-y-6">
         <PageHeader
-          icon={Users}
+          icon={CalendarClock}
           title={t('steps.class')}
-          description={t('classGroupsDescription')}
+          description={t('periodsDescription')}
         />
 
-        {loadingClasses && !selectedClass ? (
-          <div className="text-muted-foreground flex items-center gap-3 py-8">
-            <Spinner size="sm" />
-            <span>{t('loadingClasses')}</span>
-          </div>
-        ) : error ? (
+        <div className="border-border/60 bg-card/40 flex flex-wrap items-center gap-x-5 gap-y-3 rounded-xl border p-4">
+          <Label htmlFor="class-select" className="text-muted-foreground">
+            {t('class')}
+          </Label>
+          <Select value={className ?? ''} onValueChange={handlePickClass}>
+            <SelectTrigger id="class-select" className="bg-background h-9 min-w-[180px]">
+              <SelectValue placeholder={t('pleaseSelect')} />
+            </SelectTrigger>
+            <SelectContent>
+              {classes.map(cls => (
+                <SelectItem key={cls.id} value={cls.name}>
+                  {cls.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
+        )}
+
+        {!className ? (
+          <div className="text-muted-foreground rounded-lg border border-dashed py-12 text-center text-sm">
+            {t('selectClass')}
+          </div>
+        ) : loading ? (
+          <div className="flex min-h-[240px] items-center justify-center">
+            <Spinner size="lg" />
+          </div>
         ) : (
-          <div className="space-y-6">
-            {/* Toolbar: class, live counts, group stepper and the row-level actions. */}
-            <div className="border-border/60 bg-card/40 flex flex-wrap items-center gap-x-5 gap-y-3 rounded-xl border p-4">
-              <Label htmlFor="class-select" className="text-muted-foreground">
-                {t('class')}
-              </Label>
-              <Select value={selectedClass} onValueChange={setSelectedClass} required>
-                <SelectTrigger id="class-select" className="bg-background h-9 min-w-[180px]">
-                  <SelectValue placeholder={t('pleaseSelect')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {classes.map(cls => (
-                    <SelectItem key={cls.id} value={cls.name}>
-                      {cls.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {selectedClass && !loading && (
-                <span className="text-muted-foreground text-sm tabular-nums">
-                  {t('studentCountAssigned', {
-                    count: students.length,
-                    assigned: assignedCount,
-                  })}
-                </span>
-              )}
-              <span className="bg-border hidden h-6 w-px sm:block" />
-              <span className="text-muted-foreground text-sm font-medium">{t('groups')}</span>
-              <div className="border-input bg-background inline-flex items-center overflow-hidden rounded-md border shadow-xs">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 rounded-none"
-                  aria-label={t('fewerGroups')}
-                  disabled={!selectedClass || numberOfGroups <= MIN_GROUPS}
-                  onClick={() => handleGroupSizeChange(String(numberOfGroups - 1))}
-                >
-                  <Minus className="h-3.5 w-3.5" />
-                </Button>
-                <span className="min-w-7 text-center text-sm font-semibold tabular-nums">
-                  {numberOfGroups}
-                </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 rounded-none"
-                  aria-label={t('moreGroups')}
-                  disabled={!selectedClass || numberOfGroups >= MAX_GROUPS}
-                  onClick={() => handleGroupSizeChange(String(numberOfGroups + 1))}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-              <div className="ml-auto flex flex-wrap items-center gap-2">
-                <Button variant="outline" size="sm" onClick={handleReset} disabled={!selectedClass}>
-                  <RotateCcw className="h-4 w-4" />
-                  {t('resetGroups')}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowAddStudentDialog(true)}
-                  disabled={!selectedClass}
-                >
-                  <UserPlus className="h-4 w-4" />
-                  {t('addStudent')}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowCombineClassesDialog(true)}
-                >
-                  <Combine className="h-4 w-4" />
-                  {t('combineClasses')}
-                </Button>
-                {selectedIsCombined && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowRemoveCombinedDialog(true)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    {t('removeCombinedClass')}
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {sizeError && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="break-words">
-                  {t('maxGroupSizeError')}
-                </AlertDescription>
-              </Alert>
-            )}
-            {actionError && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="break-words">{actionError}</AlertDescription>
-              </Alert>
-            )}
-
-            {!selectedClass ? (
-              <div className="text-muted-foreground rounded-lg border border-dashed py-12 text-center text-sm">
-                {t('selectClass')}
-              </div>
-            ) : loading ? (
-              <div className="text-muted-foreground flex items-center gap-3 py-8">
-                <Spinner size="sm" />
-                <span>{t('loadingStudents')}</span>
-              </div>
-            ) : (
-              <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-                <div className="flex flex-wrap items-start gap-4">
-                  {realGroups.map(group => (
-                    <GroupContainer
-                      key={group.id}
-                      group={group}
-                      colorIndex={group.id - 1}
-                      maxSize={MAX_GROUP_SIZE}
+          <>
+            {/* The whole day-plan collapsed into one card: weekday, periods and
+                semester as labelled rows, with a recap strip at the bottom. */}
+            <Card className="overflow-hidden py-0">
+              <div className="flex flex-wrap items-center justify-between gap-3 px-6 pt-6 pb-4">
+                <h3 className="text-lg font-semibold tracking-tight">
+                  {t('planForClass', { class: className })}
+                </h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  {weekdayHasPlan && weekday != null && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setConfirmDelete(true)}
+                      disabled={deleting || saving}
+                      className="text-destructive hover:text-destructive"
                     >
-                      {group.students.map((student, index) => (
-                        <StudentItem
-                          key={student.id}
-                          student={student}
-                          index={index}
-                          onRemove={handleStudentRemoval}
-                          onTransfer={handleOpenTransferDialog}
-                          t={t}
-                        />
-                      ))}
-                    </GroupContainer>
-                  ))}
+                      <Trash2 className="h-4 w-4" />
+                      {t('deleteDay', { day: weekdayName(weekday) })}
+                    </Button>
+                  )}
+                  {cloneSources.length > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" disabled={cloning}>
+                          {cloning ? <Spinner size="sm" /> : <Copy className="h-4 w-4" />}
+                          {t('cloneFromDay')}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-64">
+                        {cloneSources.map(s => (
+                          <DropdownMenuItem
+                            key={s.selectedWeekday}
+                            onSelect={() => handleClone(s.selectedWeekday)}
+                          >
+                            <Copy className="mr-2 h-4 w-4" />
+                            <span className="flex flex-col">
+                              <span>{weekdayName(s.selectedWeekday)}</span>
+                              <span className="text-muted-foreground text-xs">
+                                {t('cloneFromDayItem', {
+                                  day: weekday != null ? weekdayName(weekday) : '',
+                                })}
+                              </span>
+                            </span>
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </div>
+              </div>
 
-                {/* Unassigned tray — a drop-off shelf; drag a pill into a group above. */}
-                {unassignedStudents.length > 0 && (
-                  <div className="bg-card border-border mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-dashed p-4">
-                    <span className="text-muted-foreground flex items-center gap-2 text-xs font-medium tracking-wide uppercase">
-                      <Info className="h-3.5 w-3.5" />
-                      {t('unassigned')} · {unassignedStudents.length}
-                    </span>
-                    {unassignedStudents.map((student, index) => (
-                      <StudentItem
-                        key={student.id}
-                        student={student}
-                        index={index}
-                        onRemove={handleStudentRemoval}
-                        t={t}
-                        variant="pill"
-                      />
-                    ))}
-                    <span className="text-muted-foreground text-xs">{t('dragStudentHint')}</span>
-                  </div>
-                )}
+              <FieldRow label={t('weekday')} hint={t('weekdayHint')}>
+                <div className="flex flex-wrap gap-2">
+                  {WEEKDAYS.map(day => {
+                    const active = day === weekday
+                    return (
+                      <button
+                        key={day}
+                        type="button"
+                        aria-current={active ? 'true' : undefined}
+                        onClick={() => handlePickWeekday(day)}
+                        className={cn(CHIP_CLASS, active ? CHIP_ACTIVE : CHIP_IDLE)}
+                      >
+                        <span className="font-semibold">{weekdayName(day)}</span>
+                        {plannedWeekdays.has(day) && (
+                          <span
+                            role="img"
+                            aria-label={t('dayHasPlan')}
+                            className="bg-primary h-1.5 w-1.5 shrink-0 rounded-full"
+                          />
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </FieldRow>
 
-                <DragOverlay>
-                  {activeStudent ? (
-                    <div className="bg-card rounded-md border px-2 py-1 text-sm shadow-md">
-                      {`${activeStudent.lastName}, ${activeStudent.firstName}`}
-                    </div>
-                  ) : null}
-                </DragOverlay>
-              </DndContext>
-            )}
+              <FieldRow label={t('periods')} hint={t('periodsHint')}>
+                <div className="space-y-3">
+                  <PeriodLaneCard
+                    title={t('morning')}
+                    icon={Sunrise}
+                    cadence={am}
+                    onChange={setAm}
+                  />
+                  <PeriodLaneCard
+                    title={t('afternoon')}
+                    icon={Sunset}
+                    cadence={pm}
+                    onChange={setPm}
+                  />
+                </div>
+              </FieldRow>
+
+              <FieldRow label={t('semesterScope')}>
+                <Tabs value={semester} onValueChange={v => setSemester(v as Semester)}>
+                  <TabsList>
+                    <TabsTrigger value="full">{t('wholeYear')}</TabsTrigger>
+                    <TabsTrigger value="first">{t('firstSemester')}</TabsTrigger>
+                    <TabsTrigger value="second">{t('secondSemester')}</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </FieldRow>
+
+              <div className="bg-muted/30 flex items-center gap-2 px-6 py-4">
+                <span className="text-muted-foreground text-sm tabular-nums">{planSummary}</span>
+              </div>
+            </Card>
 
             <WizardFooter>
-              <Button disabled={!selectedClass || sizeError} onClick={() => void handleNext()}>
+              <Button
+                onClick={handleNext}
+                disabled={saving || weekday == null || (!am.enabled && !pm.enabled)}
+              >
+                {saving ? <Spinner size="sm" /> : <ArrowRight className="h-4 w-4" />}
                 {t('next')}
-                <ArrowRight className="h-4 w-4" />
               </Button>
             </WizardFooter>
-          </div>
+          </>
         )}
-      </div>
 
-      {/* Max Size Dialog */}
-      <Dialog open={showMaxSizeDialog} onOpenChange={setShowMaxSizeDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('maxGroupSizeError')}</DialogTitle>
-            <DialogDescription>{t('maxGroupSizeDescription')}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button onClick={() => setShowMaxSizeDialog(false)}>{t('ok')}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Confirmation Dialog */}
-      <AlertDialog
-        open={showConfirmDialog}
-        onOpenChange={open => {
-          if (!open) handleCancelUpdate()
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('updateAssignmentsTitle')}</AlertDialogTitle>
-            <AlertDialogDescription>{t('updateAssignmentsMessage')}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleCancelUpdate}>{t('cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmUpdate}>{t('update')}</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Add Student Dialog */}
-      <AddStudentDialog
-        open={showAddStudentDialog}
-        onOpenChange={setShowAddStudentDialog}
-        newStudent={newStudent}
-        onStudentChange={setNewStudent}
-        onAdd={handleAddStudent}
-        t={t}
-      />
-
-      {/* Transfer Student Dialog */}
-      <TransferStudentDialog
-        open={showTransferDialog}
-        onOpenChange={open => {
-          setShowTransferDialog(open)
-          if (!open) setTransferTargetStudent(null)
-        }}
-        student={transferTargetStudent}
-        currentClassId={selectedClassId}
-        classes={classes}
-        onConfirm={handleTransferStudent}
-        transferring={transferring}
-        t={t}
-      />
-
-      {/* Combine Classes Dialog — only real classes can be members */}
-      <CombineClassesDialog
-        open={showCombineClassesDialog}
-        onOpenChange={setShowCombineClassesDialog}
-        classes={classes.filter(c => !c.isCombined)}
-        combineClasses={combineClasses}
-        onCombineClassesChange={setCombineClasses}
-        onSubmit={handleCombineClasses}
-        combining={combiningClasses}
-        t={t}
-      />
-
-      {/* Un-combine confirm */}
-      <AlertDialog open={showRemoveCombinedDialog} onOpenChange={setShowRemoveCombinedDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('removeCombinedClass')}</AlertDialogTitle>
-            <AlertDialogDescription>{t('removeCombinedClassMessage')}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={removingCombined}>{t('cancel')}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={e => {
-                e.preventDefault()
-                void handleRemoveCombinedClass()
-              }}
-              disabled={removingCombined}
-            >
-              {t('removeCombinedClass')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </PageContainer>
+        <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {t('deleteDayTitle', { day: weekday != null ? weekdayName(weekday) : '' })}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {t('deleteDayConfirm', {
+                  day: weekday != null ? weekdayName(weekday) : '',
+                  class: className,
+                })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>{t('cancel')}</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={e => {
+                  e.preventDefault()
+                  void handleDeleteDay()
+                }}
+                disabled={deleting}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleting ? <Spinner size="sm" /> : <Trash2 className="h-4 w-4" />}
+                {t('deleteDayAction')}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </PageContainer>
+    </TooltipProvider>
   )
 }

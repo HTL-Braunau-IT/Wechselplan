@@ -89,6 +89,7 @@ async function reset(): Promise<void> {
   await prisma.scheduleTurn.deleteMany({ where: { schedule: { classId: { in: classIds } } } })
   await prisma.schedule.deleteMany({ where: { classId: { in: classIds } } })
   await prisma.classMembership.deleteMany({ where: { classId: { in: classIds } } })
+  await prisma.studentWeekdayGroup.deleteMany({ where: { classId: { in: classIds } } })
   await prisma.groupAssignment.deleteMany({ where: { class: { in: classNames } } })
   await prisma.student.deleteMany({ where: { externalSource: FIXTURE_SOURCE } })
   // Classes reference teachers as head/lead, so they must go first.
@@ -242,12 +243,31 @@ async function seedStudents(klasses: { id: number; name: string }[], schoolYearI
         create: { studentId: student.id, classId: klass.id, schoolYearId },
       })
 
+      // Groups are per weekday (StudentWeekdayGroup); the fixture plan runs on WEEKDAY.
+      await prisma.studentWeekdayGroup.upsert({
+        where: {
+          studentId_classId_schoolYearId_selectedWeekday: {
+            studentId: student.id,
+            classId: klass.id,
+            schoolYearId,
+            selectedWeekday: WEEKDAY,
+          },
+        },
+        update: { groupId },
+        create: {
+          studentId: student.id,
+          classId: klass.id,
+          schoolYearId,
+          selectedWeekday: WEEKDAY,
+          groupId,
+        },
+      })
+
       total += 1
     }
 
-    // GroupAssignment is the denormalized cache described in
-    // docs/ARCHITECTURE.md — Student.groupId stays the source of truth, but
-    // the app expects these rows to exist so that empty groups still appear.
+    // GroupAssignment is the class-wide cache described in docs/ARCHITECTURE.md —
+    // only the fallback now that groups are per weekday, but kept in step.
     for (const groupId of GROUPS) {
       await prisma.groupAssignment.upsert({
         where: { class_groupId: { class: klass.name, groupId } },

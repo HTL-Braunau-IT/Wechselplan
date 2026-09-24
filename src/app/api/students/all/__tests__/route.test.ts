@@ -12,8 +12,12 @@ vi.mock('@/lib/prisma', () => ({
     student: {
       findMany: vi.fn(),
     },
+    classMembership: { findMany: vi.fn() },
+    studentWeekdayGroup: { findMany: vi.fn(async () => []) },
+    class: { findMany: vi.fn(async () => []) },
   },
 }))
+vi.mock('@/lib/school-year', () => ({ resolveSchoolYearId: vi.fn(async () => 1) }))
 
 interface Student {
   id: number
@@ -105,5 +109,31 @@ describe('Students All API', () => {
         }
       })
     })
+  })
+
+  test("lists each student's group per weekday, naming only a foreign (combined) plan", async () => {
+    vi.mocked(prisma.classMembership.findMany).mockResolvedValue([
+      {
+        classId: 1,
+        student: makeStudent({ id: 1, classId: 1, groupId: 2 }),
+        class: { id: 1, name: '1A' },
+      },
+    ] as never)
+    vi.mocked(prisma.studentWeekdayGroup.findMany).mockResolvedValue([
+      { studentId: 1, classId: 1, selectedWeekday: 1, groupId: 2 },
+      { studentId: 1, classId: 9, selectedWeekday: 4, groupId: 1 },
+    ] as never)
+    vi.mocked(prisma.class.findMany).mockResolvedValue([
+      { id: 1, name: '1A' },
+      { id: 9, name: '1AB' },
+    ] as never)
+
+    const res = await GET(new Request('http://localhost/api/students/all?schoolYearId=1'))
+    const data = (await res.json()) as { weekdayGroups: unknown[] }[]
+
+    expect(data[0]!.weekdayGroups).toEqual([
+      { weekday: 1, groupId: 2, planClassName: null },
+      { weekday: 4, groupId: 1, planClassName: '1AB' },
+    ])
   })
 })

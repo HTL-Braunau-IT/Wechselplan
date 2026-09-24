@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { requireAccess } from '@/lib/api-guard'
+import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { formatDateGerman } from '@/lib/pdf-helpers'
 import { buildKlassenlisteView, getClassRoster, isWritingSpace } from '@/lib/klassenliste'
@@ -44,7 +45,11 @@ export async function GET(request: Request) {
           .filter(n => Number.isInteger(n))
       : undefined
 
-    const roster = await getClassRoster(classId, schoolYearId)
+    const viewer = await resolveSessionTeacher(gate.session)
+    const roster = await getClassRoster(classId, schoolYearId, {
+      teacherId: viewer?.id,
+      weekday: searchParams.get('weekday'),
+    })
     if (!roster) {
       return NextResponse.json({ error: 'Class not found' }, { status: 404 })
     }

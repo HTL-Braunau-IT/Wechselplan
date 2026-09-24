@@ -366,3 +366,72 @@ export async function GET(req: Request) {
     return new NextResponse('Internal Error', { status: 500 })
   }
 }
+
+/**
+ * Deletes one weekday's plan for a class, leaving the class's other weekdays intact.
+ *
+ * Query: `classId` (numeric id), `weekday` (0–6), optional `schoolYearId`. Removes the
+ * Schedule row (its Turnusse cascade) together with that weekday's teacher
+ * assignments and rotation — deleting the Schedule alone would leave them orphaned
+ * and still visible in the teacher dashboard. That day's student grouping goes with
+ * it; other weekdays keep theirs.
+ */
+export async function DELETE(req: Request) {
+  const gate = await requireAccess('staff')
+  if (!gate.ok) return gate.response
+
+  try {
+    const { searchParams } = new URL(req.url)
+    // Number(null) is 0 (a valid weekday), so an absent param must stay absent.
+    const classIdParam = searchParams.get('classId')
+    const weekdayParam = searchParams.get('weekday')
+    const classId = classIdParam ? Number(classIdParam) : NaN
+    const weekday = weekdayParam ? Number(weekdayParam) : NaN
+    if (!Number.isInteger(classId) || !Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
+      return NextResponse.json({ error: 'classId and weekday are required' }, { status: 400 })
+    }
+
+    const schoolYearId = await resolveSchoolYearId(searchParams.get('schoolYearId'))
+    if (schoolYearId == null) {
+      return NextResponse.json({ error: 'No school year found.' }, { status: 400 })
+    }
+
+    const dayScope = { classId, schoolYearId, selectedWeekday: weekday }
+    const schedule = await prisma.schedule.findFirst({ where: dayScope, select: { id: true } })
+    if (!schedule) {
+      return NextResponse.json({ error: 'No schedule for this weekday' }, { status: 404 })
+    }
+
+    // Captured before the delete: once the rows are gone these teachers are no
+    // longer derivable as the class's audience, yet they are the ones affected.
+    const affectedTeachers = await prisma.teacherAssignment.findMany({
+      where: dayScope,
+      select: { teacherId: true },
+    })
+
+    await prisma.$transaction([
+      prisma.teacherRotation.deleteMany({ where: dayScope }),
+      prisma.teacherAssignment.deleteMany({ where: dayScope }),
+      prisma.studentWeekdayGroup.deleteMany({ where: dayScope }),
+      prisma.schedule.delete({ where: { id: schedule.id } }),
+    ])
+
+    const session = gate.session
+    await notifyScheduleChange({
+      type: 'schedule-updated',
+      classId,
+      schoolYearId,
+      actor: await resolveCurrentTeacher(session),
+      session,
+      alsoNotify: affectedTeachers.map(a => a.teacherId),
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    captureError(error, {
+      location: 'api/schedules',
+      type: 'delete-schedule',
+    })
+    return new NextResponse('Internal Error', { status: 500 })
+  }
+}

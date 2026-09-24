@@ -12,6 +12,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { PageContainer } from '@/components/ui/page-container'
 import { PageHeader } from '@/components/ui/page-header'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ClassPicker } from './_components/class-picker'
 import { ScheduleExportMenu } from './_components/schedule-export-menu'
 import { useSchedulesList } from './_hooks/use-schedules-list'
@@ -39,7 +40,16 @@ export default function SchedulesPage() {
   const selectedOption = classes.find(cls => cls.name === selectedClass) ?? null
   const hasSchedule = selectedOption?.hasSchedule ?? false
 
-  const overview = useScheduleOverview(hasSchedule ? selectedClass : null, schoolYearId)
+  // Each weekday is its own plan (#98); `?day=` picks which one is shown.
+  const dayParam = Number(searchParams.get('day'))
+  const selectedDay =
+    Number.isInteger(dayParam) && dayParam >= 1 && dayParam <= 5 ? dayParam : undefined
+
+  const overview = useScheduleOverview(
+    hasSchedule ? selectedClass : null,
+    schoolYearId,
+    selectedDay,
+  )
 
   const exportState = useScheduleExport({
     className: selectedClass,
@@ -50,6 +60,11 @@ export default function SchedulesPage() {
 
   const onSelect = (className: string) => {
     router.push(`/schedules?class=${encodeURIComponent(className)}`)
+  }
+
+  const onSelectDay = (day: number) => {
+    if (!selectedClass) return
+    router.push(`/schedules?class=${encodeURIComponent(selectedClass)}&day=${day}`)
   }
 
   const showExport = hasSchedule && !overview.loading && !overview.error
@@ -126,18 +141,34 @@ export default function SchedulesPage() {
                 <Spinner size="lg" />
               </div>
             ) : (
-              <ScheduleOverview
-                groups={overview.groups}
-                amAssignments={overview.amAssignments}
-                pmAssignments={overview.pmAssignments}
-                scheduleTimes={overview.scheduleTimes}
-                breakTimes={overview.breakTimes}
-                turns={overview.turns}
-                classHead={overview.classHead}
-                classLead={overview.classLead}
-                additionalInfo={overview.additionalInfo}
-                weekday={overview.weekday}
-              />
+              <>
+                {overview.availableWeekdays.length > 1 && (
+                  <Tabs
+                    value={String(overview.weekday)}
+                    onValueChange={v => onSelectDay(Number(v))}
+                  >
+                    <TabsList>
+                      {overview.availableWeekdays.map(day => (
+                        <TabsTrigger key={day} value={String(day)}>
+                          {t(`raumplan.weekdays.${day}`)}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                  </Tabs>
+                )}
+                <ScheduleOverview
+                  groups={overview.groups}
+                  amAssignments={overview.amAssignments}
+                  pmAssignments={overview.pmAssignments}
+                  scheduleTimes={overview.scheduleTimes}
+                  breakTimes={overview.breakTimes}
+                  turns={overview.turns}
+                  classHead={overview.classHead}
+                  classLead={overview.classLead}
+                  additionalInfo={overview.additionalInfo}
+                  weekday={overview.weekday}
+                />
+              </>
             )}
           </>
         )}

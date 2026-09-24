@@ -6,6 +6,7 @@ import XlsxPopulate from 'xlsx-populate'
 import { join } from 'path'
 import { readFileSync } from 'fs'
 import { denyUnlessAccess } from '@/lib/api-guard'
+import { overlayWeekdayGroups } from '@/lib/weekday-groups'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
 
 interface Week {
@@ -118,10 +119,16 @@ export async function POST(request: Request) {
       studentIds.length > 0
         ? await prisma.student.findMany({
             where: { id: { in: studentIds } },
-            orderBy: [{ groupId: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }],
+            orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
           })
         : []
-    const classWithStudents = { ...class_response, students: studentsList } as Class
+    // Groups are per weekday: this list's day decides who is in which group.
+    const studentsOnDay = await overlayWeekdayGroups(studentsList, {
+      classId: class_response.id,
+      schoolYearId,
+      weekday,
+    })
+    const classWithStudents = { ...class_response, students: studentsOnDay } as Class
 
     const schedule = await prisma.schedule.findFirst({
       where: {

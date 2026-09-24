@@ -15,6 +15,7 @@ import {
   makeTeacherRotation,
 } from '@/test/fixtures'
 
+vi.mock('@/lib/weekday-groups', () => import('@/test/weekday-groups-passthrough'))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     teacher: { findUnique: vi.fn() },

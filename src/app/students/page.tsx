@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { AlertCircle, Users } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -26,10 +27,16 @@ interface Student {
   firstName: string
   lastName: string
   classId: number | null
+  /** Class-wide group — only the fallback now that groups are per weekday. */
   groupId: number | null
+  /** The student's group on each planned weekday (see StudentWeekdayGroup). */
+  weekdayGroups?: { weekday: number; groupId: number; planClassName: string | null }[]
   createdAt: string
   updatedAt: string
 }
+
+/** Sort key: the group on the first planned day (else the class-wide one), then name. */
+const firstGroup = (s: Student) => s.weekdayGroups?.[0]?.groupId ?? s.groupId ?? Infinity
 
 interface Class {
   id: number
@@ -43,6 +50,7 @@ interface Class {
  * Fetches student and class data from the backend, handles loading and error states, and renders students organized by class and group. Students are sorted alphabetically within each group, and classes are sorted alphabetically with unassigned students shown last.
  */
 export default function StudentsPage() {
+  const { t } = useTranslation()
   const { selectedYear } = useSchoolYear()
   const schoolYearId = selectedYear?.id
   const [students, setStudents] = useState<Student[]>([])
@@ -95,7 +103,7 @@ export default function StudentsPage() {
           <PageHeader
             icon={Users}
             title="Students Overview"
-            description="All students grouped by class and rotation group."
+            description="All students by class, with their rotation group on each day."
           />
           <Card>
             <CardContent className="pt-6">
@@ -120,27 +128,25 @@ export default function StudentsPage() {
       </PageContainer>
     )
 
-  // Group students by class and then by group
+  // Group students by class. Groups are per weekday, so a student is not filed
+  // under one group any more — each row lists the student's group on every day.
   const studentsByClass = students.reduce(
     (acc, student) => {
       const className = getClassName(student.classId)
-      acc[className] ??= {}
-      const groupId = student.groupId ?? 'No Group'
-      acc[className][groupId] ??= []
-      acc[className][groupId].push(student)
+      ;(acc[className] ??= []).push(student)
       return acc
     },
-    {} as Record<string, Record<string | number, Student[]>>,
+    {} as Record<string, Student[]>,
   )
 
-  // Sort students within each group by last name, then first name
-  Object.values(studentsByClass).forEach(classGroups => {
-    Object.values(classGroups).forEach(groupStudents => {
-      groupStudents.sort((a, b) => {
-        const lastNameCompare = a.lastName.localeCompare(b.lastName)
-        if (lastNameCompare !== 0) return lastNameCompare
-        return a.firstName.localeCompare(b.firstName)
-      })
+  Object.values(studentsByClass).forEach(classStudents => {
+    classStudents.sort((a, b) => {
+      // Ungrouped students (Infinity) sort last.
+      const [ga, gb] = [firstGroup(a), firstGroup(b)]
+      if (ga !== gb) return ga < gb ? -1 : 1
+      const lastNameCompare = a.lastName.localeCompare(b.lastName)
+      if (lastNameCompare !== 0) return lastNameCompare
+      return a.firstName.localeCompare(b.firstName)
     })
   })
 
@@ -158,7 +164,7 @@ export default function StudentsPage() {
         <PageHeader
           icon={Users}
           title="Students Overview"
-          description="All students grouped by class and rotation group."
+          description="All students by class, with their rotation group on each day."
         />
 
         {sortedClassEntries.length === 0 ? (
@@ -169,7 +175,7 @@ export default function StudentsPage() {
           />
         ) : (
           <div className="space-y-6">
-            {sortedClassEntries.map(([className, classGroups]) => (
+            {sortedClassEntries.map(([className, classStudents]) => (
               <Card key={className}>
                 <CardHeader>
                   <CardTitle>{className}</CardTitle>
@@ -180,31 +186,42 @@ export default function StudentsPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Student</TableHead>
-                          <TableHead>Group</TableHead>
+                          <TableHead>Groups</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {Object.entries(classGroups).flatMap(([groupId, groupStudents]) =>
-                          groupStudents.map(student => (
-                            <TableRow key={student.id}>
-                              <TableCell>
-                                <StudentPhoto
-                                  studentId={student.id}
-                                  firstName={student.firstName}
-                                  lastName={student.lastName}
-                                  nameFormat="lastFirst"
-                                />
-                              </TableCell>
-                              <TableCell>
-                                {groupId === 'No Group' ? (
-                                  <Badge variant="soft-muted">No Group Assigned</Badge>
+                        {classStudents.map(student => (
+                          <TableRow key={student.id}>
+                            <TableCell>
+                              <StudentPhoto
+                                studentId={student.id}
+                                firstName={student.firstName}
+                                lastName={student.lastName}
+                                nameFormat="lastFirst"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1.5">
+                                {student.weekdayGroups && student.weekdayGroups.length > 0 ? (
+                                  student.weekdayGroups.map(g => (
+                                    <Badge
+                                      key={`${g.weekday}-${g.planClassName ?? ''}`}
+                                      variant="secondary"
+                                    >
+                                      {t(`raumplan.weekdays.${g.weekday}`)}
+                                      {g.planClassName ? ` (${g.planClassName})` : ''} · Group{' '}
+                                      {g.groupId}
+                                    </Badge>
+                                  ))
+                                ) : student.groupId != null ? (
+                                  <Badge variant="secondary">Group {student.groupId}</Badge>
                                 ) : (
-                                  <Badge variant="secondary">Group {groupId}</Badge>
+                                  <Badge variant="soft-muted">No Group Assigned</Badge>
                                 )}
-                              </TableCell>
-                            </TableRow>
-                          )),
-                        )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
                       </TableBody>
                     </Table>
                   </div>

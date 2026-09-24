@@ -5,6 +5,7 @@ import { captureError } from '@/lib/sentry'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { normalizeUsername } from '@/lib/username'
 import { requireAccess } from '@/lib/api-guard'
+import { overlayWeekdayGroups } from '@/lib/weekday-groups'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
 
 // The schedule/roster view only needs display + grouping fields. Selecting them
@@ -229,6 +230,14 @@ export async function GET(req: Request) {
         studentList = await prisma.student.findMany({
           where: { classId: { in: rosterClassIds }, isActive: true },
           select: STUDENT_SCHEDULE_SELECT,
+        })
+      }
+      // Groups are per weekday: this day's plan decides who is in which group.
+      if (schedule) {
+        studentList = await overlayWeekdayGroups(studentList, {
+          classId,
+          schoolYearId: schedule.schoolYearId,
+          weekday: weekdayNum,
         })
       }
       if (studentList) {

@@ -26,6 +26,12 @@ export function useNotensammlerData() {
 
   const [classes, setClasses] = useState<ClassOption[]>([])
   const [selectedClassId, setSelectedClassId] = useState<string>('')
+  /**
+   * The weekday whose grouping to show. Null = let the server pick (the viewer's
+   * own teaching day for the class); set by the day switch.
+   */
+  const [requestedWeekday, setRequestedWeekday] = useState<number | null>(null)
+  const dayQ = requestedWeekday != null ? `&weekday=${requestedWeekday}` : ''
   const [classData, setClassData] = useState<ClassData | null>(null)
   const [grades, setGrades] = useState<GradesData>({})
   const [finalGrades, setFinalGrades] = useState<FinalGradesData>({})
@@ -94,6 +100,7 @@ export function useNotensammlerData() {
   const handleClassChange = useCallback(
     (classId: string) => {
       setSelectedClassId(classId)
+      setRequestedWeekday(null)
       const params = new URLSearchParams(searchParams.toString())
       const selectedClass = classes.find(cls => cls.id.toString() === classId)
       if (classId && selectedClass) {
@@ -140,7 +147,7 @@ export function useNotensammlerData() {
     const token = ++loadTokenRef.current
     try {
       const classRes = await fetch(
-        `/api/notensammler/class/${selectedClassId}?schoolYearId=${schoolYearId}`,
+        `/api/notensammler/class/${selectedClassId}?schoolYearId=${schoolYearId}${dayQ}`,
         { cache: 'no-store' },
       )
       if (classRes.ok && loadTokenRef.current === token) {
@@ -149,7 +156,7 @@ export function useNotensammlerData() {
     } catch (e) {
       captureFrontendError(e, { location: 'notensammler', type: 'refresh-class-data' })
     }
-  }, [selectedClassId, schoolYearId])
+  }, [selectedClassId, schoolYearId, dayQ])
 
   useEffect(() => {
     if (!selectedClassId || schoolYearId == null) {
@@ -170,7 +177,7 @@ export function useNotensammlerData() {
         setError(null)
 
         const [classResponse, gradesResponse] = await Promise.all([
-          fetch(`/api/notensammler/class/${selectedClassId}?schoolYearId=${schoolYearId}`, {
+          fetch(`/api/notensammler/class/${selectedClassId}?schoolYearId=${schoolYearId}${dayQ}`, {
             cache: 'no-store',
             signal: controller.signal,
           }),
@@ -233,7 +240,7 @@ export function useNotensammlerData() {
 
     void fetchClassData()
     return () => controller.abort()
-  }, [selectedClassId, schoolYearId])
+  }, [selectedClassId, schoolYearId, dayQ])
 
   /**
    * Students the grid deliberately leaves out: without a group they take part
@@ -249,6 +256,9 @@ export function useNotensammlerData() {
     classes,
     selectedClassId,
     handleClassChange,
+    /** The weekday whose groups are shown (resolved by the server), and its switch. */
+    groupWeekday: classData?.groupWeekday ?? null,
+    selectWeekday: setRequestedWeekday,
     classData,
     setClassData,
     grades,

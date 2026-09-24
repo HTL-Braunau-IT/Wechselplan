@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { dropGroupsOutsideClass } from '@/lib/weekday-groups'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { requireAccess } from '@/lib/api-guard'
@@ -11,6 +12,8 @@ const transferSchema = z.object({
   targetClassId: z.number().int().positive(),
   targetGroupId: z.number().int().nullable(),
   schoolYearId: z.number().int().positive(),
+  /** The weekday plan the transfer was made from; the target group applies to it. */
+  weekday: z.number().int().min(0).max(6).optional(),
 })
 
 /**
@@ -52,7 +55,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       )
     }
 
-    const { targetClassId, targetGroupId, schoolYearId } = validation.data
+    const { targetClassId, targetGroupId, schoolYearId, weekday } = validation.data
 
     const student = await prisma.student.findUnique({
       where: { id: studentId },
@@ -113,6 +116,41 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
           schoolYearId,
         },
       })
+
+      // Per-weekday groups: drop the student's grouping in every plan they are
+      // leaving (plans of the target class, or of a combined class spanning it,
+      // stay), then place them in the target group on the transfer's weekday and
+      // on each other day of the target class where that group number exists.
+      await dropGroupsOutsideClass(tx, studentId, targetClassId)
+      if (targetGroupId != null && targetGroupId !== 0) {
+        const daysWithGroup = await tx.studentWeekdayGroup.findMany({
+          where: { classId: targetClassId, schoolYearId, groupId: targetGroupId },
+          distinct: ['selectedWeekday'],
+          select: { selectedWeekday: true },
+        })
+        const days = new Set(daysWithGroup.map(d => d.selectedWeekday))
+        if (weekday != null) days.add(weekday)
+        for (const day of days) {
+          await tx.studentWeekdayGroup.upsert({
+            where: {
+              studentId_classId_schoolYearId_selectedWeekday: {
+                studentId,
+                classId: targetClassId,
+                schoolYearId,
+                selectedWeekday: day,
+              },
+            },
+            update: { groupId: targetGroupId },
+            create: {
+              studentId,
+              classId: targetClassId,
+              schoolYearId,
+              selectedWeekday: day,
+              groupId: targetGroupId,
+            },
+          })
+        }
+      }
 
       if (targetGroupId != null && targetGroupId !== 0) {
         await tx.groupAssignment.upsert({

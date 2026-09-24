@@ -17,6 +17,10 @@ export interface ClassData {
   id: number
   name: string
   description: string | null
+  /** Groups are per weekday: the day whose grouping `students[].groupId` shows. */
+  groupWeekday?: number | null
+  /** Every weekday the class has a plan on (offered as a day switch when > 1). */
+  weekdays?: number[]
   subjectName?: string
   hasSeparateAmPmSubjects?: boolean
   subjectNameAm?: string

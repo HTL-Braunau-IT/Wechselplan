@@ -45,6 +45,9 @@ interface TransferStudentDialogProps {
   student: Student | null
   currentClassId: number | null
   classes: ClassOption[]
+  /** The weekday plan being edited; target groups are that day's groups. */
+  weekday?: number | null
+  schoolYearId?: number
   onConfirm: (targetClassId: number, targetGroupId: number | null) => Promise<void> | void
   transferring: boolean
   t: (key: string, options?: Record<string, unknown>) => string
@@ -62,6 +65,8 @@ export function TransferStudentDialog({
   student,
   currentClassId,
   classes,
+  weekday,
+  schoolYearId,
   onConfirm,
   transferring,
   t,
@@ -91,7 +96,11 @@ export function TransferStudentDialog({
     let cancelled = false
     setLoadingGroups(true)
     setError(null)
-    fetch(`/api/schedules/assignments?classId=${targetClassId}`)
+    const dayQ =
+      weekday != null
+        ? `&weekday=${weekday}${schoolYearId != null ? `&schoolYearId=${schoolYearId}` : ''}`
+        : ''
+    fetch(`/api/schedules/assignments?classId=${targetClassId}${dayQ}`)
       .then(async res => {
         if (!res.ok) throw new Error('Failed to load groups')
         return res.json() as Promise<AssignmentsResponse>
@@ -116,7 +125,7 @@ export function TransferStudentDialog({
     return () => {
       cancelled = true
     }
-  }, [targetClassId, t])
+  }, [targetClassId, t, weekday, schoolYearId])
 
   const availableClasses = classes.filter(c => c.id !== currentClassId)
 

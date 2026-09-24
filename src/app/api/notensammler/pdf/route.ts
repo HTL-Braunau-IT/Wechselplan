@@ -6,6 +6,8 @@ import { isFeatureEnabled } from '@/lib/entitlements'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
+import { gradeGroupDay, overlayWeekdayGroups } from '@/lib/weekday-groups'
+import { resolveSessionTeacher } from '@/lib/session-teacher'
 
 /**
  * Handles GET requests to generate and return a PDF of notensammler (grade collector) data for a specific class.
@@ -62,7 +64,7 @@ export async function GET(request: Request) {
       select: { studentId: true },
     })
     const studentIds = memberships.map(m => m.studentId)
-    const studentsList =
+    const classRoster =
       studentIds.length > 0
         ? await prisma.student.findMany({
             where: { id: { in: studentIds } },
@@ -70,6 +72,17 @@ export async function GET(request: Request) {
             select: { id: true, firstName: true, lastName: true, groupId: true },
           })
         : []
+    // Groups are per weekday: the viewer's own teaching day for this class.
+    const viewer = await resolveSessionTeacher(session)
+    const studentsList = await overlayWeekdayGroups(
+      classRoster,
+      await gradeGroupDay({
+        classId,
+        schoolYearId,
+        teacherId: viewer?.id,
+        weekday: searchParams.get('weekday'),
+      }),
+    )
 
     // Fetch teacher assignments for this year
     const assignments = await prisma.teacherAssignment.findMany({

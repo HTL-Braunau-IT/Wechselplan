@@ -20,12 +20,20 @@ export function useKlassenlisteClasses(schoolYearId: number | undefined) {
 }
 
 /** Roster (grouped) for one class, used by the preview and to seed the selection. */
-export function useKlassenlisteData(classId: number | null, schoolYearId: number | undefined) {
+export function useKlassenlisteData(
+  classId: number | null,
+  schoolYearId: number | undefined,
+  /** Whose grouping to show; null lets the server pick the viewer's own day. */
+  weekday: number | null = null,
+) {
   return useQuery({
-    queryKey: ['klassenliste', 'data', classId, schoolYearId],
+    queryKey: ['klassenliste', 'data', classId, schoolYearId, weekday],
     queryFn: () =>
       apiFetch<KlassenlisteData>(
-        withYear(`/api/klassenliste/data?classId=${classId}`, schoolYearId),
+        withYear(
+          `/api/klassenliste/data?classId=${classId}${weekday != null ? `&weekday=${weekday}` : ''}`,
+          schoolYearId,
+        ),
         { cache: 'no-store', errorMessage: 'Klassenliste konnte nicht geladen werden.' },
       ),
     enabled: classId != null && schoolYearId != null,

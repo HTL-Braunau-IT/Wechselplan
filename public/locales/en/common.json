@@ -141,7 +141,8 @@
     "endnoteShort1": "Fin 1",
     "betragenShort1": "Con 1",
     "endnoteShort2": "Fin 2",
-    "betragenShort2": "Con 2"
+    "betragenShort2": "Con 2",
+    "day": "Day"
   },
   "theme": {
     "light": "Light",
@@ -682,7 +683,8 @@
     "hintEnter": "next open student",
     "openFullGrid": "Open the full grid of all teachers",
     "suggestEndnoten": "Suggest final grades from Ø",
-    "fullGridTitle": "Full grid · {{name}}"
+    "fullGridTitle": "Full grid · {{name}}",
+    "groupsOnDay": "Groups {{day}}"
   },
   "schedules": {
     "title": "Schedules",

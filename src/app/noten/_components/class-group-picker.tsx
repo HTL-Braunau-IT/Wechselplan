@@ -1,10 +1,10 @@
 'use client'
 
 import { useTranslation } from 'react-i18next'
-import { Layers, Users } from 'lucide-react'
+import { CalendarDays, Layers, Users } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import type { ClassItem } from '../_lib/types'
+import { groupIdsOn, type ClassItem } from '../_lib/types'
 
 const CHIP_CLASS =
   'focus-visible:ring-ring flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none'
@@ -26,21 +26,32 @@ export function ClassGroupPicker({
   classes,
   selectedClassId,
   selectedGroupId,
+  selectedWeekday,
   currentSlot,
   onSelectClass,
   onSelectGroup,
+  onSelectWeekday,
 }: {
   classes: ClassItem[]
   selectedClassId: number | null
   selectedGroupId: number | null
+  /** Groups are per weekday; the day whose groups are shown. */
+  selectedWeekday: number | null
   /** The class/group the rotation puts the teacher in right now, if known. */
-  currentSlot: { classId: number | null; groupId: number | null }
+  currentSlot: { classId: number | null; groupId: number | null; weekday?: number | null }
   onSelectClass: (classId: number) => void
   onSelectGroup: (groupId: number) => void
+  onSelectWeekday: (weekday: number) => void
 }) {
   const { t } = useTranslation('common')
 
   const selectedClass = classes.find(cls => cls.id === selectedClassId)
+  const dayGroupIds = groupIdsOn(selectedClass, selectedWeekday)
+  // Only a teacher with this class on several days needs to pick one.
+  const days = selectedClass?.weekdays ?? []
+  const isCurrentDay = (day: number | null) =>
+    currentSlot.classId === selectedClass?.id &&
+    (currentSlot.weekday == null || currentSlot.weekday === day)
   const nowLabel = t('noten.currentSlot', { defaultValue: 'Findet gerade statt' })
 
   const nowDot = (
@@ -84,14 +95,42 @@ export function ClassGroupPicker({
         </div>
       </div>
 
-      {selectedClass && selectedClass.groupIds.length > 0 && (
+      {selectedClass && days.length > 1 && (
+        <div className="min-w-0">
+          <p className={SECTION_LABEL_CLASS}>
+            <CalendarDays className="h-3.5 w-3.5" />
+            {t('noten.day', { defaultValue: 'Tag' })}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {days.map(day => {
+              const active = day === selectedWeekday
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  aria-current={active ? 'true' : undefined}
+                  onClick={() => onSelectWeekday(day)}
+                  className={cn(CHIP_CLASS, active ? CHIP_ACTIVE : CHIP_IDLE)}
+                >
+                  <span className="font-semibold">{t(`raumplan.weekdays.${day}`)}</span>
+                  {currentSlot.classId === selectedClass.id &&
+                    currentSlot.weekday === day &&
+                    nowDot}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {selectedClass && dayGroupIds.length > 0 && (
         <div className="min-w-0">
           <p className={SECTION_LABEL_CLASS}>
             <Layers className="h-3.5 w-3.5" />
             {t('noten.group', { defaultValue: 'Gruppe' })}
           </p>
           <div className="flex flex-wrap gap-2">
-            {selectedClass.groupIds.map(groupId => {
+            {dayGroupIds.map(groupId => {
               const active = groupId === selectedGroupId
               return (
                 <button
@@ -104,9 +143,7 @@ export function ClassGroupPicker({
                   <span className="font-semibold">
                     {t('noten.gruppe')} {groupId}
                   </span>
-                  {currentSlot.classId === selectedClass.id &&
-                    currentSlot.groupId === groupId &&
-                    nowDot}
+                  {isCurrentDay(selectedWeekday) && currentSlot.groupId === groupId && nowDot}
                 </button>
               )
             })}

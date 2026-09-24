@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma'
 import { resolveSessionStudent } from '@/lib/session-student'
 import { makeClass, makeStudent } from '@/test/fixtures'
 
+vi.mock('@/lib/weekday-groups', () => import('@/test/weekday-groups-passthrough'))
+vi.mock('@/lib/school-year', () => ({ resolveSchoolYearId: vi.fn(async () => 1) }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     student: {
@@ -88,7 +90,12 @@ describe('Students Class API', () => {
     const data = await res.json()
 
     expect(res.status).toBe(200)
-    expect(data).toEqual({ class: '1A', groupId: 1 })
+    expect(data).toEqual({
+      class: '1A',
+      groupId: 1,
+      // No per-day groups stored → the class-wide group on every weekday.
+      groupsByWeekday: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1 },
+    })
   })
 
   describe('GET', () => {
@@ -145,7 +152,12 @@ describe('Students Class API', () => {
         },
         request: () => new Request('http://localhost/api/students/class?username=john.doe'),
         expectedStatus: 200,
-        expectedData: { class: '1A', groupId: 1 },
+        expectedData: {
+          class: '1A',
+          groupId: 1,
+          // No per-day groups stored → the class-wide group on every weekday.
+          groupsByWeekday: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1 },
+        },
       },
       {
         name: 'should return 500 on error',

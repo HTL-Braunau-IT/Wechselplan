@@ -6,6 +6,8 @@ import { getSubjectKey } from '@/lib/subject-utils'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
+import { gradeGroupDay, overlayWeekdayGroups } from '@/lib/weekday-groups'
+import { resolveSessionTeacher } from '@/lib/session-teacher'
 
 /**
  * Handles GET requests to retrieve class data with students and unique teachers.
@@ -77,7 +79,7 @@ export async function GET(
       orderBy: { studentId: 'asc' },
     })
     const studentIds = memberships.map(m => m.studentId)
-    const studentsList =
+    const classRoster =
       studentIds.length > 0
         ? await prisma.student.findMany({
             where: { id: { in: studentIds } },
@@ -85,6 +87,22 @@ export async function GET(
             select: { id: true, firstName: true, lastName: true, groupId: true },
           })
         : []
+    // Groups are per weekday: the viewer's own teaching day for this class (the
+    // class's first planned day when they do not teach it), or `?weekday=`.
+    const viewer = await resolveSessionTeacher(session)
+    const groupDay = await gradeGroupDay({
+      classId,
+      schoolYearId,
+      teacherId: viewer?.id,
+      weekday: searchParams.get('weekday'),
+    })
+    const studentsList = await overlayWeekdayGroups(classRoster, groupDay)
+    // Every planned day of the class, so the page can offer a day switch.
+    const plannedDays = await prisma.schedule.findMany({
+      where: { classId, schoolYearId },
+      select: { selectedWeekday: true },
+      orderBy: { selectedWeekday: 'asc' },
+    })
 
     // Fetch all teacher assignments for this class and year
     const assignments = await prisma.teacherAssignment.findMany({
@@ -193,6 +211,9 @@ export async function GET(
       id: classRecord.id,
       name: classRecord.name,
       description: classRecord.description,
+      // Groups are per weekday: the day whose grouping `students[].groupId` shows.
+      groupWeekday: groupDay?.weekday ?? null,
+      weekdays: [...new Set(plannedDays.map(d => d.selectedWeekday))],
       subjectName,
       hasSeparateAmPmSubjects,
       ...(hasSeparateAmPmSubjects && { subjectNameAm, subjectNamePm }),

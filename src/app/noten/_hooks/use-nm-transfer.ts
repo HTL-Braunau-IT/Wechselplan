@@ -35,9 +35,17 @@ type Params = {
   selectedGroupId: number | null
   /** Every group of the selected class, used when mode is 'all'. */
   allGroupIds: number[]
+  /** The weekday whose grouping the group ids refer to (groups are per weekday). */
+  weekday: number | null
 }
 
-export function useNmTransfer({ classId, schoolYearId, selectedGroupId, allGroupIds }: Params) {
+export function useNmTransfer({
+  classId,
+  schoolYearId,
+  selectedGroupId,
+  allGroupIds,
+  weekday,
+}: Params) {
   const { data: session } = useSession()
 
   const [mode, setMode] = useState<TransferMode>('group')
@@ -86,7 +94,9 @@ export function useNmTransfer({ classId, schoolYearId, selectedGroupId, allGroup
         const results = await Promise.all(
           groupIds.map(async groupId => {
             const res = await fetch(
-              `/api/noten/transfer-prefill?classId=${classId}&schoolYearId=${schoolYearId}&groupId=${groupId}`,
+              `/api/noten/transfer-prefill?classId=${classId}&schoolYearId=${schoolYearId}&groupId=${groupId}${
+                weekday != null ? `&weekday=${weekday}` : ''
+              }`,
             )
             if (!res.ok) return { groupId, ok: false as const }
             const data = (await res.json()) as PrefillResponse
@@ -127,7 +137,7 @@ export function useNmTransfer({ classId, schoolYearId, selectedGroupId, allGroup
         setError(e instanceof Error ? e.message : 'Failed')
       }
     },
-    [classId, schoolYearId, mode, selectedGroupId, allGroupIds],
+    [classId, schoolYearId, mode, selectedGroupId, allGroupIds, weekday],
   )
 
   const setGrade = useCallback((studentId: number, grade: number | null) => {

@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest'
-import { GET, POST } from '../route'
+import { DELETE, GET, POST } from '../route'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { makeClass, makeSchedule } from '@/test/fixtures'
@@ -16,7 +16,12 @@ vi.mock('@/lib/prisma', () => ({
       deleteMany: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      delete: vi.fn(() => 'delete-schedule'),
     },
+    studentWeekdayGroup: {
+      deleteMany: vi.fn(() => 'delete-groups'),
+    },
+    $transaction: vi.fn(async (ops: unknown) => ops),
     // Both handlers resolve the active school year first, and POST replaces
     // normalised turns before writing. Missing either mock 500s every request.
     schoolYear: {
@@ -32,9 +37,11 @@ vi.mock('@/lib/prisma', () => ({
     },
     teacherAssignment: {
       findMany: vi.fn(),
+      deleteMany: vi.fn(() => 'delete-assignments'),
     },
     teacherRotation: {
       findMany: vi.fn(),
+      deleteMany: vi.fn(() => 'delete-rotation'),
     },
     notification: {
       findMany: vi.fn(),
@@ -435,5 +442,41 @@ describe('Schedules API', () => {
         },
       })
     })
+  })
+})
+
+describe('DELETE /api/schedules (one weekday)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(prisma.schoolYear.findFirst).mockResolvedValue({ id: 1 } as never)
+    vi.mocked(prisma.teacherAssignment.findMany).mockResolvedValue([])
+  })
+
+  const del = (query: string) =>
+    DELETE(new Request(`http://localhost/api/schedules?${query}`, { method: 'DELETE' }))
+
+  it('rejects a missing weekday', async () => {
+    const res = await del('classId=4')
+    expect(res.status).toBe(400)
+  })
+
+  it('404s when the class has no plan on that day', async () => {
+    vi.mocked(prisma.schedule.findFirst).mockResolvedValue(null)
+    const res = await del('classId=4&weekday=3&schoolYearId=1')
+    expect(res.status).toBe(404)
+  })
+
+  it("deletes only that day's plan, groups, assignments and rotation", async () => {
+    vi.mocked(prisma.schedule.findFirst).mockResolvedValue({ id: 13 } as never)
+
+    const res = await del('classId=4&weekday=3&schoolYearId=1')
+
+    expect(res.status).toBe(200)
+    const dayScope = { where: { classId: 4, schoolYearId: 1, selectedWeekday: 3 } }
+    expect(prisma.teacherRotation.deleteMany).toHaveBeenCalledWith(dayScope)
+    expect(prisma.teacherAssignment.deleteMany).toHaveBeenCalledWith(dayScope)
+    expect(prisma.studentWeekdayGroup.deleteMany).toHaveBeenCalledWith(dayScope)
+    expect(prisma.schedule.delete).toHaveBeenCalledWith({ where: { id: 13 } })
+    expect(prisma.schedule.deleteMany).not.toHaveBeenCalled()
   })
 })

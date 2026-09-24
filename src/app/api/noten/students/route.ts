@@ -5,6 +5,7 @@ import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import { gradeGroupDay, overlayWeekdayGroups } from '@/lib/weekday-groups'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
 
 /**
@@ -71,15 +72,22 @@ export async function GET(request: Request) {
 
     // Grade entry student picker: only show active students. Historical grades
     // still look up by studentId directly (no filter), so past records stay visible.
-    const roster = await prisma.student.findMany({
-      where: {
-        id: { in: studentIds },
-        isActive: true,
-        ...(groupId !== null ? { groupId } : {}),
-      },
+    const classRoster = await prisma.student.findMany({
+      where: { id: { in: studentIds }, isActive: true },
       select: { id: true, firstName: true, lastName: true, groupId: true },
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     })
+    // Groups are per weekday: use the day this teacher teaches the class (or the
+    // `weekday` the client asked for), then filter to the requested group.
+    const groupDay = await gradeGroupDay({
+      classId,
+      schoolYearId,
+      teacherId: teacher.id,
+      weekday: searchParams.get('weekday'),
+    })
+    const roster = (await overlayWeekdayGroups(classRoster, groupDay)).filter(
+      s => groupId === null || s.groupId === groupId,
+    )
 
     // The seat number (Sitzplatz) is personal to the teacher and the school year,
     // so it comes from NotenSeatNumber rather than the shared Student row. Overlay

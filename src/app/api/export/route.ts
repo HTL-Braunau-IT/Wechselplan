@@ -5,6 +5,7 @@ import { generateSchedulePDF } from '@/lib/pdf-generator'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
 import { denyUnlessAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import { applyWeekdayGroups, weekdayGroupMap } from '@/lib/weekday-groups'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
 
 /**
@@ -65,42 +66,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Class not found' }, { status: 400 })
     }
 
-    // Get students with groupId for this year (via ClassMembership). A combined
-    // class has no members of its own — expand it to its real member classes.
-    const rosterClassIds = await resolveMemberClassIds(class_response.id)
-    const membershipIds = await prisma.classMembership.findMany({
-      where: { classId: { in: rosterClassIds }, schoolYearId },
-      select: { studentId: true },
-    })
-    const studentIds = membershipIds.map(m => m.studentId)
-    const students =
-      studentIds.length > 0
-        ? await prisma.student.findMany({
-            where: { id: { in: studentIds }, groupId: { not: null } },
-            orderBy: [{ groupId: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }],
-          })
-        : []
-
-    // Build the group set from the DESIGNED groups (GroupAssignment), not just
-    // the groups that currently hold an active student. The Wechselplan rotation
-    // is a round-robin whose modulus is groups.length; if a group empties (its
-    // last student is soft-deactivated) and we derived groups only from live
-    // students, groups.length would shrink and every turnus column would print a
-    // different teacher→group schedule than the one saved (finding 29).
-    const designedGroups = await prisma.groupAssignment.findMany({
-      where: { class: class_response.name },
-      select: { groupId: true },
-    })
-    const groupIds = Array.from(
-      new Set<number>([
-        ...designedGroups.map(g => g.groupId),
-        ...(students.map(s => s.groupId).filter(id => id !== null) as number[]),
-      ]),
-    ).sort((a, b) => a - b)
-    const groups = groupIds.map((groupId: number) => ({
-      id: groupId,
-      students: students.filter(s => s.groupId === groupId),
-    }))
     // Get the schedule for this year (a specific weekday if one was requested,
     // otherwise the most recent). Assignments are then scoped to ITS weekday so a
     // class with plans on several days does not spill every day's teachers into
@@ -136,6 +101,61 @@ export async function POST(request: Request) {
     }
 
     const exportWeekday = requestedWeekday ?? schedule.selectedWeekday ?? 1
+
+    // Get students for this year (via ClassMembership). A combined class has no
+    // members of its own — expand it to its real member classes.
+    const rosterClassIds = await resolveMemberClassIds(class_response.id)
+    const membershipIds = await prisma.classMembership.findMany({
+      where: { classId: { in: rosterClassIds }, schoolYearId },
+      select: { studentId: true },
+    })
+    const studentIds = membershipIds.map(m => m.studentId)
+    const roster =
+      studentIds.length > 0
+        ? await prisma.student.findMany({
+            where: { id: { in: studentIds } },
+            orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+          })
+        : []
+
+    // Groups are per weekday: the exported day's grouping (StudentWeekdayGroup),
+    // falling back to Student.groupId for a plan that predates per-day groups.
+    const dayGroups = await weekdayGroupMap({
+      classId: class_response.id,
+      schoolYearId,
+      weekday: exportWeekday,
+    })
+    const students = applyWeekdayGroups(roster, dayGroups)
+      .filter(s => s.groupId != null)
+      .sort((a, b) => (a.groupId ?? 0) - (b.groupId ?? 0))
+
+    // Build the group set from the DESIGNED groups, not just the groups that
+    // currently hold an active student. The Wechselplan rotation is a round-robin
+    // whose modulus is groups.length; if a group empties (its last student is
+    // soft-deactivated) and we derived groups only from live students,
+    // groups.length would shrink and every turnus column would print a different
+    // teacher→group schedule than the one saved (finding 29). The day's stored
+    // rows keep deactivated students, so they carry that design; without rows the
+    // class-wide GroupAssignment cache does.
+    const designedGroupIds =
+      dayGroups.size > 0
+        ? [...new Set(dayGroups.values())]
+        : (
+            await prisma.groupAssignment.findMany({
+              where: { class: class_response.name },
+              select: { groupId: true },
+            })
+          ).map(g => g.groupId)
+    const groupIds = Array.from(
+      new Set<number>([
+        ...designedGroupIds,
+        ...(students.map(s => s.groupId).filter(id => id !== null) as number[]),
+      ]),
+    ).sort((a, b) => a - b)
+    const groups = groupIds.map((groupId: number) => ({
+      id: groupId,
+      students: students.filter(s => s.groupId === groupId),
+    }))
 
     // Get teacher assignments (AM/PM) for this year on the exported weekday
     const teacherAssignments = await prisma.teacherAssignment.findMany({

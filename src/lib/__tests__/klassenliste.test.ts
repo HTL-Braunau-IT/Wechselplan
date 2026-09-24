@@ -9,12 +9,14 @@ import {
 } from '../klassenliste'
 import { prisma } from '@/lib/prisma'
 
+vi.mock('@/lib/weekday-groups', () => import('@/test/weekday-groups-passthrough'))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     class: { findUnique: vi.fn() },
     schoolYear: { findUnique: vi.fn() },
     classMembership: { findMany: vi.fn() },
     student: { findMany: vi.fn() },
+    schedule: { findMany: vi.fn(async () => [{ selectedWeekday: 1 }, { selectedWeekday: 4 }]) },
   },
 }))
 
@@ -120,5 +122,7 @@ describe('getClassRoster', () => {
     expect(roster!.classLead).toBe('Martin Reiter')
     expect(roster!.schoolYearLabel).toBe('2026/27')
     expect(roster!.students).toHaveLength(2)
+    // The class's planned days, offered as the day switch.
+    expect(roster!.weekdays).toEqual([1, 4])
   })
 })

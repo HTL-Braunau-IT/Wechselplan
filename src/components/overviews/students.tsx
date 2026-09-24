@@ -41,6 +41,10 @@ export function StudentOverview() {
   const { t } = useTranslation()
   const [studentClass, setStudentClass] = useState<string | null>(null)
   const [groupId, setGroupId] = useState<number | null>(null)
+  // Groups are per weekday; `groupId` is only the fallback for a day not listed.
+  const [groupsByWeekday, setGroupsByWeekday] = useState<Record<number, number | null>>({})
+  const groupOn = (weekday: number) =>
+    weekday in groupsByWeekday ? (groupsByWeekday[weekday] ?? null) : groupId
   const [availableWeekdays, setAvailableWeekdays] = useState<number[]>([])
   const [selectedWeekday, setSelectedWeekday] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
@@ -63,9 +67,14 @@ export function StudentOverview() {
           return
         }
 
-        const data = (await response.json()) as { class: string; groupId: number | null }
+        const data = (await response.json()) as {
+          class: string
+          groupId: number | null
+          groupsByWeekday?: Record<number, number | null>
+        }
         setStudentClass(data.class)
         setGroupId(data.groupId)
+        setGroupsByWeekday(data.groupsByWeekday ?? {})
 
         // Fetch all schedules for the class to determine available weekdays
         const schedulesResponse = await fetch(`/api/schedules?classId=${data.class}`)
@@ -154,7 +163,7 @@ export function StudentOverview() {
       <ScheduleOverviewWrapper
         className={studentClass}
         weekday={availableWeekdays[0]}
-        groupId={groupId}
+        groupId={groupOn(availableWeekdays[0])}
       />
     ) : (
       <Tabs defaultValue={`${selectedWeekday}`} className="w-full" onValueChange={handleTabChange}>
@@ -170,7 +179,11 @@ export function StudentOverview() {
         </TabsList>
         {availableWeekdays.map(weekday => (
           <TabsContent key={weekday} value={`${weekday}`} className="mt-4">
-            <ScheduleOverviewWrapper className={studentClass} weekday={weekday} groupId={groupId} />
+            <ScheduleOverviewWrapper
+              className={studentClass}
+              weekday={weekday}
+              groupId={groupOn(weekday)}
+            />
           </TabsContent>
         ))}
       </Tabs>

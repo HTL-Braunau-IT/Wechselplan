@@ -7,6 +7,7 @@ import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
 import { toLocalDateString } from '@/lib/date-utils'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import { gradeGroupDay } from '@/lib/weekday-groups'
 
 type TeachingDay = { date: string; period: string }
 
@@ -69,15 +70,26 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Not assigned to this class' }, { status: 403 })
     }
 
+    // Each weekday is its own plan with its own rotation and groups: the dates
+    // come from the chosen day's plan only. Unscoped, a teacher on two days got
+    // both days' rotations laid over whichever plan was created last.
+    const groupDay = await gradeGroupDay({
+      classId,
+      schoolYearId,
+      teacherId: teacher.id,
+      weekday: searchParams.get('weekday'),
+    })
+    const dayFilter = groupDay ? { selectedWeekday: groupDay.weekday } : {}
+
     const rotations = await prisma.teacherRotation.findMany({
-      where: { teacherId: teacher.id, classId, groupId },
+      where: { teacherId: teacher.id, classId, groupId, schoolYearId, ...dayFilter },
     })
     if (rotations.length === 0) {
       return NextResponse.json({ teachingDays: [] })
     }
 
     const schedule = await prisma.schedule.findFirst({
-      where: { classId, schoolYearId },
+      where: { classId, schoolYearId, ...dayFilter },
       orderBy: { createdAt: 'desc' },
       include: {
         turns: {

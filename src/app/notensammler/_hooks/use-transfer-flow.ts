@@ -79,6 +79,8 @@ export function useTransferFlow({
             classId: classData.id,
             semester: forSemester,
             ...(schoolYearId != null && { schoolYearId }),
+            // Groups are per weekday: the grouping the grid is showing.
+            ...(classData.groupWeekday != null && { weekday: classData.groupWeekday }),
           }),
         })
         if (!res.ok) {
@@ -175,6 +177,7 @@ export function useTransferFlow({
             groupId: null,
             semester: previewData.semester,
             ...(schoolYearId != null && { schoolYearId }),
+            ...(classData.groupWeekday != null && { weekday: classData.groupWeekday }),
             notes,
           },
           credentials,

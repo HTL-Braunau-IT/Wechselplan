@@ -12,6 +12,7 @@ import type { Student, TeacherAssignment, Schedule } from '@prisma/client'
 // otherwise warn on every render, so it is switched off per test below.
 
 // Mock PrismaClient
+vi.mock('@/lib/weekday-groups', () => import('@/test/weekday-groups-passthrough'))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     class: {

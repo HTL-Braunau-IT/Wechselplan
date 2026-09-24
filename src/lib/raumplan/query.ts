@@ -4,6 +4,7 @@
 // the route handler) matches the repo convention — see CLAUDE.md.
 
 import { prisma } from '@/lib/prisma'
+import { studentGroupByWeekday } from '@/lib/weekday-groups'
 import { levelOfRoom } from './levels'
 import {
   PERIODS,
@@ -182,9 +183,17 @@ export async function getStudentPlacement(
   ])
 
   const classTurns = classTurnsMap.get(student.classId)?.get(weekday) ?? []
+  // Groups are per weekday — the student's group on the requested day.
+  const groupOn = await studentGroupByWeekday({
+    studentId: student.id,
+    classId: student.classId,
+    schoolYearId,
+    fallback: student.groupId ?? null,
+  })
+  const groupId = groupOn(weekday)
 
   const periods = resolveStudentPlacement(
-    { classId: student.classId, groupId: student.groupId ?? null },
+    { classId: student.classId, groupId },
     assignments,
     rotations,
     classTurns,
@@ -198,7 +207,7 @@ export async function getStudentPlacement(
       id: student.id,
       name: `${student.firstName} ${student.lastName}`.trim(),
       className: student.class?.name ?? null,
-      groupId: student.groupId ?? null,
+      groupId,
     },
     date: dateStr,
     weekday,
@@ -229,24 +238,31 @@ export async function getStudentSelfPlacement(
 ): Promise<StudentSelfPlacement> {
   const from = (fromDate ? parsePlanDate(fromDate) : null) ?? new Date()
 
-  const [assignments, rotations, classTurnsMap] = await Promise.all([
+  const [assignments, rotations, classTurnsMap, groupOn] = await Promise.all([
     loadAssignments(schoolYearId),
     loadRotations(schoolYearId),
     loadClassTurns([student.classId], schoolYearId),
+    studentGroupByWeekday({
+      studentId: student.id,
+      classId: student.classId,
+      schoolYearId,
+      fallback: student.groupId ?? null,
+    }),
   ])
 
-  const summary = {
+  // The reported group is the one on the day being shown (groups are per weekday).
+  const summaryOn = (date: Date) => ({
     id: student.id,
     name: `${student.firstName} ${student.lastName}`.trim(),
     className: student.className,
-    groupId: student.groupId ?? null,
-  }
+    groupId: groupOn(isoWeekday(date)),
+  })
 
   const placeOn = (date: Date): StudentPlacementPeriod[] => {
     const weekday = isoWeekday(date)
     const turns = classTurnsMap.get(student.classId)?.get(weekday) ?? []
     return resolveStudentPlacement(
-      { classId: student.classId, groupId: student.groupId ?? null },
+      { classId: student.classId, groupId: groupOn(weekday) },
       assignments,
       rotations,
       turns,
@@ -263,7 +279,7 @@ export async function getStudentSelfPlacement(
     const periods = placeOn(date)
     if (isScheduledPlacement(periods)) {
       return {
-        student: summary,
+        student: summaryOn(date),
         date: formatPlanDate(date),
         weekday,
         isToday: d === 0,
@@ -275,7 +291,7 @@ export async function getStudentSelfPlacement(
 
   // Nothing found in the window — report today (all empty) so the UI can say so.
   return {
-    student: summary,
+    student: summaryOn(from),
     date: formatPlanDate(from),
     weekday: isoWeekday(from),
     isToday: true,

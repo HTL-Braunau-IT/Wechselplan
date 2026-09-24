@@ -68,6 +68,8 @@ export function TeacherDashboard() {
     classId: notenClassId,
     groupId: notenGroupId,
     schoolYearId,
+    // The slot's group is that weekday's group (groups are per weekday).
+    weekday: selectedWeekday,
   })
   useUnsavedWarning(data.hasUnsavedWork)
 
