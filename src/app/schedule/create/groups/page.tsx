@@ -95,21 +95,11 @@ interface Group {
   students: Student[]
 }
 
-interface Assignment {
-  groupId: number
-  studentIds: number[]
-}
-
 interface Class {
   id: number
   name: string
   description: string | null
   isCombined?: boolean
-}
-
-interface AssignmentsResponse {
-  assignments: Assignment[]
-  unassignedStudents: Student[]
 }
 
 // Group/size limits are shared with the combine-classes endpoint.
@@ -155,12 +145,7 @@ export default function ScheduleClassSelectPage() {
     },
   ])
   const [activeStudent, setActiveStudent] = useState<Student | null>(null)
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [showMaxSizeDialog, setShowMaxSizeDialog] = useState(false)
-  const [pendingAssignments, setPendingAssignments] = useState<{
-    assignments: Assignment[]
-    removedStudentIds: number[]
-  } | null>(null)
   const [showAddStudentDialog, setShowAddStudentDialog] = useState(false)
   const [newStudent, setNewStudent] = useState({
     firstName: '',
@@ -434,7 +419,6 @@ export default function ScheduleClassSelectPage() {
   }
 
   async function handleNext() {
-    const yearQ = schoolYearId != null ? `&schoolYearId=${schoolYearId}` : ''
     try {
       // Get all students that are still in groups
       const activeStudents = groups.flatMap(group => group.students)
@@ -449,62 +433,6 @@ export default function ScheduleClassSelectPage() {
         studentIds: group.students.map(student => student.id),
       }))
 
-      // Check if there are existing assignments
-      if (!selectedClassId) throw new Error('Class ID not available')
-      const existingAssignmentsRes = await fetch(
-        `/api/schedules/assignments?classId=${selectedClassId}&weekday=${weekday}${yearQ}`,
-      )
-      if (!existingAssignmentsRes.ok) throw new Error('Failed to fetch existing assignments')
-      const existingAssignmentsData =
-        (await existingAssignmentsRes.json()) as AssignmentsResponse & {
-          seededFromWeekday?: number | null
-        }
-
-      // Only show confirmation if this day already has stored groups (a grouping
-      // merely seeded from another day is not "existing").
-      if (
-        existingAssignmentsData.seededFromWeekday == null &&
-        existingAssignmentsData.assignments &&
-        existingAssignmentsData.assignments.length > 0
-      ) {
-        // Check if the assignments are different from what's currently on screen
-        const hasChanges =
-          existingAssignmentsData.assignments.some(existingAssignment => {
-            const currentAssignment = assignments.find(
-              a => a.groupId === existingAssignment.groupId,
-            )
-            if (!currentAssignment) return true // Group was removed
-
-            // Check if student IDs are different
-            if (currentAssignment.studentIds.length !== existingAssignment.studentIds.length)
-              return true
-
-            // Check if any student IDs are different
-            return (
-              currentAssignment.studentIds.some(
-                id => !existingAssignment.studentIds.includes(id),
-              ) ||
-              existingAssignment.studentIds.some(id => !currentAssignment.studentIds.includes(id))
-            )
-          }) ||
-          assignments.some(currentAssignment => {
-            // Check if there are any new groups that weren't in the existing assignments
-            return !existingAssignmentsData.assignments.some(
-              existingAssignment => existingAssignment.groupId === currentAssignment.groupId,
-            )
-          })
-
-        if (hasChanges) {
-          setPendingAssignments({
-            assignments,
-            removedStudentIds: removedStudents.map(student => student.id),
-          })
-          setShowConfirmDialog(true)
-          return
-        }
-      }
-
-      // If no changes or no existing assignments, proceed with saving
       if (!selectedClassId) throw new Error('Class ID not available')
       const response = await fetch('/api/schedules/assignments', {
         method: 'POST',
@@ -535,61 +463,10 @@ export default function ScheduleClassSelectPage() {
         extra: {
           selectedClass,
           numberOfGroups,
-          assignments: pendingAssignments,
         },
       })
       setActionError('Fehler beim Speichern der Zuweisungen.')
     }
-  }
-
-  async function handleConfirmUpdate() {
-    if (!pendingAssignments || !selectedClassId) return
-
-    try {
-      const response = await fetch('/api/schedules/assignments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          classId: selectedClassId,
-          assignments: pendingAssignments.assignments,
-          removedStudentIds: pendingAssignments.removedStudentIds,
-          weekday,
-          ...(schoolYearId != null ? { schoolYearId } : {}),
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to update assignments')
-      }
-
-      // Groups are saved; move on to choosing the weekday and periods.
-      setDirty(false)
-      router.push(teachersHref(selectedClass))
-    } catch (err) {
-      console.error('Error updating assignments:', err)
-      captureFrontendError(err, {
-        location: 'schedule/create',
-        type: 'update-assignments',
-        extra: {
-          selectedClass,
-          assignments: pendingAssignments,
-        },
-      })
-      setActionError('Fehler beim Aktualisieren der Zuweisungen.')
-    } finally {
-      setShowConfirmDialog(false)
-      setPendingAssignments(null)
-    }
-  }
-
-  /**
-   * Closes the assignment update confirmation dialog and discards any pending assignment changes.
-   */
-  function handleCancelUpdate() {
-    setShowConfirmDialog(false)
-    setPendingAssignments(null)
   }
 
   /**
@@ -1193,25 +1070,6 @@ export default function ScheduleClassSelectPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Confirmation Dialog */}
-      <AlertDialog
-        open={showConfirmDialog}
-        onOpenChange={open => {
-          if (!open) handleCancelUpdate()
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('updateAssignmentsTitle')}</AlertDialogTitle>
-            <AlertDialogDescription>{t('updateAssignmentsMessage')}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleCancelUpdate}>{t('cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmUpdate}>{t('update')}</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Add Student Dialog */}
       <AddStudentDialog

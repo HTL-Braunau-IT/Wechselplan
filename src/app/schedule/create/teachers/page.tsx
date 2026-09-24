@@ -7,11 +7,10 @@ import { useCachedData } from '@/hooks/use-cached-data'
 import { useClassDataByName } from '@/hooks/use-class-data'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Alert, AlertTitle } from '@/components/ui/alert'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -28,7 +27,6 @@ import {
   Copy,
   Sunrise,
   Sunset,
-  TriangleAlert,
   Users,
 } from 'lucide-react'
 import { captureFrontendError } from '@/lib/frontend-error'
@@ -115,17 +113,11 @@ export default function TeacherAssignmentPage() {
   const [amAssignments, setAmAssignments] = useState<TeacherAssignment[]>([])
   const [pmAssignments, setPmAssignments] = useState<TeacherAssignment[]>([])
 
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [showErrorDialog, setShowErrorDialog] = useState(false)
   const [validationErrors, setValidationErrors] = useState<{
     am: { groupId: number; missingFields: string[] }[]
     pm: { groupId: number; missingFields: string[] }[]
   }>({ am: [], pm: [] })
-  const [pendingAssignments, setPendingAssignments] = useState<{
-    amAssignments: TeacherAssignment[]
-    pmAssignments: TeacherAssignment[]
-  } | null>(null)
-  const [hasExistingAssignments, setHasExistingAssignments] = useState(false)
   // Unsaved in-step edits (teacher/subject/room entries) — lost on reload before "Next".
   const [dirty, setDirty] = useState(false)
 
@@ -280,9 +272,6 @@ export default function TeacherAssignmentPage() {
           } else {
             setPmAssignments(initialAssignments)
           }
-
-          // Only show warning if either AM or PM has existing assignments
-          setHasExistingAssignments(hasExistingAmAssignments ?? hasExistingPmAssignments)
         } else {
           // Initialize empty assignments if none exist
           const initialAssignments: TeacherAssignment[] = groupsData.assignments.map(
@@ -296,7 +285,6 @@ export default function TeacherAssignmentPage() {
           )
           setAmAssignments(initialAssignments)
           setPmAssignments(initialAssignments)
-          setHasExistingAssignments(false)
         }
       } catch (err) {
         console.error('Error fetching data:', err)
@@ -532,7 +520,6 @@ export default function TeacherAssignmentPage() {
           }
         })
 
-      // If no changes or no existing assignments, proceed with saving
       if (!selectedClassId) throw new Error('Class ID not available')
       const response = await fetch('/api/schedules/teacher-assignments', {
         method: 'POST',
@@ -551,14 +538,6 @@ export default function TeacherAssignmentPage() {
 
       if (!response.ok) {
         const errorData = (await response.json()) as ApiError
-        if (response.status === 409 && errorData.error === 'EXISTING_ASSIGNMENTS') {
-          setPendingAssignments({
-            amAssignments: validAmAssignments,
-            pmAssignments: validPmAssignments,
-          })
-          setShowConfirmDialog(true)
-          return
-        }
         throw new Error(errorData.message ?? 'Failed to save teacher assignments')
       }
 
@@ -582,80 +561,6 @@ export default function TeacherAssignmentPage() {
       })
       setError(t('saveFailed'))
     }
-  }
-
-  async function handleConfirmUpdate() {
-    if (!pendingAssignments || !selectedClassId) return
-
-    try {
-      // Map the assignments to include string values for subject, learningContent, and room
-      const mapAssignments = (assignments: TeacherAssignment[]) =>
-        assignments.map(assignment => {
-          const subject =
-            assignment.customSubject ??
-            subjects.find(s => s.id === assignment.subjectId)?.name ??
-            ''
-          const learningContent =
-            assignment.customLearningContent ??
-            learningContents.find(lc => lc.id === assignment.learningContentId)?.name ??
-            ''
-          const room =
-            assignment.customRoom ?? rooms.find(r => r.id === assignment.roomId)?.name ?? ''
-
-          return {
-            groupId: assignment.groupId,
-            teacherId: assignment.teacherId,
-            subject,
-            learningContent,
-            room,
-          }
-        })
-
-      const response = await fetch('/api/schedules/teacher-assignments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          classId: selectedClassId,
-          ...(schoolYearId != null && { schoolYearId }),
-          amAssignments: mapAssignments(pendingAssignments.amAssignments),
-          pmAssignments: mapAssignments(pendingAssignments.pmAssignments),
-          updateExisting: true,
-          selectedWeekday: selectedWeekday ?? 1,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to update teacher assignments')
-      }
-
-      setShowConfirmDialog(false)
-      setPendingAssignments(null)
-      setDirty(false)
-      router.push(
-        `/schedule/create/rotation?class=${selectedClass}&weekday=${selectedWeekday ?? 1}`,
-      )
-    } catch (err) {
-      console.error('Error updating assignments:', err)
-      captureFrontendError(err, {
-        location: 'schedule/create/teachers',
-        type: 'update-assignments',
-        extra: {
-          selectedClass,
-          assignments: {
-            am: amAssignments,
-            pm: pmAssignments,
-          },
-        },
-      })
-      setError(t('saveFailed'))
-    }
-  }
-
-  function handleCancelUpdate() {
-    setShowConfirmDialog(false)
-    setPendingAssignments(null)
   }
 
   function handleCopyAmToPm() {
@@ -700,13 +605,6 @@ export default function TeacherAssignmentPage() {
           <Alert variant="destructive">
             <CircleAlert className="h-4 w-4" />
             <AlertTitle>{error}</AlertTitle>
-          </Alert>
-        )}
-
-        {hasExistingAssignments && (
-          <Alert variant="warning">
-            <TriangleAlert className="h-4 w-4" />
-            <AlertDescription>{t('existingAssignmentsWarning')}</AlertDescription>
           </Alert>
         )}
 
@@ -781,27 +679,6 @@ export default function TeacherAssignmentPage() {
           </Button>
         </WizardFooter>
       </div>
-
-      {/* Confirmation Dialog */}
-      <Dialog
-        open={showConfirmDialog}
-        onOpenChange={open => {
-          if (!open) handleCancelUpdate()
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('updateAssignmentsTitle')}</DialogTitle>
-            <DialogDescription>{t('existingAssignmentsWarning')}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCancelUpdate}>
-              {t('cancel')}
-            </Button>
-            <Button onClick={handleConfirmUpdate}>{t('update')}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Error Dialog */}
       <Dialog open={showErrorDialog} onOpenChange={setShowErrorDialog}>
