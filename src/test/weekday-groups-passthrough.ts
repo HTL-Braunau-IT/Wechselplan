@@ -21,3 +21,4 @@ export const planClassIdsFor = vi.fn(async (_tx: unknown, classId: number) => [c
 export const dropGroupsOutsideClass = vi.fn(async (_tx: unknown, _s: number, classId: number) => [
   classId,
 ])
+export const studentPlanDays = vi.fn(async () => [] as never[])

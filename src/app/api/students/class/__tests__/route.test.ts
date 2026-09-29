@@ -95,6 +95,7 @@ describe('Students Class API', () => {
       groupId: 1,
       // No per-day groups stored → the class-wide group on every weekday.
       groupsByWeekday: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1 },
+      plans: [],
     })
   })
 
@@ -157,6 +158,7 @@ describe('Students Class API', () => {
           groupId: 1,
           // No per-day groups stored → the class-wide group on every weekday.
           groupsByWeekday: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1 },
+          plans: [],
         },
       },
       {

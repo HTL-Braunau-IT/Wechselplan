@@ -6,7 +6,7 @@ import { requireAccess } from '@/lib/api-guard'
 import { isStaffRole } from '@/lib/api-access'
 import { resolveSessionStudent } from '@/lib/session-student'
 import { resolveSchoolYearId } from '@/lib/school-year'
-import { studentGroupByWeekday } from '@/lib/weekday-groups'
+import { studentGroupByWeekday, studentPlanDays } from '@/lib/weekday-groups'
 
 /** The student's group on each school weekday (groups are per weekday). */
 async function groupsByWeekday(
@@ -23,6 +23,35 @@ async function groupsByWeekday(
   })
   return Object.fromEntries([1, 2, 3, 4, 5].map(day => [day, groupOn(day)]))
 }
+
+/**
+ * The weekdays the student has a plan on, each named by the class that owns it.
+ * For a member of a combined class that is the combined class, not their own.
+ */
+async function plans(
+  student: { id: number; groupId: number | null },
+  classId: number,
+  schoolYearId: number | null,
+): Promise<{ weekday: number; className: string; groupId: number | null }[]> {
+  if (schoolYearId == null) return []
+  const days = await studentPlanDays({
+    studentId: student.id,
+    classId,
+    schoolYearId,
+    fallback: student.groupId,
+  })
+  if (days.length === 0) return []
+  const classes = await prisma.class.findMany({
+    where: { id: { in: [...new Set(days.map(d => d.planClassId))] } },
+    select: { id: true, name: true },
+  })
+  const nameOf = new Map(classes.map(c => [c.id, c.name]))
+  return days.flatMap(d => {
+    const className = nameOf.get(d.planClassId)
+    return className ? [{ weekday: d.weekday, className, groupId: d.groupId }] : []
+  })
+}
+
 /**
  * Processes a GET request to retrieve the class name and group ID assigned to a student by username.
  *
@@ -78,6 +107,7 @@ export async function GET(request: Request) {
           class: membership.class.name,
           groupId: student.groupId,
           groupsByWeekday: await groupsByWeekday(student, membership.class.id, schoolYearId),
+          plans: await plans(student, membership.class.id, schoolYearId),
         })
       }
     }
@@ -86,14 +116,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Student has no class assigned' }, { status: 404 })
     }
 
+    const yearId = await resolveSchoolYearId(schoolYearId)
     return NextResponse.json({
       class: student.class.name,
       groupId: student.groupId,
-      groupsByWeekday: await groupsByWeekday(
-        student,
-        student.class.id,
-        await resolveSchoolYearId(schoolYearId),
-      ),
+      groupsByWeekday: await groupsByWeekday(student, student.class.id, yearId),
+      plans: await plans(student, student.class.id, yearId),
     })
   } catch (error) {
     captureError(error, {

@@ -4,7 +4,7 @@
 // the route handler) matches the repo convention — see CLAUDE.md.
 
 import { prisma } from '@/lib/prisma'
-import { studentGroupByWeekday } from '@/lib/weekday-groups'
+import { studentGroupByWeekday, studentPlanDays } from '@/lib/weekday-groups'
 import { levelOfRoom } from './levels'
 import {
   PERIODS,
@@ -153,6 +153,42 @@ export async function getWeekOccupancy(
   return { schoolYearId, reference: formatPlanDate(refDate), weekDates, cells }
 }
 
+/**
+ * weekday → { classId, groupId } the student is placed by. A member of a combined
+ * class is planned under the combined class's id, not their own, so a day with a
+ * plan uses that plan's class; any other day keeps the student's own class.
+ */
+async function studentPlanLookup(student: {
+  id: number
+  classId: number
+  groupId: number | null
+  schoolYearId: number
+}): Promise<{
+  planClassIds: number[]
+  on: (weekday: number) => { classId: number; groupId: number | null }
+}> {
+  const params = {
+    studentId: student.id,
+    classId: student.classId,
+    schoolYearId: student.schoolYearId,
+    fallback: student.groupId,
+  }
+  const [days, groupOn] = await Promise.all([
+    studentPlanDays(params),
+    studentGroupByWeekday(params),
+  ])
+  const byDay = new Map(days.map(d => [d.weekday, d]))
+  return {
+    planClassIds: [...new Set([student.classId, ...days.map(d => d.planClassId)])],
+    on: weekday => {
+      const day = byDay.get(weekday)
+      return day
+        ? { classId: day.planClassId, groupId: day.groupId }
+        : { classId: student.classId, groupId: groupOn(weekday) }
+    },
+  }
+}
+
 /** "Where should I be?" for one student on a date ("dd.MM.yy", defaults today). */
 export async function getStudentPlacement(
   studentId: number,
@@ -176,24 +212,25 @@ export async function getStudentPlacement(
   const dateStr = formatPlanDate(target)
   const weekday = isoWeekday(target)
 
+  const plan = await studentPlanLookup({
+    id: student.id,
+    classId: student.classId,
+    groupId: student.groupId ?? null,
+    schoolYearId,
+  })
   const [assignments, rotations, classTurnsMap] = await Promise.all([
     loadAssignments(schoolYearId),
     loadRotations(schoolYearId),
-    loadClassTurns([student.classId], schoolYearId),
+    loadClassTurns(plan.planClassIds, schoolYearId),
   ])
 
-  const classTurns = classTurnsMap.get(student.classId)?.get(weekday) ?? []
-  // Groups are per weekday — the student's group on the requested day.
-  const groupOn = await studentGroupByWeekday({
-    studentId: student.id,
-    classId: student.classId,
-    schoolYearId,
-    fallback: student.groupId ?? null,
-  })
-  const groupId = groupOn(weekday)
+  // Groups are per weekday — the student's plan and group on the requested day.
+  const placement = plan.on(weekday)
+  const groupId = placement.groupId
+  const classTurns = classTurnsMap.get(placement.classId)?.get(weekday) ?? []
 
   const periods = resolveStudentPlacement(
-    { classId: student.classId, groupId },
+    placement,
     assignments,
     rotations,
     classTurns,
@@ -238,16 +275,16 @@ export async function getStudentSelfPlacement(
 ): Promise<StudentSelfPlacement> {
   const from = (fromDate ? parsePlanDate(fromDate) : null) ?? new Date()
 
-  const [assignments, rotations, classTurnsMap, groupOn] = await Promise.all([
+  const plan = await studentPlanLookup({
+    id: student.id,
+    classId: student.classId,
+    groupId: student.groupId ?? null,
+    schoolYearId,
+  })
+  const [assignments, rotations, classTurnsMap] = await Promise.all([
     loadAssignments(schoolYearId),
     loadRotations(schoolYearId),
-    loadClassTurns([student.classId], schoolYearId),
-    studentGroupByWeekday({
-      studentId: student.id,
-      classId: student.classId,
-      schoolYearId,
-      fallback: student.groupId ?? null,
-    }),
+    loadClassTurns(plan.planClassIds, schoolYearId),
   ])
 
   // The reported group is the one on the day being shown (groups are per weekday).
@@ -255,14 +292,15 @@ export async function getStudentSelfPlacement(
     id: student.id,
     name: `${student.firstName} ${student.lastName}`.trim(),
     className: student.className,
-    groupId: groupOn(isoWeekday(date)),
+    groupId: plan.on(isoWeekday(date)).groupId,
   })
 
   const placeOn = (date: Date): StudentPlacementPeriod[] => {
     const weekday = isoWeekday(date)
-    const turns = classTurnsMap.get(student.classId)?.get(weekday) ?? []
+    const placement = plan.on(weekday)
+    const turns = classTurnsMap.get(placement.classId)?.get(weekday) ?? []
     return resolveStudentPlacement(
-      { classId: student.classId, groupId: groupOn(weekday) },
+      placement,
       assignments,
       rotations,
       turns,

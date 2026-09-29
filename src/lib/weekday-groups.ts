@@ -161,6 +161,60 @@ export async function studentGroupByWeekday(params: {
   return weekday => byDay.get(weekday) ?? null
 }
 
+export interface StudentPlanDay {
+  weekday: number
+  /** The class that owns the plan: the student's own class, or a combined class spanning it. */
+  planClassId: number
+  groupId: number | null
+}
+
+/**
+ * Every weekday a student has a plan on, and whose plan it is. A student of a
+ * class that is only planned as part of a combined class has no Schedule under
+ * their own class id — reading `student.classId` alone finds nothing. The own
+ * class wins when both plan the same day (as in {@link studentGroupByWeekday}).
+ * The group is the student's row in that plan; a student with no per-day rows
+ * at all keeps `fallback` (Student.groupId).
+ */
+export async function studentPlanDays(params: {
+  studentId: number
+  classId: number
+  schoolYearId: number
+  fallback: number | null
+}): Promise<StudentPlanDay[]> {
+  const planIds = await planClassIdsFor(prisma, params.classId)
+  const [plans, rows] = await Promise.all([
+    prisma.schedule.findMany({
+      where: { classId: { in: planIds }, schoolYearId: params.schoolYearId },
+      select: { classId: true, selectedWeekday: true },
+    }),
+    prisma.studentWeekdayGroup.findMany({
+      where: { studentId: params.studentId, schoolYearId: params.schoolYearId },
+      select: { classId: true, selectedWeekday: true, groupId: true },
+    }),
+  ])
+
+  const planByDay = new Map<number, number>()
+  for (const p of plans) {
+    if (p.classId == null) continue
+    if (p.classId === params.classId || !planByDay.has(p.selectedWeekday)) {
+      planByDay.set(p.selectedWeekday, p.classId)
+    }
+  }
+
+  return [...planByDay.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([weekday, planClassId]) => ({
+      weekday,
+      planClassId,
+      groupId:
+        rows.length === 0
+          ? params.fallback
+          : (rows.find(r => r.classId === planClassId && r.selectedWeekday === weekday)?.groupId ??
+            null),
+    }))
+}
+
 /**
  * The plan day whose grouping a grade screen uses for `classId` — see
  * {@link resolveGroupWeekday}. Accepts the raw `weekday` query value so routes

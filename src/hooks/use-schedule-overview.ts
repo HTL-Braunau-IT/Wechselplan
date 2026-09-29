@@ -41,13 +41,17 @@ interface UseScheduleOverviewResult {
  *
  * @param classId - The identifier of the class to retrieve scheduling data for. If null or falsy, sets an error and does not fetch data.
  * @param schoolYearId - Optional school year id; when provided, schedule and assignment data are filtered by this year.
+ * @param options.selfRoster - Read the roster from the student-scoped `/api/me/plan-roster`
+ *   instead of the staff-only `/api/students` (the student home page).
  * @returns An object containing groups, teacher assignments, schedule times, break times, rotation schedule, class head and lead names, additional info, selected weekday, loading status, and error message.
  */
 export function useScheduleOverview(
   classId: string | null,
   schoolYearId?: number,
   weekdayFilter?: number,
+  options?: { selfRoster?: boolean },
 ): UseScheduleOverviewResult {
+  const selfRoster = options?.selfRoster ?? false
   const [groups, setGroups] = useState<Group[]>([])
   const [amAssignments, setAmAssignments] = useState<TeacherAssignmentResponse[]>([])
   const [pmAssignments, setPmAssignments] = useState<TeacherAssignmentResponse[]>([])
@@ -82,7 +86,7 @@ export function useScheduleOverview(
       // render one class's students against another's group assignments (finding 14).
       setResolvedClassId(null)
       try {
-        const res = await fetch(`/api/classes/get-by-name?name=${classId}`)
+        const res = await fetch(`/api/classes/get-by-name?name=${encodeURIComponent(classId)}`)
         if (!res.ok) throw new Error('Failed to fetch class ID')
         const data = (await res.json()) as { id: number }
         if (cancelled) return
@@ -119,18 +123,22 @@ export function useScheduleOverview(
         setError(null)
 
         // Fetch all students for the class (optionally for school year)
-        const studentsRes = await fetch(`/api/students?class=${classId}${yearQ}`, {
-          cache: 'no-store',
-        })
+        const rosterUrl = selfRoster
+          ? `/api/me/plan-roster?class=${encodeURIComponent(classId)}`
+          : `/api/students?class=${encodeURIComponent(classId)}${yearQ}`
+        const studentsRes = await fetch(rosterUrl, { cache: 'no-store' })
         if (!studentsRes.ok) throw new Error('Failed to fetch students')
         const students: Student[] = await studentsRes.json()
 
         // Fetch rotation/turn schedule (filtered by school year when provided)
         // All weekdays, not just the requested one: the list of planned days feeds
         // the day picker, and the requested day is picked out client-side below.
-        const schedulesRes = await fetch(`/api/schedules?classId=${classId}${yearQ}`, {
-          cache: 'no-store',
-        })
+        const schedulesRes = await fetch(
+          `/api/schedules?classId=${encodeURIComponent(classId)}${yearQ}`,
+          {
+            cache: 'no-store',
+          },
+        )
         // The schedule row carries the per-lane blobs the API splits out.
         type ScheduleRow = ScheduleResponse & {
           selectedWeekday?: number
@@ -255,7 +263,7 @@ export function useScheduleOverview(
         }
 
         // Fetch class data
-        const classRes = await fetch(`/api/classes/get-by-name?name=${classId}`)
+        const classRes = await fetch(`/api/classes/get-by-name?name=${encodeURIComponent(classId)}`)
         if (!classRes.ok) throw new Error('Failed to fetch class data')
         const classData = (await classRes.json()) as {
           classHead: { firstName: string; lastName: string } | null
@@ -293,7 +301,7 @@ export function useScheduleOverview(
     return () => {
       cancelled = true
     }
-  }, [classId, resolvedClassId, yearQ, weekdayFilter])
+  }, [classId, resolvedClassId, yearQ, weekdayFilter, selfRoster])
 
   return {
     groups,
