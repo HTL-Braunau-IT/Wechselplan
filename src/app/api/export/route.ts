@@ -237,8 +237,8 @@ export async function POST(request: Request) {
       pmAssignments,
       amTurns,
       pmTurns,
-      amBiweekly: (schedule?.amWeekInterval ?? 1) > 1,
-      pmBiweekly: (schedule?.pmWeekInterval ?? 1) > 1,
+      amWeekInterval: schedule?.amWeekInterval ?? 1,
+      pmWeekInterval: schedule?.pmWeekInterval ?? 1,
       className: class_response.name,
       classHead: class_response.classHead
         ? `${class_response.classHead.firstName} ${class_response.classHead.lastName}`

@@ -301,17 +301,35 @@ export function ScheduleTimesSelector({
     }
   }
 
+  // The period <select>s only offer the lanes this weekday actually has, but the
+  // form state defaults to 'AM'. On a PM-only day the browser shows "Nachmittag"
+  // while the state still says 'AM' — so resolve to an offered period, for both
+  // what the select displays and what gets POSTed.
+  const lessonPeriod: 'AM' | 'PM' =
+    newScheduleTime.period && periods.has(newScheduleTime.period)
+      ? newScheduleTime.period
+      : periods.has('AM')
+        ? 'AM'
+        : 'PM'
+  const breakPeriod: 'AM' | 'PM' | 'LUNCH' =
+    newBreakTime.period === 'LUNCH' || (newBreakTime.period && periods.has(newBreakTime.period))
+      ? newBreakTime.period
+      : periods.has('AM')
+        ? 'AM'
+        : 'LUNCH'
+
   const handleAddScheduleTime = async () => {
     if (isSubmittingScheduleTime) return
 
     try {
       setIsSubmittingScheduleTime(true)
+      setSuccess(null)
       const response = await fetch('/api/admin/settings/schedule-times', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(newScheduleTime),
+        body: JSON.stringify({ ...newScheduleTime, period: lessonPeriod }),
       })
 
       if (!response.ok) {
@@ -322,9 +340,12 @@ export function ScheduleTimesSelector({
       if (!data || typeof data.id !== 'number' || !['AM', 'PM'].includes(data.period as string)) {
         throw new Error('Invalid response format')
       }
-      const periodsArray = Array.from(periods)
-      if (periodsArray.includes(data.period as 'AM' | 'PM')) {
-        setScheduleTimes([...scheduleTimes, data as ScheduleTime])
+      const added = data as ScheduleTime
+      if (periods.has(added.period)) {
+        setScheduleTimes([...scheduleTimes, added])
+        // The teacher added it to use it — select it straight away.
+        if (added.period === 'AM') setSelectedAMScheduleTime(added.id)
+        else setSelectedPMScheduleTime(added.id)
       }
       setNewScheduleTime({
         startTime: '',
@@ -336,6 +357,7 @@ export function ScheduleTimesSelector({
     } catch (error) {
       console.error('Error adding schedule time:', error)
       setError(t('admin.settings.times.scheduleTimeError'))
+      setIsErrorDialogOpen(true)
     } finally {
       setIsSubmittingScheduleTime(false)
     }
@@ -343,12 +365,13 @@ export function ScheduleTimesSelector({
 
   const handleAddBreakTime = async () => {
     try {
+      setSuccess(null)
       const response = await fetch('/api/admin/settings/break-times', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(newBreakTime),
+        body: JSON.stringify({ ...newBreakTime, period: breakPeriod }),
       })
 
       if (!response.ok) {
@@ -367,6 +390,7 @@ export function ScheduleTimesSelector({
     } catch (error) {
       console.error('Error adding break time:', error)
       setError(t('admin.settings.times.breakTimeError'))
+      setIsErrorDialogOpen(true)
     }
   }
 
@@ -765,7 +789,7 @@ export function ScheduleTimesSelector({
                         </Label>
                         <select
                           id="period"
-                          value={newScheduleTime.period}
+                          value={lessonPeriod}
                           onChange={e =>
                             setNewScheduleTime({
                               ...newScheduleTime,
@@ -869,7 +893,7 @@ export function ScheduleTimesSelector({
                       </Label>
                       <select
                         id="breakPeriod"
-                        value={newBreakTime.period}
+                        value={breakPeriod}
                         onChange={e =>
                           setNewBreakTime({
                             ...newBreakTime,

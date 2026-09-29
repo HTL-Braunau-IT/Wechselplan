@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 
 export interface LaneCadence {
   enabled: boolean
-  /** 1 = every week, 2 = every 2nd week. */
+  /** Meets every Nth week: 1 = weekly, 2 = every 2nd week … up to {@link MAX_WEEK_INTERVAL}. */
   interval: number
   /** 0 = A-week start, 1 = B-week start. Legacy anchor when no `startDate` is set. */
   offset: number
@@ -21,6 +21,9 @@ export interface LaneCadence {
   startDate?: string
 }
 
+/** Largest cadence offered — the schedules API caps `*WeekInterval` at 4 too. */
+export const MAX_WEEK_INTERVAL = 4
+
 interface PeriodLaneCardProps {
   title: string
   icon: LucideIcon
@@ -30,10 +33,17 @@ interface PeriodLaneCardProps {
 
 /**
  * One AM/PM lane on the "Tag & Perioden" step, rendered as a single compact
- * row: an enable switch plus, once enabled, its inline cadence — every week vs.
- * every 2nd week, and (when biweekly) the A-week/B-week start. The segmented
+ * row: an enable switch plus, once enabled, its inline cadence — every week or
+ * every 2nd/3rd/4th week, and (when not weekly) the first meeting date. The segmented
  * controls reuse the Tabs primitive so they match the rest of the app.
  */
+/** "Jede Woche" / "Alle 2 Wochen" / "Alle 3 Wochen" … for a cadence interval. */
+export function cadenceLabel(interval: number, t: (key: string, options?: { count: number }) => string) {
+  if (interval <= 1) return t('everyWeek')
+  if (interval === 2) return t('everySecondWeek')
+  return t('everyNthWeek', { count: interval })
+}
+
 export function PeriodLaneCard({ title, icon: Icon, cadence, onChange }: PeriodLaneCardProps) {
   const { t } = useTranslation('schedule')
   const biweekly = cadence.interval > 1
@@ -62,18 +72,15 @@ export function PeriodLaneCard({ title, icon: Icon, cadence, onChange }: PeriodL
             {t('cadence')}
           </span>
           <Tabs
-            value={biweekly ? 'biweekly' : 'weekly'}
-            onValueChange={value =>
-              onChange({ ...cadence, interval: value === 'biweekly' ? 2 : 1 })
-            }
+            value={String(cadence.interval)}
+            onValueChange={value => onChange({ ...cadence, interval: Number(value) })}
           >
             <TabsList className="h-8">
-              <TabsTrigger value="weekly" className="text-xs">
-                {t('everyWeek')}
-              </TabsTrigger>
-              <TabsTrigger value="biweekly" className="text-xs">
-                {t('everySecondWeek')}
-              </TabsTrigger>
+              {Array.from({ length: MAX_WEEK_INTERVAL }, (_, i) => i + 1).map(interval => (
+                <TabsTrigger key={interval} value={String(interval)} className="text-xs">
+                  {cadenceLabel(interval, t)}
+                </TabsTrigger>
+              ))}
             </TabsList>
           </Tabs>
           {biweekly && (

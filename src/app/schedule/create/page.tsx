@@ -39,7 +39,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { WizardFooter } from '@/components/schedule/wizard-footer'
-import { PeriodLaneCard, type LaneCadence } from '@/components/schedule/period-lane-card'
+import {
+  cadenceLabel,
+  PeriodLaneCard,
+  type LaneCadence,
+} from '@/components/schedule/period-lane-card'
 import { useSchoolYear } from '@/contexts/school-year-context'
 import { captureFrontendError } from '@/lib/frontend-error'
 import { cn } from '@/lib/utils'
@@ -204,11 +208,9 @@ export default function ClassDayPage() {
     const lanePart = (label: string, lane: LaneCadence) => {
       if (!lane.enabled) return `${label}: ${t('periodOff')}`
       const rhythm =
-        lane.interval > 1
-          ? lane.startDate
-            ? `${t('everySecondWeek')}, ${t('fromDate', { date: shortDate(lane.startDate) })}`
-            : t('everySecondWeek')
-          : t('everyWeek')
+        lane.interval > 1 && lane.startDate
+          ? `${cadenceLabel(lane.interval, t)}, ${t('fromDate', { date: shortDate(lane.startDate) })}`
+          : cadenceLabel(lane.interval, t)
       return `${label}: ${rhythm}`
     }
     const dayPart = weekday != null ? weekdayName(weekday) : t('pickWeekday')

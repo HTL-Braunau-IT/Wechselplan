@@ -34,56 +34,69 @@ async function main() {
     })
   }
 
+  // Schuljahr 2026/27, Oberösterreich. End dates are inclusive (the cadence
+  // engine checks date-only, inclusive intervals). Upserted by name, so re-running
+  // the seed moves last year's rows onto this year's dates.
   const holidays = [
     {
       name: 'Erste Schulwoche',
-      startDate: new Date('2025-09-08'),
-      endDate: new Date('2025-09-13'),
+      startDate: new Date('2026-09-14'),
+      endDate: new Date('2026-09-18'),
     },
     {
       name: 'Herbstferien',
-      startDate: new Date('2025-10-27'),
-      endDate: new Date('2025-11-02'),
+      startDate: new Date('2026-10-26'),
+      endDate: new Date('2026-11-02'),
+    },
+    {
+      name: 'Mariä Empfängnis',
+      startDate: new Date('2026-12-08'),
+      endDate: new Date('2026-12-08'),
     },
     {
       name: 'Weihnachtsferien',
-      startDate: new Date('2025-12-24'),
-      endDate: new Date('2026-01-06'),
+      startDate: new Date('2026-12-24'),
+      endDate: new Date('2027-01-06'),
     },
     {
       name: 'Semesterferien',
-      startDate: new Date('2026-02-16'),
-      endDate: new Date('2026-02-21'),
+      startDate: new Date('2027-02-15'),
+      endDate: new Date('2027-02-20'),
     },
     {
       name: 'Osterferien',
-      startDate: new Date('2026-03-28'),
-      endDate: new Date('2026-04-06'),
+      startDate: new Date('2027-03-20'),
+      endDate: new Date('2027-03-29'),
     },
     {
       name: 'Maifeiertag',
-      startDate: new Date('2026-05-01'),
-      endDate: new Date('2026-05-02'),
+      startDate: new Date('2027-05-01'),
+      endDate: new Date('2027-05-01'),
+    },
+    {
+      name: 'Hl. Florian',
+      startDate: new Date('2027-05-04'),
+      endDate: new Date('2027-05-04'),
     },
     {
       name: 'Christi Himmelfahrt',
-      startDate: new Date('2026-05-29'),
-      endDate: new Date('2026-05-30'),
+      startDate: new Date('2027-05-06'),
+      endDate: new Date('2027-05-06'),
     },
     {
       name: 'Pfingstmontag',
-      startDate: new Date('2026-05-23'),
-      endDate: new Date('2026-05-25'),
+      startDate: new Date('2027-05-15'),
+      endDate: new Date('2027-05-17'),
     },
     {
       name: 'Fronleichnam',
-      startDate: new Date('2026-06-19'),
-      endDate: new Date('2026-06-20'),
+      startDate: new Date('2027-05-27'),
+      endDate: new Date('2027-05-27'),
     },
     {
       name: 'Letzten zwei Schulwoche',
-      startDate: new Date('2026-06-29'),
-      endDate: new Date('2026-07-10'),
+      startDate: new Date('2027-06-28'),
+      endDate: new Date('2027-07-09'),
     },
   ]
 

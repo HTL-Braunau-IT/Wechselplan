@@ -31,7 +31,7 @@ import { Separator } from '@/components/ui/separator'
 import { Spinner } from '@/components/ui/spinner'
 import { WizardFooter } from '@/components/schedule/wizard-footer'
 import { cn } from '@/lib/utils'
-import { computePeriodTurns, isBiweekly, type PeriodCadence } from '@/lib/schedule-cadence'
+import { computePeriodTurns, type PeriodCadence } from '@/lib/schedule-cadence'
 import { captureFrontendError } from '@/lib/frontend-error'
 import type { Holiday, ScheduleTerm } from '@/types/schedule'
 
@@ -220,12 +220,26 @@ export function TurnusEditor({
   const amTerms = useMemo(
     () => (shell?.amEnabled ? buildTerms(am, amCadence, amStart) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [shell?.amEnabled, am, buildTerms, shell?.amWeekInterval, shell?.amWeekOffset, shell?.amStartDate],
+    [
+      shell?.amEnabled,
+      am,
+      buildTerms,
+      shell?.amWeekInterval,
+      shell?.amWeekOffset,
+      shell?.amStartDate,
+    ],
   )
   const pmTerms = useMemo(
     () => (shell?.pmEnabled ? buildTerms(pm, pmCadence, pmStart) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [shell?.pmEnabled, pm, buildTerms, shell?.pmWeekInterval, shell?.pmWeekOffset, shell?.pmStartDate],
+    [
+      shell?.pmEnabled,
+      pm,
+      buildTerms,
+      shell?.pmWeekInterval,
+      shell?.pmWeekOffset,
+      shell?.pmStartDate,
+    ],
   )
 
   // Shared month ruler + holiday strip, positioned by date fraction across the
@@ -243,7 +257,9 @@ export function TurnusEditor({
     const ferien = holidays
       .map(holiday => {
         const hs = new Date(holiday.startDate).getTime()
-        const he = new Date(holiday.endDate).getTime()
+        // endDate is inclusive — extend to the end of that day, or a one-day
+        // holiday (Zwickeltag) has zero width and never shows up.
+        const he = new Date(holiday.endDate).getTime() + 86_400_000
         const from = Math.max(hs, startMs)
         const to = Math.min(he, endMs)
         if (to <= from) return null
@@ -279,9 +295,7 @@ export function TurnusEditor({
   // A day the class is not at school. Whole-day, so it drops out of both lanes;
   // recomputing the terms then shifts the following weeks (see computePeriodTurns).
   const toggleExcluded = useCallback((date: string) => {
-    setExcludedDates(prev =>
-      prev.includes(date) ? prev.filter(d => d !== date) : [...prev, date],
-    )
+    setExcludedDates(prev => (prev.includes(date) ? prev.filter(d => d !== date) : [...prev, date]))
   }, [])
 
   const handleSave = async () => {
@@ -435,7 +449,7 @@ export function TurnusEditor({
             <LaneBand
               title={t('morningAssignments')}
               icon={Sunrise}
-              biweekly={isBiweekly(amCadence)}
+              weekInterval={amCadence.weekInterval}
               lane={am}
               terms={amTerms}
               onChange={setAm}
@@ -446,7 +460,7 @@ export function TurnusEditor({
             <LaneBand
               title={t('afternoonAssignments')}
               icon={Sunset}
-              biweekly={isBiweekly(pmCadence)}
+              weekInterval={pmCadence.weekInterval}
               lane={pm}
               terms={pmTerms}
               onChange={setPm}
@@ -492,7 +506,8 @@ export function TurnusEditor({
 interface LaneBandProps {
   title: string
   icon: LucideIcon
-  biweekly: boolean
+  /** 1 = weekly; >1 shows an "every Nth week" badge. */
+  weekInterval: number
   lane: LaneState
   terms: ScheduleTerm[]
   onChange: (next: LaneState) => void
@@ -517,7 +532,7 @@ interface DragState {
 function LaneBand({
   title,
   icon: Icon,
-  biweekly,
+  weekInterval,
   lane,
   terms,
   onChange,
@@ -606,10 +621,12 @@ function LaneBand({
         <div className="flex items-center gap-2">
           <Icon className="text-muted-foreground h-4 w-4" />
           <span className="font-semibold tracking-tight">{title}</span>
-          {biweekly && (
+          {weekInterval > 1 && (
             <Badge variant="secondary" className="gap-1">
               <Repeat className="h-3 w-3" />
-              {t('biweeklyBadge')}
+              {weekInterval === 2
+                ? t('biweeklyBadge')
+                : t('everyNthWeekBadge', { count: weekInterval })}
             </Badge>
           )}
         </div>

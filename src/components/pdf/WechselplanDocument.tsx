@@ -22,8 +22,9 @@ export interface WechselplanData {
   // each carries its own turn record and biweekly flag.
   amTurns: Record<string, unknown>
   pmTurns: Record<string, unknown>
-  amBiweekly?: boolean
-  pmBiweekly?: boolean
+  /** Meets every Nth week (1 = weekly). */
+  amWeekInterval?: number
+  pmWeekInterval?: number
   className: string
   classHead: string
   classLead: string
@@ -437,14 +438,14 @@ export default function WechselplanDocument({ data }: { data: WechselplanData })
       name: 'Vormittag',
       assignments: data.amAssignments,
       turns: data.amTurns,
-      biweekly: data.amBiweekly,
+      weekInterval: data.amWeekInterval ?? 1,
     },
     {
       key: 'PM' as const,
       name: 'Nachmittag',
       assignments: data.pmAssignments,
       turns: data.pmTurns,
-      biweekly: data.pmBiweekly,
+      weekInterval: data.pmWeekInterval ?? 1,
     },
   ].filter(p => p.assignments.length > 0)
 
@@ -508,7 +509,13 @@ export default function WechselplanDocument({ data }: { data: WechselplanData })
                     <Text style={styles.periodTime}>
                       {periodTimeRange(data.scheduleTimes, period.key)}
                     </Text>
-                    {period.biweekly ? <Text style={styles.periodBadge}>14-tägig</Text> : null}
+                    {period.weekInterval > 1 ? (
+                      <Text style={styles.periodBadge}>
+                        {period.weekInterval === 2
+                          ? '14-tägig'
+                          : `alle ${period.weekInterval} Wochen`}
+                      </Text>
+                    ) : null}
                     {breakFor(data.breakTimes, period.key) ? (
                       <Text style={styles.periodBreak}>
                         Pause {breakFor(data.breakTimes, period.key)}
