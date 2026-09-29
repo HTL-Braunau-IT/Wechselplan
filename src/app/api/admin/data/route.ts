@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { ANY_ACTIVE_STATE, prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { denyUnlessAccess } from '@/lib/api-guard'
+import { holidayRangeError, schoolYearRangeError } from '@/lib/date-range'
 
 // Generic CRUD operations for all models
 export async function GET(request: Request) {
@@ -82,8 +83,10 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = await request.json()
-    const data = await createRecord(model, body as Record<string, unknown>)
+    const body = (await request.json()) as Record<string, unknown>
+    const invalid = await dateRangeError(model, null, body)
+    if (invalid) return NextResponse.json({ error: invalid }, { status: 400 })
+    const data = await createRecord(model, body)
     return NextResponse.json(data)
   } catch (error) {
     console.error(`Error creating ${model}:`, error)
@@ -109,8 +112,10 @@ export async function PUT(request: Request) {
   }
 
   try {
-    const body = await request.json()
-    const data = await updateRecord(model, parseInt(id), body as Record<string, unknown>)
+    const body = (await request.json()) as Record<string, unknown>
+    const invalid = await dateRangeError(model, parseInt(id), body)
+    if (invalid) return NextResponse.json({ error: invalid }, { status: 400 })
+    const data = await updateRecord(model, parseInt(id), body)
     return NextResponse.json(data)
   } catch (error) {
     console.error(`Error updating ${model}:`, error)
@@ -390,6 +395,30 @@ async function getSingleRecord(model: string, id: number) {
     default:
       throw new Error(`Unknown model: ${model}`)
   }
+}
+
+/**
+ * Reject an inverted holiday / school-year range before it reaches the DB (whose
+ * CHECK constraint would otherwise turn it into an opaque 500). An update is
+ * checked against the stored row merged with the incoming fields, so a partial
+ * edit of just one end is validated too.
+ */
+async function dateRangeError(
+  model: string,
+  id: number | null,
+  body: Record<string, unknown>,
+): Promise<string | null> {
+  if (model === 'schoolHoliday') {
+    const stored = id != null ? await prisma.schoolHoliday.findUnique({ where: { id } }) : null
+    const merged = { ...stored, ...body }
+    return holidayRangeError(merged.startDate, merged.endDate)
+  }
+  if (model === 'schoolYear') {
+    const stored = id != null ? await prisma.schoolYear.findUnique({ where: { id } }) : null
+    const merged = { ...stored, ...body }
+    return schoolYearRangeError(merged.startDate, merged.endDate, merged.semesterChangeDate)
+  }
+  return null
 }
 
 async function createRecord(model: string, data: Record<string, unknown>) {

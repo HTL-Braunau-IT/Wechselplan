@@ -211,6 +211,20 @@ Array of holiday objects, each containing:
 }
 ```
 
+**Invalid Date Order (400 Bad Request)** — any holiday whose `endDate` precedes its
+`startDate` (or with an unparseable date) rejects the whole batch; nothing is written.
+`endDate` is inclusive, so a one-day holiday has `startDate === endDate`.
+
+```json
+{
+  "error": "Weihnachten: Das Ende der Ferien liegt vor ihrem Beginn."
+}
+```
+
+The same rule is enforced by `PUT`/`POST /api/admin/data?model=schoolHoliday` (the
+Admin → Daten editor) and, as a backstop for every write path, by the
+`SchoolHoliday_date_range_check` CHECK constraint in the database.
+
 **Server Error (500 Internal Server Error)**
 
 ```json

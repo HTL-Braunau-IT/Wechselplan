@@ -43,6 +43,7 @@ import {
 } from 'lucide-react'
 import { TableSkeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
+import { ApiError } from '@/lib/api-client'
 
 export interface Column {
   key: string
@@ -192,8 +193,11 @@ export function DataTable({
       setFormData({})
       onRefresh()
       toast.success(`${model} ${editingItem ? 'aktualisiert' : 'erstellt'}`)
-    } catch {
-      toast.error(`${model} konnte nicht ${editingItem ? 'aktualisiert' : 'erstellt'} werden`)
+    } catch (error) {
+      const fallback = `${model} konnte nicht ${editingItem ? 'aktualisiert' : 'erstellt'} werden`
+      // A 4xx carries a reason the admin can act on ("Ende liegt vor Beginn");
+      // a 5xx message is internal, so keep the generic text for those.
+      toast.error(error instanceof ApiError && error.status < 500 ? error.message : fallback)
     }
   }
 

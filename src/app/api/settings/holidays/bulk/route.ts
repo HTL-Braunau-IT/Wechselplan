@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/server/db'
 import { captureError } from '@/lib/sentry'
 import { denyUnlessAccess } from '@/lib/api-guard'
+import { holidayRangeError } from '@/lib/date-range'
 /**
  * Handles bulk creation of school holidays from a POST request.
  *
@@ -22,6 +23,13 @@ export async function POST(request: Request) {
 
     if (!Array.isArray(holidays) || holidays.length === 0) {
       return NextResponse.json({ error: 'Invalid holidays data' }, { status: 400 })
+    }
+
+    for (const holiday of holidays) {
+      const invalid = holidayRangeError(holiday.startDate, holiday.endDate)
+      if (invalid) {
+        return NextResponse.json({ error: `${holiday.name}: ${invalid}` }, { status: 400 })
+      }
     }
 
     // Create all holidays in a transaction
