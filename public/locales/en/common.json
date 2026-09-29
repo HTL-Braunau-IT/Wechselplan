@@ -170,7 +170,9 @@
     "support": "Help & Support",
     "changelog": "View changelog",
     "classSettings": "Class settings",
-    "raumplan": "Room Plan"
+    "raumplan": "Room Plan",
+    "gradingCriteria": "Grading",
+    "new": "New"
   },
   "raumplan": {
     "title": "Room Plan",
@@ -780,5 +782,107 @@
     "freeDayHint": "No group is scheduled for you on this day in the rotation plan.",
     "nextAssignment": "Next assignment",
     "jumpThere": "Jump there"
+  },
+  "gradingCriteria": {
+    "title": "Grading criteria",
+    "description": "Define how you grade. Your students see the criteria right in their overview, so you no longer have to share a PDF in every team.",
+    "new": "New template",
+    "newExample": "Start from example",
+    "empty": {
+      "title": "No criteria yet",
+      "description": "Create your first template. It becomes your default automatically and applies to all your classes."
+    },
+    "howItWorks": {
+      "title": "How it works",
+      "defaultTitle": "Default",
+      "default": "Your default template applies to every class you teach in a Wechselplan.",
+      "overrideTitle": "Per class",
+      "override": "Assign further templates to individual classes. They replace the default there.",
+      "studentTitle": "What students see",
+      "student": "On their home page students see a \"Grading criteria\" card listing each teacher from their Wechselplan, with exactly the template that applies to their class.",
+      "shareTitle": "Share link",
+      "share": "Each template can get its own view-only link, e.g. for Teams, parents or colleagues. No sign-in needed, and you can disable it at any time."
+    },
+    "coverage": {
+      "title": "Which class sees what?",
+      "description": "Your classes this school year and the template their students see.",
+      "viaDefault": "Default",
+      "viaClass": "Class",
+      "none": "No criteria",
+      "noClasses": "You are not in any Wechselplan this school year yet."
+    },
+    "card": {
+      "default": "Default",
+      "appliesToAll": "Applies to all classes without their own assignment",
+      "classes": "Classes",
+      "notUsed": "Neither default nor assigned to a class. Students do not see this template.",
+      "edit": "Edit",
+      "delete": "Delete",
+      "updated": "Updated {{date}}"
+    },
+    "share": {
+      "enable": "Create link",
+      "copy": "Copy",
+      "copied": "Link copied",
+      "open": "Open",
+      "regenerate": "Generate new link",
+      "revoke": "Disable link",
+      "active": "View-only link active",
+      "regenerateConfirm": "The previous link will stop working."
+    },
+    "editor": {
+      "createTitle": "New template",
+      "editTitle": "Edit template",
+      "name": "Title",
+      "namePlaceholder": "Grading criteria",
+      "subtitle": "Subtitle",
+      "subtitlePlaceholder": "e.g. Workshop Jane Doe",
+      "intro": "Introduction",
+      "introPlaceholder": "Text at the top. Links become clickable automatically.",
+      "closing": "Closing text",
+      "closingPlaceholder": "Text at the end, e.g. notes on assignments",
+      "sections": "Sections",
+      "section": "Section",
+      "sectionPlaceholder": "e.g. Participation",
+      "addSection": "Add section",
+      "criterion": "Criterion",
+      "criterionPlaceholder": "e.g. Punctuality (optional)",
+      "points": "Points, one per line",
+      "pointsPlaceholder": "Arriving on time",
+      "addCriterion": "Add criterion",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "remove": "Remove",
+      "usage": "Usage",
+      "isDefault": "Use as default",
+      "isDefaultHint": "Applies to all your classes that have no other template assigned. A previous default loses its status.",
+      "classes": "For specific classes",
+      "classesHint": "Replaces the default for these classes. A class already assigned to another template is moved here.",
+      "classTaken": "currently: {{title}}",
+      "noClasses": "No classes this school year.",
+      "preview": "Student view",
+      "previewHint": "This is how your students see this template.",
+      "save": "Save",
+      "cancel": "Cancel",
+      "saved": "Criteria saved",
+      "titleRequired": "Please enter a title"
+    },
+    "deleteDialog": {
+      "title": "Delete template?",
+      "description": "\"{{title}}\" will be deleted. Classes it was assigned to will see your default instead. A shared link stops working.",
+      "confirm": "Delete"
+    },
+    "student": {
+      "title": "Grading criteria",
+      "description": "How your teachers grade.",
+      "view": "View",
+      "none": "Your teachers have not added grading criteria yet."
+    },
+    "error": {
+      "load": "Could not load criteria",
+      "save": "Could not save criteria",
+      "delete": "Could not delete criteria",
+      "share": "Could not change the link"
+    }
   }
 }

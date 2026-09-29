@@ -90,6 +90,12 @@ export const API_ACCESS_RULES: readonly ApiAccessRule[] = [
   // "where should I be?" picker under /api/raumplan/student is staff-only.
   { prefix: '/api/raumplan', tier: 'staff', methods: ['GET'] },
 
+  // A teacher's own Beurteilungskriterien templates. Every handler scopes to the
+  // session's teacher, so no teacher can read or edit a colleague's. (Students
+  // read theirs through the session-tier /api/me/grading-criteria; share links
+  // are rendered by the public /kriterien/[token] page, not an API route.)
+  { prefix: '/api/grading-criteria', tier: 'staff' },
+
   // Unattended directory sync, authenticated by a shared secret header rather
   // than a session (see api/admin/sync/run). Declared public here so the
   // session check does not reject the cron caller; the handler enforces the

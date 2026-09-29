@@ -67,6 +67,7 @@ model Teacher {
   notifications    Notification[]      @relation("NotificationRecipient")
   createdSchedules Schedule[]          @relation("ScheduleCreator")
   pushTokens       PushToken[]
+  gradingCriteria  GradingCriteria[]
 
   @@index([firstName, lastName])
   @@index([isActive])
@@ -118,6 +119,7 @@ model Class {
   combinedMembers  CombinedClassMember[]     @relation("CombinedToMembers")
   // When this row is a real class, the combined classes it is a member of.
   memberOf         CombinedClassMember[]     @relation("MemberToCombined")
+  gradingCriteria  GradingCriteriaClass[]
   classHead        Teacher?                  @relation("ClassHead", fields: [classHeadId], references: [id])
   classLead        Teacher?                  @relation("ClassLead", fields: [classLeadId], references: [id])
 
@@ -685,6 +687,46 @@ model NotenViewPreference {
 
 // A teacher's Jahresstoff (curriculum for the year) for one class. Deliberately
 // not scoped by group or weekday: every group of the class shows the same text.
+// A teacher's Beurteilungskriterien (grading criteria) template, shown to the
+// students they teach. A teacher may keep several: at most one `isDefault`
+// (applies to every class without an override — enforced in
+// src/lib/grading-criteria.ts, not by the database) and any number assigned to
+// specific classes via GradingCriteriaClass. `content` is the structured
+// document validated by gradingCriteriaContentSchema (src/types/grading-criteria.ts).
+// `shareToken` is the secret of the template's public, view-only link; null =
+// not shared.
+model GradingCriteria {
+  id         Int                    @id @default(autoincrement())
+  teacherId  Int
+  title      String
+  subtitle   String?
+  content    Json
+  isDefault  Boolean                @default(false)
+  shareToken String?                @unique
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
+  teacher    Teacher                @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  classes    GradingCriteriaClass[]
+
+  @@index([teacherId])
+}
+
+// Class override: this teacher's students in `classId` see `criteriaId` instead
+// of the teacher's default. `teacherId` is denormalized from the template so the
+// unique constraint can say "one template per teacher and class".
+model GradingCriteriaClass {
+  id         Int             @id @default(autoincrement())
+  criteriaId Int
+  teacherId  Int
+  classId    Int
+  criteria   GradingCriteria @relation(fields: [criteriaId], references: [id], onDelete: Cascade)
+  class      Class           @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, classId])
+  @@index([criteriaId])
+  @@index([classId])
+}
+
 model JahresstoffPerClass {
   id           Int      @id @default(autoincrement())
   teacherId    Int

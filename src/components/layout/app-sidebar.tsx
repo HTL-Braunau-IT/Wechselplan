@@ -50,6 +50,7 @@ function NavLink({
   collapsed?: boolean
   onNavigate?: () => void
 }) {
+  const { t } = useTranslation()
   const Icon = item.icon
   const link = (
     <Link
@@ -64,8 +65,21 @@ function NavLink({
           : 'text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
       )}
     >
-      <Icon className={cn('h-5 w-5 shrink-0', active && 'text-primary')} />
+      <span className="relative shrink-0">
+        <Icon className={cn('h-5 w-5', active && 'text-primary')} />
+        {collapsed && item.isNew && (
+          <span
+            aria-hidden
+            className="ring-sidebar absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-red-600 ring-2"
+          />
+        )}
+      </span>
       {!collapsed && <span className="truncate">{item.label}</span>}
+      {!collapsed && item.isNew && (
+        <span className="ml-auto shrink-0 rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] leading-none font-bold tracking-wide text-white uppercase">
+          {t('navigation.new')}
+        </span>
+      )}
     </Link>
   )
 

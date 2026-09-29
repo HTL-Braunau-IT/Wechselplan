@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils'
 import { rotatedGroupIndex } from '@/lib/rotation'
 import { useScheduleOverview } from '@/hooks/use-schedule-overview'
 import { ScheduleOverview } from '@/components/schedule-overview'
+import { StudentGradingCriteria } from '@/components/overviews/student-grading-criteria'
 import { Spinner } from '@/components/ui/spinner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -122,6 +123,7 @@ export function StudentOverview() {
 
   return (
     <div className="w-full space-y-6">
+      <StudentGradingCriteria />
       {plans.length > 1 && (
         <Tabs value={String(selected.weekday)} onValueChange={v => setSelectedWeekday(Number(v))}>
           <TabsList

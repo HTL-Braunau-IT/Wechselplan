@@ -10,6 +10,7 @@ The API is organized into different modules based on functionality:
 - **Authentication API** - User authentication and authorization
 - **Classes API** - Class management and operations
 - **Export API** - Data export functionality (PDF, Excel)
+- **Grading Criteria API** - Teachers' Beurteilungskriterien, student view and share links
 - **Learning Contents API** - Learning content management and retrieval
 - **Notifications API** - In-app notifications behind the bell in the top bar
 - **Teachers API** - Teacher records, including "who is signed in"

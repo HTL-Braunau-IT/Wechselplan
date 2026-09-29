@@ -21,6 +21,7 @@ const STAFF_PAGE_PREFIXES = [
   '/students',
   '/notensammler',
   '/noten',
+  '/beurteilungskriterien',
 ]
 
 /**

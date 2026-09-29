@@ -10,6 +10,7 @@ import {
   GraduationCap,
   FileText,
   DoorOpen,
+  ClipboardCheck,
   type LucideIcon,
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
@@ -22,6 +23,8 @@ export interface NavItem {
   icon: LucideIcon
   /** Extra hrefs that should also mark this item active (section roots). */
   matchPrefixes?: string[]
+  /** Shows a red "NEU" pill (a dot in the collapsed rail) to point teachers at a recent feature. */
+  isNew?: boolean
 }
 
 /**
@@ -81,7 +84,17 @@ export function useNavItems(): NavItem[] {
   // Room-occupancy overview: returns full workshop rosters/room bindings, so it
   // is a staff view (teacher or admin), matching the /api/raumplan access tier.
   if (role === 'teacher' || role === 'admin') {
-    items.push({ href: '/raumplan', label: t('navigation.raumplan'), icon: DoorOpen })
+    items.push({ href: '/raumplan', label: t('navigation.raumplan'), icon: DoorOpen, isNew: true })
+  }
+  // Each teacher's own Beurteilungskriterien; students read them from their home
+  // overview (they have no sidebar), so this entry is staff-only.
+  if (role === 'teacher' || role === 'admin') {
+    items.push({
+      href: '/beurteilungskriterien',
+      label: t('navigation.gradingCriteria'),
+      icon: ClipboardCheck,
+      isNew: true,
+    })
   }
   if (role === 'teacher' || role === 'admin') {
     items.push({

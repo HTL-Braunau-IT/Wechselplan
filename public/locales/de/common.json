@@ -201,7 +201,9 @@
     "notenmanagement": "Notenmanagement",
     "raumplan": "Raumplan",
     "support": "Hilfe & Support",
-    "changelog": "Changelog anzeigen"
+    "changelog": "Changelog anzeigen",
+    "gradingCriteria": "Beurteilung",
+    "new": "Neu"
   },
   "raumplan": {
     "title": "Raumplan",
@@ -811,5 +813,107 @@
     "freeDayHint": "Für diesen Tag ist im Wechselplan keine Gruppe für dich eingeteilt.",
     "nextAssignment": "Nächster Einsatz",
     "jumpThere": "Hinspringen"
+  },
+  "gradingCriteria": {
+    "title": "Beurteilungskriterien",
+    "description": "Lege fest, wonach du beurteilst. Deine Schüler sehen die Kriterien direkt in ihrer Übersicht, ohne dass du ein PDF in jedem Team teilen musst.",
+    "new": "Neue Vorlage",
+    "newExample": "Mit Beispiel starten",
+    "empty": {
+      "title": "Noch keine Kriterien",
+      "description": "Erstelle deine erste Vorlage. Sie wird automatisch dein Standard und gilt für alle deine Klassen."
+    },
+    "howItWorks": {
+      "title": "So funktioniert's",
+      "defaultTitle": "Standard",
+      "default": "Deine Standard-Vorlage gilt für jede Klasse, die du im Wechselplan unterrichtest.",
+      "overrideTitle": "Pro Klasse",
+      "override": "Weitere Vorlagen kannst du einzelnen Klassen zuordnen. Sie ersetzen dort den Standard.",
+      "studentTitle": "Was Schüler sehen",
+      "student": "Auf ihrer Startseite sehen Schüler eine Karte „Beurteilungskriterien“ mit jedem Lehrer aus ihrem Wechselplan, und zwar genau die Vorlage, die für ihre Klasse gilt.",
+      "shareTitle": "Link teilen",
+      "share": "Jede Vorlage kann einen eigenen Link zum Ansehen bekommen, z. B. für Teams, Eltern oder Kollegen. Kein Login nötig, du kannst ihn jederzeit deaktivieren."
+    },
+    "coverage": {
+      "title": "Welche Klasse sieht was?",
+      "description": "Deine Klassen in diesem Schuljahr und die Vorlage, die ihre Schüler sehen.",
+      "viaDefault": "Standard",
+      "viaClass": "Klasse",
+      "none": "Keine Kriterien",
+      "noClasses": "Du bist in diesem Schuljahr noch in keinem Wechselplan eingetragen."
+    },
+    "card": {
+      "default": "Standard",
+      "appliesToAll": "Gilt für alle Klassen ohne eigene Zuordnung",
+      "classes": "Klassen",
+      "notUsed": "Weder Standard noch einer Klasse zugeordnet. Schüler sehen diese Vorlage nicht.",
+      "edit": "Bearbeiten",
+      "delete": "Löschen",
+      "updated": "Geändert {{date}}"
+    },
+    "share": {
+      "enable": "Link erstellen",
+      "copy": "Kopieren",
+      "copied": "Link kopiert",
+      "open": "Öffnen",
+      "regenerate": "Neuen Link erzeugen",
+      "revoke": "Link deaktivieren",
+      "active": "Link zum Ansehen aktiv",
+      "regenerateConfirm": "Der bisherige Link funktioniert danach nicht mehr."
+    },
+    "editor": {
+      "createTitle": "Neue Vorlage",
+      "editTitle": "Vorlage bearbeiten",
+      "name": "Titel",
+      "namePlaceholder": "Kriterien zur Leistungsbeurteilung",
+      "subtitle": "Untertitel",
+      "subtitlePlaceholder": "z. B. Werkstätte Max Mustermann",
+      "intro": "Einleitung",
+      "introPlaceholder": "Text am Anfang. Links werden automatisch anklickbar.",
+      "closing": "Schlusstext",
+      "closingPlaceholder": "Text am Ende, z. B. Hinweise zu Arbeitsaufträgen",
+      "sections": "Bereiche",
+      "section": "Bereich",
+      "sectionPlaceholder": "z. B. Mitarbeit",
+      "addSection": "Bereich hinzufügen",
+      "criterion": "Kriterium",
+      "criterionPlaceholder": "z. B. Pünktlichkeit (optional)",
+      "points": "Punkte, einer pro Zeile",
+      "pointsPlaceholder": "Pünktliches Erscheinen im Unterricht",
+      "addCriterion": "Kriterium hinzufügen",
+      "moveUp": "Nach oben",
+      "moveDown": "Nach unten",
+      "remove": "Entfernen",
+      "usage": "Verwendung",
+      "isDefault": "Als Standard verwenden",
+      "isDefaultHint": "Gilt für alle deine Klassen, denen keine andere Vorlage zugeordnet ist. Eine bisherige Standard-Vorlage verliert den Status.",
+      "classes": "Für bestimmte Klassen",
+      "classesHint": "Ersetzt für diese Klassen den Standard. Ist eine Klasse schon einer anderen Vorlage zugeordnet, wird sie hierher verschoben.",
+      "classTaken": "bisher: {{title}}",
+      "noClasses": "Keine Klassen in diesem Schuljahr.",
+      "preview": "Schüleransicht",
+      "previewHint": "So sehen deine Schüler diese Vorlage.",
+      "save": "Speichern",
+      "cancel": "Abbrechen",
+      "saved": "Kriterien gespeichert",
+      "titleRequired": "Bitte einen Titel eingeben"
+    },
+    "deleteDialog": {
+      "title": "Vorlage löschen?",
+      "description": "„{{title}}“ wird gelöscht. Klassen, denen sie zugeordnet war, sehen danach deinen Standard. Ein geteilter Link funktioniert nicht mehr.",
+      "confirm": "Löschen"
+    },
+    "student": {
+      "title": "Beurteilungskriterien",
+      "description": "Wonach deine Lehrer beurteilen.",
+      "view": "Ansehen",
+      "none": "Deine Lehrer haben noch keine Beurteilungskriterien hinterlegt."
+    },
+    "error": {
+      "load": "Kriterien konnten nicht geladen werden",
+      "save": "Kriterien konnten nicht gespeichert werden",
+      "delete": "Kriterien konnten nicht gelöscht werden",
+      "share": "Link konnte nicht geändert werden"
+    }
   }
 }
