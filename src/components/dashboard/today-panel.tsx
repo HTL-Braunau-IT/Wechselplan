@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useTranslation } from 'react-i18next'
-import { CalendarOff, Clock, ListChecks, MapPin, Users } from 'lucide-react'
+import { ArrowDownUp, CalendarOff, Clock, ListChecks, MapPin, Users } from 'lucide-react'
 import { SaveStatus, type SaveState } from '@/components/save-status'
 import { cn } from '@/lib/utils'
 import { ATTENDANCE_OPTIONS } from '@/lib/grades'
@@ -121,7 +121,8 @@ export function TodayPanel(props: TodayPanelProps) {
             )}
           </p>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <ChangeCountdown slot={slot} />
           {hasAM && hasPM && (
             <div className="bg-muted flex rounded-md p-[3px]">
               {(['AM', 'PM'] as const).map(period => (
@@ -264,6 +265,67 @@ export function TodayPanel(props: TodayPanelProps) {
         </ul>
       )}
     </section>
+  )
+}
+
+/**
+ * Weeks left with this group before the lane rotates. Counts the remaining
+ * teaching weeks after today, the same basis as the week strip's "noch N Wochen",
+ * and turns amber once the change is at most a week away.
+ */
+function ChangeCountdown({ slot }: { slot: ResolvedSlot }) {
+  const { t } = useTranslation('common')
+  if (!slot.turnName) return null
+
+  const weeks = slot.remainingWeeks
+  const next = slot.nextChange
+  const soon = weeks <= 1
+  const accent = soon ? 'var(--warning)' : 'var(--primary)'
+
+  const label = next
+    ? weeks === 0
+      ? t('dashboard.changeLastWeek', { defaultValue: 'Letzte Woche vor dem Wechsel' })
+      : t('dashboard.weeksUntilChange', {
+          count: weeks,
+          defaultValue: weeks === 1 ? 'Woche bis Wechsel' : 'Wochen bis Wechsel',
+        })
+    : t('dashboard.weeksUntilEnd', {
+        count: weeks,
+        defaultValue: weeks === 1 ? 'Woche bis Turnusende' : 'Wochen bis Turnusende',
+      })
+  const detail = next
+    ? t('dashboard.changeOn', {
+        date: next.date,
+        turnus: next.turnName,
+        defaultValue: 'am {{date}} · {{turnus}}',
+      })
+    : t('dashboard.lastTurnus', { defaultValue: 'Letzter Turnus' })
+
+  return (
+    <div
+      data-screen-label="Wechsel"
+      className="flex h-11 items-center gap-2.5 rounded-lg border pr-3 pl-2"
+      style={{
+        borderColor: `color-mix(in oklab, ${accent} 35%, transparent)`,
+        background: `color-mix(in oklab, ${accent} 9%, transparent)`,
+      }}
+    >
+      <span
+        className={cn(
+          'flex h-8 min-w-8 items-center justify-center rounded-md px-1.5 text-lg font-semibold tabular-nums',
+          soon ? 'text-warning-foreground' : 'text-primary',
+        )}
+        style={{ background: `color-mix(in oklab, ${accent} 16%, transparent)` }}
+      >
+        {weeks === 0 ? <ArrowDownUp className="h-4 w-4" aria-hidden /> : weeks}
+      </span>
+      <span className="flex flex-col leading-tight">
+        <span className="text-sm font-medium whitespace-nowrap">{label}</span>
+        <span className="text-muted-foreground text-xs whitespace-nowrap tabular-nums">
+          {detail}
+        </span>
+      </span>
+    </div>
   )
 }
 

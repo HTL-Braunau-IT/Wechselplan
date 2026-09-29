@@ -117,9 +117,9 @@ export function TeacherDashboard() {
   // that has a slot, so a free day still shows the running turnus.
   const turnus = useMemo(() => {
     const dayWithSlot = activeSlot ? day : days.find(d => d.slots.length > 0)
-    const classId = (activeSlot ?? dayWithSlot?.slots[0])?.classId
+    const slot = activeSlot ?? dayWithSlot?.slots[0]
     const idx = (dayWithSlot?.weekday ?? selectedWeekday) - 1
-    return turnusSummary(week.rawByWeekday[idx] ?? null, classId, now)
+    return turnusSummary(week.rawByWeekday[idx] ?? null, slot?.classId, now, slot?.period)
   }, [activeSlot, day, days, selectedWeekday, week.rawByWeekday, now])
 
   // Next teaching slot from the selected day forward, for the free-day card.

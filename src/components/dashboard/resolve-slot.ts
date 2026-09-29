@@ -39,19 +39,37 @@ export type ResolvedSlot = {
   otherGroups: OtherGroup[]
   turnName: string | null
   remainingWeeks: number
+  /** When this lane's groups rotate next, or null in the last Turnus / outside any. */
+  nextChange: NextChange | null
   students: Student[]
+}
+
+export type NextChange = {
+  /** Name of the Turnus that starts at the change, e.g. "TURNUS 2". */
+  turnName: string
+  /** First teaching day of that Turnus, `dd.MM.` */
+  date: string
 }
 
 type CurrentWeekResult = { turnIndex: number; turn: NormalizedTurn } | null
 
+/**
+ * The class's Turnusse for one lane. AM and PM rotate independently and both
+ * number theirs from "TURNUS 1", so mixing them would pick the wrong Turnus.
+ * Rows without a lane (older payloads) are kept for either period.
+ */
 function getTurnsForClass(
   data: TeacherScheduleData,
   classId: number,
+  period?: string,
 ): NormalizedTurn[] | undefined {
   const classSchedule = data.schedules.find(schedules =>
     schedules.some(s => Number(s.classId) === classId),
   )
-  return classSchedule?.[0]?.turns
+  const turns = classSchedule?.[0]?.turns
+  if (!turns || !period) return turns
+  const lane = turns.filter(turn => (turn.period ?? period) === period)
+  return lane.length > 0 ? lane : turns
 }
 
 function getCurrentWeek(turns: NormalizedTurn[] | undefined, now: Date): CurrentWeekResult {
@@ -79,6 +97,15 @@ function getRemainingWeeks(turns: NormalizedTurn[] | undefined, now: Date): numb
   }).length
 }
 
+function getNextChange(turns: NormalizedTurn[] | undefined, now: Date): NextChange | null {
+  const currentWeek = getCurrentWeek(turns, now)
+  if (!currentWeek) return null
+  const next = turns?.[currentWeek.turnIndex + 1]
+  const firstWeek = next?.weeks.find(w => !w.isHoliday) ?? next?.weeks[0]
+  if (!next || !firstWeek) return null
+  return { turnName: next.name, date: firstWeek.date.replace(/\.\d\d$/, '.') }
+}
+
 function rotateArray<T>(arr: T[], n: number): T[] {
   const rotated = [...arr]
   for (let i = 0; i < n; i++) {
@@ -94,7 +121,7 @@ function getActualGroupForAssignment(
   assignment: Assignment,
   now: Date,
 ): number | null {
-  const turns = getTurnsForClass(data, assignment.classId)
+  const turns = getTurnsForClass(data, assignment.classId, assignment.period)
   if (!turns) return assignment.groupId ?? null
 
   const currentWeek = getCurrentWeek(turns, now)
@@ -190,7 +217,7 @@ export function resolveDay(data: TeacherScheduleData | null, now: Date): Resolve
     .map(assignment => {
       const classInfo = data.classdata?.find(c => c.id === assignment.classId)
       const period = assignment.period === 'PM' ? 'PM' : 'AM'
-      const turns = getTurnsForClass(data, assignment.classId)
+      const turns = getTurnsForClass(data, assignment.classId, period)
       const currentWeek = getCurrentWeek(turns, now)
       const groupId = getActualGroupForAssignment(data, classAssignments, assignment, now)
 
@@ -231,6 +258,7 @@ export function resolveDay(data: TeacherScheduleData | null, now: Date): Resolve
         otherGroups,
         turnName: currentWeek?.turn.name ?? null,
         remainingWeeks: getRemainingWeeks(turns, now),
+        nextChange: getNextChange(turns, now),
         students: getStudentsForGroup(data, groupId, assignment.classId).sort((a, b) =>
           a.lastName.localeCompare(b.lastName, 'de'),
         ),
@@ -247,9 +275,10 @@ export function turnusSummary(
   data: TeacherScheduleData | null,
   classId: number | undefined,
   now: Date,
+  period?: 'AM' | 'PM',
 ): { name: string; range: string; remainingWeeks: number } | null {
   if (!data || classId == null) return null
-  const turns = getTurnsForClass(data, classId)
+  const turns = getTurnsForClass(data, classId, period)
   const currentWeek = getCurrentWeek(turns, now)
   if (!currentWeek) return null
   const weeks = currentWeek.turn.weeks

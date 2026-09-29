@@ -113,6 +113,8 @@ export type TurnSchedule = Record<string, ScheduleTerm>
 /** Normalized turn (ScheduleTurn + weeks) as returned by API. Used by teacher overview. */
 export type NormalizedTurn = {
   name: string
+  /** Which lane the Turnus belongs to ("AM" | "PM"); AM and PM rotate independently. */
+  period?: string
   customLength?: number | null
   weeks: Array<{
     date: string
