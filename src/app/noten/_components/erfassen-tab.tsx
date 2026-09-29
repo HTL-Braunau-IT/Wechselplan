@@ -6,6 +6,7 @@ import {
   ArrowUpDown,
   Armchair,
   BookOpen,
+  CalendarRange,
   Check,
   Eye,
   EyeOff,
@@ -140,6 +141,35 @@ function LehrstoffInput({
   )
 }
 
+/**
+ * Jahresstoff (the class's curriculum for the year): one text per class, shown
+ * above the day card so it reads the same for every group. Writes back on blur.
+ */
+function JahresstoffInput({
+  initialValue,
+  onCommit,
+}: {
+  initialValue: string
+  onCommit: (value: string) => void
+}) {
+  const { t } = useTranslation('common')
+  const [value, setValue] = useState(initialValue)
+  return (
+    <textarea
+      value={value}
+      rows={2}
+      onChange={e => setValue(e.target.value)}
+      onBlur={() => {
+        if (value !== initialValue) onCommit(value)
+      }}
+      placeholder={t('noten.jahresstoffPlaceholder', {
+        defaultValue: 'Jahresstoff dieser Klasse — gilt für alle Gruppen',
+      })}
+      className="border-input bg-card text-foreground field-sizing-content min-h-9 min-w-0 flex-1 resize-y rounded-md border px-3 py-2 text-sm shadow-xs"
+    />
+  )
+}
+
 export type ErfassenTabProps = {
   teachingDays: TeachingDay[]
   students: Student[]
@@ -147,6 +177,8 @@ export type ErfassenTabProps = {
   entries: Record<string, NotenEntryRow>
   summary: Record<number, StudentSummary>
   lehrstoffByDay: Record<string, string>
+  /** Class-wide Jahresstoff, identical for every group of the class. */
+  jahresstoff: string
   weightLevels: WeightLevels
   weights: WeightConfig
   weightsValid: boolean
@@ -169,6 +201,7 @@ export type ErfassenTabProps = {
   /** Persist the teacher's Sitzplan-view choice as their new default. */
   onSeatingModeChange: (on: boolean) => void
   onCommitLehrstoff: (date: string, period: string, value: string) => void
+  onCommitJahresstoff: (value: string) => void
   onWeightChange: (level: WeightLevel, key: keyof WeightConfig, value: number) => void
   onWeightEnableOverride: (level: WeightLevel) => void
   onWeightClearOverride: (level: WeightLevel) => void
@@ -184,6 +217,7 @@ export function ErfassenTab(props: ErfassenTabProps) {
     entries,
     summary,
     lehrstoffByDay,
+    jahresstoff,
     weightLevels,
     weights,
     weightsValid,
@@ -204,6 +238,7 @@ export function ErfassenTab(props: ErfassenTabProps) {
     seatingDefault,
     onSeatingModeChange,
     onCommitLehrstoff,
+    onCommitJahresstoff,
     onWeightChange,
     onWeightEnableOverride,
     onWeightClearOverride,
@@ -429,6 +464,18 @@ export function ErfassenTab(props: ErfassenTabProps) {
         onPrev={() => selectDay(Math.max(0, dayIndex - 1))}
         onNext={() => selectDay(Math.min(teachingDays.length - 1, dayIndex + 1))}
       />
+
+      <div className="border-border bg-card flex items-start gap-2.5 rounded-lg border px-5 py-3 shadow-sm">
+        <span className="text-muted-foreground flex h-9 shrink-0 items-center gap-1.5 text-xs font-medium tracking-wide uppercase">
+          <CalendarRange className="h-3.5 w-3.5" />
+          {t('noten.jahresstoff', { defaultValue: 'Jahresstoff' })}
+        </span>
+        <JahresstoffInput
+          key={`${classLabel}:${jahresstoff}`}
+          initialValue={jahresstoff}
+          onCommit={onCommitJahresstoff}
+        />
+      </div>
 
       <div className="border-border bg-card rounded-lg border shadow-sm">
         <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3 px-5 pt-5 pb-4">

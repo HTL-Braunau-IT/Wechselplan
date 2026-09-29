@@ -44,6 +44,8 @@
     "anwesenheit": "Anwesenheit",
     "notizen": "Notizen",
     "lehrstoff": "Lehrstoff",
+    "jahresstoff": "Jahresstoff",
+    "jahresstoffPlaceholder": "Year curriculum for this class — shared by all groups",
     "collapseAllDays": "Collapse all days",
     "expandAllDays": "Expand all",
     "expandDay": "Expand day",

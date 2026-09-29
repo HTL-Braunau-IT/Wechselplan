@@ -34,7 +34,7 @@ function toWeightConfig(
 }
 
 /**
- * GET: Returns weight config, Lehrstoff per day, and all NotenEntry rows for (teacher, class, group, school year).
+ * GET: Returns weight config, Lehrstoff per day, the class-wide Jahresstoff, and all NotenEntry rows for (teacher, class, group, school year).
  */
 export async function GET(request: Request) {
   const gate = await requireAccess('staff')
@@ -95,8 +95,16 @@ export async function GET(request: Request) {
     // (possibly combined) class the teacher is working.
     const gradeClassIds = await resolveMemberClassIds(classId)
 
-    const [weightGroup, weightClass, weightGlobal, lehrstoffRows, entries, gradeRows, finalGradeRows] =
-      await Promise.all([
+    const [
+      weightGroup,
+      weightClass,
+      weightGlobal,
+      lehrstoffRows,
+      jahresstoffRow,
+      entries,
+      gradeRows,
+      finalGradeRows,
+    ] = await Promise.all([
         prisma.notenWeightConfig.findUnique({
           where: {
             teacherId_classId_groupId_schoolYearId_selectedWeekday: {
@@ -116,6 +124,12 @@ export async function GET(request: Request) {
         prisma.notenWeightGlobalConfig.findUnique({ where: { teacherId: teacher.id } }),
         prisma.lehrstoffPerDay.findMany({
         where: { teacherId: teacher.id, classId, groupId, schoolYearId },
+      }),
+      // Jahresstoff is per class, shared by all of its groups.
+      prisma.jahresstoffPerClass.findUnique({
+        where: {
+          teacherId_classId_schoolYearId: { teacherId: teacher.id, classId, schoolYearId },
+        },
       }),
       prisma.notenEntry.findMany({
         where: { teacherId: teacher.id, classId: { in: gradeClassIds }, groupId, schoolYearId },
@@ -192,6 +206,7 @@ export async function GET(request: Request) {
         global: toWeightConfig(weightGlobal),
       },
       lehrstoffByDay,
+      jahresstoff: jahresstoffRow?.jahresstoff ?? '',
       finalGrades,
       ...(notensammlerEnabled ? { teacherId: teacher.id } : {}),
       entries: entries.map(e => ({

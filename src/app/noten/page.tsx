@@ -202,6 +202,14 @@ export default function NotenPage() {
     [data],
   )
 
+  const handleCommitJahresstoff = useCallback(
+    (value: string) => {
+      data.setJahresstoff(value)
+      void data.saveJahresstoff(value)
+    },
+    [data],
+  )
+
   const handleCommitLehrstoff = useCallback(
     (date: string, period: string, value: string) => {
       data.setLehrstoffByDay(prev => ({ ...prev, [`${date}-${period}`]: value }))
@@ -466,6 +474,7 @@ export default function NotenPage() {
                     entries={data.entries}
                     summary={summary}
                     lehrstoffByDay={data.lehrstoffByDay}
+                    jahresstoff={data.jahresstoff}
                     weightLevels={data.weightLevels}
                     weights={data.weights}
                     weightsValid={data.weightsValid}
@@ -486,6 +495,7 @@ export default function NotenPage() {
                     seatingDefault={viewPref.loaded ? viewPref.seatingDefault : null}
                     onSeatingModeChange={viewPref.saveSeatingDefault}
                     onCommitLehrstoff={handleCommitLehrstoff}
+                    onCommitJahresstoff={handleCommitJahresstoff}
                     onWeightChange={data.setWeightLevel}
                     onWeightEnableOverride={data.enableWeightOverride}
                     onWeightClearOverride={level => void data.clearWeightOverride(level)}

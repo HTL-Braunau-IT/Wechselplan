@@ -73,6 +73,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
   const [entries, setEntries] = useState<Record<string, NotenEntryRow>>({})
   const [weightLevels, setWeightLevels] = useState<WeightLevels>(EMPTY_WEIGHT_LEVELS)
   const [lehrstoffByDay, setLehrstoffByDay] = useState<Record<string, string>>({})
+  const [jahresstoff, setJahresstoff] = useState('')
   const [seating, setSeating] = useState<SeatingLayout>({})
   const [finalGrades, setFinalGrades] = useState<Record<number, FinalGradePerStudent>>({})
   const [teacherId, setTeacherId] = useState<number | null>(null)
@@ -165,6 +166,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
       setWeightLevels(EMPTY_WEIGHT_LEVELS)
       dirtyWeightsRef.current.clear()
       setLehrstoffByDay({})
+      setJahresstoff('')
       setSeating({})
       setEntries({})
       setFinalGrades({})
@@ -210,6 +212,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
               group: WeightConfig | null
             }
             lehrstoffByDay: Record<string, string>
+            jahresstoff?: string
             finalGrades?: Record<number, FinalGradePerStudent>
             teacherId?: number
             entries: NotenEntryRow[]
@@ -226,6 +229,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
         })
         dirtyWeightsRef.current.clear()
         setLehrstoffByDay(notenData.lehrstoffByDay ?? {})
+        setJahresstoff(notenData.jahresstoff ?? '')
         setFinalGrades(notenData.finalGrades ?? {})
         setTeacherId(notenData.teacherId ?? null)
 
@@ -470,6 +474,30 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
     [classId, groupId, schoolYearId, beginSave, endSave],
   )
 
+  const saveJahresstoff = useCallback(
+    async (value: string) => {
+      if (classId == null || !schoolYearId) return false
+      beginSave()
+      try {
+        const res = await fetch('/api/noten/jahresstoff', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ classId, schoolYearId, jahresstoff: value }),
+        })
+        if (!res.ok) throw new Error('Save failed')
+        setSaveError(null)
+        endSave(true)
+        return true
+      } catch (err) {
+        captureFrontendError(err, { location: 'noten', type: 'save-jahresstoff' })
+        setSaveError('Der Jahresstoff konnte nicht gespeichert werden.')
+        endSave(false)
+        return false
+      }
+    },
+    [classId, schoolYearId, beginSave, endSave],
+  )
+
   const setFinalGrade = useCallback(
     (
       studentId: number,
@@ -707,6 +735,8 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
     clearWeightOverride,
     lehrstoffByDay,
     setLehrstoffByDay,
+    jahresstoff,
+    setJahresstoff,
     seating,
     finalGrades,
     finalGradesRef,
@@ -721,6 +751,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
     saveEntries,
     saveWeights,
     saveLehrstoff,
+    saveJahresstoff,
     setFinalGrade,
     saveFinalGrades,
     setAllAnwesend,

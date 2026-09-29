@@ -683,6 +683,23 @@ model NotenViewPreference {
   updatedAt          DateTime @updatedAt
 }
 
+// A teacher's Jahresstoff (curriculum for the year) for one class. Deliberately
+// not scoped by group or weekday: every group of the class shows the same text.
+model JahresstoffPerClass {
+  id           Int      @id @default(autoincrement())
+  teacherId    Int
+  classId      Int
+  schoolYearId Int
+  jahresstoff  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([teacherId, classId, schoolYearId])
+  @@index([teacherId])
+  @@index([classId])
+  @@index([schoolYearId])
+}
+
 model LehrstoffPerDay {
   id           Int      @id @default(autoincrement())
   teacherId    Int
