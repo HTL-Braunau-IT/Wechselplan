@@ -22,3 +22,7 @@ export const dropGroupsOutsideClass = vi.fn(async (_tx: unknown, _s: number, cla
   classId,
 ])
 export const studentPlanDays = vi.fn(async () => [] as never[])
+export const planGroupCount = vi.fn(async () => null)
+export const designedGroupIds = vi.fn((occupied: Iterable<number>) =>
+  [...new Set(occupied)].filter(id => id > 0).sort((a, b) => a - b),
+)

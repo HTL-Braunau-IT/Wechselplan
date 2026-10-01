@@ -207,6 +207,11 @@ model Schedule {
   // as "dd.MM.yy" to match ScheduleWeek.date. Treated like holidays: shown but
   // never taught, so following weeks shift. Whole-day (applies to both lanes).
   excludedDates    String[]       @default([])
+  // Number of regular groups in this weekday's plan (1..groupCount). Persisted
+  // because a group may be deliberately empty (more teachers than groups in a
+  // small class), and an empty group has no StudentWeekdayGroup row to carry it.
+  // Null = derive the groups from the students (plans saved before this field).
+  groupCount       Int?
   scheduleData     Json? // Deprecated: null on all rows, kept for legacy read paths
   additionalInfo   String?
   semesterPlanning String? // "first", "second", or null for full year

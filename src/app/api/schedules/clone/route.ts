@@ -121,6 +121,7 @@ export async function POST(request: Request) {
       scheduleData: Prisma.JsonNull,
       additionalInfo: source.additionalInfo,
       semesterPlanning: source.semesterPlanning,
+      groupCount: source.groupCount,
       // Copy the times relations (they are shared reference rows).
       scheduleTimes: { connect: source.scheduleTimes.map(t => ({ id: t.id })) },
       breakTimes: { connect: source.breakTimes.map(t => ({ id: t.id })) },

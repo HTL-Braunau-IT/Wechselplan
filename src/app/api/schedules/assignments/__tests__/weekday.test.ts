@@ -12,6 +12,7 @@ vi.mock('@/lib/prisma', () => ({
       deleteMany: vi.fn(() => 'delete-op'),
       createMany: vi.fn(() => 'create-op'),
     },
+    schedule: { findFirst: vi.fn(), updateMany: vi.fn(() => 'schedule-op') },
     $transaction: vi.fn(async (ops: unknown) => ops),
   },
 }))
@@ -40,6 +41,7 @@ describe('per-weekday groups (/api/schedules/assignments)', () => {
     vi.clearAllMocks()
     vi.mocked(prisma.class.findUnique).mockResolvedValue({ id: 4, name: '2AHITS' } as never)
     vi.mocked(prisma.student.findMany).mockResolvedValue(roster as never)
+    vi.mocked(prisma.schedule.findFirst).mockResolvedValue(null)
   })
 
   it("returns the requested day's own grouping, not Student.groupId", async () => {
@@ -115,5 +117,53 @@ describe('per-weekday groups (/api/schedules/assignments)', () => {
     })
     expect(prisma.student.updateMany).not.toHaveBeenCalled()
     expect(prisma.groupAssignment.upsert).not.toHaveBeenCalled()
+  })
+
+  it("brings back the plan's deliberately empty groups up to its groupCount", async () => {
+    vi.mocked(prisma.studentWeekdayGroup.findMany).mockResolvedValue([
+      { studentId: 1, groupId: 1, selectedWeekday: 3 },
+      { studentId: 2, groupId: 1, selectedWeekday: 3 },
+      { studentId: 3, groupId: 2, selectedWeekday: 3 },
+    ] as never)
+    vi.mocked(prisma.schedule.findFirst).mockResolvedValue({ groupCount: 3 } as never)
+
+    const data = await (await get('weekday=3')).json()
+
+    expect(prisma.schedule.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { classId: 4, schoolYearId: 9, selectedWeekday: 3 } }),
+    )
+    expect(data.assignments).toEqual([
+      { groupId: 1, studentIds: [1, 2] },
+      { groupId: 2, studentIds: [3] },
+      { groupId: 3, studentIds: [] },
+    ])
+  })
+
+  it("stores the group count, empty groups included, on the day's plan", async () => {
+    vi.mocked(prisma.student.findMany).mockResolvedValue([{ id: 1 }, { id: 2 }] as never)
+
+    const res = await POST(
+      new Request('http://localhost/api/schedules/assignments', {
+        method: 'POST',
+        body: JSON.stringify({
+          classId: 4,
+          weekday: 3,
+          schoolYearId: 9,
+          assignments: [
+            { groupId: 0, studentIds: [] },
+            { groupId: 1, studentIds: [1] },
+            { groupId: 2, studentIds: [2] },
+            { groupId: 3, studentIds: [] }, // the teacher's free slot
+          ],
+        }),
+      }),
+    )
+
+    expect(res.status).toBe(200)
+    expect(prisma.schedule.updateMany).toHaveBeenCalledWith({
+      where: { classId: 4, schoolYearId: 9, selectedWeekday: 3 },
+      data: { groupCount: 3 },
+    })
+    expect(prisma.$transaction).toHaveBeenCalledWith(['delete-op', 'create-op', 'schedule-op'])
   })
 })

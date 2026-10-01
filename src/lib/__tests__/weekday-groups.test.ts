@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { prisma } from '@/lib/prisma'
 import {
   applyWeekdayGroups,
+  designedGroupIds,
   dropGroupsOutsideClass,
   gradeGroupDay,
   resolveGroupWeekday,
@@ -190,5 +191,19 @@ describe('studentPlanDays', () => {
       { weekday: 1, planClassId: 10, groupId: 4 },
       { weekday: 3, planClassId: 99, groupId: 4 },
     ])
+  })
+})
+
+describe('designedGroupIds', () => {
+  it('keeps empty groups up to the stored count', () => {
+    expect(designedGroupIds([1, 2], 3)).toEqual([1, 2, 3])
+  })
+
+  it('falls back to the occupied groups without a stored count', () => {
+    expect(designedGroupIds([2, 1, 2], null)).toEqual([1, 2])
+  })
+
+  it('never drops an occupied group beyond the count, nor returns the unassigned 0', () => {
+    expect(designedGroupIds([0, 4], 2)).toEqual([1, 2, 4])
   })
 })

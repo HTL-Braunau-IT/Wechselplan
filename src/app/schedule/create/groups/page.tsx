@@ -325,9 +325,10 @@ export default function ScheduleClassSelectPage() {
       }
 
       if (assignmentsData?.assignments && assignmentsData.assignments.length > 0) {
-        // Only count real groups: exclude unassigned (groupId 0) and empty rows
+        // Every regular group the plan holds, empty ones included: a small class
+        // may keep a deliberately empty group for a teacher without students.
         const regularAssignments = assignmentsData.assignments.filter(
-          a => a.groupId !== UNASSIGNED_GROUP_ID && a.studentIds.length > 0,
+          a => a.groupId !== UNASSIGNED_GROUP_ID,
         )
         const existingGroups: Group[] = [
           // Always include unassigned group first
@@ -338,7 +339,7 @@ export default function ScheduleClassSelectPage() {
               class: selectedClass || '',
             })),
           },
-          // Then add only regular (non-empty, non-unassigned) groups
+          // Then the regular groups
           ...regularAssignments.map(assignment => ({
             id: assignment.groupId,
             students: assignment.studentIds

@@ -6,6 +6,8 @@ import { resolveCurrentTeacher } from '@/lib/current-teacher'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { bestEffort } from '@/lib/notifications'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
+import { designedGroupIds, planGroupCount } from '@/lib/weekday-groups'
+import { MAX_GROUPS } from '@/lib/schedule-limits'
 import { notifyScheduleChange } from '../_notify'
 
 /** A weekday query/body value (0–6), or null when absent/invalid. */
@@ -130,9 +132,16 @@ export async function GET(request: Request) {
         list.push(student.id)
         byGroup.set(groupId, list)
       }
-      const dayAssignments: Assignment[] = [...byGroup.keys()]
-        .sort((a, b) => a - b)
-        .map(groupId => ({ groupId, studentIds: byGroup.get(groupId) ?? [] }))
+      // The plan's stored group count brings back deliberately empty groups,
+      // which have no rows of their own (more teachers than groups).
+      const groupCount = await planGroupCount({
+        classId: classRecord.id,
+        schoolYearId,
+        weekday: seedDay ?? weekday,
+      })
+      const dayAssignments: Assignment[] = designedGroupIds(byGroup.keys(), groupCount).map(
+        groupId => ({ groupId, studentIds: byGroup.get(groupId) ?? [] }),
+      )
 
       return NextResponse.json({
         assignments: dayAssignments,
@@ -317,6 +326,8 @@ export async function POST(request: Request) {
         select: { id: true },
       })
       const rosterIds = new Set(roster.map(s => s.id))
+      const groupIds = assignments.map(a => a.groupId).filter(id => id > 0)
+      const groupCount = groupIds.length > 0 ? Math.min(Math.max(...groupIds), MAX_GROUPS) : null
       const rows = assignments
         .filter(a => a.groupId !== 0)
         .flatMap(a =>
@@ -339,6 +350,12 @@ export async function POST(request: Request) {
           where: { classId: classRecord.id, schoolYearId, selectedWeekday: weekday },
         }),
         prisma.studentWeekdayGroup.createMany({ data: rows, skipDuplicates: true }),
+        // The group count is stored on the day's plan, since an empty group
+        // leaves no row above to remember it by.
+        prisma.schedule.updateMany({
+          where: { classId: classRecord.id, schoolYearId, selectedWeekday: weekday },
+          data: { groupCount },
+        }),
       ])
 
       await bestEffort('notify:schedule-assignments', async () => {

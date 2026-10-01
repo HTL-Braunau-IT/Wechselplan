@@ -5,7 +5,7 @@ import { generateSchedulePDF } from '@/lib/pdf-generator'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
 import { denyUnlessAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
-import { applyWeekdayGroups, weekdayGroupMap } from '@/lib/weekday-groups'
+import { applyWeekdayGroups, designedGroupIds, weekdayGroupMap } from '@/lib/weekday-groups'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
 
 /**
@@ -136,8 +136,9 @@ export async function POST(request: Request) {
     // groups.length would shrink and every turnus column would print a different
     // teacher→group schedule than the one saved (finding 29). The day's stored
     // rows keep deactivated students, so they carry that design; without rows the
-    // class-wide GroupAssignment cache does.
-    const designedGroupIds =
+    // class-wide GroupAssignment cache does. The plan's stored groupCount adds
+    // groups that were left empty on purpose (more teachers than groups).
+    const occupiedGroupIds =
       dayGroups.size > 0
         ? [...new Set(dayGroups.values())]
         : (
@@ -146,12 +147,13 @@ export async function POST(request: Request) {
               select: { groupId: true },
             })
           ).map(g => g.groupId)
-    const groupIds = Array.from(
-      new Set<number>([
-        ...designedGroupIds,
+    const groupIds = designedGroupIds(
+      [
+        ...occupiedGroupIds,
         ...(students.map(s => s.groupId).filter(id => id !== null) as number[]),
-      ]),
-    ).sort((a, b) => a - b)
+      ],
+      schedule.groupCount,
+    )
     const groups = groupIds.map((groupId: number) => ({
       id: groupId,
       students: students.filter(s => s.groupId === groupId),

@@ -45,6 +45,32 @@ export function applyWeekdayGroups<T extends { id: number; groupId: number | nul
   return students.map(s => ({ ...s, groupId: groups.get(s.id) ?? null }))
 }
 
+/**
+ * The regular group ids of a plan: 1..groupCount (the stored design, which may
+ * include deliberately empty groups) plus any id a student actually sits in.
+ * Without a stored count it is just the occupied ids, the pre-groupCount
+ * behaviour. Ascending; never contains the unassigned sentinel 0.
+ */
+export function designedGroupIds(occupied: Iterable<number>, groupCount: number | null): number[] {
+  const ids = new Set<number>()
+  for (let id = 1; id <= (groupCount ?? 0); id++) ids.add(id)
+  for (const id of occupied) if (id > 0) ids.add(id)
+  return [...ids].sort((a, b) => a - b)
+}
+
+/** The stored group count of one weekday's plan, or null when none is stored. */
+export async function planGroupCount(day: PlanDay): Promise<number | null> {
+  const schedule = await prisma.schedule.findFirst({
+    where: {
+      classId: day.classId,
+      schoolYearId: day.schoolYearId,
+      selectedWeekday: day.weekday,
+    },
+    select: { groupCount: true },
+  })
+  return schedule?.groupCount ?? null
+}
+
 /** {@link weekdayGroupMap} + {@link applyWeekdayGroups}; a null day is a no-op. */
 export async function overlayWeekdayGroups<T extends { id: number; groupId: number | null }>(
   students: T[],

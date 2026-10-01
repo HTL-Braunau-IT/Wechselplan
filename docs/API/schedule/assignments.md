@@ -2,6 +2,21 @@
 
 The Assignments API manages student group assignments for classes. This endpoint handles the retrieval and updating of student assignments to groups, including tracking of unassigned students.
 
+## Empty groups (`Schedule.groupCount`)
+
+A weekday plan may hold a deliberately empty group — a small class with more
+teachers than groups, where one teacher has the free slot. Such a group has no
+`StudentWeekdayGroup` row, so its existence is stored as the plan's group count:
+
+- `POST /api/schedules/assignments` with a `weekday` writes `groupCount` (the
+  highest regular `groupId` sent, capped at `MAX_GROUPS`) onto that weekday's
+  `Schedule`, alongside the per-student rows.
+- `GET /api/schedules/assignments?…&weekday=` returns every group `1..groupCount`,
+  empty ones as `{ "groupId": 3, "studentIds": [] }`, plus any occupied group
+  beyond it. A plan without a stored count (saved before this field) returns only
+  the occupied groups, as before.
+- The Wechselplan PDF export and the day clone honour the same count.
+
 ## Base URL
 
 `/api/schedule/assignments`
