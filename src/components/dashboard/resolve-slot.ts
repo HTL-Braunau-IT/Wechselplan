@@ -206,6 +206,20 @@ function getStudentsForGroup(
 }
 
 /**
+ * True for a group the plan holds deliberately empty (more teachers than groups):
+ * it keeps its place in the rotation, but whoever lands on it has no students.
+ * False when the class's roster is not in the payload, so a missing roster never
+ * blanks a real group.
+ */
+function isEmptyGroup(data: TeacherScheduleData, groupId: number | null, classId: number) {
+  if (groupId == null) return false
+  const roster = data.students.find(students =>
+    students.some(student => student.classId === classId),
+  )
+  return roster != null && !roster.some(s => s.classId === classId && s.groupId === groupId)
+}
+
+/**
  * All of the teacher's own slots for the fetched weekday, resolved and sorted
  * AM before PM. Days the teacher does not teach resolve to an empty array.
  */
@@ -219,7 +233,9 @@ export function resolveDay(data: TeacherScheduleData | null, now: Date): Resolve
       const period = assignment.period === 'PM' ? 'PM' : 'AM'
       const turns = getTurnsForClass(data, assignment.classId, period)
       const currentWeek = getCurrentWeek(turns, now)
-      const groupId = getActualGroupForAssignment(data, classAssignments, assignment, now)
+      // The teacher's turnus on an empty group shows as no group at all.
+      const rotatedGroupId = getActualGroupForAssignment(data, classAssignments, assignment, now)
+      const groupId = isEmptyGroup(data, rotatedGroupId, assignment.classId) ? null : rotatedGroupId
 
       const otherGroups: OtherGroup[] = classAssignments
         .filter(c => c.classId === assignment.classId && c.period === assignment.period)
@@ -227,7 +243,12 @@ export function resolveDay(data: TeacherScheduleData | null, now: Date): Resolve
           candidate: c,
           actualGroupId: getActualGroupForAssignment(data, classAssignments, c, now),
         }))
-        .filter(({ actualGroupId }) => actualGroupId != null && actualGroupId !== groupId)
+        .filter(
+          ({ actualGroupId }) =>
+            actualGroupId != null &&
+            actualGroupId !== rotatedGroupId &&
+            !isEmptyGroup(data, actualGroupId, assignment.classId),
+        )
         .map(({ candidate, actualGroupId }) => ({
           groupId: actualGroupId!,
           teacher:

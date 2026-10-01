@@ -45,7 +45,10 @@ function getGroupForTeacherAndTurn(
   uniqueTeachers: TeacherAssignmentResponse[],
 ) {
   if (!groups[0] || !uniqueTeachers[teacherIdx]) return null
-  return groups[rotatedGroupIndex(teacherIdx, turnIdx, groups.length)]
+  const group = groups[rotatedGroupIndex(teacherIdx, turnIdx, groups.length)]
+  // A deliberately empty group keeps its place in the rotation, but the teacher
+  // has no one that turnus, so the cell stays blank.
+  return group && group.students.length > 0 ? group : null
 }
 
 /** Start and end date of a turnus, read from its weeks. */
@@ -111,6 +114,8 @@ export function ScheduleOverview({
   weekday,
 }: ScheduleOverviewProps) {
   const maxStudents = Math.max(...groups.map(g => g.students.length), 0)
+  // Empty groups only exist to keep the rotation's cycle; they get no column.
+  const filledGroups = groups.filter(g => g.students.length > 0)
 
   // Each lane draws from its own Turnusse when provided, else the merged set.
   const turnsFor = (period: 'AM' | 'PM'): TurnSchedule =>
@@ -150,12 +155,12 @@ export function ScheduleOverview({
             <thead>
               <tr>
                 <th className={cn(thClass, 'bg-muted/50 w-10 text-center')}>Nr.</th>
-                {groups.map((group, idx) => (
+                {filledGroups.map(group => (
                   <th
                     key={group.id}
                     className={cn(
                       'border-b px-3 py-2 text-center text-sm font-semibold',
-                      groupColor(idx),
+                      groupColor(groups.indexOf(group)),
                     )}
                   >
                     Gruppe {group.id}
@@ -169,7 +174,7 @@ export function ScheduleOverview({
                   <td className={cn(tdClass, 'text-muted-foreground text-center tabular-nums')}>
                     {rowIdx + 1}
                   </td>
-                  {groups.map(group => {
+                  {filledGroups.map(group => {
                     const student = group.students[rowIdx]
                     return (
                       <td key={group.id} className={cn(tdClass, 'text-center')}>

@@ -269,7 +269,7 @@ function getGroupForTeacherAndTurn(
   teacherIdx: number,
   turnIdx: number,
   assignments: Assignment[],
-): { id: number } | null {
+): WechselplanData['groups'][number] | null {
   if (!groups.length || !assignments[teacherIdx]) return null
   // Single source of truth for the round-robin (shared with the save path).
   return groups[rotatedGroupIndex(teacherIdx, turnIdx, groups.length)] ?? null
@@ -394,7 +394,10 @@ function PeriodRows({
           </View>
 
           {turnusColumns.map((_, turnIdx) => {
-            const group = getGroupForTeacherAndTurn(groups, teacherIdx, turnIdx, assignments)
+            // A deliberately empty group still takes its place in the rotation,
+            // but the teacher has no one that turnus: the cell stays blank.
+            const rotated = getGroupForTeacherAndTurn(groups, teacherIdx, turnIdx, assignments)
+            const group = rotated && rotated.students.length > 0 ? rotated : null
             const palette = groupColor(group?.id)
             return (
               <View
@@ -421,6 +424,8 @@ function PeriodRows({
  * turnus of the school year.
  */
 export default function WechselplanDocument({ data }: { data: WechselplanData }) {
+  // Empty groups only exist to keep the rotation's cycle; they get no card.
+  const filledGroups = data.groups.filter(g => g.students.length > 0)
   const weekdayName = getWeekdayName(data.selectedWeekday)
   const schoolYear = getSchoolYear(data.updatedAt)
 
@@ -473,11 +478,11 @@ export default function WechselplanDocument({ data }: { data: WechselplanData })
             <SectionLabel>Gruppeneinteilung</SectionLabel>
             <Text style={styles.bandHint}>
               {data.groups.reduce((sum, g) => sum + g.students.length, 0)} Schüler in{' '}
-              {data.groups.length} Gruppen
+              {filledGroups.length} Gruppen
             </Text>
           </View>
-          {data.groups.length > 0 ? (
-            <GroupCards groups={data.groups} />
+          {filledGroups.length > 0 ? (
+            <GroupCards groups={filledGroups} />
           ) : (
             <Text style={styles.empty}>Keine Gruppen eingeteilt.</Text>
           )}
