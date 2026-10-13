@@ -35,6 +35,7 @@ import { NmTransferDialog } from './_components/nm-transfer-dialog'
 import { NotenViewTabs, type NotenTab } from './_components/noten-view-tabs'
 import { TransferMenu } from './_components/transfer-menu'
 import { ErfassenTab } from './_components/erfassen-tab'
+import { TabelleTab } from './_components/tabelle-tab'
 import { VerlaufTab } from './_components/verlauf-tab'
 import { EndnotenTab } from './_components/endnoten-tab'
 
@@ -47,9 +48,10 @@ function todayLocalYmd(): string {
 /**
  * Noten — per-lesson assessment for one class/group.
  *
- * Three views over the same data (class/group selection, entries, weighting,
+ * Four views over the same data (class/group selection, entries, weighting,
  * final grades — all owned by `useNotenData`): a per-half-day tile grid for
- * capture, a term history, and the final grades. Search and the Notenmanagement
+ * capture, a students × half-days table for catching up on marks, a term
+ * history, and the final grades. Search and the Notenmanagement
  * transfer sit in their own hooks and dialogs.
  */
 export default function NotenPage() {
@@ -258,6 +260,7 @@ export default function NotenPage() {
 
   const tabs: Array<{ value: NotenTab; label: string }> = [
     { value: 'erfassen', label: t('noten.tabErfassen', { defaultValue: 'Erfassen' }) },
+    { value: 'tabelle', label: t('noten.tabTabelle', { defaultValue: 'Tabelle' }) },
     { value: 'verlauf', label: t('noten.tabVerlauf', { defaultValue: 'Verlauf' }) },
     { value: 'endnoten', label: t('noten.tabEndnoten', { defaultValue: 'Endnoten' }) },
   ]
@@ -500,6 +503,21 @@ export default function NotenPage() {
                     onWeightEnableOverride={data.enableWeightOverride}
                     onWeightClearOverride={level => void data.clearWeightOverride(level)}
                     onWeightCommit={() => void data.saveWeights()}
+                  />
+                ) : tab === 'tabelle' ? (
+                  <TabelleTab
+                    teachingDays={data.teachingDays}
+                    students={data.students}
+                    entries={data.entries}
+                    hideGrades={hideGrades}
+                    todayYmd={todayYmd}
+                    semesterChangeDate={semesterChangeDate}
+                    showSecondMark={viewPref.secondMarkDefault}
+                    onShowSecondMarkChange={viewPref.saveSecondMarkDefault}
+                    onToggleHide={() => setHideGrades(h => !h)}
+                    onMark={(studentId, date, period, field, value) =>
+                      data.queueEntrySave(studentId, date, period, { [field]: value })
+                    }
                   />
                 ) : (
                   <VerlaufTab

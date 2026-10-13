@@ -220,6 +220,35 @@ describe('useNotenData', () => {
   })
 
   /**
+   * The Tabelle view takes a mark per keystroke. Each one as its own request
+   * meant "2" then "," (2,5) on one row could land out of order and leave 2.
+   */
+  it('batches queued marks into one write carrying each row as it ends up', async () => {
+    const { result } = setup({ classId: 1, groupId: 2, schoolYearId: 3 })
+    await waitFor(() => expect(result.current.students).toHaveLength(12))
+    vi.mocked(fetch).mockClear()
+
+    const date = TEACHING_DAYS[0]!.date
+    act(() => {
+      result.current.queueEntrySave(1, date, 'AM', { bericht1: 2 })
+    })
+    act(() => {
+      result.current.queueEntrySave(1, date, 'AM', { bericht1: 2.5 })
+      result.current.queueEntrySave(2, date, 'AM', { bericht1: 4 })
+    })
+    // Optimistic, and nothing sent while the typing goes on.
+    expect(result.current.entries[`1-${date}-AM`]?.bericht1).toBe(2.5)
+    expect(entryBodies()).toHaveLength(0)
+    expect(result.current.hasUnsavedWork).toBe(true)
+
+    await waitFor(() => expect(entryBodies()).toHaveLength(1), { timeout: 2000 })
+    const rows = entryBodies()[0]!.entries ?? []
+    expect(rows).toHaveLength(2)
+    expect(rows.find(r => r.studentId === 1)).toMatchObject({ bericht1: 2.5 })
+    expect(rows.find(r => r.studentId === 2)).toMatchObject({ bericht1: 4 })
+  })
+
+  /**
    * A failing response used to be parsed as data, so the grid rendered as a
    * group with no students rather than as an error.
    */

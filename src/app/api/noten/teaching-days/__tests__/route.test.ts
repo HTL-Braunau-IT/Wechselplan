@@ -60,6 +60,6 @@ describe('GET /api/noten/teaching-days (per weekday)', () => {
       expect.objectContaining({ where: { classId: 3, schoolYearId: 1, selectedWeekday: 4 } }),
     )
     // The holiday week is dropped.
-    expect(data.teachingDays).toEqual([{ date: '2026-10-01', period: 'AM' }])
+    expect(data.teachingDays).toEqual([{ date: '2026-10-01', period: 'AM', turn: 'TURNUS 1' }])
   })
 })

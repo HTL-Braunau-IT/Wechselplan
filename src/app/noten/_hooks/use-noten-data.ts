@@ -337,6 +337,31 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
     [classId, groupId, schoolYearId, beginSave, endSave, markClean, markDirty],
   )
 
+  /**
+   * Keys the Tabelle view has changed but not yet handed to `saveEntries`.
+   * That view takes a mark per keystroke, so writing each one as it lands would
+   * fire a request per digit — and "2" then "," (2,5) on the same row could
+   * reach the server out of order. Instead the keys collect here and one
+   * debounced batch sends each row as it is when the typing pauses.
+   */
+  const queuedEntryKeysRef = useRef<Set<string>>(new Set())
+
+  const queueEntrySave = useCallback(
+    (studentId: number, date: string, period: string, patch: Partial<NotenEntryRow>) => {
+      updateEntry(studentId, date, period, patch)
+      queuedEntryKeysRef.current.add(entryKey(studentId, date, period))
+      schedule('entries', () => {
+        const keys = [...queuedEntryKeysRef.current]
+        queuedEntryKeysRef.current.clear()
+        const rows = keys
+          .map(key => entriesRef.current[key])
+          .filter((entry): entry is NotenEntryRow => entry != null)
+        void saveEntries(rows)
+      })
+    },
+    [updateEntry, schedule, saveEntries],
+  )
+
   // The effective split the grid scores with: group override → class → global →
   // 25/25/25/25. Everything downstream (summary, Verlauf, Erfassen) reads this.
   const weights = resolveWeights(weightLevels)
@@ -749,6 +774,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
     hasUnsavedWork: dirtyCount > 0 || pendingCount > 0,
     updateEntry,
     saveEntries,
+    queueEntrySave,
     saveWeights,
     saveLehrstoff,
     saveJahresstoff,

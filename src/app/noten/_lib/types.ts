@@ -3,7 +3,12 @@
 // fallback. Re-exported here so the many `from '../_lib/types'` imports still work.
 export { DEFAULT_WEIGHTS, type WeightConfig } from '@/lib/noten-weights'
 
-export type TeachingDay = { date: string; period: string }
+export type TeachingDay = {
+  date: string
+  period: string
+  /** The Turnus the half-day belongs to, e.g. "TURNUS 1". */
+  turn?: string
+}
 
 export type Student = {
   id: number

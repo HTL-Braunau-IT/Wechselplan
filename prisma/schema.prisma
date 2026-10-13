@@ -681,11 +681,14 @@ model NotenSeatNumber {
 
 // A teacher's personal Noten view preferences. One row per teacher, not scoped
 // by year — a preference like "open the Sitzplan view by default" carries across
-// classes and years. Written whenever the teacher toggles the Sitzplan view.
+// classes and years. Written whenever the teacher toggles the Sitzplan view or
+// the 2. Note columns of the Tabelle view.
 model NotenViewPreference {
   id                 Int      @id @default(autoincrement())
   teacherId          Int      @unique
   seatingModeDefault Boolean  @default(false)
+  // Tabelle view: show the 2. Note columns (doubles the table's width).
+  tableSecondMark    Boolean  @default(true)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }

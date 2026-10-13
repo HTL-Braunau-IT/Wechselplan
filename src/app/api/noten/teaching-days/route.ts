@@ -9,7 +9,8 @@ import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { gradeGroupDay } from '@/lib/weekday-groups'
 
-type TeachingDay = { date: string; period: string }
+/** `turn` is the Turnus the half-day belongs to ("TURNUS 1", …). */
+type TeachingDay = { date: string; period: string; turn: string }
 
 function parseDateString(d: string): Date | null {
   const parts = d.split('.')
@@ -23,7 +24,7 @@ function parseDateString(d: string): Date | null {
 }
 
 /**
- * GET: Returns array of { date, period } for which the current teacher has this class+group.
+ * GET: Returns array of { date, period, turn } for which the current teacher has this class+group.
  * Uses TeacherRotation + schedule turns/weeks; excludes holidays.
  */
 export async function GET(request: Request) {
@@ -133,7 +134,11 @@ export async function GET(request: Request) {
         const key = `${toLocalDateString(dateObj)}-${rot.period}`
         if (seen.has(key)) continue
         seen.add(key)
-        teachingDays.push({ date: toLocalDateString(dateObj), period: rot.period })
+        teachingDays.push({
+          date: toLocalDateString(dateObj),
+          period: rot.period,
+          turn: rot.turnId,
+        })
       }
     }
     teachingDays.sort((a, b) => {
