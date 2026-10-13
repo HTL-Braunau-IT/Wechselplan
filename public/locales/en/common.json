@@ -588,6 +588,16 @@
       "update": "Failed to update class"
     }
   },
+  "studentsPage": {
+    "searchPlaceholder": "Search student or class …",
+    "allClasses": "All classes",
+    "classFilter": "Filter by class",
+    "resultCount": "{{count}} of {{total}} students",
+    "noResults": {
+      "title": "No students found",
+      "description": "Adjust the search or the class filter."
+    }
+  },
   "profile": {
     "menu": "User menu",
     "role": {

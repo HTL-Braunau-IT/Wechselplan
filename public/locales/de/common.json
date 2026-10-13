@@ -619,6 +619,16 @@
       "update": "Klasse konnte nicht aktualisiert werden"
     }
   },
+  "studentsPage": {
+    "searchPlaceholder": "Schüler oder Klasse suchen …",
+    "allClasses": "Alle Klassen",
+    "classFilter": "Klasse filtern",
+    "resultCount": "{{count}} von {{total}} Schülern",
+    "noResults": {
+      "title": "Keine Schüler gefunden",
+      "description": "Passe die Suche oder den Klassenfilter an."
+    }
+  },
   "profile": {
     "menu": "Benutzermenü",
     "role": {

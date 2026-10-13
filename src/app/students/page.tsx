@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertCircle, Users } from 'lucide-react'
+import { AlertCircle, Search, Users } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
@@ -13,6 +13,14 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { TableSkeleton } from '@/components/ui/skeleton'
 import { PageContainer } from '@/components/ui/page-container'
@@ -38,6 +46,18 @@ interface Student {
 /** Sort key: the group on the first planned day (else the class-wide one), then name. */
 const firstGroup = (s: Student) => s.weekdayGroups?.[0]?.groupId ?? s.groupId ?? Infinity
 
+const ALL_CLASSES = '__all__'
+
+/** True when every search term occurs in the student's name or class name. */
+const matchesSearch = (student: Student, className: string, query: string) => {
+  const terms = query
+    .toLowerCase()
+    .split(/[\s,]+/)
+    .filter(Boolean)
+  const haystack = `${student.firstName} ${student.lastName} ${className}`.toLowerCase()
+  return terms.every(term => haystack.includes(term))
+}
+
 interface Class {
   id: number
   name: string
@@ -57,6 +77,8 @@ export default function StudentsPage() {
   const [classes, setClasses] = useState<Class[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [classFilter, setClassFilter] = useState(ALL_CLASSES)
 
   useEffect(() => {
     void fetchData()
@@ -158,6 +180,15 @@ export default function StudentsPage() {
     return classNameA.localeCompare(classNameB)
   })
 
+  const filteredClassEntries = sortedClassEntries
+    .filter(([className]) => classFilter === ALL_CLASSES || className === classFilter)
+    .map(
+      ([className, classStudents]) =>
+        [className, classStudents.filter(s => matchesSearch(s, className, search))] as const,
+    )
+    .filter(([, classStudents]) => classStudents.length > 0)
+  const filteredCount = filteredClassEntries.reduce((n, [, list]) => n + list.length, 0)
+
   return (
     <PageContainer>
       <div className="space-y-6">
@@ -175,7 +206,45 @@ export default function StudentsPage() {
           />
         ) : (
           <div className="space-y-6">
-            {sortedClassEntries.map(([className, classStudents]) => (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="relative sm:w-72">
+                <Search className="text-muted-foreground pointer-events-none absolute top-2.5 left-2.5 h-4 w-4" />
+                <Input
+                  type="search"
+                  value={search}
+                  onChange={event => setSearch(event.target.value)}
+                  placeholder={t('studentsPage.searchPlaceholder')}
+                  className="pl-8"
+                  aria-label={t('studentsPage.searchPlaceholder')}
+                />
+              </div>
+              <Select value={classFilter} onValueChange={setClassFilter}>
+                <SelectTrigger className="sm:w-48" aria-label={t('studentsPage.classFilter')}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_CLASSES}>{t('studentsPage.allClasses')}</SelectItem>
+                  {sortedClassEntries.map(([className]) => (
+                    <SelectItem key={className} value={className}>
+                      {className}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-muted-foreground text-sm sm:ml-auto">
+                {t('studentsPage.resultCount', { count: filteredCount, total: students.length })}
+              </p>
+            </div>
+
+            {filteredClassEntries.length === 0 && (
+              <EmptyState
+                icon={Search}
+                title={t('studentsPage.noResults.title')}
+                description={t('studentsPage.noResults.description')}
+              />
+            )}
+
+            {filteredClassEntries.map(([className, classStudents]) => (
               <Card key={className}>
                 <CardHeader>
                   <CardTitle>{className}</CardTitle>
