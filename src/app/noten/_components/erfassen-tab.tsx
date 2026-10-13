@@ -32,11 +32,7 @@ import { cn } from '@/lib/utils'
 import { DayPickerStrip } from './day-picker-strip'
 import { StudentTile } from './student-tile'
 import { WeightsPopover } from './weights-popover'
-import {
-  type ActiveCell,
-  type CategoryKey,
-  categoryField,
-} from '../_lib/erfassen'
+import { type ActiveCell, type CategoryKey, categoryField } from '../_lib/erfassen'
 import {
   emptyEntry,
   type NotenEntryRow,
@@ -56,20 +52,28 @@ const SEAT_CARD_W = 268
 const SEAT_GAP = 12
 /** Rough card height, only for sizing the scrollable canvas — cards may vary. */
 const SEAT_CARD_H_EST = 250
+/** Extra room below the cards while a grade pad is open, so it is never clipped. */
+const SEAT_PAD_H_EST = 150
 
 /**
  * One student card on the Sitzplan canvas: absolutely positioned at its saved
  * spot, moved only by the grip handle so taps on the card's own controls are
  * never read as drags. The live drag offset is applied via `transform`; the new
  * base position is committed on drag end (see `handleSeatDragEnd`).
+ *
+ * `raised` lifts the card whose grade pad is open above its neighbours: the pad
+ * grows the card downwards, and on a free canvas it would otherwise slide
+ * underneath the next card instead of covering it.
  */
 function DraggableSeat({
   id,
   pos,
+  raised,
   children,
 }: {
   id: number
   pos: SeatPosition
+  raised: boolean
   children: ReactNode
 }) {
   const { t } = useTranslation('common')
@@ -83,20 +87,16 @@ function DraggableSeat({
     top: pos.y,
     width: SEAT_CARD_W,
     transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-    zIndex: isDragging ? 30 : 1,
+    zIndex: isDragging ? 30 : raised ? 20 : 1,
   }
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={cn('select-none', isDragging && 'opacity-95')}
-    >
+    <div ref={setNodeRef} style={style} className={cn('select-none', isDragging && 'opacity-95')}>
       <button
         type="button"
         {...listeners}
         {...attributes}
         aria-label={t('noten.dragSeatHandle', { defaultValue: 'Karte verschieben' })}
-        className="border-input bg-muted/60 text-muted-foreground hover:bg-accent mb-1 flex h-6 w-full touch-none cursor-grab items-center justify-center rounded-md border shadow-xs transition-colors active:cursor-grabbing"
+        className="border-input bg-muted/60 text-muted-foreground hover:bg-accent mb-1 flex h-6 w-full cursor-grab touch-none items-center justify-center rounded-md border shadow-xs transition-colors active:cursor-grabbing"
       >
         <GripVertical className="h-3.5 w-3.5" aria-hidden />
       </button>
@@ -135,7 +135,9 @@ function LehrstoffInput({
       onBlur={() => {
         if (value !== initialValue) onCommit(value)
       }}
-      placeholder={t('noten.lehrstoffPlaceholder', { defaultValue: 'Was wurde heute durchgenommen?' })}
+      placeholder={t('noten.lehrstoffPlaceholder', {
+        defaultValue: 'Was wurde heute durchgenommen?',
+      })}
       className="border-input bg-card text-foreground h-9 min-w-0 flex-1 rounded-md border px-3 text-sm shadow-xs"
     />
   )
@@ -163,7 +165,8 @@ function JahresstoffInput({
         if (value !== initialValue) onCommit(value)
       }}
       placeholder={t('noten.jahresstoffPlaceholder', {
-        defaultValue: 'Jahresstoff dieser Klasse — gilt für alle Gruppen',
+        defaultValue:
+          'Jahresstoff dieser Klasse — gilt für alle Gruppen, sichtbar für Schüler:innen',
       })}
       className="border-input bg-card text-foreground field-sizing-content min-h-9 min-w-0 flex-1 resize-y rounded-md border px-3 py-2 text-sm shadow-xs"
     />
@@ -319,7 +322,8 @@ export function ErfassenTab(props: ErfassenTabProps) {
     (studentId: number, category: CategoryKey, slot: 1 | 2, value: number | null) => {
       const d = teachingDays[dayIndex]
       if (!d) return
-      const entry = entries[entryKey(studentId, d.date, d.period)] ?? emptyEntry(studentId, d.date, d.period)
+      const entry =
+        entries[entryKey(studentId, d.date, d.period)] ?? emptyEntry(studentId, d.date, d.period)
       onEntryChange(entry, { [categoryField(category, slot)]: value })
     },
     [teachingDays, dayIndex, entries, onEntryChange],
@@ -329,7 +333,8 @@ export function ErfassenTab(props: ErfassenTabProps) {
     (studentId: number, value: string) => {
       const d = teachingDays[dayIndex]
       if (!d) return
-      const entry = entries[entryKey(studentId, d.date, d.period)] ?? emptyEntry(studentId, d.date, d.period)
+      const entry =
+        entries[entryKey(studentId, d.date, d.period)] ?? emptyEntry(studentId, d.date, d.period)
       onEntryChange(entry, { attendance: entry.attendance === value ? null : value })
     },
     [teachingDays, dayIndex, entries, onEntryChange],
@@ -348,6 +353,19 @@ export function ErfassenTab(props: ErfassenTabProps) {
     },
     [onSeatChange],
   )
+
+  // Tapping anywhere outside the tile with the open grade pad closes the pad, so
+  // it never lingers over the neighbouring cards. Tapping another student's cell
+  // still works: this clears first, then that cell's click opens its own pad.
+  useEffect(() => {
+    if (!active) return
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target instanceof Element ? e.target : null
+      if (!target?.closest(`[data-student-tile="${active.studentId}"]`)) setActive(null)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [active])
 
   // Keyboard entry for the focused cell. The listener re-subscribes when the
   // active cell or entries change so it always reads the current value; the
@@ -371,7 +389,12 @@ export function ErfassenTab(props: ErfassenTabProps) {
         const current = entry
           ? (entry[categoryField(active.category, active.slot)] as number | null)
           : null
-        setMark(active.studentId, active.category, active.slot, current === n ? Math.min(5, n + 0.5) : n)
+        setMark(
+          active.studentId,
+          active.category,
+          active.slot,
+          current === n ? Math.min(5, n + 0.5) : n,
+        )
       }
     }
     window.addEventListener('keydown', onKey)
@@ -405,7 +428,11 @@ export function ErfassenTab(props: ErfassenTabProps) {
     : ''
 
   const progressTone =
-    stats.done === stats.total ? 'bg-success' : stats.done === 0 ? 'bg-muted-foreground' : 'bg-warning'
+    stats.done === stats.total
+      ? 'bg-success'
+      : stats.done === 0
+        ? 'bg-muted-foreground'
+        : 'bg-warning'
 
   // Auto-arrange students that have no saved seat into a grid that fills the
   // measured canvas width, so first entry into Sitzplan-Modus looks tidy.
@@ -416,7 +443,9 @@ export function ErfassenTab(props: ErfassenTabProps) {
       y: Math.floor(index / perRow) * (SEAT_CARD_H_EST + SEAT_GAP),
     }
   const canvasHeight =
-    students.reduce((max, s, i) => Math.max(max, seatOf(i, s.id).y + SEAT_CARD_H_EST), 0) + SEAT_GAP
+    students.reduce((max, s, i) => Math.max(max, seatOf(i, s.id).y + SEAT_CARD_H_EST), 0) +
+    SEAT_GAP +
+    (active ? SEAT_PAD_H_EST : 0)
 
   const renderTile = (student: Student) => {
     const entry =
@@ -653,7 +682,12 @@ export function ErfassenTab(props: ErfassenTabProps) {
                 style={{ height: canvasHeight, minHeight: 320 }}
               >
                 {students.map((student, index) => (
-                  <DraggableSeat key={student.id} id={student.id} pos={seatOf(index, student.id)}>
+                  <DraggableSeat
+                    key={student.id}
+                    id={student.id}
+                    pos={seatOf(index, student.id)}
+                    raised={active?.studentId === student.id}
+                  >
                     {renderTile(student)}
                   </DraggableSeat>
                 ))}

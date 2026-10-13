@@ -256,22 +256,46 @@ export async function studentGradingCriteria(
   }
   if (byTeacher.size === 0) return []
 
-  const templates = await prisma.gradingCriteria.findMany({
-    where: { teacherId: { in: [...byTeacher.keys()] } },
-    include: { teacher: true, classes: { select: { classId: true } } },
-  })
+  const teacherIds = [...byTeacher.keys()]
+  const [templates, jahresstoffRows] = await Promise.all([
+    prisma.gradingCriteria.findMany({
+      where: { teacherId: { in: teacherIds } },
+      include: { teacher: true, classes: { select: { classId: true } } },
+    }),
+    // The Jahresstoff a teacher keeps in Noten for the plan class, shown beside
+    // the criteria so students find both in one place.
+    prisma.jahresstoffPerClass.findMany({
+      where: {
+        teacherId: { in: teacherIds },
+        schoolYearId,
+        classId: { in: [...new Set([...days.map(d => d.planClassId), student.classId])] },
+      },
+      select: { teacherId: true, classId: true, jahresstoff: true },
+    }),
+  ])
 
   const result: StudentGradingCriteria[] = []
   for (const [teacherId, info] of byTeacher) {
     const own = templates.filter(t => t.teacherId === teacherId)
     const picked = pickCriteria(own, [...info.planClassIds, student.classId])
-    if (!picked) continue
+    // Same priority as the criteria: the plan class first, then the student's own class.
+    const jahresstoff =
+      [...info.planClassIds, student.classId]
+        .map(
+          classId =>
+            jahresstoffRows
+              .find(r => r.teacherId === teacherId && r.classId === classId)
+              ?.jahresstoff?.trim() ?? '',
+        )
+        .find(Boolean) ?? null
+    if (!picked && !jahresstoff) continue
     result.push({
       teacherId,
       teacherFirstName: info.firstName,
       teacherLastName: info.lastName,
       subjects: [...info.subjects].sort((a, b) => a.localeCompare(b, 'de')),
-      criteria: toDocument(picked),
+      criteria: picked ? toDocument(picked) : null,
+      jahresstoff,
     })
   }
 

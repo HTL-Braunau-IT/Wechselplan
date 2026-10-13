@@ -85,7 +85,10 @@ export interface StudentGradingCriteria {
   teacherLastName: string
   /** Subjects the teacher teaches the student, for context in the list. */
   subjects: string[]
-  criteria: GradingCriteriaDocument
+  /** null when the teacher published only a Jahresstoff. */
+  criteria: GradingCriteriaDocument | null
+  /** The teacher's Jahresstoff for the student's (plan) class, from Noten; null if empty. */
+  jahresstoff: string | null
 }
 
 /** Reads a stored `content` blob leniently: malformed rows render as empty, never throw. */

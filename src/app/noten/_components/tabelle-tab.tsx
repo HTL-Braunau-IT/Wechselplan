@@ -578,8 +578,16 @@ export function TabelleTab({
               const name = `${student.lastName}, ${student.firstName}`
               return (
                 <div key={student.id} className="contents">
-                  <div className="bg-card border-border/60 sticky left-0 z-[2] flex h-9 items-center overflow-hidden border-b px-3 text-ellipsis whitespace-nowrap shadow-[1px_0_0_0_var(--color-border)]">
-                    {name}
+                  <div className="bg-card border-border/60 sticky left-0 z-[2] flex h-9 flex-col items-start justify-center overflow-hidden border-b px-3 leading-tight shadow-[1px_0_0_0_var(--color-border)]">
+                    <span
+                      className="w-full truncate"
+                      title={`${student.lastName}, ${student.firstName}`}
+                    >
+                      {student.lastName}
+                    </span>
+                    <span className="text-muted-foreground w-full truncate text-xs">
+                      {student.firstName}
+                    </span>
                   </div>
                   {columns.map(col => {
                     const cell: TableCell = {

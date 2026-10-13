@@ -45,7 +45,7 @@
     "notizen": "Notizen",
     "lehrstoff": "Lehrstoff",
     "jahresstoff": "Jahresstoff",
-    "jahresstoffPlaceholder": "Jahresstoff dieser Klasse — gilt für alle Gruppen",
+    "jahresstoffPlaceholder": "Jahresstoff dieser Klasse — gilt für alle Gruppen, sichtbar für Schüler:innen",
     "collapseAllDays": "Alle Tage zuklappen",
     "expandAllDays": "Alle aufklappen",
     "expandDay": "Tag aufklappen",
@@ -931,10 +931,11 @@
       "confirm": "Löschen"
     },
     "student": {
-      "title": "Beurteilungskriterien",
-      "description": "Wonach deine Lehrer beurteilen.",
+      "title": "Beurteilungskriterien & Jahresstoff",
+      "description": "Wonach deine Lehrer beurteilen und was im Jahr durchgenommen wird.",
       "view": "Ansehen",
-      "none": "Deine Lehrer haben noch keine Beurteilungskriterien hinterlegt."
+      "jahresstoff": "Jahresstoff",
+      "none": "Deine Lehrer haben noch keine Beurteilungskriterien oder keinen Jahresstoff hinterlegt."
     },
     "error": {
       "load": "Kriterien konnten nicht geladen werden",

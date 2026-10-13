@@ -26,6 +26,7 @@ vi.mock('@/lib/prisma', () => ({
     gradingCriteria: { findUnique: vi.fn(), findMany: vi.fn() },
     gradingCriteriaClass: { findMany: vi.fn(async () => []) },
     teacherAssignment: { findMany: vi.fn(async () => []) },
+    jahresstoffPerClass: { findMany: vi.fn(async () => []) },
     $transaction: vi.fn(async (fn: (t: unknown) => unknown) => fn(tx)),
   },
 }))
@@ -168,9 +169,35 @@ describe('studentGradingCriteria', () => {
       }),
     )
     // Sorted by last name; teacher 8 has no criteria and is left out.
-    expect(result.map(r => [r.teacherId, r.criteria.title, r.subjects])).toEqual([
+    expect(result.map(r => [r.teacherId, r.criteria?.title, r.subjects])).toEqual([
       [6, 'Tpl 3', ['Labor']],
       [5, 'Tpl 2', ['Werkstätte']],
+    ])
+  })
+
+  test('attaches the Jahresstoff and lists a teacher who published only that', async () => {
+    vi.mocked(studentPlanDays).mockResolvedValue([
+      { weekday: 1, planClassId: 99, groupId: 1 },
+    ] as never)
+    vi.mocked(prisma.teacherAssignment.findMany).mockResolvedValue([
+      { classId: 99, teacher: teacher(5, 'Buttinger'), subject: { name: 'Werkstätte' } },
+      { classId: 99, teacher: teacher(8, 'Ohne'), subject: { name: 'Labor' } },
+    ] as never)
+    vi.mocked(prisma.gradingCriteria.findMany).mockResolvedValue([
+      template(1, 5, { isDefault: true }),
+    ] as never)
+    vi.mocked(prisma.jahresstoffPerClass.findMany).mockResolvedValue([
+      { teacherId: 5, classId: 10, jahresstoff: 'eigene Klasse' },
+      { teacherId: 5, classId: 99, jahresstoff: ' Drehen, Fräsen ' },
+      { teacherId: 8, classId: 99, jahresstoff: 'Messtechnik' },
+    ] as never)
+
+    const result = await studentGradingCriteria({ id: 1, classId: 10, groupId: 1 }, 2026)
+
+    // Plan class wins over the student's own class; teacher 8 has no criteria but is listed.
+    expect(result.map(r => [r.teacherId, r.criteria?.title ?? null, r.jahresstoff])).toEqual([
+      [5, 'Tpl 1', 'Drehen, Fräsen'],
+      [8, null, 'Messtechnik'],
     ])
   })
 

@@ -89,10 +89,15 @@ already holds an assignment for; anything else is a `403`.
       "content": {},
       "teacherName": "…",
       "updatedAt": "…"
-    }
+    },
+    "jahresstoff": "Drehen, Fräsen, …"
   }
 ]
 ```
+
+`jahresstoff` is the teacher's Jahresstoff from Noten for the student's plan
+class (falling back to the student's own class), or `null`. A teacher with a
+Jahresstoff but no criteria is still listed, with `"criteria": null`.
 
 ## Share links
 

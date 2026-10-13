@@ -103,7 +103,9 @@ export function StudentTile({
             key={cat.key}
             type="button"
             title={t(cat.fullKey) + (slot === 2 ? ' · 2. Note' : '')}
-            onClick={() => onFocusCell(isActive ? null : { studentId: student.id, category: cat.key, slot })}
+            onClick={() =>
+              onFocusCell(isActive ? null : { studentId: student.id, category: cat.key, slot })
+            }
             className={cn(
               'flex h-[46px] flex-col items-center justify-center gap-0.5 rounded-sm border transition-colors',
               value == null && !isActive && 'border-input border-dashed',
@@ -129,9 +131,14 @@ export function StudentTile({
 
   return (
     <div
+      data-student-tile={student.id}
       className={cn(
         'bg-card flex flex-col gap-2 rounded-lg border p-3 shadow-sm',
-        active ? 'border-primary' : attended ? 'border-border' : 'border-border/60 bg-muted/[.18]',
+        active
+          ? 'border-primary shadow-lg'
+          : attended
+            ? 'border-border'
+            : 'border-border/60 bg-muted/[.18]',
       )}
     >
       <div className="flex items-center gap-2">
@@ -153,7 +160,11 @@ export function StudentTile({
           lastName={student.lastName}
           avatarOnly
         />
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold">{name}</span>
+        {/* Two lines, never truncated: on a narrow card the first name was cut off. */}
+        <span className="min-w-0 flex-1 leading-tight break-words" title={name}>
+          <span className="block text-sm font-semibold">{student.lastName}</span>
+          <span className="text-muted-foreground block text-xs">{student.firstName}</span>
+        </span>
         <button
           type="button"
           onClick={onToggleNote}
@@ -163,7 +174,7 @@ export function StudentTile({
             'flex shrink-0 rounded-sm border p-1.5 transition-colors',
             hasNote
               ? 'border-primary/40 bg-primary/10 text-primary'
-              : 'text-muted-foreground border-transparent hover:bg-accent',
+              : 'text-muted-foreground hover:bg-accent border-transparent',
           )}
         >
           <NotebookPen className="h-3.5 w-3.5" aria-hidden />

@@ -55,7 +55,10 @@ export function VerlaufTab({
       </div>
 
       <div className="overflow-x-auto">
-        <div className="grid text-sm" style={{ gridTemplateColumns: cols, width: 'max-content', minWidth: '100%' }}>
+        <div
+          className="grid text-sm"
+          style={{ gridTemplateColumns: cols, width: 'max-content', minWidth: '100%' }}
+        >
           <div className={cn(HEAD, 'left-0 z-[6] h-9')}>{t('noten.name')}</div>
           {teachingDays.map(day => {
             return (
@@ -118,8 +121,16 @@ export function VerlaufTab({
               : null
             return (
               <div key={student.id} className="contents">
-                <div className="bg-card border-border/60 sticky left-0 z-[2] flex h-10 items-center overflow-hidden border-b px-3 text-ellipsis whitespace-nowrap shadow-[1px_0_0_0_var(--color-border)]">
-                  {student.lastName}, {student.firstName}
+                <div className="bg-card border-border/60 sticky left-0 z-[2] flex h-10 flex-col items-start justify-center overflow-hidden border-b px-3 leading-tight shadow-[1px_0_0_0_var(--color-border)]">
+                  <span
+                    className="w-full truncate"
+                    title={`${student.lastName}, ${student.firstName}`}
+                  >
+                    {student.lastName}
+                  </span>
+                  <span className="text-muted-foreground w-full truncate text-xs">
+                    {student.firstName}
+                  </span>
                 </div>
                 {cells}
                 <div

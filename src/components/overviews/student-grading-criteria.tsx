@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ChevronRight, ClipboardCheck } from 'lucide-react'
+import { CalendarRange, ChevronRight, ClipboardCheck } from 'lucide-react'
 import { useSchoolYear } from '@/contexts/school-year-context'
 import { apiFetch } from '@/lib/api-client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -21,8 +21,9 @@ import type { StudentGradingCriteria as Entry } from '@/types/grading-criteria'
 /**
  * The student's home-page list of Beurteilungskriterien: one row per teacher in
  * their Wechselplan who has published criteria, opening the full sheet in a
- * dialog. Which template a row shows (class override or the teacher's default)
- * is decided server-side by GET /api/me/grading-criteria.
+ * dialog together with the teacher's Jahresstoff for the class. Which template a
+ * row shows (class override or the teacher's default) is decided server-side by
+ * GET /api/me/grading-criteria.
  */
 export function StudentGradingCriteria() {
   const { t } = useTranslation()
@@ -76,7 +77,8 @@ export function StudentGradingCriteria() {
                       {entry.teacherFirstName} {entry.teacherLastName}
                     </span>
                     <span className="text-muted-foreground block truncate text-xs">
-                      {entry.subjects.join(', ') || entry.criteria.title}
+                      {(entry.subjects.join(', ') || entry.criteria?.title) ??
+                        t('gradingCriteria.student.jahresstoff')}
                     </span>
                   </span>
                   <span className="text-primary flex shrink-0 items-center text-xs font-medium">
@@ -93,15 +95,28 @@ export function StudentGradingCriteria() {
       <Dialog open={open != null} onOpenChange={o => !o && setOpen(null)}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="sr-only">{open?.criteria.title}</DialogTitle>
-            <DialogDescription className="sr-only">{open?.criteria.teacherName}</DialogDescription>
+            <DialogTitle className="sr-only">
+              {open?.criteria?.title ?? t('gradingCriteria.student.jahresstoff')}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              {open ? `${open.teacherFirstName} ${open.teacherLastName}` : ''}
+            </DialogDescription>
           </DialogHeader>
-          {open ? (
+          {open?.criteria ? (
             <CriteriaDocument
               title={open.criteria.title}
               subtitle={open.criteria.subtitle ?? open.criteria.teacherName}
               content={open.criteria.content}
             />
+          ) : null}
+          {open?.jahresstoff ? (
+            <section className={open.criteria ? 'border-t pt-4' : undefined}>
+              <h3 className="text-muted-foreground mb-2 flex items-center gap-1.5 text-xs font-medium tracking-wide uppercase">
+                <CalendarRange className="h-3.5 w-3.5" aria-hidden />
+                {t('gradingCriteria.student.jahresstoff')}
+              </h3>
+              <p className="text-sm whitespace-pre-wrap">{open.jahresstoff}</p>
+            </section>
           ) : null}
         </DialogContent>
       </Dialog>
