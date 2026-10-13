@@ -46,28 +46,49 @@ describe('Students Class API', () => {
     } as never)
   })
 
-  test('forbids a student caller from reading another student by username', async () => {
+  test('a student caller gets their own record, whatever username they pass', async () => {
     vi.mocked(getServerSession).mockResolvedValue({
-      user: { name: 'jane.roe', role: 'student' },
+      user: { name: 'jane roe', role: 'student' },
       expires: '2999-01-01',
     } as never)
-    // The caller resolves to a different student than the requested username.
     vi.mocked(resolveSessionStudent).mockResolvedValue(
       makeStudent({ id: 2, firstName: 'Jane', lastName: 'Roe', username: 'jane.roe' }),
     )
+    vi.mocked(prisma.student.findUnique).mockResolvedValue({
+      ...makeStudent({ id: 2, firstName: 'Jane', lastName: 'Roe', username: 'jane.roe' }),
+      class: makeClass({ id: 3, name: '2AHELS' }),
+    } as unknown as Awaited<ReturnType<typeof prisma.student.findUnique>>)
 
     const req = new Request('http://localhost/api/students/class?username=john.doe')
     const res = await GET(req)
-    const data = await res.json()
+    const data = (await res.json()) as { class: string }
 
-    expect(res.status).toBe(403)
-    expect(data).toEqual({ error: 'Forbidden' })
+    expect(res.status).toBe(200)
+    expect(data.class).toBe('2AHELS')
+    // Never the requested classmate: the lookup is keyed on the session's student.
+    expect(prisma.student.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 2 } }),
+    )
+  })
+
+  test('a student caller with no matching Student record gets 404', async () => {
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { name: 'jane roe', role: 'student' },
+      expires: '2999-01-01',
+    } as never)
+    vi.mocked(resolveSessionStudent).mockResolvedValue(null)
+
+    const res = await GET(new Request('http://localhost/api/students/class'))
+
+    expect(res.status).toBe(404)
     expect(prisma.student.findUnique).not.toHaveBeenCalled()
   })
 
   test('allows a student caller to read their own class', async () => {
+    // An Entra session's name is the normalized display name, not Student.username;
+    // comparing the two used to lock every such student out of their plan.
     vi.mocked(getServerSession).mockResolvedValue({
-      user: { name: 'john.doe', role: 'student' },
+      user: { name: 'john doe', role: 'student' },
       expires: '2999-01-01',
     } as never)
     vi.mocked(resolveSessionStudent).mockResolvedValue(
@@ -85,7 +106,7 @@ describe('Students Class API', () => {
       class: makeClass({ id: 1, name: '1A' }),
     } as unknown as Awaited<ReturnType<typeof prisma.student.findUnique>>)
 
-    const req = new Request('http://localhost/api/students/class?username=john.doe')
+    const req = new Request('http://localhost/api/students/class')
     const res = await GET(req)
     const data = await res.json()
 

@@ -53,9 +53,10 @@ async function plans(
 }
 
 /**
- * Processes a GET request to retrieve the class name and group ID assigned to a student by username.
+ * GET /api/students/class — a student's class, group and plan days.
  *
- * Extracts the `username` query parameter from the request URL and returns the student's class name and groupId in a JSON response. Responds with an error message and appropriate HTTP status code if the username is missing, the student does not exist, or the student has no class assigned.
+ * Staff look a student up by the `username` query parameter. A student caller
+ * always gets their own record, resolved from the session; `username` is ignored.
  *
  * @returns A JSON response containing the class name and groupId, or an error message with the corresponding HTTP status code.
  */
@@ -64,31 +65,30 @@ export async function GET(request: Request) {
   if (!gate.ok) return gate.response
 
   const { searchParams } = new URL(request.url)
-  const rawUsername = searchParams.get('username')
-  if (!rawUsername) {
-    return NextResponse.json({ error: 'Username parameter is required' }, { status: 400 })
-  }
-  const username = normalizeUsername(rawUsername)
-  if (!username) {
-    return NextResponse.json({ error: 'Username parameter is required' }, { status: 400 })
-  }
-
-  // A student caller may only look up their own class/group; staff may look up
-  // anyone. Without this, a student could enumerate the class and rotation
-  // group of every classmate by username.
-  if (!isStaffRole(gate.session?.user?.role)) {
-    const caller = await resolveSessionStudent(gate.session)
-    if (!caller || normalizeUsername(caller.username ?? '') !== username) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-  }
-
   const schoolYearIdParam = searchParams.get('schoolYearId')
   const schoolYearId = schoolYearIdParam ? parseInt(schoolYearIdParam, 10) : undefined
 
+  // A student caller only ever gets their own class/group, resolved from the
+  // session — never from `username`, or a student could enumerate the class and
+  // rotation group of every classmate. Their record is not looked up by
+  // `session.user.name` either: for an Entra session that is the normalized
+  // display name ("anna müller"), not the Student.username ("anna.mueller"), so
+  // comparing the two locked students out of their own plan.
+  const isStaff = isStaffRole(gate.session?.user?.role)
+  const rawUsername = searchParams.get('username')
+  const username = rawUsername ? normalizeUsername(rawUsername) : ''
+  if (isStaff && !username) {
+    return NextResponse.json({ error: 'Username parameter is required' }, { status: 400 })
+  }
+
   try {
+    const caller = isStaff ? null : await resolveSessionStudent(gate.session)
+    if (!isStaff && !caller) {
+      return NextResponse.json({ error: 'Student not found' }, { status: 404 })
+    }
+
     const student = await prisma.student.findUnique({
-      where: { username },
+      where: caller ? { id: caller.id } : { username },
       include: { class: true },
     })
 

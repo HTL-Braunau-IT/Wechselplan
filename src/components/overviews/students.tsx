@@ -49,15 +49,13 @@ export function StudentOverview() {
 
   useEffect(() => {
     const fetchStudentData = async () => {
-      if (!session?.user?.name) return
-
       try {
         setLoading(true)
         setError(null)
 
-        const response = await fetch(
-          `/api/students/class?username=${encodeURIComponent(session.user.name)}`,
-        )
+        // The server resolves a student caller from the session itself; the
+        // session name is a display name, not a Student.username.
+        const response = await fetch('/api/students/class')
         if (!response.ok) {
           const errorData = (await response.json()) as { error?: string }
           setError(errorData.error ?? 'Failed to fetch student data')
@@ -88,7 +86,7 @@ export function StudentOverview() {
     if (session?.user?.role === 'student') {
       void fetchStudentData()
     }
-  }, [session?.user?.role, session?.user?.name])
+  }, [session?.user?.role])
 
   const getWeekdayName = (weekday: number): string => {
     const weekdayNames: Record<number, string> = {
