@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useTranslation } from 'react-i18next'
 import { ArrowDownUp, CalendarOff, Clock, ListChecks, MapPin, Users } from 'lucide-react'
 import { SaveStatus, type SaveState } from '@/components/save-status'
+import { StudentPhoto } from '@/components/student-photo'
 import { cn } from '@/lib/utils'
 import { ATTENDANCE_OPTIONS } from '@/lib/grades'
 import { groupTint } from './group-tint'
@@ -27,10 +28,6 @@ const TONE_ACTIVE: Record<string, string> = {
   info: 'border-info/45 bg-info/[.14] text-foreground',
   warning: 'border-warning/50 bg-warning/[.16] text-foreground',
   destructive: 'border-destructive/45 bg-destructive/[.14] text-foreground',
-}
-
-function initials(first: string, last: string): string {
-  return (first.charAt(0) + last.charAt(0)).toUpperCase()
 }
 
 export type TodayPanelProps = {
@@ -206,9 +203,15 @@ export function TodayPanel(props: TodayPanelProps) {
                 <span className="text-muted-foreground w-[18px] shrink-0 text-right text-xs tabular-nums">
                   {i + 1}
                 </span>
-                <span className="bg-muted text-muted-foreground flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-medium">
-                  {initials(student.firstName, student.lastName)}
-                </span>
+                <StudentPhoto
+                  studentId={student.id}
+                  firstName={student.firstName}
+                  lastName={student.lastName}
+                  size={28}
+                  nameFormat="firstLast"
+                  avatarOnly
+                  className="shrink-0"
+                />
                 <Link
                   href={studentHref(student.id)}
                   title={t('dashboard.toStudentGrades', {
