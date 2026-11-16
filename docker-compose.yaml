@@ -36,6 +36,8 @@ x-app-env: &app-env
   ENTRA_SYNC_MODE: ${ENTRA_SYNC_MODE:-hybrid}
   SYNC_MAX_DEACTIVATION_RATIO: ${SYNC_MAX_DEACTIVATION_RATIO:-0.2}
   SYNC_TRIGGER_SECRET: ${SYNC_TRIGGER_SECRET:-}
+  # Online-Shell integration (/api/integrations/online-shell); empty = off
+  ONLINE_SHELL_API_SECRET: ${ONLINE_SHELL_API_SECRET:-}
 
   # Native app (iOS/Android): accept Entra Bearer tokens on /api alongside the
   # NextAuth cookie. Off unless set to true. Read by src/lib/bearer-auth.ts.
