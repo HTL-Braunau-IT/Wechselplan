@@ -3,25 +3,10 @@ import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
 import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
-import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
-import { toLocalDateString } from '@/lib/date-utils'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { gradeGroupDay } from '@/lib/weekday-groups'
-
-/** `turn` is the Turnus the half-day belongs to ("TURNUS 1", …). */
-type TeachingDay = { date: string; period: string; turn: string }
-
-function parseDateString(d: string): Date | null {
-  const parts = d.split('.')
-  if (parts.length !== 3 || parts[0] == null || parts[1] == null || parts[2] == null) return null
-  const day = parseInt(parts[0], 10)
-  const month = parseInt(parts[1], 10) - 1
-  const year = parseInt(parts[2], 10)
-  if (Number.isNaN(day) || Number.isNaN(month) || Number.isNaN(year)) return null
-  if (year < 100) return new Date(2000 + year, month, day)
-  return new Date(year, month, day)
-}
+import { teachingDaysFor } from '@/lib/teaching-days'
 
 /**
  * GET: Returns array of { date, period, turn } for which the current teacher has this class+group.
@@ -80,81 +65,14 @@ export async function GET(request: Request) {
       teacherId: teacher.id,
       weekday: searchParams.get('weekday'),
     })
-    const dayFilter = groupDay ? { selectedWeekday: groupDay.weekday } : {}
-
-    const rotations = await prisma.teacherRotation.findMany({
-      where: { teacherId: teacher.id, classId, groupId, schoolYearId, ...dayFilter },
-    })
-    if (rotations.length === 0) {
-      return NextResponse.json({ teachingDays: [] })
-    }
-
-    const schedule = await prisma.schedule.findFirst({
-      where: { classId, schoolYearId, ...dayFilter },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        turns: {
-          include: { weeks: true },
-          orderBy: { order: 'asc' },
-        },
-      },
+    const teachingDays = await teachingDaysFor({
+      teacherId: teacher.id,
+      classId,
+      groupId,
+      schoolYearId,
+      weekday: groupDay?.weekday ?? null,
     })
 
-    let scheduleData: Record<string, { weeks: Array<{ date: string; isHoliday: boolean }> }> = {}
-    if (schedule?.turns && schedule.turns.length > 0) {
-      scheduleData = normalizeToJsonFormat(
-        schedule.turns.map(t => ({
-          name: t.name,
-          customLength: t.customLength,
-          weeks: t.weeks.map(w => ({ date: w.date, week: w.week, isHoliday: w.isHoliday })),
-        })),
-      ) as Record<string, { weeks: Array<{ date: string; isHoliday: boolean }> }>
-    } else if (schedule?.scheduleData && typeof schedule.scheduleData === 'object') {
-      const data = schedule.scheduleData as Record<
-        string,
-        { weeks?: Array<{ date: string; isHoliday?: boolean }> }
-      >
-      for (const [k, v] of Object.entries(data)) {
-        if (v?.weeks)
-          scheduleData[k] = {
-            weeks: v.weeks.map(w => ({ date: w.date, isHoliday: Boolean(w.isHoliday) })),
-          }
-      }
-    }
-
-    const teachingDays: TeachingDay[] = []
-    const seen = new Set<string>()
-    for (const rot of rotations) {
-      const turnData = scheduleData[rot.turnId]
-      if (!turnData?.weeks) continue
-      for (const week of turnData.weeks) {
-        if (week.isHoliday) continue
-        const dateObj = parseDateString(week.date)
-        if (!dateObj) continue
-        const key = `${toLocalDateString(dateObj)}-${rot.period}`
-        if (seen.has(key)) continue
-        seen.add(key)
-        teachingDays.push({
-          date: toLocalDateString(dateObj),
-          period: rot.period,
-          turn: rot.turnId,
-        })
-      }
-    }
-    teachingDays.sort((a, b) => {
-      const d = a.date.localeCompare(b.date)
-      if (d !== 0) return d
-      return a.period === 'AM' && b.period === 'PM'
-        ? -1
-        : a.period === 'PM' && b.period === 'AM'
-          ? 1
-          : 0
-    })
-
-    // A group scheduled both halves of a date yields two teaching days (AM + PM),
-    // each with its own attendance and marks — the redesigned screen shows them as
-    // separate half-days and NotenEntry is keyed by (date, period). Only exact
-    // (date, period) duplicates are collapsed, above, via `seen`.
     return NextResponse.json({ teachingDays })
   } catch (error) {
     captureError(error, {

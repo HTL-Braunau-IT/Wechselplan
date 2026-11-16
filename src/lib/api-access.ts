@@ -106,6 +106,11 @@ export const API_ACCESS_RULES: readonly ApiAccessRule[] = [
   // the session check; the handler verifies the secret itself. Listed before the
   // default so it wins over the staff tier the rest of /api/notifications uses.
   { prefix: '/api/notifications/digest/run', tier: 'public' },
+  // Online-Shell integration (classes/groups out, lesson marks in). Server to
+  // server with a shared secret (ONLINE_SHELL_API_SECRET), not a session; public
+  // only so the session check does not reject the caller. The handlers verify
+  // the secret themselves via denyUnlessOnlineShell.
+  { prefix: '/api/integrations/online-shell', tier: 'public' },
 ]
 
 /**

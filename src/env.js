@@ -46,6 +46,9 @@ export const env = createEnv({
     ENTRA_API_AUDIENCE: z.string().optional(),
     SYNC_TRIGGER_SECRET: z.string().optional(),
     SYNC_MAX_DEACTIVATION_RATIO: z.string().optional(),
+    // Shared secret for the Online-Shell integration (/api/integrations/online-shell).
+    // Unset = the integration endpoints answer 503.
+    ONLINE_SHELL_API_SECRET: z.string().optional(),
     GITHUB_TOKEN: z.string().optional(),
     NOTENMANAGEMENT_BASE_URL: z.string().url(),
     LICENSE_SERVER_URL: z.string().url().optional(),
@@ -92,6 +95,7 @@ export const env = createEnv({
     ENTRA_API_AUDIENCE: process.env.ENTRA_API_AUDIENCE,
     SYNC_TRIGGER_SECRET: process.env.SYNC_TRIGGER_SECRET,
     SYNC_MAX_DEACTIVATION_RATIO: process.env.SYNC_MAX_DEACTIVATION_RATIO,
+    ONLINE_SHELL_API_SECRET: process.env.ONLINE_SHELL_API_SECRET,
     GITHUB_TOKEN: process.env.GITHUB_TOKEN,
     NOTENMANAGEMENT_BASE_URL: process.env.NOTENMANAGEMENT_BASE_URL,
     LICENSE_SERVER_URL: process.env.LICENSE_SERVER_URL,

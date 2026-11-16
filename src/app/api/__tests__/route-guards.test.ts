@@ -20,6 +20,8 @@ const EXEMPT = new Map<string, string>([
   ['/api/github/releases', 'public release metadata, shown to signed-out visitors'],
   ['/api/sync/run', 'authenticated by a shared secret header, not a session'],
   ['/api/notifications/digest/run', 'authenticated by a shared secret header, not a session'],
+  ['/api/integrations/online-shell/classes', 'Online-Shell shared secret (denyUnlessOnlineShell)'],
+  ['/api/integrations/online-shell/grades', 'Online-Shell shared secret (denyUnlessOnlineShell)'],
 ])
 
 const GUARD_PATTERNS = [/denyUnlessAccess\s*\(/, /requireAccess\s*\(/, /requireAdmin\s*\(/]
