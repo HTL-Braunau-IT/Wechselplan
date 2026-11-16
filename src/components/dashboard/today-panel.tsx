@@ -37,6 +37,10 @@ export type TodayPanelProps = {
   hasPM: boolean
   selectedPeriod: 'AM' | 'PM'
   onPickPeriod: (period: 'AM' | 'PM') => void
+  /** Every class the teacher has in the selected half-day; a switcher shows when > 1. */
+  classOptions: { key: string; label: string }[]
+  selectedClassKey: string
+  onPickClass: (key: string) => void
   roster: RosterEntry[]
   /** Whether attendance can be recorded (noten licensed + group resolved). */
   interactive: boolean
@@ -57,6 +61,9 @@ export function TodayPanel(props: TodayPanelProps) {
     hasPM,
     selectedPeriod,
     onPickPeriod,
+    classOptions,
+    selectedClassKey,
+    onPickClass,
     roster,
     interactive,
     saveState,
@@ -120,6 +127,30 @@ export function TodayPanel(props: TodayPanelProps) {
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <ChangeCountdown slot={slot} />
+          {classOptions.length > 1 && (
+            <div
+              role="group"
+              aria-label={t('dashboard.pickClass', { defaultValue: 'Klasse wählen' })}
+              className="bg-muted flex flex-wrap rounded-md p-[3px]"
+            >
+              {classOptions.map(option => (
+                <button
+                  key={option.key}
+                  type="button"
+                  aria-pressed={selectedClassKey === option.key}
+                  onClick={() => onPickClass(option.key)}
+                  className={cn(
+                    'rounded-sm px-3 py-[5px] text-xs font-medium transition-colors',
+                    selectedClassKey === option.key
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
           {hasAM && hasPM && (
             <div className="bg-muted flex rounded-md p-[3px]">
               {(['AM', 'PM'] as const).map(period => (

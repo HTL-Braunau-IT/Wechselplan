@@ -780,6 +780,7 @@
     "pmGroup": "Afternoon group",
     "vormittag": "Morning",
     "nachmittag": "Afternoon",
+    "pickClass": "Choose class",
     "gradeList": "Grade list",
     "attendance": "Attendance",
     "allPresent": "All present",

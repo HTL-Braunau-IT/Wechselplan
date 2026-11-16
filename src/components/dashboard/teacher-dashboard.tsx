@@ -14,7 +14,7 @@ import { useNotenData } from '@/app/noten/_hooks/use-noten-data'
 import { emptyEntry } from '@/app/noten/_lib/types'
 import { computeStudentSummary } from '@/app/noten/_lib/summary'
 import { useTeacherWeek } from './use-teacher-week'
-import { turnusSummary } from './resolve-slot'
+import { slotKey, turnusSummary } from './resolve-slot'
 import { WeekStrip } from './week-strip'
 import { TodayPanel, FreeDayPanel, type RosterEntry } from './today-panel'
 import { OffenCard, type OpenTask } from './offen-card'
@@ -58,7 +58,24 @@ export function TeacherDashboard() {
   const hasPM = day?.hasPM ?? false
   const effectivePeriod: 'AM' | 'PM' =
     hasAM && hasPM ? preferredPeriod : hasAM ? 'AM' : hasPM ? 'PM' : preferredPeriod
-  const activeSlot = day?.slots.find(s => s.period === effectivePeriod) ?? day?.slots[0] ?? null
+  // A half-day can hold several classes (two lanes that both meet, or two
+  // groups of one class); the teacher picks among them, defaulting to the first.
+  const [preferredSlotKey, setPreferredSlotKey] = useState<string | null>(null)
+  const periodSlots = day?.slots.filter(s => s.period === effectivePeriod) ?? []
+  const activeSlot =
+    periodSlots.find(s => slotKey(s) === preferredSlotKey) ??
+    periodSlots[0] ??
+    day?.slots[0] ??
+    null
+  const classOptions = periodSlots.map(s => ({
+    key: slotKey(s),
+    label: periodSlots.some(o => o !== s && o.className === s.className)
+      ? `${s.className} · ${t('dashboard.groupWithNumber', {
+          group: s.groupId ?? '—',
+          defaultValue: 'Gruppe {{group}}',
+        })}`
+      : s.className,
+  }))
 
   // Only touch the noten APIs when the feature is on and a group is resolved;
   // passing null ids keeps useNotenData idle otherwise (no 403 noise).
@@ -278,6 +295,9 @@ export function TeacherDashboard() {
                 hasPM={hasPM}
                 selectedPeriod={effectivePeriod}
                 onPickPeriod={setPreferredPeriod}
+                classOptions={classOptions}
+                selectedClassKey={slotKey(activeSlot)}
+                onPickClass={setPreferredSlotKey}
                 roster={roster}
                 interactive={Boolean(canRecord) && !data.loading}
                 saveState={data.saveState}

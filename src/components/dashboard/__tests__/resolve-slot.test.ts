@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { TeacherScheduleData } from '@/types/types'
-import { resolveDay } from '../resolve-slot'
+import { resolveDay, slotKey } from '../resolve-slot'
 
 const now = new Date(2026, 9, 5, 9) // Mon 05.10.26, inside TURNUS 1
 
@@ -156,5 +156,18 @@ describe('resolveDay at a Turnus change', () => {
   it('does not let the previous week claim the boundary date', () => {
     expect(resolveDay(data, new Date(2026, 10, 13))[0]?.turnName).toBe('TURNUS 1')
     expect(resolveDay(data, new Date(2026, 10, 13))[0]?.remainingWeeks).toBe(0)
+  })
+})
+
+describe('resolveDay with two weekly classes in the same half-day', () => {
+  const data = payload([
+    pmClass(1, '2AFELC', ['16.11.26'], ['23.11.26']),
+    pmClass(2, '3AFELC', ['16.11.26'], ['23.11.26']),
+  ])
+
+  it('returns every class that meets, each with its own key', () => {
+    const slots = resolveDay(data, new Date(2026, 10, 16))
+    expect(slots.map(s => s.className)).toEqual(['2AFELC', '3AFELC'])
+    expect(new Set(slots.map(slotKey)).size).toBe(2)
   })
 })

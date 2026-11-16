@@ -51,6 +51,15 @@ export type NextChange = {
   date: string
 }
 
+/**
+ * Stable identity of a slot within one half-day. A teacher can have several
+ * classes in the same period (or two groups of one class), so the period alone
+ * does not pick a slot.
+ */
+export function slotKey(slot: Pick<ResolvedSlot, 'classId' | 'groupId'>): string {
+  return `${slot.classId}:${slot.groupId ?? ''}`
+}
+
 type CurrentWeekResult = { turnIndex: number; turn: NormalizedTurn } | null
 
 /**
