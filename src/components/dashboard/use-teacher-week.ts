@@ -88,7 +88,9 @@ export function useTeacherWeek(teacher: string | null | undefined, schoolYearId:
     const data = rawByWeekday[i] ?? null
     const date = new Date(monday)
     date.setDate(monday.getDate() + i)
-    const slots = resolveDay(data, now)
+    // Resolve against this weekday's own lesson date, not today: the Turnus (and
+    // so the group) and whether a biweekly lane meets at all depend on it.
+    const slots = resolveDay(data, date)
     const primaryClassId = slots[0]?.classId
     return {
       weekday,

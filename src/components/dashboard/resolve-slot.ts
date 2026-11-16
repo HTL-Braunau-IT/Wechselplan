@@ -1,4 +1,4 @@
-import { parse, isValid, isWithinInterval, addWeeks } from 'date-fns'
+import { parse, isValid, addWeeks } from 'date-fns'
 import type {
   TeacherScheduleData,
   NormalizedTurn,
@@ -72,33 +72,61 @@ function getTurnsForClass(
   return lane.length > 0 ? lane : turns
 }
 
-function getCurrentWeek(turns: NormalizedTurn[] | undefined, now: Date): CurrentWeekResult {
+/** Local midnight of `date`, so lesson dates compare by calendar day alone. */
+function dayOf(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
+/**
+ * The Turnus the lane is in on `day`: the one holding a teaching week that
+ * covers that calendar day. Week dates are the lesson's own date, so on real
+ * data this is an exact match; the half-open week span `[date, date + 7)` also
+ * tolerates older rows dated to the Monday. It is resolved per lesson date, not
+ * against "now" — viewing Friday from Monday must not land on last week's
+ * Turnus — and holiday weeks never count, because nothing is taught in them.
+ */
+function getCurrentWeek(turns: NormalizedTurn[] | undefined, day: Date): CurrentWeekResult {
   if (!turns || turns.length === 0) return null
+  const target = dayOf(day)
   for (let i = 0; i < turns.length; i++) {
     const turn = turns[i]
     if (!turn) continue
     const inThisTurn = turn.weeks.some(week => {
-      const parsed = parse(week.date, 'dd.MM.yy', new Date())
-      if (!isValid(parsed)) return false
-      const weekEnd = addWeeks(parsed, 1)
-      return isWithinInterval(now, { start: parsed, end: weekEnd })
+      if (week.isHoliday) return false
+      const start = parse(week.date, 'dd.MM.yy', new Date())
+      if (!isValid(start)) return false
+      return target >= start && target < addWeeks(start, 1)
     })
     if (inThisTurn) return { turnIndex: i, turn }
   }
   return null
 }
 
-function getRemainingWeeks(turns: NormalizedTurn[] | undefined, now: Date): number {
-  const currentWeek = getCurrentWeek(turns, now)
+/**
+ * Whether the lane is taught on `day`. A biweekly lane has no teaching week in
+ * its off-week, and no lane meets in a holiday week or outside its plan, so the
+ * dashboard must not offer that class then — two biweekly classes sharing a
+ * weekday afternoon would otherwise always show the first one. A lane without
+ * any Turnus data (older payloads) is assumed to meet, as before.
+ */
+function laneMeetsOn(turns: NormalizedTurn[] | undefined, day: Date): boolean {
+  if (!turns?.some(turn => turn.weeks.length > 0)) return true
+  return getCurrentWeek(turns, day) != null
+}
+
+function getRemainingWeeks(turns: NormalizedTurn[] | undefined, day: Date): number {
+  const currentWeek = getCurrentWeek(turns, day)
   if (!currentWeek) return 0
+  const target = dayOf(day)
   return currentWeek.turn.weeks.filter(week => {
+    if (week.isHoliday) return false
     const parsed = parse(week.date, 'dd.MM.yy', new Date())
-    return isValid(parsed) && parsed > now
+    return isValid(parsed) && parsed > target
   }).length
 }
 
-function getNextChange(turns: NormalizedTurn[] | undefined, now: Date): NextChange | null {
-  const currentWeek = getCurrentWeek(turns, now)
+function getNextChange(turns: NormalizedTurn[] | undefined, day: Date): NextChange | null {
+  const currentWeek = getCurrentWeek(turns, day)
   if (!currentWeek) return null
   const next = turns?.[currentWeek.turnIndex + 1]
   const firstWeek = next?.weeks.find(w => !w.isHoliday) ?? next?.weeks[0]
@@ -119,12 +147,12 @@ function getActualGroupForAssignment(
   data: TeacherScheduleData,
   classAssignments: Assignment[],
   assignment: Assignment,
-  now: Date,
+  day: Date,
 ): number | null {
   const turns = getTurnsForClass(data, assignment.classId, assignment.period)
   if (!turns) return assignment.groupId ?? null
 
-  const currentWeek = getCurrentWeek(turns, now)
+  const currentWeek = getCurrentWeek(turns, day)
   if (currentWeek && data.teacherRotation?.length) {
     const turnName = currentWeek.turn.name
     const rotation = data.teacherRotation.find(
@@ -220,28 +248,36 @@ function isEmptyGroup(data: TeacherScheduleData, groupId: number | null, classId
 }
 
 /**
- * All of the teacher's own slots for the fetched weekday, resolved and sorted
- * AM before PM. Days the teacher does not teach resolve to an empty array.
+ * All of the teacher's own slots on `day` (the lesson date of the fetched
+ * weekday), resolved and sorted AM before PM. Lanes that do not meet that date
+ * — the off-week of a biweekly lane, a holiday — are left out, so days the
+ * teacher does not teach resolve to an empty array.
  */
-export function resolveDay(data: TeacherScheduleData | null, now: Date): ResolvedSlot[] {
+export function resolveDay(data: TeacherScheduleData | null, day: Date): ResolvedSlot[] {
   if (!data?.schedules || !data.assignments) return []
   const classAssignments = data.classAssignments ?? data.assignments
 
   return data.assignments
+    .filter(assignment =>
+      laneMeetsOn(
+        getTurnsForClass(data, assignment.classId, assignment.period === 'PM' ? 'PM' : 'AM'),
+        day,
+      ),
+    )
     .map(assignment => {
       const classInfo = data.classdata?.find(c => c.id === assignment.classId)
       const period = assignment.period === 'PM' ? 'PM' : 'AM'
       const turns = getTurnsForClass(data, assignment.classId, period)
-      const currentWeek = getCurrentWeek(turns, now)
+      const currentWeek = getCurrentWeek(turns, day)
       // The teacher's turnus on an empty group shows as no group at all.
-      const rotatedGroupId = getActualGroupForAssignment(data, classAssignments, assignment, now)
+      const rotatedGroupId = getActualGroupForAssignment(data, classAssignments, assignment, day)
       const groupId = isEmptyGroup(data, rotatedGroupId, assignment.classId) ? null : rotatedGroupId
 
       const otherGroups: OtherGroup[] = classAssignments
         .filter(c => c.classId === assignment.classId && c.period === assignment.period)
         .map(c => ({
           candidate: c,
-          actualGroupId: getActualGroupForAssignment(data, classAssignments, c, now),
+          actualGroupId: getActualGroupForAssignment(data, classAssignments, c, day),
         }))
         .filter(
           ({ actualGroupId }) =>
@@ -278,8 +314,8 @@ export function resolveDay(data: TeacherScheduleData | null, now: Date): Resolve
         additionalInfo: additionalInfo === '—' ? '' : additionalInfo,
         otherGroups,
         turnName: currentWeek?.turn.name ?? null,
-        remainingWeeks: getRemainingWeeks(turns, now),
-        nextChange: getNextChange(turns, now),
+        remainingWeeks: getRemainingWeeks(turns, day),
+        nextChange: getNextChange(turns, day),
         students: getStudentsForGroup(data, groupId, assignment.classId).sort((a, b) =>
           a.lastName.localeCompare(b.lastName, 'de'),
         ),
@@ -295,12 +331,12 @@ export function resolveDay(data: TeacherScheduleData | null, now: Date): Resolve
 export function turnusSummary(
   data: TeacherScheduleData | null,
   classId: number | undefined,
-  now: Date,
+  day: Date,
   period?: 'AM' | 'PM',
 ): { name: string; range: string; remainingWeeks: number } | null {
   if (!data || classId == null) return null
   const turns = getTurnsForClass(data, classId, period)
-  const currentWeek = getCurrentWeek(turns, now)
+  const currentWeek = getCurrentWeek(turns, day)
   if (!currentWeek) return null
   const weeks = currentWeek.turn.weeks
   const first = weeks[0]?.date ?? ''
@@ -309,7 +345,7 @@ export function turnusSummary(
   return {
     name: currentWeek.turn.name,
     range: first && last ? `${short(first)} – ${short(last)}` : '',
-    remainingWeeks: getRemainingWeeks(turns, now),
+    remainingWeeks: getRemainingWeeks(turns, day),
   }
 }
 
