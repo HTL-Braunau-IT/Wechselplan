@@ -5,54 +5,14 @@ import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { toLocalDateString } from '@/lib/date-utils'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
-
-function parseDateString(d: string): Date | null {
-  const parts = d.split('.')
-  if (parts.length !== 3 || parts[0] == null || parts[1] == null || parts[2] == null) return null
-  const day = parseInt(parts[0], 10)
-  const month = parseInt(parts[1], 10) - 1
-  const year = parseInt(parts[2], 10)
-  if (Number.isNaN(day) || Number.isNaN(month) || Number.isNaN(year)) return null
-  if (year < 100) return new Date(2000 + year, month, day)
-  return new Date(year, month, day)
-}
-
-/** Parse YYYY-MM-DD as local date at noon (for comparisons). */
-function parseLocalDate(ymd: string): Date {
-  const parts = ymd.split('-').map(Number)
-  const y = parts[0] ?? Number.NaN
-  const m = parts[1] ?? Number.NaN
-  const d = parts[2] ?? Number.NaN
-  if (Number.isNaN(y) || Number.isNaN(m) || Number.isNaN(d)) return new Date(0)
-  return new Date(y, m - 1, d, 12, 0, 0)
-}
-
-/** True if todayYmd (YYYY-MM-DD) falls in the week starting weekStart (Monday). Matches teacher overview isWithinInterval logic. */
-function isDateInWeek(todayYmd: string, weekStart: Date): boolean {
-  const today = parseLocalDate(todayYmd)
-  const weekEnd = new Date(weekStart)
-  weekEnd.setDate(weekStart.getDate() + 7)
-  return today >= weekStart && today < weekEnd
-}
-
-/**
- * Find the first turn (in order) whose weeks contain todayYmd. Returns turn name or null.
- * Mirrors teacher overview getCurrentWeek(turns) -> turn.name.
- */
-function getCurrentTurnName(
-  turns: Array<{ name: string; weeks: Array<{ date: string; isHoliday: boolean }> }>,
-  todayYmd: string,
-): string | null {
-  for (const turn of turns) {
-    for (const week of turn.weeks) {
-      if (week.isHoliday) continue
-      const weekStart = parseDateString(week.date)
-      if (!weekStart) continue
-      if (isDateInWeek(todayYmd, weekStart)) return turn.name
-    }
-  }
-  return null
-}
+import {
+  dateOfWeekdayInWeek,
+  laneHasWeeks,
+  laneTurns,
+  parseYmd,
+  turnAroundDate,
+  turnOnDate,
+} from '@/lib/current-turn'
 
 /**
  * GET: Returns { classId, groupId } for the "current" slot based on server date/time, or null.
@@ -88,10 +48,8 @@ export async function GET(request: Request) {
       dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : toLocalDateString(now)
     const period =
       periodParam === 'AM' || periodParam === 'PM' ? periodParam : now.getHours() < 12 ? 'AM' : 'PM'
-    const currentWeekday =
-      dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
-        ? new Date(dateParam + 'T12:00:00').getDay()
-        : now.getDay()
+    const today = parseYmd(todayLocal) ?? now
+    const currentWeekday = today.getDay()
 
     // When classId is provided: return groupId for that class's current turn (week-based), regardless of today's weekday
     const requestedClassId = classIdParam != null ? parseInt(classIdParam, 10) : NaN
@@ -140,29 +98,23 @@ export async function GET(request: Request) {
           selectedWeekday: firstAssignment.selectedWeekday,
         },
       })
-      if (schedule?.turns?.length) {
-        const turnsForCurrentTurn = schedule.turns.map(t => ({
-          name: t.name,
-          weeks: t.weeks.map(w => ({ date: w.date, isHoliday: w.isHoliday })),
-        }))
-        const currentTurnName = getCurrentTurnName(turnsForCurrentTurn, todayLocal)
-        if (currentTurnName) {
-          const rot = rotations.find(
+      // Resolve the Turnus for this week's lesson on that day, not for today: on a
+      // Tuesday, Friday's group is the one of this Friday. A lane that does not
+      // meet this week (biweekly off-week, holiday) shows its next lesson's group.
+      // The rotation's group is the answer as-is: the teacher's own assignment
+      // rows only hold their starting group, so they must not veto it.
+      const lane = laneTurns(schedule?.turns ?? [], firstAssignment.period)
+      const turnName = turnAroundDate(lane, dateOfWeekdayInWeek(today, day))
+      const rot = turnName
+        ? rotations.find(
             r =>
               r.classId === requestedClassId &&
               r.period === firstAssignment.period &&
-              r.turnId === currentTurnName &&
-              r.selectedWeekday === firstAssignment.selectedWeekday &&
-              r.teacherId === teacher.id,
+              r.turnId === turnName,
           )
-          if (rot && classAssignments.some(a => a.groupId === rot.groupId)) {
-            return NextResponse.json({
-              classId: requestedClassId,
-              groupId: rot.groupId,
-              weekday: day,
-            })
-          }
-        }
+        : undefined
+      if (rot) {
+        return NextResponse.json({ classId: requestedClassId, groupId: rot.groupId, weekday: day })
       }
       return NextResponse.json({
         classId: requestedClassId,
@@ -194,44 +146,36 @@ export async function GET(request: Request) {
       if (s.classId && !scheduleByClass.has(s.classId)) scheduleByClass.set(s.classId, s)
     }
 
-    // Same logic as teacher overview: find current turn by "week contains today", then resolve group from teacherRotation
+    // The class the teacher has right now: a lane counts only if it meets today
+    // (a biweekly lane in its off-week does not), and its group is the rotation's
+    // for the Turnus of today's lesson, in this period's lane only.
     if (currentWeekday >= 1 && currentWeekday <= 5) {
       const periodAssignments = assignments.filter(
         a => a.selectedWeekday === currentWeekday && a.period === period,
       )
+      let withoutTurns: (typeof periodAssignments)[number] | undefined
       for (const a of periodAssignments) {
-        const schedule = scheduleByClass.get(a.classId)
-        if (!schedule?.turns?.length) continue
-        const turnsForCurrentTurn = schedule.turns.map(t => ({
-          name: t.name,
-          weeks: t.weeks.map(w => ({ date: w.date, isHoliday: w.isHoliday })),
-        }))
-        const currentTurnName = getCurrentTurnName(turnsForCurrentTurn, todayLocal)
-        if (!currentTurnName) continue
-        const rot = rotations.find(
-          r =>
-            r.classId === a.classId &&
-            r.period === period &&
-            r.turnId === currentTurnName &&
-            r.selectedWeekday === a.selectedWeekday &&
-            r.teacherId === teacher.id,
-        )
-        if (
-          rot &&
-          assignments.some(as => as.classId === rot.classId && as.groupId === rot.groupId)
-        ) {
-          return NextResponse.json({
-            classId: rot.classId,
-            groupId: rot.groupId,
-            weekday: currentWeekday,
-          })
+        const lane = laneTurns(scheduleByClass.get(a.classId)?.turns ?? [], period)
+        if (!laneHasWeeks(lane)) {
+          withoutTurns ??= a
+          continue
         }
-      }
-      const firstAssignment = periodAssignments[0]
-      if (firstAssignment) {
+        const turnName = turnOnDate(lane, today)
+        if (!turnName) continue
+        const rot = rotations.find(
+          r => r.classId === a.classId && r.period === period && r.turnId === turnName,
+        )
         return NextResponse.json({
-          classId: firstAssignment.classId,
-          groupId: firstAssignment.groupId,
+          classId: a.classId,
+          groupId: rot?.groupId ?? a.groupId,
+          weekday: currentWeekday,
+        })
+      }
+      // Older schedules without dated turns: keep the assignment's own group.
+      if (withoutTurns) {
+        return NextResponse.json({
+          classId: withoutTurns.classId,
+          groupId: withoutTurns.groupId,
           weekday: currentWeekday,
         })
       }
