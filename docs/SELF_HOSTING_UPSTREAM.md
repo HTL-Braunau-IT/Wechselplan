@@ -46,7 +46,7 @@ Partners roll out unattended, and we never see their failures.
 | Where | What | Action |
 |---|---|---|
 | `prisma/seed.ts` | Our holidays, rooms, subjects, times | ☑ Split: generic seed = roles; our data is the `htl-braunau` profile (`SEED_PROFILE`). Partners run no seed and use Admin → Daten. Remember to update the profile's holiday dates each school year. |
-| `docs/DEPLOYMENT.md` | Our internal IPs, Proxmox node, LXC ID | Public now. ☐ Decide whether to keep or make generic. |
+| `docs/DEPLOYMENT.md` | Our internal IPs, Proxmox node, LXC ID | ☑ Made generic; host details live in the internal IT docs. They remain in git history. |
 | `sync-scheduler` in compose | Timezone `Europe/Vienna`, 02:00 | Fine for Austrian schools. |
 
 ## 5. Support

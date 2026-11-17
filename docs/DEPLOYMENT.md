@@ -1,18 +1,15 @@
 # Deployment
 
-Wechselplan runs as a Docker Compose stack on a single Proxmox LXC. This
-document describes the pipeline, the host layout and the runbook. It replaces
-the previous Coolify deployment.
+How the HTL Braunau instance is deployed: the pipeline, the host layout and the
+runbook. Host names, addresses and hypervisor details are deliberately not in
+this public repository; they live in the internal IT documentation. Schools
+hosting their own instance follow the [README](../README.md) instead.
 
 ## Topology
 
-| | |
-|---|---|
-| Proxmox node | `prox4` (10.10.10.223) |
-| Container | LXC **143** — `htlsrv-wechselplan-01` |
-| Address | **10.10.10.148/24**, gw 10.10.10.254, DNS 10.10.10.1 |
-| Resources | 6 cores, 8 GB RAM, 2 GB swap, 64 GB on `MSA2040-1-C` |
-| Type | unprivileged, `nesting=1,keyctl=1` (required for Docker) |
+Wechselplan runs as a Docker Compose stack on a single Linux host. Ours is an
+unprivileged LXC container; for Docker inside an LXC, `nesting=1,keyctl=1` are
+required. 6 cores and 8 GB RAM are ample for both stacks below.
 
 Two independent stacks share the host:
 
@@ -38,7 +35,7 @@ This replaced the old `build-alpine` job, which compiled the app in a throwaway
 `node:22-alpine` container and discarded the result. The image build gives the
 same Alpine coverage and keeps the artifact.
 
-**`deploy.yaml`** runs on the **self-hosted runner inside the LXC** once CI
+**`deploy.yaml`** runs on the **self-hosted runner on the host** once CI
 succeeds on `main` or `develop`. Deploys are therefore *pull-based*: GitHub
 never needs a route into the school network, and no SSH key or host credential
 is stored as a repository secret.
@@ -94,8 +91,8 @@ the schema the running code was built against.
 /opt/actions-runner/              # GitHub Actions runner (systemd service)
 ```
 
-Bind mounts rather than named volumes: the data sits inside the container
-filesystem that Proxmox Backup Server already snapshots, and it can be found
+Bind mounts rather than named volumes: the data sits inside the host
+filesystem that the hypervisor-level backup already snapshots, and it can be found
 without `docker volume inspect`.
 
 ## Configuration
@@ -135,7 +132,7 @@ Three independent layers:
 2. **Nightly dump** — `wechselplan-backup@.timer`, 01:30 Europe/Vienna (before
    the 02:00 directory sync, so a bad sync is recoverable),
    `backups/nightly-*.dump`, kept 30 days. Script: `docker/pg-backup.sh`.
-3. **Proxmox Backup Server** — whole-container snapshots to `PBS1`.
+3. **Hypervisor backup** — whole-host snapshots, run by the IT infrastructure.
 
 Layers 1 and 2 are logical (`pg_dump --format=custom`); layer 3 is a
 crash-consistent image of a running Postgres, which restores but is not
@@ -162,7 +159,7 @@ silently discard every write since the dump.
 ## Runbook
 
 ```bash
-ssh root@10.10.10.148
+ssh root@<wechselplan-host>             # address: internal IT docs
 
 cd /srv/wechselplan                     # or /srv/wechselplan-staging
 docker compose ps                       # what is running
@@ -182,12 +179,8 @@ curl -fsS -X POST http://localhost:3000/api/sync/run \
   -H "x-sync-secret: $(grep ^SYNC_TRIGGER_SECRET= .env | cut -d= -f2)"
 ```
 
-Container-level operations from the Proxmox node:
-
-```bash
-ssh root@10.10.10.223
-pct status 143 ; pct reboot 143 ; pct console 143
-```
+Restarting or reaching the host itself (console, reboot) happens on the
+hypervisor; see the internal IT documentation.
 
 ## Seeding
 

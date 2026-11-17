@@ -2,14 +2,14 @@
 #
 # Nightly logical backup of a Wechselplan stack's database.
 #
-# Installed at /usr/local/bin/wechselplan-backup (ours: htlsrv-wechselplan-01;
-# self-hosting schools: see README, section 6) and
+# Installed at /usr/local/bin/wechselplan-backup (self-hosting schools: see
+# README, section 6) and
 # driven by the wechselplan-backup@.timer systemd unit; see docs/DEPLOYMENT.md.
 # Kept in the repo so the backup policy is reviewable rather than living only
 # as an undocumented file on a server.
 #
-# A logical dump complements, rather than replaces, the Proxmox Backup Server
-# snapshot of the container: PBS gives a crash-consistent image of a running
+# A logical dump complements, rather than replaces, a hypervisor-level
+# snapshot of the host: a snapshot gives a crash-consistent image of a running
 # Postgres, which restores but is not guaranteed clean. pg_dump is the copy you
 # actually want when restoring a single environment.
 #

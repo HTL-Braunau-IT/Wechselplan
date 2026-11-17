@@ -1,4 +1,4 @@
-# Deployment stack for htlsrv-wechselplan-01.
+# Deployment stack for Wechselplan (HTL Braunau and self-hosting schools).
 #
 # One file serves both environments. Production and staging differ only by the
 # env file they are started with (COMPOSE_PROJECT_NAME, DATA_ROOT, HTTP_PORT,
@@ -79,8 +79,8 @@ services:
         --locale-provider=icu
         --icu-locale=de-AT
     volumes:
-      # A bind mount, not a named volume: it puts the data inside the LXC
-      # filesystem where the nightly Proxmox Backup Server job already picks it
+      # A bind mount, not a named volume: it puts the data inside the host
+      # filesystem where a nightly host-level backup can already pick it
       # up, and makes it findable without `docker volume inspect`.
       - ${DATA_ROOT:?DATA_ROOT is required}/postgres:/var/lib/postgresql/data
       - ${DATA_ROOT}/backups:/backups
@@ -117,7 +117,7 @@ services:
     volumes:
       - ${DATA_ROOT:?DATA_ROOT is required}/data:/app/data
     ports:
-      # Bound on the LXC's LAN address; TLS is terminated by the site reverse
+      # Bound on the host's LAN address; TLS is terminated by the site reverse
       # proxy in front of it, not here.
       - '${HTTP_PORT:-3000}:3000'
     depends_on:

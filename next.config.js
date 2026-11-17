@@ -32,8 +32,12 @@ const nextConfig = {
   // of minutes off every image build. Locally, `npm run check` is the gate.
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
-  // Allow development origins - using the format from Next.js documentation
-  allowedDevOrigins: ['10.10.10.6', '10.10.10.5', '*.10.10.10.6', '*.10.10.10.5'],
+  // Extra hosts allowed to reach `npm run dev` (e.g. another machine on the
+  // LAN), comma-separated in NEXT_DEV_ALLOWED_ORIGINS. Dev-server only.
+  allowedDevOrigins: (process.env.NEXT_DEV_ALLOWED_ORIGINS ?? '')
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean),
   // Enable CORS for development
   async headers() {
     return [

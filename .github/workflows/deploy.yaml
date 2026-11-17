@@ -1,6 +1,6 @@
 name: Deploy
 
-# Runs on a self-hosted runner inside htlsrv-wechselplan-01 (10.10.10.14).
+# Runs on a self-hosted runner on the HTL Braunau Wechselplan host.
 # Deploys are therefore pull-based: GitHub never needs a route into the school
 # network, and no SSH key or host credential is stored as a repository secret.
 #
