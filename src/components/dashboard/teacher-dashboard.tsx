@@ -7,7 +7,6 @@ import { CalendarX2 } from 'lucide-react'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Spinner } from '@/components/ui/spinner'
 import { useSchoolYear } from '@/contexts/school-year-context'
-import { useEntitlements } from '@/contexts/entitlements-context'
 import { useUnsavedWarning } from '@/hooks/use-unsaved-warning'
 import { entryKey } from '@/lib/grades'
 import { useNotenData } from '@/app/noten/_hooks/use-noten-data'
@@ -38,10 +37,8 @@ export function TeacherDashboard() {
   const { t } = useTranslation('common')
   const { data: session } = useSession()
   const { selectedYear, currentSemester } = useSchoolYear()
-  const { isFeatureEnabled } = useEntitlements()
 
   const schoolYearId = selectedYear?.id ?? null
-  const notenEnabled = isFeatureEnabled('noten')
 
   const week = useTeacherWeek(session?.user?.name, schoolYearId)
   const { now, days } = week
@@ -77,13 +74,10 @@ export function TeacherDashboard() {
       : s.className,
   }))
 
-  // Only touch the noten APIs when the feature is on and a group is resolved;
-  // passing null ids keeps useNotenData idle otherwise (no 403 noise).
-  const notenClassId = notenEnabled ? (activeSlot?.classId ?? null) : null
-  const notenGroupId = notenEnabled ? (activeSlot?.groupId ?? null) : null
+  // Null ids (no slot resolved) keep useNotenData idle.
   const data = useNotenData({
-    classId: notenClassId,
-    groupId: notenGroupId,
+    classId: activeSlot?.classId ?? null,
+    groupId: activeSlot?.groupId ?? null,
     schoolYearId,
     // The slot's group is that weekday's group (groups are per weekday).
     weekday: selectedWeekday,
@@ -91,7 +85,7 @@ export function TeacherDashboard() {
   useUnsavedWarning(data.hasUnsavedWork)
 
   const selectedDate = day?.ymd ?? todayYmd
-  const canRecord = notenEnabled && activeSlot?.groupId != null
+  const canRecord = activeSlot?.groupId != null
 
   const roster: RosterEntry[] = useMemo(() => {
     if (canRecord && data.students.length > 0) {

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
-import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveMemberClassIds, resolveGradeClassIds } from '@/lib/combined-classes'
@@ -20,10 +19,6 @@ export async function POST(request: Request) {
     if (!session?.user?.name) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    if (!(await isFeatureEnabled('noten'))) {
-      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
-    }
-
     const body = await request.json()
     const { classId, groupId, schoolYearId, date, period } = body as {
       classId?: number

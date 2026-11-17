@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server'
-import { isFeatureEnabled } from '@/lib/entitlements'
 import { captureError } from '@/lib/sentry'
 import { requireAccess } from '@/lib/api-guard'
 import { getNmToken, nmGet, NmApiError } from '@/lib/notenmanagement/server-client'
+import {
+  isNotenmanagementConfigured,
+  notenmanagementNotConfigured,
+} from '@/lib/notenmanagement/config'
 
 type NotenmanagementNote = {
   Matrikelnummer: number
@@ -16,16 +19,13 @@ type NotenmanagementNote = {
 export async function POST(request: Request) {
   const gate = await requireAccess('staff')
   if (!gate.ok) return gate.response
+  if (!isNotenmanagementConfigured()) return notenmanagementNotConfigured()
 
   try {
     const session = gate.session
     if (!session?.user?.name) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    if (!(await isFeatureEnabled('notensammler'))) {
-      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
-    }
-
     const body = (await request.json()) as {
       lfId?: unknown
       username?: unknown

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAccess } from '@/lib/api-guard'
 import { captureError } from '@/lib/sentry'
-import { isFeatureEnabled } from '@/lib/entitlements'
 import { prisma } from '@/lib/prisma'
 import { getGradeDisplayText } from '@/lib/grades'
 import { canManageSokrates } from '@/lib/sokrates-lock'
@@ -31,10 +30,6 @@ export async function GET(request: Request) {
 
   try {
     const session = gate.session
-    if (!(await isFeatureEnabled('notensammler'))) {
-      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
-    }
-
     const { searchParams } = new URL(request.url)
     const classId = parseId(searchParams.get('classId'))
     if (classId == null) {

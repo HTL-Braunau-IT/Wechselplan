@@ -1,12 +1,12 @@
 import type { Metadata } from 'next'
-import { getServerSession } from 'next-auth'
+import { connection } from 'next/server'
 import './globals.css'
 import { Providers } from './providers'
 import QueryProvider from '@/providers/query-provider'
 import { Toaster } from 'sonner'
 import { ThemeProvider } from '@/components/providers/theme-provider'
-import { authOptions } from '@/lib/auth'
-import { getEnabledFeatures } from '@/lib/entitlements'
+import { isNotenmanagementConfigured } from '@/lib/notenmanagement/config'
+import type { AppConfig } from '@/contexts/app-config-context'
 
 export const metadata: Metadata = {
   title: 'Wechselplan',
@@ -21,40 +21,17 @@ export const metadata: Metadata = {
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const session = await getServerSession(authOptions)
-  const features = await getEnabledFeatures()
-  const hasBase = features.includes('base')
-
-  if (session?.user && !hasBase) {
-    return (
-      <html lang="de" suppressHydrationWarning>
-        <body>
-          <ThemeProvider defaultTheme="system">
-            <div className="bg-background flex min-h-screen flex-col items-center justify-center px-4">
-              <div
-                role="alert"
-                className="border-destructive/30 bg-destructive/10 max-w-md rounded-lg border p-8 text-center"
-              >
-                <h1 className="text-destructive text-xl font-semibold">
-                  Es ist keine gültige Lizenz vorhanden.
-                </h1>
-                <p className="text-muted-foreground mt-3">
-                  Bitte wenden Sie sich an Ihren Administrator.
-                </p>
-              </div>
-            </div>
-          </ThemeProvider>
-        </body>
-      </html>
-    )
-  }
+  // Opt out of build-time prerendering: the config below must come from the
+  // running container's env, since one image is deployed to every school.
+  await connection()
+  const appConfig: AppConfig = { notenmanagementEnabled: isNotenmanagementConfigured() }
 
   return (
     <html lang="de" suppressHydrationWarning>
       <body>
         <ThemeProvider defaultTheme="system">
           <QueryProvider>
-            <Providers>
+            <Providers appConfig={appConfig}>
               {children}
               <Toaster />
             </Providers>

@@ -2,7 +2,17 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertCircle, ArrowRight, CalendarClock, CalendarX, GraduationCap, Sun, Sunset, Users, X } from 'lucide-react'
+import {
+  AlertCircle,
+  ArrowRight,
+  CalendarClock,
+  CalendarX,
+  GraduationCap,
+  Sun,
+  Sunset,
+  Users,
+  X,
+} from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -13,7 +23,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SaveStatus } from '@/components/save-status'
 import { useSchoolYear } from '@/contexts/school-year-context'
-import { useEntitlements } from '@/contexts/entitlements-context'
+import { useAppConfig } from '@/contexts/app-config-context'
 import { useUnsavedWarning } from '@/hooks/use-unsaved-warning'
 import { entryKey, isSemester2 } from '@/lib/grades'
 import {
@@ -57,7 +67,7 @@ function todayLocalYmd(): string {
 export default function NotenPage() {
   const { t } = useTranslation('common')
   const { selectedYear } = useSchoolYear()
-  const { isFeatureEnabled } = useEntitlements()
+  const { notenmanagementEnabled } = useAppConfig()
 
   const schoolYearId = selectedYear?.id ?? null
   const semesterChangeDate = selectedYear?.semesterChangeDate
@@ -242,9 +252,6 @@ export default function NotenPage() {
     [data],
   )
 
-
-  if (!isFeatureEnabled('noten')) return null
-
   if (!schoolYearId) {
     return (
       <PageContainer>
@@ -253,7 +260,7 @@ export default function NotenPage() {
     )
   }
 
-  const canTransfer = isFeatureEnabled('notenmgmt_htl') && selectedClassId != null
+  const canTransfer = notenmanagementEnabled && selectedClassId != null
   const periods = Array.from(new Set(data.teachingDays.map(day => day.period)))
   const safeDayIndex = Math.min(dayIndex, Math.max(0, data.teachingDays.length - 1))
   const groupSelected = !!(selectedClass && selectedGroupId != null)
@@ -360,7 +367,11 @@ export default function NotenPage() {
                   </h2>
                   {periods.map(period => (
                     <Badge key={period} variant="secondary" className="gap-1">
-                      {period === 'AM' ? <Sun className="h-3 w-3" /> : <Sunset className="h-3 w-3" />}
+                      {period === 'AM' ? (
+                        <Sun className="h-3 w-3" />
+                      ) : (
+                        <Sunset className="h-3 w-3" />
+                      )}
                       {period === 'AM'
                         ? t('noten.vormittag', { defaultValue: 'Vormittag' })
                         : t('noten.nachmittag', { defaultValue: 'Nachmittag' })}
@@ -376,7 +387,8 @@ export default function NotenPage() {
                   <span className="text-muted-foreground flex items-center gap-1.5 text-sm">
                     <CalendarClock className="h-3.5 w-3.5" />
                     {t('noten.remainingSummary', {
-                      defaultValue: 'Noch {{semester}} Termine im Semester, {{fullYear}} im Schuljahr',
+                      defaultValue:
+                        'Noch {{semester}} Termine im Semester, {{fullYear}} im Schuljahr',
                       semester: remainingDays.semester,
                       fullYear: remainingDays.fullYear,
                     })}
@@ -398,7 +410,9 @@ export default function NotenPage() {
                               size="icon"
                               className="h-5 w-5"
                               onClick={search.gotoNextNameMatch}
-                              aria-label={t('noten.searchNextMatch', { defaultValue: 'Nächster Treffer' })}
+                              aria-label={t('noten.searchNextMatch', {
+                                defaultValue: 'Nächster Treffer',
+                              })}
                             >
                               <ArrowRight className="h-3.5 w-3.5" />
                             </Button>
@@ -409,7 +423,9 @@ export default function NotenPage() {
                           size="icon"
                           className="h-5 w-5"
                           onClick={search.clearNameSearch}
-                          aria-label={t('noten.searchClear', { defaultValue: 'Suche zurücksetzen' })}
+                          aria-label={t('noten.searchClear', {
+                            defaultValue: 'Suche zurücksetzen',
+                          })}
                         >
                           <X className="h-3.5 w-3.5" />
                         </Button>
@@ -449,7 +465,8 @@ export default function NotenPage() {
                       defaultValue: 'Keine Schüler in dieser Gruppe',
                     })}
                     description={t('noten.noStudentsDesc', {
-                      defaultValue: 'Dieser Gruppe sind für dieses Schuljahr keine Schüler zugeordnet.',
+                      defaultValue:
+                        'Dieser Gruppe sind für dieses Schuljahr keine Schüler zugeordnet.',
                     })}
                   />
                 ) : tab === 'endnoten' ? (
@@ -464,9 +481,12 @@ export default function NotenPage() {
                 ) : data.teachingDays.length === 0 ? (
                   <EmptyState
                     icon={CalendarX}
-                    title={t('noten.noTeachingDaysTitle', { defaultValue: 'Keine Unterrichtstage' })}
+                    title={t('noten.noTeachingDaysTitle', {
+                      defaultValue: 'Keine Unterrichtstage',
+                    })}
                     description={t('noten.noTeachingDaysDesc', {
-                      defaultValue: 'Für diese Gruppe ist im gewählten Schuljahr kein Turnus geplant.',
+                      defaultValue:
+                        'Für diese Gruppe ist im gewählten Schuljahr kein Turnus geplant.',
                     })}
                   />
                 ) : tab === 'erfassen' ? (

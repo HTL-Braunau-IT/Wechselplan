@@ -107,9 +107,9 @@ than at runtime; `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `POSTGRES_PASSWORD` and
 
 `POSTGRES_PASSWORD`, `NEXTAUTH_SECRET` and `SYNC_TRIGGER_SECRET` were generated
 per environment at provisioning time. The values that must come from Entra,
-Graph, Notenmanagement and the license server are listed in `.env.example` and
-left blank in the host `.env`; `src/env.js` refuses to boot without the
-`ENTRA_*` trio and `NOTENMANAGEMENT_BASE_URL`.
+Graph and Notenmanagement are listed in `.env.example` and left blank in the
+host `.env`; `src/env.js` refuses to boot without the `ENTRA_*` trio.
+`NOTENMANAGEMENT_BASE_URL` is optional — unset disables the NM integration.
 
 After editing `.env`:
 

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { captureError } from '@/lib/sentry'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
@@ -49,10 +48,6 @@ export async function GET(request: Request) {
     if (!session?.user?.name) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    if (!(await isFeatureEnabled('noten'))) {
-      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
-    }
-
     const { searchParams } = new URL(request.url)
     const schoolYearIdParam = searchParams.get('schoolYearId')
     const nameQuery = (searchParams.get('nameQuery') ?? '').trim()
@@ -210,7 +205,8 @@ export async function GET(request: Request) {
         // createdAt desc: the first schedule seen per (class, weekday) is the
         // newest; keep it and skip any older duplicates.
         if (scheduleByClassWeekday.has(key)) continue
-        let scheduleData: Record<string, { weeks: Array<{ date: string; isHoliday: boolean }> }> = {}
+        let scheduleData: Record<string, { weeks: Array<{ date: string; isHoliday: boolean }> }> =
+          {}
         if (schedule.turns && schedule.turns.length > 0) {
           scheduleData = normalizeToJsonFormat(
             schedule.turns.map(t => ({

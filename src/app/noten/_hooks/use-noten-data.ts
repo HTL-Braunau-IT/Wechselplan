@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useEntitlements } from '@/contexts/entitlements-context'
 import { useKeyedDebounce } from '@/hooks/use-keyed-debounce'
 import type { SaveState } from '@/components/save-status'
 import { captureFrontendError } from '@/lib/frontend-error'
@@ -66,8 +65,6 @@ function chunk<T>(items: T[], size: number): T[][] {
  * anyone heard of it.
  */
 export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params) {
-  const { isFeatureEnabled } = useEntitlements()
-
   const [teachingDays, setTeachingDays] = useState<TeachingDay[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [entries, setEntries] = useState<Record<string, NotenEntryRow>>({})
@@ -242,7 +239,12 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
           const parsed: SeatingLayout = {}
           for (const [key, pos] of Object.entries(seatingData.positions ?? {})) {
             const id = Number(key)
-            if (Number.isInteger(id) && pos && typeof pos.x === 'number' && typeof pos.y === 'number') {
+            if (
+              Number.isInteger(id) &&
+              pos &&
+              typeof pos.x === 'number' &&
+              typeof pos.y === 'number'
+            ) {
               parsed[id] = { x: pos.x, y: pos.y }
             }
           }
@@ -557,55 +559,42 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
       if (classId == null || !schoolYearId) return false
       if (!options?.silent) beginSave()
       try {
-        // With Notensammler licensed, marks live there and only the
-        // Betragensnote stays local; otherwise everything is stored here.
-        const useNotensammler = isFeatureEnabled('notensammler')
-        if (useNotensammler) {
-          // The mark half of the save needs the teacher's Notensammler id;
-          // without it we'd silently drop the grades, so fail loudly instead.
-          if (teacherId == null) {
-            throw new Error(
-              'Notensammler-Lehrer-ID fehlt; Endnote konnte nicht gespeichert werden.',
-            )
-          }
-          const gradesRes = await fetch('/api/notensammler/grades/batch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              classId,
-              schoolYearId,
-              grades: payload.map(p => ({
-                studentId: p.studentId,
-                teacherId,
-                semester: p.semester,
-                grade: p.grade,
-              })),
-            }),
-          })
-          if (!gradesRes.ok) throw new Error('Save grades failed')
-
-          const conductRes = await fetch('/api/noten/conduct', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              classId,
-              schoolYearId,
-              updates: payload.map(p => ({
-                studentId: p.studentId,
-                semester: p.semester,
-                conductNoteWish: p.conductNoteWish,
-              })),
-            }),
-          })
-          if (!conductRes.ok) throw new Error('Save conduct failed')
-        } else {
-          const res = await fetch('/api/noten/final-grades', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ classId, schoolYearId, finalGrades: payload }),
-          })
-          if (!res.ok) throw new Error('Save final grades failed')
+        // Marks live in the Notensammler; only the Betragensnote is stored here.
+        // The mark half of the save needs the teacher's Notensammler id;
+        // without it we'd silently drop the grades, so fail loudly instead.
+        if (teacherId == null) {
+          throw new Error('Notensammler-Lehrer-ID fehlt; Endnote konnte nicht gespeichert werden.')
         }
+        const gradesRes = await fetch('/api/notensammler/grades/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            classId,
+            schoolYearId,
+            grades: payload.map(p => ({
+              studentId: p.studentId,
+              teacherId,
+              semester: p.semester,
+              grade: p.grade,
+            })),
+          }),
+        })
+        if (!gradesRes.ok) throw new Error('Save grades failed')
+
+        const conductRes = await fetch('/api/noten/conduct', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            classId,
+            schoolYearId,
+            updates: payload.map(p => ({
+              studentId: p.studentId,
+              semester: p.semester,
+              conductNoteWish: p.conductNoteWish,
+            })),
+          }),
+        })
+        if (!conductRes.ok) throw new Error('Save conduct failed')
         setSaveError(null)
         if (!options?.silent) endSave(true)
         return true
@@ -616,7 +605,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
         return false
       }
     },
-    [classId, schoolYearId, teacherId, isFeatureEnabled, beginSave, endSave],
+    [classId, schoolYearId, teacherId, beginSave, endSave],
   )
 
   const setAllAnwesend = useCallback(

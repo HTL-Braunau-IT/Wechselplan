@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
-import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
 import { groupSettingsWeekday } from '@/lib/weekday-groups'
@@ -48,16 +47,15 @@ export async function GET(request: Request) {
     if (!session?.user?.name) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    if (!(await isFeatureEnabled('noten'))) {
-      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
-    }
-
     const { searchParams } = new URL(request.url)
     const classId = parseId(searchParams.get('classId'))
     const groupId = parseId(searchParams.get('groupId'))
     const schoolYearId = parseId(searchParams.get('schoolYearId'))
     if (classId == null || groupId == null || schoolYearId == null) {
-      return NextResponse.json({ error: 'classId, groupId, schoolYearId required' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'classId, groupId, schoolYearId required' },
+        { status: 400 },
+      )
     }
 
     // The layout is per teacher; without a Teacher row there is nothing personal
@@ -105,10 +103,6 @@ export async function PATCH(request: Request) {
     if (!session?.user?.name) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    if (!(await isFeatureEnabled('noten'))) {
-      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
-    }
-
     const body = (await request.json()) as {
       classId?: number
       groupId?: number
@@ -121,7 +115,10 @@ export async function PATCH(request: Request) {
     const groupId = typeof body.groupId === 'number' ? body.groupId : null
     const schoolYearId = typeof body.schoolYearId === 'number' ? body.schoolYearId : null
     if (classId == null || groupId == null || schoolYearId == null) {
-      return NextResponse.json({ error: 'classId, groupId, schoolYearId required' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'classId, groupId, schoolYearId required' },
+        { status: 400 },
+      )
     }
 
     const positions = sanitizePositions(body.positions)

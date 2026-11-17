@@ -4,7 +4,6 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
-import { isFeatureEnabled } from '@/lib/entitlements'
 import { denyUnlessOnlineShell, resolveIntegrationTeacher } from '@/lib/online-shell/auth'
 import {
   ONLINE_SHELL_GRADE_FIELDS,
@@ -34,9 +33,6 @@ export async function POST(request: Request) {
   if (denied) return denied
 
   try {
-    if (!(await isFeatureEnabled('noten'))) {
-      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
-    }
     const body = (await request.json().catch(() => null)) as {
       teacher?: { oid?: string; email?: string }
       classExternalId?: unknown

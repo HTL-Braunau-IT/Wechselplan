@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
-import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
@@ -85,10 +84,6 @@ export async function GET(request: Request) {
     if (!session?.user?.name) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    if (!(await isFeatureEnabled('noten'))) {
-      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
-    }
-
     const { searchParams } = new URL(request.url)
     const classIdParam = searchParams.get('classId')
     const schoolYearIdParam = searchParams.get('schoolYearId')
@@ -138,19 +133,11 @@ export async function GET(request: Request) {
     // check above stays on the selected class.
     const memberClassIds = await resolveMemberClassIds(classId)
 
-    const notensammlerEnabled = await isFeatureEnabled('notensammler')
-    const [finalGradeRows, gradeRows] = await Promise.all([
-      prisma.finalGrade.findMany({
-        where: { classId: { in: memberClassIds }, schoolYearId },
-        select: { studentId: true, semester: true, grade: true },
-      }),
-      notensammlerEnabled
-        ? prisma.grade.findMany({
-            where: { teacherId: teacher.id, classId: { in: memberClassIds }, schoolYearId },
-            select: { studentId: true, semester: true, grade: true },
-          })
-        : Promise.resolve([]),
-    ])
+    // The teacher's own Notensammler grades are the prefill source.
+    const gradeRows = await prisma.grade.findMany({
+      where: { teacherId: teacher.id, classId: { in: memberClassIds }, schoolYearId },
+      select: { studentId: true, semester: true, grade: true },
+    })
 
     const schoolYear = await prisma.schoolYear.findUnique({
       where: { id: schoolYearId },
@@ -197,28 +184,14 @@ export async function GET(request: Request) {
       prefill[s.id] = { first: null, second: null }
     }
 
-    // Build stored grades (same merge logic as data API): FinalGrade base, then overlay Grade when Notensammler enabled
+    // Build stored grades from the Notensammler grades (same source as the data API).
     const storedGrades: Record<number, { first: number | null; second: number | null }> = {}
-    for (const row of finalGradeRows) {
+    for (const row of gradeRows) {
       storedGrades[row.studentId] ??= { first: null, second: null }
       if (row.semester === 'first') {
-        storedGrades[row.studentId]!.first = notensammlerEnabled
-          ? null
-          : normalizeStoredGrade(row.grade)
+        storedGrades[row.studentId]!.first = normalizeStoredGrade(row.grade)
       } else if (row.semester === 'second') {
-        storedGrades[row.studentId]!.second = notensammlerEnabled
-          ? null
-          : normalizeStoredGrade(row.grade)
-      }
-    }
-    if (notensammlerEnabled) {
-      for (const row of gradeRows) {
-        storedGrades[row.studentId] ??= { first: null, second: null }
-        if (row.semester === 'first') {
-          storedGrades[row.studentId]!.first = normalizeStoredGrade(row.grade)
-        } else if (row.semester === 'second') {
-          storedGrades[row.studentId]!.second = normalizeStoredGrade(row.grade)
-        }
+        storedGrades[row.studentId]!.second = normalizeStoredGrade(row.grade)
       }
     }
 
@@ -264,7 +237,12 @@ export async function GET(request: Request) {
           },
         }),
         prisma.notenEntry.findMany({
-          where: { teacherId: teacher.id, classId: { in: memberClassIds }, groupId: gid, schoolYearId },
+          where: {
+            teacherId: teacher.id,
+            classId: { in: memberClassIds },
+            groupId: gid,
+            schoolYearId,
+          },
         }),
       ])
 

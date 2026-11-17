@@ -5,12 +5,17 @@ import { captureError } from '@/lib/sentry'
 import { requireAdmin } from '@/lib/require-admin'
 import { getServiceCredentials } from '@/lib/notenmanagement/settings'
 import { getNmToken, NmAuthError } from '@/lib/notenmanagement/server-client'
+import {
+  isNotenmanagementConfigured,
+  notenmanagementNotConfigured,
+} from '@/lib/notenmanagement/config'
 
 export async function POST() {
   const auth = await requireAdmin()
   if (!auth.ok) {
     return NextResponse.json({ error: 'Unauthorized: admin role required' }, { status: 403 })
   }
+  if (!isNotenmanagementConfigured()) return notenmanagementNotConfigured()
 
   try {
     const creds = await getServiceCredentials()

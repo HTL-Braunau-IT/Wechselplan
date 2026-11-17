@@ -5,12 +5,17 @@ import { captureError } from '@/lib/sentry'
 import { requireAdmin } from '@/lib/require-admin'
 import { updateDirectorySyncSettings } from '@/lib/directory-sync-settings'
 import { discoverClassGroups } from '@/lib/notenmanagement/class-group-discovery'
+import {
+  isNotenmanagementConfigured,
+  notenmanagementNotConfigured,
+} from '@/lib/notenmanagement/config'
 
 export async function GET() {
   const auth = await requireAdmin()
   if (!auth.ok) {
     return NextResponse.json({ error: 'Unauthorized: admin role required' }, { status: 403 })
   }
+  if (!isNotenmanagementConfigured()) return notenmanagementNotConfigured()
 
   try {
     const groups = await discoverClassGroups()
@@ -34,14 +39,8 @@ export async function PUT(request: Request) {
   try {
     const body = (await request.json().catch(() => ({}))) as { groupIds?: unknown }
 
-    if (
-      !Array.isArray(body.groupIds) ||
-      !body.groupIds.every(id => typeof id === 'string')
-    ) {
-      return NextResponse.json(
-        { error: 'groupIds must be an array of strings' },
-        { status: 400 },
-      )
+    if (!Array.isArray(body.groupIds) || !body.groupIds.every(id => typeof id === 'string')) {
+      return NextResponse.json({ error: 'groupIds must be an array of strings' }, { status: 400 })
     }
 
     // The discovered class-group set is authoritative for these groups, so we

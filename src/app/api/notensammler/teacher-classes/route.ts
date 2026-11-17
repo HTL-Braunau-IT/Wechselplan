@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
-import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { gradeGroupDay, weekdayGroupMap } from '@/lib/weekday-groups'
 import { requireAccess } from '@/lib/api-guard'
@@ -23,10 +22,6 @@ export async function GET(request: Request) {
     if (!session?.user?.name) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    if (!(await isFeatureEnabled('notensammler'))) {
-      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
-    }
-
     const { searchParams } = new URL(request.url)
     const schoolYearIdParam = searchParams.get('schoolYearId')
     const schoolYearId = await resolveSchoolYearId(schoolYearIdParam)

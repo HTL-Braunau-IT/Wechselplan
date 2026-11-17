@@ -7,7 +7,6 @@ vi.mock('next-auth', () => ({
 }))
 vi.mock('@/lib/auth', () => ({ authOptions: {} }))
 vi.mock('@/lib/sentry', () => ({ captureError: vi.fn() }))
-vi.mock('@/lib/entitlements', () => ({ isFeatureEnabled: vi.fn(async () => true) }))
 vi.mock('@/lib/school-year', () => ({ resolveSchoolYearId: vi.fn(async () => 1) }))
 vi.mock('@/lib/session-teacher', () => ({ resolveSessionTeacher: vi.fn(async () => ({ id: 7 })) }))
 vi.mock('@/lib/weekday-groups', () => ({

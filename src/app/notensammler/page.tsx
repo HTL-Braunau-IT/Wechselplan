@@ -27,12 +27,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,6 +48,7 @@ import { useGradeEditing } from './_hooks/use-grade-editing'
 import { useNotenlisteSuggestions } from './_hooks/use-notenliste-suggestions'
 import { useSokrates } from './_hooks/use-sokrates'
 import { useSokratesChanges } from './_hooks/use-sokrates-changes'
+import { useAppConfig } from '@/contexts/app-config-context'
 import { useTransferFlow } from './_hooks/use-transfer-flow'
 import { useLfView } from './_hooks/use-lf-view'
 import { usePdfDownload } from './_hooks/use-pdf-download'
@@ -161,6 +157,7 @@ export default function NotensammlerPage() {
   // that window used to drop them without a word.
   useUnsavedWarning(hasUnsavedWork)
 
+  const { notenmanagementEnabled } = useAppConfig()
   const transfer = useTransferFlow({
     classData,
     schoolYearId,
@@ -349,7 +346,12 @@ export default function NotensammlerPage() {
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="flex items-start justify-between gap-4">
               <span className="whitespace-pre-line">{error}</span>
-              <Button variant="outline" size="sm" className="shrink-0" onClick={() => setError(null)}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => setError(null)}
+              >
                 {t('common.close', 'Schließen')}
               </Button>
             </AlertDescription>
@@ -361,7 +363,12 @@ export default function NotensammlerPage() {
             <Info className="h-4 w-4" />
             <AlertDescription className="flex items-start justify-between gap-4">
               <span className="whitespace-pre-line">{notice}</span>
-              <Button variant="outline" size="sm" className="shrink-0" onClick={() => setNotice(null)}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => setNotice(null)}
+              >
                 {t('common.close', 'Schließen')}
               </Button>
             </AlertDescription>
@@ -396,7 +403,7 @@ export default function NotensammlerPage() {
           <div className="border-border bg-background overflow-hidden rounded-lg border shadow-sm">
             {/* Top bar: the class in view + the finished-list actions. */}
             <div className="border-border bg-card flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-5 py-3">
-              <span className="flex items-center gap-2 text-primary">
+              <span className="text-primary flex items-center gap-2">
                 <ClipboardList className="h-5 w-5" aria-hidden />
                 <span className="text-foreground text-base font-semibold tracking-tight">
                   {classData.name}
@@ -411,7 +418,9 @@ export default function NotensammlerPage() {
               )}
               <span className="text-muted-foreground flex items-center gap-1.5 text-sm">
                 <Users className="h-3.5 w-3.5" />
-                {t('notensammler.studentCount', '{{count}} Schüler', { count: sortedStudents.length })}
+                {t('notensammler.studentCount', '{{count}} Schüler', {
+                  count: sortedStudents.length,
+                })}
               </span>
               {/* Groups are per weekday; a class planned on several days picks whose groups to show. */}
               {(classData.weekdays?.length ?? 0) > 1 && (
@@ -433,17 +442,19 @@ export default function NotensammlerPage() {
 
               <span className="ml-auto flex items-center gap-2">
                 <SaveStatus state={saveState} />
-                <Hint
-                  label={t(
-                    'notensammler.tooltipTransfer',
-                    'Überträgt die Noten an das Notenmanagement.',
-                  )}
-                >
-                  <Button variant="secondary" size="sm" onClick={transfer.open}>
-                    <Upload className="mr-2 h-4 w-4" />
-                    {t('notensammler.transferShort', 'Übertragen')}
-                  </Button>
-                </Hint>
+                {notenmanagementEnabled && (
+                  <Hint
+                    label={t(
+                      'notensammler.tooltipTransfer',
+                      'Überträgt die Noten an das Notenmanagement.',
+                    )}
+                  >
+                    <Button variant="secondary" size="sm" onClick={transfer.open}>
+                      <Upload className="mr-2 h-4 w-4" />
+                      {t('notensammler.transferShort', 'Übertragen')}
+                    </Button>
+                  </Hint>
+                )}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -451,11 +462,7 @@ export default function NotensammlerPage() {
                       size="icon"
                       aria-label={t('notensammler.moreActions', 'Weitere Aktionen')}
                     >
-                      {exporting ? (
-                        <Spinner size="sm" />
-                      ) : (
-                        <MoreHorizontal className="h-4 w-4" />
-                      )}
+                      {exporting ? <Spinner size="sm" /> : <MoreHorizontal className="h-4 w-4" />}
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-72">
@@ -474,15 +481,14 @@ export default function NotensammlerPage() {
                       <FileText className="mr-2 h-4 w-4" />
                       {t('notensammler.downloadAllPdfItem', 'Notenliste aller eigenen Klassen')}
                     </DropdownMenuItem>
-                    {transferredLfs.length > 0 && (
+                    {notenmanagementEnabled && transferredLfs.length > 0 && (
                       <>
                         <DropdownMenuSeparator />
                         {transferredLfs.map(({ semester, lfId }) => (
                           <DropdownMenuItem key={semester} onSelect={() => lfView.open(lfId)}>
                             <Upload className="mr-2 h-4 w-4" />
-                            {t('notensammler.viewLf', 'Übertragene Noten ansehen')} ({semesterLabel(
-                              semester,
-                            )})
+                            {t('notensammler.viewLf', 'Übertragene Noten ansehen')} (
+                            {semesterLabel(semester)})
                           </DropdownMenuItem>
                         ))}
                       </>

@@ -18,7 +18,6 @@ vi.mock('next-auth', () => ({
 }))
 vi.mock('@/lib/auth', () => ({ authOptions: {} }))
 vi.mock('@/lib/sentry', () => ({ captureError: vi.fn() }))
-vi.mock('@/lib/entitlements', () => ({ isFeatureEnabled: vi.fn(async () => true) }))
 vi.mock('@/lib/school-year', () => ({ resolveSchoolYearId: vi.fn(async () => 2026) }))
 vi.mock('@/lib/current-teacher', () => ({
   resolveCurrentTeacher: mockResolveCurrentTeacher,

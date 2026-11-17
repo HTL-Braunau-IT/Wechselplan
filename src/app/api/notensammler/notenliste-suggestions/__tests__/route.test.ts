@@ -9,7 +9,6 @@ import { GET } from '../route'
  */
 
 const mockResolveSessionTeacher = vi.hoisted(() => vi.fn())
-const mockIsFeatureEnabled = vi.hoisted(() => vi.fn())
 const mockAssignmentFindMany = vi.hoisted(() => vi.fn())
 const mockSchoolYearFindUnique = vi.hoisted(() => vi.fn())
 const mockMembershipFindMany = vi.hoisted(() => vi.fn())
@@ -26,7 +25,6 @@ vi.mock('next-auth', () => ({
 }))
 vi.mock('@/lib/auth', () => ({ authOptions: {} }))
 vi.mock('@/lib/sentry', () => ({ captureError: vi.fn() }))
-vi.mock('@/lib/entitlements', () => ({ isFeatureEnabled: mockIsFeatureEnabled }))
 vi.mock('@/lib/school-year', () => ({ resolveSchoolYearId: vi.fn(async () => 2026) }))
 vi.mock('@/lib/session-teacher', () => ({ resolveSessionTeacher: mockResolveSessionTeacher }))
 vi.mock('@/lib/prisma', () => ({
@@ -66,7 +64,6 @@ const entry = (studentId: number, date: string, value: number) => ({
 describe('GET /api/notensammler/notenliste-suggestions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockIsFeatureEnabled.mockResolvedValue(true)
     mockResolveSessionTeacher.mockResolvedValue({ id: 7, firstName: 'Anna', lastName: 'Müller' })
     mockAssignmentFindMany.mockResolvedValue([{ groupId: 1 }])
     mockSchoolYearFindUnique.mockResolvedValue({ semesterChangeDate: new Date('2026-02-01') })
@@ -152,15 +149,6 @@ describe('GET /api/notensammler/notenliste-suggestions', () => {
     const response = await get('classId=3')
     expect(response.status).toBe(403)
     expect(mockEntryFindMany).not.toHaveBeenCalled()
-  })
-
-  it('returns an empty map when the Noten feature is off', async () => {
-    mockIsFeatureEnabled.mockResolvedValue(false)
-
-    const response = await get('classId=3')
-    expect(response.status).toBe(200)
-    const body = (await response.json()) as { suggestions: Record<string, unknown> }
-    expect(body.suggestions).toEqual({})
   })
 
   it('requires a classId', async () => {

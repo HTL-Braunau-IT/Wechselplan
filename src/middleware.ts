@@ -40,8 +40,6 @@ const ADMIN_PAGE_PREFIXES = ['/class-settings']
  * Unlike the previous version, `/api` is covered here as well: every API
  * request is checked against the access policy in `lib/api-access`, so a route
  * handler that forgets its own guard is still not reachable anonymously.
- * Entitlement checks for `/notensammler` and `/noten` stay in their layouts and
- * API routes because the Edge runtime cannot call the license server.
  */
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname

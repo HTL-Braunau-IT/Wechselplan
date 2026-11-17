@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAccess } from '@/lib/api-guard'
 import { captureError } from '@/lib/sentry'
-import { isFeatureEnabled } from '@/lib/entitlements'
 import { canManageSokrates, withSokratesLock } from '@/lib/sokrates-lock'
 import { parseId, parseSemester, resolveCurrentTeacher, resolveSchoolYearId } from '../_shared'
 import { notifySokratesMarked } from '../_notify'
@@ -30,10 +29,6 @@ export async function POST(request: Request) {
 
   try {
     const session = gate.session
-    if (!(await isFeatureEnabled('notensammler'))) {
-      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
-    }
-
     const body = (await request.json()) as {
       classId?: unknown
       semester?: unknown

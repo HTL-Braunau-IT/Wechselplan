@@ -50,10 +50,9 @@ export const env = createEnv({
     // Unset = the integration endpoints answer 503.
     ONLINE_SHELL_API_SECRET: z.string().optional(),
     GITHUB_TOKEN: z.string().optional(),
-    NOTENMANAGEMENT_BASE_URL: z.string().url(),
-    LICENSE_SERVER_URL: z.string().url().optional(),
-    LICENSE_KEY: z.string().optional(),
-    DISABLE_ENTITLEMENTS: z.string().optional(),
+    // Optional: unset means this school has no Notenmanagement; NM routes answer
+    // 503 and the transfer UI is hidden (src/lib/notenmanagement/config.ts).
+    NOTENMANAGEMENT_BASE_URL: z.string().url().optional(),
   },
 
   /**
@@ -98,9 +97,6 @@ export const env = createEnv({
     ONLINE_SHELL_API_SECRET: process.env.ONLINE_SHELL_API_SECRET,
     GITHUB_TOKEN: process.env.GITHUB_TOKEN,
     NOTENMANAGEMENT_BASE_URL: process.env.NOTENMANAGEMENT_BASE_URL,
-    LICENSE_SERVER_URL: process.env.LICENSE_SERVER_URL,
-    LICENSE_KEY: process.env.LICENSE_KEY,
-    DISABLE_ENTITLEMENTS: process.env.DISABLE_ENTITLEMENTS,
     NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION,
     NEXT_PUBLIC_BUILD_DATE: process.env.NEXT_PUBLIC_BUILD_DATE,
     NEXT_PUBLIC_ENTRA_TEACHER_GROUP_ID: process.env.NEXT_PUBLIC_ENTRA_TEACHER_GROUP_ID,

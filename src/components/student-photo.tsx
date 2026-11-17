@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
-import { useEntitlements } from '@/contexts/entitlements-context'
 
 const PHOTO_SIZE_SMALL = 36
 const PHOTO_SIZE_LARGE = 120
@@ -44,9 +43,7 @@ export function StudentPhoto({
   const [error, setError] = useState(false)
   const triggerRef = useRef<HTMLDivElement>(null)
   const leaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const { isFeatureEnabled } = useEntitlements()
-  const photoEnabled = isFeatureEnabled('student_photos')
-  const photoUrl = photoEnabled ? `/api/students/photo?studentId=${studentId}` : undefined
+  const photoUrl = `/api/students/photo?studentId=${studentId}`
 
   const displayName =
     lastName && firstName

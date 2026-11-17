@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getServerSession } from 'next-auth'
-import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveCurrentTeacher } from '@/lib/current-teacher'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { acknowledgeSokratesChangeNotices, canManageSokrates } from '@/lib/sokrates-lock'
@@ -10,7 +9,6 @@ import { POST } from '../route'
 vi.mock('next-auth', () => ({ getServerSession: vi.fn() }))
 vi.mock('@/lib/auth', () => ({ authOptions: {} }))
 vi.mock('@/lib/sentry', () => ({ captureError: vi.fn() }))
-vi.mock('@/lib/entitlements', () => ({ isFeatureEnabled: vi.fn() }))
 vi.mock('@/lib/current-teacher', () => ({
   resolveCurrentTeacher: vi.fn(),
   actorName: vi.fn(() => 'Anna Berger'),
@@ -36,7 +34,6 @@ describe('POST /api/notensammler/sokrates/changes/acknowledge', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(getServerSession).mockResolvedValue({ user: { role: 'teacher' } } as never)
-    vi.mocked(isFeatureEnabled).mockResolvedValue(true)
     vi.mocked(resolveCurrentTeacher).mockResolvedValue({ id: 7, name: 'Anna Berger' } as never)
     vi.mocked(resolveSchoolYearId).mockResolvedValue(2)
     vi.mocked(canManageSokrates).mockResolvedValue(true)

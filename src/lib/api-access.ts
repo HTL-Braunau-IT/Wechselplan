@@ -47,6 +47,7 @@ export const API_ACCESS_RULES: readonly ApiAccessRule[] = [
   { prefix: '/api/user-roles', tier: 'admin' },
 
   // Reachable by any signed-in user, including students.
+  // Deprecated stub kept for older mobile-app builds; see the route.
   { prefix: '/api/entitlements', tier: 'session' },
   { prefix: '/api/me', tier: 'session' },
   { prefix: '/api/support', tier: 'session' },

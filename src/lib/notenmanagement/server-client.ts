@@ -24,6 +24,8 @@ const NM_TIMEOUT_MS = 20_000
 /** Ensure the configured base URL ends in a slash so `new URL(path, base)` keeps the `/work/rest/` prefix. */
 function baseUrl(): string {
   const raw = env.NOTENMANAGEMENT_BASE_URL
+  // Routes check isNotenmanagementConfigured() first; this is the backstop.
+  if (!raw) throw new NmApiError('Notenmanagement ist nicht konfiguriert', 503)
   return raw.endsWith('/') ? raw : `${raw}/`
 }
 

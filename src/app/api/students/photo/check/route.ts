@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import path from 'path'
 import { promises as fsp } from 'fs'
-import { isFeatureEnabled } from '@/lib/entitlements'
 import { hasEffectiveStudentPhoto } from '@/lib/student-photo-source'
 import { denyUnlessAccess } from '@/lib/api-guard'
 
@@ -35,10 +34,6 @@ export async function GET(request: Request) {
   const denied = await denyUnlessAccess('staff')
   if (denied) return denied
 
-  if (!(await isFeatureEnabled('student_photos'))) {
-    return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
-  }
-
   const { searchParams } = new URL(request.url)
   const idsParam = searchParams.get('ids')
   const useEffective = searchParams.get('effective') === 'true'
@@ -57,10 +52,7 @@ export async function GET(request: Request) {
     ),
   ]
   if (ids.length > MAX_IDS) {
-    return NextResponse.json(
-      { error: `Too many ids (max ${MAX_IDS})` },
-      { status: 400 },
-    )
+    return NextResponse.json({ error: `Too many ids (max ${MAX_IDS})` }, { status: 400 })
   }
   const result: Record<string, boolean> = {}
   for (const id of ids) {

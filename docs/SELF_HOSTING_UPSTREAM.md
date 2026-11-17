@@ -8,29 +8,16 @@ Status legend: ☐ open · ☑ done
 
 ---
 
-## 1. Registry access to the image (blocker)
+## 1. Public image (blocker)
 
-`ghcr.io/htl-braunau-it/wechselplan` is private to the org. Today only our own
-deploy job can pull it, using the job's `GITHUB_TOKEN`. Pick one of these:
+Decision: the image is **public**, so partners pull without credentials.
 
-**Option A: make the package public** (simplest)
 - ☐ GitHub → org → *Packages* → `wechselplan` → *Package settings* → *Change
   visibility* → Public. The org must allow public packages: *Org settings →
   Packages*.
-- Effect: anyone can pull the image. It contains the built app and no secrets: the
-  build runs with `SKIP_ENV_VALIDATION` and no `.env`. Source maps and the
-  standalone bundle are readable, though. Decide whether that is acceptable.
-- Our own `deploy.yaml` keeps working unchanged.
-
-**Option B: stay private, give them a read-only token**
-- ☐ Create a machine user (e.g. `wechselplan-pull`), with no other org access.
-- ☐ Package settings → *Manage access* → add the machine user with **Read**.
-- ☐ Create a **classic** PAT for it with only `read:packages`. GHCR does not accept
-  fine-grained PATs. Set an expiry and put a calendar reminder before it.
-- ☐ Hand over the token through a secure channel, never by email in plain text.
-- One token per school, so access can be revoked per school.
-
-Recommendation: **B** while it is one partner school, **A** once more schools join.
+- The image contains the built app and no secrets: the build runs with
+  `SKIP_ENV_VALIDATION` and no `.env`. The standalone bundle is readable by anyone.
+- Our own `deploy.yaml` keeps working unchanged (it still logs in; harmless).
 
 ## 2. A `stable` image channel (strongly recommended)
 
@@ -80,17 +67,11 @@ gets every merge unattended, overnight. `SELF_HOSTING.md` tells them to follow
   required env var under a fixed heading (e.g. *„Hinweise für Betreiber“*). External
   installs do not get the compose file automatically (SELF_HOSTING §5.4).
 
-## 3. Licence gate (blocker until removed)
+## 3. Licence gate ☑
 
-Without `LICENSE_KEY` and without `DISABLE_ENTITLEMENTS`, `LicenseGate` locks the
-whole app after login. `SELF_HOSTING.md` deliberately does not mention licensing,
-because it is being removed (`docs/PLAN_REMOVE_LICENSE_SERVER.md`).
-
-- ☐ **PR 1 of that plan must be released to the partner's channel before they go
-  live.** Otherwise a guide-conformant install shows "Es ist keine gültige Lizenz
-  vorhanden" to everyone. Stopgap if they start earlier: tell them separately to
-  add `DISABLE_ENTITLEMENTS=true` to their `.env`. The variable becomes inert
-  after PR 1.
+Removed: every module is always on, and `NOTENMANAGEMENT_BASE_URL` is optional.
+`GET /api/entitlements` remains as a deprecated all-features stub for older
+mobile-app builds. ☐ Delete it once the app no longer calls it.
 
 ## 4. Migration discipline (process, ongoing)
 
@@ -112,7 +93,7 @@ These work for us and are wrong or useless for another school:
 | Where | What | Action |
 |---|---|---|
 | `prisma/seed.ts` | Our holidays, rooms, subjects, times | ☐ Split into a generic seed (times, roles) and an optional HTL-Braunau seed, or make the rooms/subjects list empty for others. They are told to edit these in the admin UI and never re-seed. |
-| `src/env.js` | `NOTENMANAGEMENT_BASE_URL` is **required** | ☐ Make it optional. Treat unset as "integration off" and hide the transfer UI. Today they must enter a dummy URL. Ties in with the `notenmgmt_htl` flag; see the licence removal plan. |
+| `src/env.js` | `NOTENMANAGEMENT_BASE_URL` | ☑ Optional; unset hides the transfer UI and NM routes answer 503. |
 | `src/app/api/github/releases/route.ts` | Reads releases of our private repo with `GITHUB_TOKEN` | ☐ Check it degrades gracefully without a token (no error toast, no broken page). Or point it at a public changelog, or bundle the release notes into the image at build time. |
 | `.env.example`, `docs/DEPLOYMENT.md`, `docker-compose.yaml` comments | Our hostnames and IPs | Fine as-is; the compose file itself is generic. ☐ Remove the unused `ENTRA_SYNC_MODE` from `docker-compose.yaml`, since it is not read anywhere. |
 | `sync-scheduler` in compose | Timezone `Europe/Vienna`, 02:00 | Fine for Austrian schools. |

@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveStudentPhoto } from '@/lib/student-photo-source'
 import { denyUnlessAccess } from '@/lib/api-guard'
 
@@ -11,10 +10,6 @@ import { denyUnlessAccess } from '@/lib/api-guard'
 export async function GET(request: Request) {
   const denied = await denyUnlessAccess('staff')
   if (denied) return denied
-
-  if (!(await isFeatureEnabled('student_photos'))) {
-    return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
-  }
 
   const { searchParams } = new URL(request.url)
   const studentIdParam = searchParams.get('studentId')

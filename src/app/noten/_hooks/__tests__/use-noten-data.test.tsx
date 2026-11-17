@@ -5,9 +5,6 @@ import { useNotenData } from '../use-noten-data'
 import { emptyEntry, type NotenEntryRow, type Student, type TeachingDay } from '../../_lib/types'
 
 vi.mock('@/lib/frontend-error', () => ({ captureFrontendError: vi.fn() }))
-vi.mock('@/contexts/entitlements-context', () => ({
-  useEntitlements: () => ({ isFeatureEnabled: () => false }),
-}))
 
 const STUDENTS: Student[] = Array.from({ length: 12 }, (_, i) => ({
   id: i + 1,
@@ -44,7 +41,11 @@ function mockLoad(ok = true) {
       }
       if (href.startsWith('/api/noten/data')) {
         return new Response(
-          JSON.stringify({ weights: { global: null, class: null, group: null }, lehrstoffByDay: {}, entries: [] }),
+          JSON.stringify({
+            weights: { global: null, class: null, group: null },
+            lehrstoffByDay: {},
+            entries: [],
+          }),
           { status: 200 },
         )
       }
@@ -171,7 +172,11 @@ describe('useNotenData', () => {
         }
         if (href.startsWith('/api/noten/data')) {
           return new Response(
-            JSON.stringify({ weights: { global: null, class: null, group: null }, lehrstoffByDay: {}, entries: [] }),
+            JSON.stringify({
+              weights: { global: null, class: null, group: null },
+              lehrstoffByDay: {},
+              entries: [],
+            }),
             { status: 200 },
           )
         }
@@ -203,10 +208,9 @@ describe('useNotenData', () => {
     const isSeatingPatch = (call: unknown[]) =>
       String(call[0]) === '/api/noten/seating' && (call[1] as RequestInit)?.method === 'PATCH'
 
-    await waitFor(
-      () => expect(vi.mocked(fetch).mock.calls.some(isSeatingPatch)).toBe(true),
-      { timeout: 2000 },
-    )
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(isSeatingPatch)).toBe(true), {
+      timeout: 2000,
+    })
 
     const patch = vi.mocked(fetch).mock.calls.find(isSeatingPatch)!
     const body = JSON.parse(String((patch[1] as RequestInit).body)) as {

@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
-import { isFeatureEnabled } from '@/lib/entitlements'
 import { normalizeUsername } from '@/lib/username'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
 import { extractLfId, getNmToken, NmApiError, nmSend } from '@/lib/notenmanagement/server-client'
+import {
+  isNotenmanagementConfigured,
+  notenmanagementNotConfigured,
+} from '@/lib/notenmanagement/config'
 import {
   deriveSubjectForClass,
   lfTypeFor,
@@ -79,6 +82,7 @@ function parseNotes(raw: unknown): Map<number, NmNoteResult> {
 export async function POST(request: Request) {
   const gate = await requireAccess('staff')
   if (!gate.ok) return gate.response
+  if (!isNotenmanagementConfigured()) return notenmanagementNotConfigured()
 
   let requestData: unknown
   try {
@@ -101,14 +105,6 @@ export async function POST(request: Request) {
 
     const groupId = parseOptionalInt(body.groupId)
     const isGroup = groupId !== null
-
-    // Feature gates: group (Notenstand) needs the HTL feature; class (Endnote) the Notensammler.
-    if (isGroup && !(await isFeatureEnabled('notenmgmt_htl'))) {
-      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
-    }
-    if (!isGroup && !(await isFeatureEnabled('notensammler'))) {
-      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
-    }
 
     const classId = parseOptionalInt(body.classId)
     const semester: Semester | null =

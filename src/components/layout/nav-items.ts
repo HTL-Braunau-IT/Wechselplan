@@ -14,7 +14,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
-import { useEntitlements } from '@/contexts/entitlements-context'
+import { useAppConfig } from '@/contexts/app-config-context'
 import { useTranslation } from 'react-i18next'
 
 export interface NavItem {
@@ -29,12 +29,12 @@ export interface NavItem {
 
 /**
  * Single source of truth for primary navigation, gated by role and
- * entitlements. Consumed by both the desktop sidebar and the mobile sheet so
+ * deployment config. Consumed by both the desktop sidebar and the mobile sheet so
  * the two never drift apart.
  */
 export function useNavItems(): NavItem[] {
   const { data: session } = useSession()
-  const { isFeatureEnabled } = useEntitlements()
+  const { notenmanagementEnabled } = useAppConfig()
   const { t } = useTranslation()
   const role = session?.user?.role
 
@@ -64,23 +64,21 @@ export function useNavItems(): NavItem[] {
       label: t('navigation.classSettings'),
       icon: School,
     })
-    items.push({
-      href: '/admin/notenmanagement',
-      label: t('navigation.notenmanagement'),
-      icon: GraduationCap,
-    })
+    if (notenmanagementEnabled) {
+      items.push({
+        href: '/admin/notenmanagement',
+        label: t('navigation.notenmanagement'),
+        icon: GraduationCap,
+      })
+    }
   }
 
-  if (isFeatureEnabled('noten')) {
-    items.push({ href: '/noten', label: t('navigation.notenliste'), icon: ListChecks })
-  }
-  if (isFeatureEnabled('notensammler')) {
-    items.push({
-      href: '/notensammler',
-      label: t('navigation.notensammler'),
-      icon: ClipboardList,
-    })
-  }
+  items.push({ href: '/noten', label: t('navigation.notenliste'), icon: ListChecks })
+  items.push({
+    href: '/notensammler',
+    label: t('navigation.notensammler'),
+    icon: ClipboardList,
+  })
   // Room-occupancy overview: returns full workshop rosters/room bindings, so it
   // is a staff view (teacher or admin), matching the /api/raumplan access tier.
   if (role === 'teacher' || role === 'admin') {

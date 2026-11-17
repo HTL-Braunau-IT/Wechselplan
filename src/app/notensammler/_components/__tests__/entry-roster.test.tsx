@@ -8,7 +8,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (_key: string, fallback?: string) => fallback ?? _key }),
 }))
 
-// The real one reaches for the entitlements context and an image endpoint.
+// The real one loads an image from the photo endpoint.
 vi.mock('@/components/student-photo', () => ({
   StudentPhoto: ({ lastName, firstName }: { lastName: string; firstName: string }) => (
     <span>{`${lastName}, ${firstName}`}</span>
@@ -51,7 +51,7 @@ const renderRoster = (overrides: Partial<EntryRosterProps> = {}) =>
       semesterView="first"
       tablePeriod={undefined}
       getGrade={(studentId, teacherId) =>
-        teacherId === 100 ? myMarks[studentId] ?? null : colleagueMarks[studentId] ?? null
+        teacherId === 100 ? (myMarks[studentId] ?? null) : (colleagueMarks[studentId] ?? null)
       }
       getFinalGradeDisplay={() => null}
       calculateAverage={() => 2}

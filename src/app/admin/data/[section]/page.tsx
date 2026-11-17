@@ -7,20 +7,14 @@ import { Card, CardContent } from '@/components/ui/card'
 import { PageContainer } from '@/components/ui/page-container'
 import { PageHeader } from '@/components/ui/page-header'
 import { useSchoolYear } from '@/contexts/school-year-context'
-import { useEntitlements } from '@/contexts/entitlements-context'
 import { adminDataSections, getAdminDataSectionContent } from '../_components/data-sections'
 
 export default function AdminDataSectionPage() {
   const { selectedYear } = useSchoolYear()
-  const { isFeatureEnabled } = useEntitlements()
   const params = useParams<{ section: string }>()
 
   const section = adminDataSections.find(item => item.slug === params.section)
   if (!section) {
-    notFound()
-  }
-
-  if (section.requiresFeature && !isFeatureEnabled(section.requiresFeature)) {
     notFound()
   }
 

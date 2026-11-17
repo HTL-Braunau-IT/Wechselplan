@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
-import { isFeatureEnabled } from '@/lib/entitlements'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { toLocalDateString } from '@/lib/date-utils'
 import { requireAccess } from '@/lib/api-guard'
@@ -45,10 +44,6 @@ export async function GET(request: Request) {
     if (!session?.user?.name) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    if (!(await isFeatureEnabled('noten'))) {
-      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
-    }
-
     const { searchParams } = new URL(request.url)
     const classIdParam = searchParams.get('classId')
     const groupIdParam = searchParams.get('groupId')
@@ -80,7 +75,6 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Not assigned to this class' }, { status: 403 })
     }
 
-    const notensammlerEnabled = await isFeatureEnabled('notensammler')
     // Group weights are per weekday, like the group they belong to.
     const groupWeekday = await groupSettingsWeekday({
       classId,
@@ -105,24 +99,24 @@ export async function GET(request: Request) {
       gradeRows,
       finalGradeRows,
     ] = await Promise.all([
-        prisma.notenWeightConfig.findUnique({
-          where: {
-            teacherId_classId_groupId_schoolYearId_selectedWeekday: {
-              teacherId: teacher.id,
-              classId,
-              groupId,
-              schoolYearId,
-              selectedWeekday: groupWeekday,
-            },
+      prisma.notenWeightConfig.findUnique({
+        where: {
+          teacherId_classId_groupId_schoolYearId_selectedWeekday: {
+            teacherId: teacher.id,
+            classId,
+            groupId,
+            schoolYearId,
+            selectedWeekday: groupWeekday,
           },
-        }),
-        prisma.notenWeightClassConfig.findUnique({
-          where: {
-            teacherId_classId_schoolYearId: { teacherId: teacher.id, classId, schoolYearId },
-          },
-        }),
-        prisma.notenWeightGlobalConfig.findUnique({ where: { teacherId: teacher.id } }),
-        prisma.lehrstoffPerDay.findMany({
+        },
+      }),
+      prisma.notenWeightClassConfig.findUnique({
+        where: {
+          teacherId_classId_schoolYearId: { teacherId: teacher.id, classId, schoolYearId },
+        },
+      }),
+      prisma.notenWeightGlobalConfig.findUnique({ where: { teacherId: teacher.id } }),
+      prisma.lehrstoffPerDay.findMany({
         where: { teacherId: teacher.id, classId, groupId, schoolYearId },
       }),
       // Jahresstoff is per class, shared by all of its groups.
@@ -134,15 +128,13 @@ export async function GET(request: Request) {
       prisma.notenEntry.findMany({
         where: { teacherId: teacher.id, classId: { in: gradeClassIds }, groupId, schoolYearId },
       }),
-      notensammlerEnabled
-        ? prisma.grade.findMany({
-            where: { teacherId: teacher.id, classId: { in: gradeClassIds }, schoolYearId },
-            select: { studentId: true, semester: true, grade: true },
-          })
-        : Promise.resolve([]),
+      prisma.grade.findMany({
+        where: { teacherId: teacher.id, classId: { in: gradeClassIds }, schoolYearId },
+        select: { studentId: true, semester: true, grade: true },
+      }),
       prisma.finalGrade.findMany({
         where: { classId: { in: gradeClassIds }, schoolYearId },
-        select: { studentId: true, semester: true, grade: true, conductNoteWish: true },
+        select: { studentId: true, semester: true, conductNoteWish: true },
       }),
     ])
 
@@ -166,32 +158,30 @@ export async function GET(request: Request) {
       }
       if (row.semester === 'first') {
         finalGrades[row.studentId]!.first = {
-          grade: notensammlerEnabled ? null : row.grade,
+          grade: null,
           conductNoteWish: row.conductNoteWish ?? null,
         }
       } else if (row.semester === 'second') {
         finalGrades[row.studentId]!.second = {
-          grade: notensammlerEnabled ? null : row.grade,
+          grade: null,
           conductNoteWish: row.conductNoteWish ?? null,
         }
       }
     }
-    if (notensammlerEnabled) {
-      for (const row of gradeRows) {
-        finalGrades[row.studentId] ??= {
-          first: { grade: null, conductNoteWish: null },
-          second: { grade: null, conductNoteWish: null },
+    for (const row of gradeRows) {
+      finalGrades[row.studentId] ??= {
+        first: { grade: null, conductNoteWish: null },
+        second: { grade: null, conductNoteWish: null },
+      }
+      if (row.semester === 'first') {
+        finalGrades[row.studentId]!.first = {
+          ...finalGrades[row.studentId]!.first,
+          grade: row.grade,
         }
-        if (row.semester === 'first') {
-          finalGrades[row.studentId]!.first = {
-            ...finalGrades[row.studentId]!.first,
-            grade: row.grade,
-          }
-        } else if (row.semester === 'second') {
-          finalGrades[row.studentId]!.second = {
-            ...finalGrades[row.studentId]!.second,
-            grade: row.grade,
-          }
+      } else if (row.semester === 'second') {
+        finalGrades[row.studentId]!.second = {
+          ...finalGrades[row.studentId]!.second,
+          grade: row.grade,
         }
       }
     }
@@ -208,7 +198,7 @@ export async function GET(request: Request) {
       lehrstoffByDay,
       jahresstoff: jahresstoffRow?.jahresstoff ?? '',
       finalGrades,
-      ...(notensammlerEnabled ? { teacherId: teacher.id } : {}),
+      teacherId: teacher.id,
       entries: entries.map(e => ({
         studentId: e.studentId,
         date: dateToLocalString(e.date),

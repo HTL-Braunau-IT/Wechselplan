@@ -35,7 +35,6 @@ export type AdminDataSection = {
   icon: LucideIcon
   description: string
   group: AdminDataSectionGroupId
-  requiresFeature?: 'student_photos'
 }
 
 export const adminDataSectionGroups: Record<AdminDataSectionGroupId, string> = {
@@ -178,7 +177,6 @@ export const adminDataSections: AdminDataSection[] = [
     icon: Image,
     description: 'Schülerfotos klassenweise hochladen (Nachname_Vorname.jpg)',
     group: 'support',
-    requiresFeature: 'student_photos',
   },
 ]
 

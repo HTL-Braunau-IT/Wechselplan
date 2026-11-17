@@ -3,14 +3,23 @@ export const runtime = 'nodejs'
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { requireAdmin } from '@/lib/require-admin'
-import { previewNmLinkSync, runNmLinkSync, NmLinkSyncConfigError } from '@/lib/notenmanagement/link-sync'
+import {
+  previewNmLinkSync,
+  runNmLinkSync,
+  NmLinkSyncConfigError,
+} from '@/lib/notenmanagement/link-sync'
 import { NmAuthError } from '@/lib/notenmanagement/server-client'
+import {
+  isNotenmanagementConfigured,
+  notenmanagementNotConfigured,
+} from '@/lib/notenmanagement/config'
 
 export async function POST(request: Request) {
   const auth = await requireAdmin()
   if (!auth.ok) {
     return NextResponse.json({ error: 'Unauthorized: admin role required' }, { status: 403 })
   }
+  if (!isNotenmanagementConfigured()) return notenmanagementNotConfigured()
 
   try {
     const body = (await request.json().catch(() => ({}))) as { preview?: unknown }
@@ -24,7 +33,10 @@ export async function POST(request: Request) {
     }
     if (error instanceof NmAuthError) {
       return NextResponse.json(
-        { error: 'Anmeldung am Notenmanagement-Dienstkonto fehlgeschlagen. Bitte Zugangsdaten prüfen.' },
+        {
+          error:
+            'Anmeldung am Notenmanagement-Dienstkonto fehlgeschlagen. Bitte Zugangsdaten prüfen.',
+        },
         { status: 400 },
       )
     }

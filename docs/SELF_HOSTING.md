@@ -26,7 +26,6 @@ Registry und spielt sie ein, inklusive Datenbank-Migrationen.
 | Netzwerk eingehend | HTTPS über Ihren Reverse Proxy (nginx, Traefik, Caddy …). Die App selbst spricht nur HTTP auf Port 3000. |
 | DNS + Zertifikat | z. B. `wechselplan.ihre-schule.at` |
 | Microsoft 365 | Entra-ID-Tenant, in dem Sie App-Registrierungen anlegen und Admin-Consent erteilen dürfen |
-| Zugang zum Image | Zugangsdaten von der HTL Braunau (siehe 4.1), falls das Image nicht öffentlich ist |
 
 ---
 
@@ -147,9 +146,9 @@ SYNC_TRIGGER_SECRET=<zufallswert>
 # Abgleich verweigern, wenn er mehr als 20 % der aktiven Einträge deaktivieren würde.
 SYNC_MAX_DEACTIVATION_RATIO=0.2
 
-# --- Notenmanagement ----------------------------------------------------------
-# Pflichtfeld. Ohne eigenes Notenmanagement-System eine beliebige gültige URL
-# eintragen; die Notenübertragung wird dann einfach nicht verwendet.
+# --- Notenmanagement (optional) ---------------------------------------------
+# Nur setzen, wenn Ihre Schule das Notenmanagement-System nutzt. Leer lassen
+# blendet die Notenübertragung aus; alles andere funktioniert unverändert.
 NOTENMANAGEMENT_BASE_URL=https://notenmanagement.ihre-schule.at/work/rest/
 
 # --- Optional -----------------------------------------------------------------
@@ -178,17 +177,17 @@ fehlende Variable.
 
 ## 4. Erstinstallation
 
-### 4.1 Zugang zur Registry
+### 4.1 Image
 
-Ist das Image nicht öffentlich, erhalten Sie von der HTL Braunau einen
-**Lese-Token** (nur `read:packages`). Einmalig als root anmelden:
+Das Image ist öffentlich in der GitHub Container Registry verfügbar. Ein Login
+ist nicht nötig:
 
 ```bash
-echo '<token>' | docker login ghcr.io -u <benutzername> --password-stdin
+docker pull ghcr.io/htl-braunau-it/wechselplan:stable
 ```
 
-Die Zugangsdaten landen in `/root/.docker/config.json` und werden von den
-Update-Jobs mitbenutzt.
+Schlägt das fehl, ist meist der ausgehende Zugriff auf `ghcr.io` gesperrt
+(Firewall/Proxy).
 
 ### 4.2 Verzeichnisse und Compose-Datei
 
@@ -510,7 +509,7 @@ docker compose up -d
 | Login geht, aber alle Rollen „user“ | Admin-Consent fehlt oder `ENTRA_TEACHER_GROUP_ID` falsch |
 | Plötzlich kein Login/Abgleich mehr | Client-Secret abgelaufen (2.1) |
 | Abgleich bricht mit „deactivation ratio“ ab | Schutzschalter hat gegriffen: Gruppen in Entra prüfen, nicht den Grenzwert erhöhen |
-| `docker compose pull`: `denied` / `unauthorized` | Registry-Login fehlt oder Token abgelaufen (4.1) |
+| `docker compose pull` schlägt fehl | Kein ausgehender Zugriff auf `ghcr.io` (Firewall/Proxy) |
 | `web` startet nach Update nicht | `docker compose logs migrate`, dann HTL Braunau kontaktieren |
 
 ---

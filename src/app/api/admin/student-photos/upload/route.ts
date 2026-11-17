@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import path from 'path'
 import fs from 'fs'
-import { isFeatureEnabled } from '@/lib/entitlements'
 import { prisma } from '@/lib/prisma'
 import { captureError } from '@/lib/sentry'
 import { requireAccess } from '@/lib/api-guard'
@@ -60,10 +59,6 @@ export async function POST(request: Request) {
     if (!session?.user?.name) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    if (!(await isFeatureEnabled('student_photos'))) {
-      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
-    }
-
     // Reject an oversized body before formData() buffers the whole thing.
     const contentLength = Number(request.headers.get('content-length') ?? '0')
     if (Number.isFinite(contentLength) && contentLength > MAX_TOTAL_BYTES) {

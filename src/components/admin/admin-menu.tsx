@@ -8,7 +8,6 @@ import {
   adminDataSectionGroups,
   adminDataSections,
 } from '@/app/admin/data/_components/data-sections'
-import { useEntitlements } from '@/contexts/entitlements-context'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
@@ -23,15 +22,10 @@ const SETTINGS_LINKS = [
 
 function AdminNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
-  const { isFeatureEnabled } = useEntitlements()
 
   const groupedSections = Object.entries(adminDataSectionGroups).map(([id, label]) => ({
     label,
-    items: adminDataSections.filter(
-      section =>
-        section.group === id &&
-        (!section.requiresFeature || isFeatureEnabled(section.requiresFeature)),
-    ),
+    items: adminDataSections.filter(section => section.group === id),
   }))
 
   const linkClass = (active: boolean) =>

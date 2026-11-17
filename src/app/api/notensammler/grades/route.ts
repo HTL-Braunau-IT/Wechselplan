@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
 import { prisma } from '@/lib/prisma'
-import { isFeatureEnabled } from '@/lib/entitlements'
 import { requireAccess } from '@/lib/api-guard'
 import {
   canManageSokrates,
@@ -39,10 +38,6 @@ export async function GET(request: Request) {
     if (!session?.user?.name) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    if (!(await isFeatureEnabled('notensammler'))) {
-      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
-    }
-
     const { searchParams } = new URL(request.url)
     const classIdParam = searchParams.get('classId')
     const schoolYearIdParam = searchParams.get('schoolYearId')
@@ -174,10 +169,6 @@ export async function POST(request: Request) {
     if (!session?.user?.name) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    if (!(await isFeatureEnabled('notensammler'))) {
-      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
-    }
-
     const body = (await request.json()) as {
       studentId: unknown
       teacherId: unknown
@@ -282,10 +273,7 @@ export async function POST(request: Request) {
     const gradeClassIds = await resolveGradeClassIds(classIdNum, schoolYearId, [studentIdNum])
     const effectiveClassId = gradeClassIds.get(studentIdNum)
     if (effectiveClassId == null) {
-      return NextResponse.json(
-        { error: 'Student is not a member of this class' },
-        { status: 400 },
-      )
+      return NextResponse.json({ error: 'Student is not a member of this class' }, { status: 400 })
     }
     const effectiveClass =
       effectiveClassId === classIdNum
@@ -463,10 +451,6 @@ export async function DELETE(request: Request) {
     if (!session?.user?.name) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    if (!(await isFeatureEnabled('notensammler'))) {
-      return NextResponse.json({ error: 'Feature not available' }, { status: 403 })
-    }
-
     const { searchParams } = new URL(request.url)
     const teacherIdParam = searchParams.get('teacherId')
     const classIdParam = searchParams.get('classId')

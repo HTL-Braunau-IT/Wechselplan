@@ -39,7 +39,7 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-member-access': 'off',
       'react-hooks/exhaustive-deps': 'off',
       // New in eslint-config-next 16, and flagged across several pre-existing
-      // components (theme-provider, entitlements-context, the schedule
+      // components (theme-provider, the schedule
       // dialogs). Each needs a real restructure onto React Query rather than a
       // mechanical edit, so it is a warning for now rather than a blocker.
       'react-hooks/set-state-in-effect': 'warn',
