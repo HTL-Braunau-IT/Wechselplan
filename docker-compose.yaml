@@ -35,11 +35,11 @@ x-app-env: &app-env
   ENTRA_SYNC_ENABLED: ${ENTRA_SYNC_ENABLED:-true}
   SYNC_MAX_DEACTIVATION_RATIO: ${SYNC_MAX_DEACTIVATION_RATIO:-0.2}
   SYNC_TRIGGER_SECRET: ${SYNC_TRIGGER_SECRET:-}
-  # Online-Shell integration (/api/integrations/online-shell); empty = off
-  ONLINE_SHELL_API_SECRET: ${ONLINE_SHELL_API_SECRET:-}
+
 
   # Native app (iOS/Android): accept Entra Bearer tokens on /api alongside the
   # NextAuth cookie. Off unless set to true. Read by src/lib/bearer-auth.ts.
+  # Not here yet!
   AUTH_BEARER_ENABLED: ${AUTH_BEARER_ENABLED:-false}
 
   # Microsoft Graph mail — a separate app registration from ENTRA_* above.
@@ -50,7 +50,9 @@ x-app-env: &app-env
   GRAPH_MAIL_TO: ${GRAPH_MAIL_TO:-}
 
   # External systems
-  NOTENMANAGEMENT_BASE_URL: ${NOTENMANAGEMENT_BASE_URL:-}
+  # Online-Shell integration (/api/integrations/online-shell); empty = off
+  ONLINE_SHELL_API_SECRET: ${ONLINE_SHELL_API_SECRET:-} # HTL Braunau internal
+  NOTENMANAGEMENT_BASE_URL: ${NOTENMANAGEMENT_BASE_URL:-} # HTL Braunau internal
   GITHUB_TOKEN: ${GITHUB_TOKEN:-}
 
   NODE_ENV: production
