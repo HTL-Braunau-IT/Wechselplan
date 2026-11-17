@@ -83,9 +83,14 @@ gets every merge unattended, overnight. `SELF_HOSTING.md` tells them to follow
 ## 3. Licence gate (blocker until removed)
 
 Without `LICENSE_KEY` and without `DISABLE_ENTITLEMENTS`, `LicenseGate` locks the
-whole app after login. `SELF_HOSTING.md` therefore tells them to set
-`DISABLE_ENTITLEMENTS=true`. The removal plan is in
-`docs/PLAN_REMOVE_LICENSE_SERVER.md`.
+whole app after login. `SELF_HOSTING.md` deliberately does not mention licensing,
+because it is being removed (`docs/PLAN_REMOVE_LICENSE_SERVER.md`).
+
+- ☐ **PR 1 of that plan must be released to the partner's channel before they go
+  live.** Otherwise a guide-conformant install shows "Es ist keine gültige Lizenz
+  vorhanden" to everyone. Stopgap if they start earlier: tell them separately to
+  add `DISABLE_ENTITLEMENTS=true` to their `.env`. The variable becomes inert
+  after PR 1.
 
 ## 4. Migration discipline (process, ongoing)
 

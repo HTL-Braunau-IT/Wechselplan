@@ -71,7 +71,8 @@ big mechanical diff carries no behaviour change.
    entry from `api-access.ts` if it has its own rule; `route-guards.test.ts` will
    complain otherwise.
 7. Remove `LICENSE_*` and `DISABLE_ENTITLEMENTS` from `.env.example` and
-   `docker-compose.yaml`.
+   `docker-compose.yaml`. Update `docs/SELF_HOSTING.md` §3: `NOTENMANAGEMENT_BASE_URL`
+   is now optional, so drop the dummy-URL advice.
 8. Tests: add a unit test for `getEnabledFeatures` (with and without the NM URL).
    `npm run check` and `npx vitest run`.
 
@@ -116,9 +117,8 @@ After PR 1, every gate except `notenmgmt_htl` is constantly `true`.
      release cycle, or ship the app update first.
 3. Docs: delete `docs/ENTITLEMENTS_INTEGRATION.md` and `docs/LICENSE_SERVER_DESIGN.md`.
    Remove the Entitlements bullet from `CLAUDE.md`, fix the comment in
-   `src/middleware.ts:43`, and update `docs/SELF_HOSTING.md` §3 and §7: remove
-   `DISABLE_ENTITLEMENTS` and the lock-screen row, and mark `NOTENMANAGEMENT_BASE_URL`
-   optional.
+   `src/middleware.ts:43`. The partner guide `docs/SELF_HOSTING.md` never mentions
+   licensing, so it needs no change.
 4. Final grep: `rg -i "entitlement|LICENSE_KEY|LICENSE_SERVER|DISABLE_ENTITLEMENTS|license-gate"`
    should only hit changelog or history.
 

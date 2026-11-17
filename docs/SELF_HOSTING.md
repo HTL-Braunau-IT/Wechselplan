@@ -152,12 +152,6 @@ SYNC_MAX_DEACTIVATION_RATIO=0.2
 # eintragen; die Notenübertragung wird dann einfach nicht verwendet.
 NOTENMANAGEMENT_BASE_URL=https://notenmanagement.ihre-schule.at/work/rest/
 
-# --- Funktionsfreischaltung ---------------------------------------------------
-# PFLICHT, solange die Lizenzprüfung noch im Code ist: Ohne diesen Wert (oder
-# einen Lizenzschlüssel) sperrt die App nach dem Login mit „Es ist keine gültige
-# Lizenz vorhanden“. Schaltet alle Module frei, ohne externen Lizenzserver.
-DISABLE_ENTITLEMENTS=true
-
 # --- Optional -----------------------------------------------------------------
 # E-Mail (Abschnitt 2.4)
 GRAPH_TENANT_ID=
@@ -511,7 +505,6 @@ docker compose up -d
 | Symptom | Ursache |
 |---|---|
 | App startet nicht, Log nennt fehlende Variable | Pflichtwert in `.env` fehlt (Abschnitt 3) |
-| Nach Login: „Es ist keine gültige Lizenz vorhanden“ | `DISABLE_ENTITLEMENTS=true` fehlt in `.env` |
 | Login: Fehler `AADSTS50011` | Umleitungs-URI in Entra stimmt nicht mit `NEXTAUTH_URL` überein |
 | Login abgewiesen | Person ist weder in der Lehrergruppe noch in einer abgeglichenen Klassengruppe |
 | Login geht, aber alle Rollen „user“ | Admin-Consent fehlt oder `ENTRA_TEACHER_GROUP_ID` falsch |
