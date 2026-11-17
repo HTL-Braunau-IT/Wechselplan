@@ -26,13 +26,14 @@ Database (Prisma / PostgreSQL):
 npm run db:generate      # prisma migrate dev — create+apply a migration in dev
 npm run db:migrate       # prisma migrate deploy — apply migrations (prod)
 npm run db:push          # push schema without a migration
-npm run db:seed          # seed reference data (holidays, times, rooms, subjects) — no people
+npm run db:seed          # generic seed: roles only — no people
+npm run db:seed:htl-braunau   # + HTL Braunau reference data (holidays, times, rooms, subjects)
 npm run db:seed:local    # LOCAL ONLY: teachers, classes, students, rotations, schedules
 npm run db:seed:local -- --reset   # delete those fixtures first, then recreate
 npm run db:studio        # Prisma Studio
 ```
 
-`db:seed` deliberately creates no people — in a real deployment teachers, classes and students arrive from Entra — which leaves a freshly migrated local database with nothing to click on. `scripts/seed-local-fixtures.ts` fills that gap and is **never** wired into `db:seed` or `prisma.seed`. It refuses to run unless all three hold: `NODE_ENV !== 'production'`, `DATABASE_URL` resolves to a local host, and the database contains no directory-synced teachers. Its rows are tagged `externalSource = 'local-fixture'`, which is what makes `--reset` able to delete exactly what it created.
+The seed is split: `prisma/seed.ts` seeds what every school needs (roles) and, with `--profile <name>` / `SEED_PROFILE`, one school's reference data from `prisma/seed-profiles/` (only `htl-braunau` exists; other schools maintain that data under Admin → Daten). Neither creates people — in a real deployment teachers, classes and students arrive from Entra — which leaves a freshly migrated local database with nothing to click on. `scripts/seed-local-fixtures.ts` fills that gap and is **never** wired into `db:seed` or `prisma.seed`. It refuses to run unless all three hold: `NODE_ENV !== 'production'`, `DATABASE_URL` resolves to a local host, and the database contains no directory-synced teachers. Its rows are tagged `externalSource = 'local-fixture'`, which is what makes `--reset` able to delete exactly what it created.
 
 Browser-driven checks (Playwright, `e2e/`):
 

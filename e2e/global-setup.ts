@@ -43,8 +43,8 @@ async function resolveUsername(): Promise<string> {
     const teacher = await prisma.teacher.findFirst({ orderBy: { username: 'asc' } })
     if (teacher) return teacher.username
 
-    // Deliberately not "run db:seed": that seeds reference data (rooms,
-    // subjects, holidays) and no people at all. Teachers arrive via Entra sync
+    // Deliberately not "run db:seed": that seeds roles and reference data
+    // (rooms, subjects, holidays) but no people at all. Teachers arrive via Entra sync
     // or by hand in the admin UI.
     console.warn(
       '[e2e] No active teacher in the database — falling back to "e2e.teacher".\n' +

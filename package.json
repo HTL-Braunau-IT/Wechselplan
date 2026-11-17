@@ -11,6 +11,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:push": "prisma db push",
     "db:seed": "npx tsx prisma/seed.ts",
+    "db:seed:htl-braunau": "npx tsx prisma/seed.ts --profile htl-braunau",
     "db:seed:local": "npx tsx scripts/seed-local-fixtures.ts",
     "db:normalize-usernames": "npx tsx scripts/normalize-usernames.ts",
     "db:audit-teacher-identities": "npx tsx scripts/audit-teacher-identity-collisions.ts",

@@ -102,6 +102,9 @@ services:
     environment:
       <<: *app-env
       RUN_DB_SEED: ${RUN_DB_SEED:-false}
+      # Which school's reference data the seed adds (prisma/seed-profiles/).
+      # Empty = generic only (roles). Ours: htl-braunau.
+      SEED_PROFILE: ${SEED_PROFILE:-}
     depends_on:
       db:
         condition: service_healthy

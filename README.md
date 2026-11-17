@@ -170,9 +170,6 @@ fehlende Variable. Setz Werte nicht in Anführungszeichen.
 
 ### 3.3 Erster Start
 
-In der `.env` `RUN_DB_SEED=true` setzen. Das legt Stammdaten an: Ferien,
-Unterrichtszeiten, Räume, Fächer. In der Seed Datei sind nur die Werte der HTL Braunau! Dann starten:
-
 ```bash
 docker compose pull
 docker compose up -d
@@ -180,13 +177,11 @@ docker compose logs -f migrate web
 curl -fsS http://localhost:3000/api/health
 ```
 
-Danach **`RUN_DB_SEED=false`** zurücksetzen und `docker compose up -d` erneut
-ausführen.
-
-> **Hinweis:** Die Stammdaten (Ferien, Räume, Fächer) stammen aus der HTL Braunau.
-> Pass sie nach dem ersten Login im Admin-Bereich an deine Schule an. Ein
-> späterer Seed überschreibt gleichnamige Einträge, deshalb den Seed nicht erneut
-> aktivieren.
+Einen Seed brauchst du nicht: Die Rollen legt die App beim ersten Login selbst an.
+Die Stammdaten deiner Schule (Ferien, Unterrichtszeiten, Pausen, Räume, Fächer,
+Lehrinhalte) trägst du nach der ersten Anmeldung im Admin-Bereich ein (Abschnitt 4).
+Lass `RUN_DB_SEED` auf `false` und setz kein `SEED_PROFILE`: Das einzige
+vorhandene Profil enthält die Daten der HTL Braunau.
 
 ### 3.4 Reverse Proxy
 
@@ -212,8 +207,12 @@ die App nicht unverschlüsselt im LAN erreichbar ist.
 ## 4. Erste Anmeldung und erster Abgleich
 
 1. Mit dem Super-Admin-Konto unter `NEXTAUTH_URL` anmelden.
-2. Admin-Bereich: Klassengruppen prüfen bzw. eintragen, Stammdaten anpassen.
-3. Abgleich einmal von Hand starten, statt auf 02:00 zu warten:
+2. Unter **Admin → Daten** die Stammdaten deiner Schule anlegen: Schulferien,
+   Unterrichtszeiten, Pausenzeiten, Räume, Fächer und Lehrinhalte. Die Ferien
+   braucht der Turnus-Editor für die Wochenberechnung; Unterrichts- und
+   Pausenzeiten kannst du auch direkt beim Erstellen eines Wechselplans anlegen.
+3. Klassengruppen prüfen bzw. eintragen.
+4. Abgleich einmal von Hand starten, statt auf 02:00 zu warten:
 
    ```bash
    cd /srv/wechselplan
@@ -221,7 +220,7 @@ die App nicht unverschlüsselt im LAN erreichbar ist.
      -H "x-sync-secret: $(grep ^SYNC_TRIGGER_SECRET= .env | cut -d= -f2-)"
    ```
 
-4. Weitere Admins im Admin-Bereich ernennen.
+5. Weitere Admins im Admin-Bereich ernennen.
 
 ---
 

@@ -191,7 +191,13 @@ pct status 143 ; pct reboot 143 ; pct console 143
 
 ## Seeding
 
-`RUN_DB_SEED` controls whether the `migrate` job runs `prisma/seed.mjs` (roles
-and school holidays). It is set to `true` for the first rollout of an empty
-database and should be set back to `false` afterwards, so routine deploys do
-not write rows unasked. The seed itself is idempotent (upserts).
+`RUN_DB_SEED` controls whether the `migrate` job runs `prisma/seed.mjs`. It is
+set to `true` for the first rollout of an empty database and should be set back
+to `false` afterwards, so routine deploys do not write rows unasked. The seed
+itself is idempotent (upserts).
+
+Our host `.env` files set `SEED_PROFILE=htl-braunau`. Without it the seed only
+creates the roles; the profile (`prisma/seed-profiles/htl-braunau.ts`) adds our
+holidays, bell schedule, breaks, learning contents, rooms and subjects. To roll
+in next school year's holidays, update that file and run the seed once with
+`RUN_DB_SEED=true`.

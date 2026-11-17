@@ -12,7 +12,7 @@ cd Wechselplan
 npm ci --legacy-peer-deps
 cp .env.example .env          # fill in DATABASE_URL, NEXTAUTH_*, ENTRA_*
 npx prisma migrate deploy
-npm run db:seed               # reference data (holidays, times, rooms, subjects)
+npm run db:seed:htl-braunau   # roles + HTL Braunau holidays, times, rooms, subjects
 npm run db:seed:local         # LOCAL ONLY: teachers, classes, students to click on
 npm run dev
 ```

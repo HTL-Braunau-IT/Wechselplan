@@ -1,7 +1,7 @@
 /**
  * Populates a LOCAL database with people and rotations to click around in.
  *
- * `prisma/seed.ts` seeds reference data only — holidays, times, rooms,
+ * `prisma/seed.ts` seeds roles and (with a profile) reference data — holidays, times, rooms,
  * subjects, learning contents — and deliberately creates no people, because in
  * a real deployment teachers, classes and students arrive from Entra. That
  * leaves a freshly migrated local database with nothing to look at: every
