@@ -6,8 +6,7 @@ Wechselplan ist eine Schulverwaltungs-App für berufsbildende höhere Schulen
 - **Wechselpläne:** Turnuspläne mit rotierenden Schülergruppen, inklusive
   PDF-Export.
 - **Klassen- und Lehrerlisten:** abgeglichen mit Microsoft Entra ID.
-- **Notenerfassung:** Noten und Notensammler, mit optionaler Übertragung an das
-  Notenmanagement.
+- **Notenerfassung:** Noten und Notensammler.
 
 Entwickelt und betrieben von der HTL Braunau. Diese Seite beschreibt, wie eine
 Schule Wechselplan **auf dem eigenen Server** betreibt. Hinweise für die
@@ -43,10 +42,7 @@ ein, inklusive Datenbank-Migrationen.
 
 ## 2. Microsoft Entra ID
 
-Legen Sie in **Ihrem** Tenant eine eigene App-Registrierung an. Eine App der HTL
-Braunau wird nicht mitbenutzt: Anmeldung und Verzeichnisabgleich laufen beide gegen
-Ihren Tenant.
-
+Legen Sie in **Ihrem** Tenant eine eigene App-Registrierung an. 
 ### 2.1 App-Registrierung „Wechselplan“
 
 Entra Admin Center → *Anwendungen* → *App-Registrierungen* → *Neue Registrierung*
@@ -105,12 +101,6 @@ App-Registrierung, nicht die aus 2.1:
   das eine Absender-Postfach.
 - Werte: `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET`,
   `GRAPH_MAIL_FROM` (Absender-Postfach), `GRAPH_MAIL_TO` (Empfänger für Support-Anfragen)
-
-### 2.5 Optional: Mobile App
-
-Nur bei Nutzung der iOS-/Android-App: In der App-Registrierung aus 2.1 unter
-*Eine API verfügbar machen* den Bereich `api://<Client-ID>/access_as_user` anlegen
-und `AUTH_BEARER_ENABLED=true` setzen.
 
 ---
 
@@ -172,7 +162,6 @@ openssl rand -base64 48
 
 | Variable | Inhalt |
 |---|---|
-| `NOTENMANAGEMENT_BASE_URL` | Nur wenn Ihre Schule das Notenmanagement-System nutzt. Leer lassen blendet die Notenübertragung aus. |
 | `GRAPH_*` | E-Mail-Versand (2.4) |
 | `AUTH_BEARER_ENABLED` | Mobile App (2.5) |
 
@@ -182,7 +171,7 @@ fehlende Variable. Setzen Sie Werte nicht in Anführungszeichen.
 ### 3.3 Erster Start
 
 In der `.env` `RUN_DB_SEED=true` setzen. Das legt Stammdaten an: Ferien,
-Unterrichtszeiten, Räume, Fächer. Dann starten:
+Unterrichtszeiten, Räume, Fächer. In der Seed Datei sind nur die Werte der HTL Braunau! Dann starten:
 
 ```bash
 docker compose pull
