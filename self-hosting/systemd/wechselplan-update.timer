@@ -1,0 +1,10 @@
+[Unit]
+Description=Wechselplan: nächtliches Update
+
+[Timer]
+# Nach dem Backup (01:30) und nach dem Verzeichnisabgleich (02:00).
+OnCalendar=*-*-* 03:30:00 Europe/Vienna
+Persistent=true
+
+[Install]
+WantedBy=timers.target

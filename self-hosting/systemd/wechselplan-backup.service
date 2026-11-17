@@ -1,0 +1,7 @@
+[Unit]
+Description=Wechselplan: Datenbank-Backup
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/wechselplan-backup /srv/wechselplan

@@ -14,7 +14,7 @@ interface GitHubRelease {
  * Fetches releases from the GitHub repository.
  *
  * Uses the GitHub API to retrieve release information for the private repository.
- * Requires GITHUB_TOKEN to be set in environment variables for authentication.
+ * GITHUB_TOKEN is optional (public repository); it only raises GitHub's rate limit.
  *
  * Query parameters:
  * - all: if true, returns all releases; otherwise returns only the latest release
@@ -26,17 +26,15 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const fetchAll = searchParams.get('all') === 'true'
   try {
+    // The repository is public, so the token is optional: without it GitHub
+    // allows 60 requests/hour per IP, which the 10-minute revalidate keeps us
+    // well under. A token only raises that limit.
     const token = env.GITHUB_TOKEN
 
-    if (!token) {
-      return NextResponse.json({ error: 'GitHub token not configured' }, { status: 500 })
-    }
-
-    // Helper function to fetch with authentication
     const fetchWithAuth = async (url: string) => {
       let response = await fetch(url, {
         headers: {
-          Authorization: `Bearer ${token}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           Accept: 'application/vnd.github.v3+json',
           'User-Agent': 'Wechselplan-App',
         },
@@ -44,7 +42,7 @@ export async function GET(request: Request) {
       })
 
       // If Bearer fails with 401, try token format (for older tokens)
-      if (response.status === 401) {
+      if (token && response.status === 401) {
         response = await fetch(url, {
           headers: {
             Authorization: `token ${token}`,

@@ -2,7 +2,8 @@
 #
 # Nightly logical backup of a Wechselplan stack's database.
 #
-# Installed on htlsrv-wechselplan-01 at /usr/local/bin/wechselplan-backup and
+# Installed at /usr/local/bin/wechselplan-backup (ours: htlsrv-wechselplan-01;
+# self-hosting schools: see README, section 6) and
 # driven by the wechselplan-backup@.timer systemd unit; see docs/DEPLOYMENT.md.
 # Kept in the repo so the backup policy is reviewable rather than living only
 # as an undocumented file on a server.
