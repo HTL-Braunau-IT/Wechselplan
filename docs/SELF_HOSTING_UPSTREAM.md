@@ -55,8 +55,7 @@ Partners roll out unattended, and we never see their failures.
 - ☐ Keep a list of partner installations: school, contact, channel followed.
 - ☐ Decide what we promise: response times and how long a release is supported.
   Write it down before the first incident, not during it.
-- ☐ Add a licence file (e.g. MIT or EUPL). Without one the public code is
-  "all rights reserved", and other schools have no legal right to run it.
+- ☑ Licensed under MIT (`LICENSE`).
 
 ## 6. Nothing changes for us
 
