@@ -54,6 +54,8 @@
     "collapseDay": "Collapse day",
     "semester1": "1st sem.",
     "semester2": "2nd sem.",
+    "semester1Long": "1st semester",
+    "semester2Long": "2nd semester",
     "collapseSemester1": "Collapse semester 1",
     "collapseSemester2": "Collapse semester 2",
     "zusammenfassung": "Summary",

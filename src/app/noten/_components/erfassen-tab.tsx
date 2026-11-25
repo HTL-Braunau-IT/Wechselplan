@@ -515,6 +515,7 @@ export function ErfassenTab(props: ErfassenTabProps) {
         teachingDays={teachingDays}
         dayIndex={dayIndex}
         todayYmd={todayYmd}
+        semesterChangeDate={semesterChangeDate}
         dayStats={dayStats}
         onSelect={selectDay}
         onPrev={() => selectDay(Math.max(0, dayIndex - 1))}
