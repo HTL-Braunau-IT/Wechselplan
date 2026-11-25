@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { denyUnlessAccess, requireAccess } from '@/lib/api-guard'
 import { resolveCurrentTeacher } from '@/lib/current-teacher'
+import { getSemesterChangeDate, requestedPlanSemester } from '@/lib/assignment-semester'
+import { appliesToSemester, isPlanSemester, type AssignmentSemester } from '@/lib/schedule-semester'
 import { notifyScheduleChange } from '../_notify'
 
 /**
@@ -83,35 +85,33 @@ export async function GET(request: Request) {
       ? parseInt(selectedWeekdayParam, 10)
       : (assignments[0]?.selectedWeekday ?? 1)
 
-    // Group assignments by period
-    const amAssignments = assignments
-      .filter(a => a.period === 'AM')
-      .map(a => ({
-        groupId: a.groupId,
-        teacherId: a.teacherId,
-        teacherFirstName: a.teacher.firstName,
-        teacherLastName: a.teacher.lastName,
-        subject: a.subject.name,
-        learningContent: a.learningContent.name,
-        room: a.room.name,
-      }))
+    // A plan can hold a different teacher set per semester. `amAssignments` /
+    // `pmAssignments` are ONE set — the requested semester's, else today's — so
+    // existing callers keep seeing a single plan; `planAssignments` carries every
+    // row tagged with its semester for callers that render the whole year.
+    const semester = await requestedPlanSemester(searchParams.get('semester'), schoolYearId)
+    const semesterChangeDate = await getSemesterChangeDate(schoolYearId)
 
-    const pmAssignments = assignments
-      .filter(a => a.period === 'PM')
-      .map(a => ({
-        groupId: a.groupId,
-        teacherId: a.teacherId,
-        teacherFirstName: a.teacher.firstName,
-        teacherLastName: a.teacher.lastName,
-        subject: a.subject.name,
-        learningContent: a.learningContent.name,
-        room: a.room.name,
-      }))
+    const toRow = (a: (typeof assignments)[number]) => ({
+      groupId: a.groupId,
+      teacherId: a.teacherId,
+      teacherFirstName: a.teacher.firstName,
+      teacherLastName: a.teacher.lastName,
+      subject: a.subject.name,
+      learningContent: a.learningContent.name,
+      room: a.room.name,
+      semester: a.semester,
+    })
+    const lane = (period: string) => assignments.filter(a => a.period === period).map(toRow)
+    const planAssignments = { am: lane('AM'), pm: lane('PM') }
 
     return NextResponse.json({
-      amAssignments,
-      pmAssignments,
+      amAssignments: planAssignments.am.filter(a => appliesToSemester(a.semester, semester)),
+      pmAssignments: planAssignments.pm.filter(a => appliesToSemester(a.semester, semester)),
       selectedWeekday,
+      semester,
+      semesterChangeDate: semesterChangeDate?.toISOString() ?? null,
+      planAssignments,
     })
   } catch (error) {
     captureError(error, {
@@ -146,7 +146,10 @@ export async function POST(request: Request) {
       updateExisting,
       selectedWeekday,
       schoolYearId: bodySchoolYearId,
+      semester: bodySemester,
     } = requestData
+    // Which half of the year these teachers are for. Absent = the whole year.
+    const semester: AssignmentSemester = isPlanSemester(bodySemester) ? bodySemester : 'full'
 
     if (!classId || typeof classId !== 'number') {
       captureError(new Error('Class ID parameter is required'), {
@@ -201,11 +204,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'EXISTING_ASSIGNMENTS' }, { status: 409 })
     }
 
-    // Delete only THIS day's existing assignments if updating.
+    // Replace only THIS day's assignments — and, for a single semester, only that
+    // half. Whole-year rows are not thrown away when one semester is planned on
+    // its own: they become the other half's teachers, so nothing is lost.
     if (updateExisting) {
-      await prisma.teacherAssignment.deleteMany({
-        where: { classId: classRecord.id, schoolYearId, selectedWeekday: weekday },
-      })
+      const dayScope = { classId: classRecord.id, schoolYearId, selectedWeekday: weekday }
+      if (semester === 'full') {
+        await prisma.teacherAssignment.deleteMany({ where: dayScope })
+      } else {
+        const other = semester === 'first' ? 'second' : 'first'
+        const otherPlanned = existingAssignments.some(a => a.semester === other)
+        await prisma.$transaction([
+          otherPlanned
+            ? prisma.teacherAssignment.deleteMany({ where: { ...dayScope, semester: 'full' } })
+            : prisma.teacherAssignment.updateMany({
+                where: { ...dayScope, semester: 'full' },
+                data: { semester: other },
+              }),
+          prisma.teacherAssignment.deleteMany({ where: { ...dayScope, semester } }),
+        ])
+      }
     }
 
     // AM and PM lanes create identical rows apart from the period tag, so
@@ -245,6 +263,7 @@ export async function POST(request: Request) {
             learningContentId: learningContent.id,
             roomId: room.id,
             selectedWeekday: weekday,
+            semester,
           },
         })
       }

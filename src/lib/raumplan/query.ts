@@ -5,6 +5,9 @@
 
 import { prisma } from '@/lib/prisma'
 import { studentGroupByWeekday, studentPlanDays } from '@/lib/weekday-groups'
+import { getSemesterChangeDate } from '@/lib/assignment-semester'
+import { appliesToSemester, type PlanSemester } from '@/lib/schedule-semester'
+import { getCurrentSemesterFromSchoolYear } from '@/types/school-year'
 import { levelOfRoom } from './levels'
 import {
   PERIODS,
@@ -36,7 +39,19 @@ import type {
 const teacherName = (t: { firstName: string; lastName: string }) =>
   `${t.firstName} ${t.lastName}`.trim()
 
-async function loadAssignments(schoolYearId: number): Promise<AssignmentRow[]> {
+/**
+ * The year's assignments, readable per semester. A plan can hold a different
+ * teacher set in each half, and every resolver below expects exactly one base
+ * row per (class, weekday, period, group) — so callers ask for the set that
+ * applies on the date they are resolving, never for all rows at once.
+ */
+interface YearAssignments {
+  on: (date: Date) => AssignmentRow[]
+  inSemester: (semester: PlanSemester) => AssignmentRow[]
+}
+
+async function loadAssignments(schoolYearId: number): Promise<YearAssignments> {
+  const change = await getSemesterChangeDate(schoolYearId)
   const rows = await prisma.teacherAssignment.findMany({
     where: { schoolYearId },
     include: {
@@ -48,7 +63,29 @@ async function loadAssignments(schoolYearId: number): Promise<AssignmentRow[]> {
     },
   })
 
-  return rows.map(a => ({
+  const inSemester = (semester: PlanSemester) =>
+    rows.filter(a => appliesToSemester(a.semester, semester)).map(toRow)
+  return {
+    inSemester,
+    on: date =>
+      inSemester(change ? getCurrentSemesterFromSchoolYear(change.toISOString(), date) : 'first'),
+  }
+}
+
+function toRow(a: {
+  classId: number
+  groupId: number | null
+  teacherId: number
+  roomId: number
+  period: string
+  selectedWeekday: number
+  teacher: { firstName: string; lastName: string }
+  room: { name: string }
+  subject: { name: string }
+  learningContent: { name: string }
+  class: { name: string }
+}): AssignmentRow {
+  return {
     classId: a.classId,
     className: a.class.name,
     groupId: a.groupId ?? null,
@@ -60,7 +97,7 @@ async function loadAssignments(schoolYearId: number): Promise<AssignmentRow[]> {
     learningContentName: a.learningContent.name,
     period: a.period as Period,
     selectedWeekday: a.selectedWeekday,
-  }))
+  }
 }
 
 async function loadRotations(schoolYearId: number): Promise<RotationRow[]> {
@@ -126,11 +163,13 @@ export async function getWeekOccupancy(
   const refDate = (reference ? parsePlanDate(reference) : null) ?? new Date()
   const weekDates = weekdayDates(refDate)
 
-  const [assignments, rotations, rooms] = await Promise.all([
+  const [yearAssignments, rotations, rooms] = await Promise.all([
     loadAssignments(schoolYearId),
     loadRotations(schoolYearId),
     loadRooms(),
   ])
+  // One week is one semester's plan (the reference day decides at the change).
+  const assignments = yearAssignments.on(refDate)
 
   const classIds = [...new Set(assignments.map(a => a.classId))]
   const classTurns = await loadClassTurns(classIds, schoolYearId)
@@ -218,11 +257,12 @@ export async function getStudentPlacement(
     groupId: student.groupId ?? null,
     schoolYearId,
   })
-  const [assignments, rotations, classTurnsMap] = await Promise.all([
+  const [yearAssignments, rotations, classTurnsMap] = await Promise.all([
     loadAssignments(schoolYearId),
     loadRotations(schoolYearId),
     loadClassTurns(plan.planClassIds, schoolYearId),
   ])
+  const assignments = yearAssignments.on(target)
 
   // Groups are per weekday — the student's plan and group on the requested day.
   const placement = plan.on(weekday)
@@ -281,7 +321,7 @@ export async function getStudentSelfPlacement(
     groupId: student.groupId ?? null,
     schoolYearId,
   })
-  const [assignments, rotations, classTurnsMap] = await Promise.all([
+  const [yearAssignments, rotations, classTurnsMap] = await Promise.all([
     loadAssignments(schoolYearId),
     loadRotations(schoolYearId),
     loadClassTurns(plan.planClassIds, schoolYearId),
@@ -301,7 +341,8 @@ export async function getStudentSelfPlacement(
     const turns = classTurnsMap.get(placement.classId)?.get(weekday) ?? []
     return resolveStudentPlacement(
       placement,
-      assignments,
+      // The search window can cross the semester change, so pick per day.
+      yearAssignments.on(date),
       rotations,
       turns,
       formatPlanDate(date),
@@ -341,6 +382,16 @@ export async function getStudentSelfPlacement(
 /** Invariant self-check (build step 1): any (teacher, weekday, period) mapping to
  * more than one room this school year. Empty array = invariant holds. */
 export async function getInvariantViolations(schoolYearId: number): Promise<InvariantViolation[]> {
+  // Checked per semester: a teacher may legitimately use another room in the
+  // second half. A whole-year violation shows up in both sets, so de-duplicate.
   const assignments = await loadAssignments(schoolYearId)
-  return findInvariantViolations(assignments)
+  const seen = new Set<string>()
+  return (['first', 'second'] as const)
+    .flatMap(semester => findInvariantViolations(assignments.inSemester(semester)))
+    .filter(violation => {
+      const key = JSON.stringify(violation)
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
 }

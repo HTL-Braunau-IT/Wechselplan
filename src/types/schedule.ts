@@ -149,12 +149,19 @@ export interface TeacherAssignmentResponse {
   room: string
   teacherLastName: string
   teacherFirstName: string
+  /** 'full' (whole year), 'first' or 'second' — which half the row applies to. */
+  semester?: string
 }
 
 export interface TeacherAssignmentsResponse {
+  /** ONE teacher set: the requested semester's, else the one that applies today. */
   amAssignments: TeacherAssignmentResponse[]
   pmAssignments: TeacherAssignmentResponse[]
   selectedWeekday?: number
+  semester?: 'first' | 'second'
+  semesterChangeDate?: string | null
+  /** Every row of the weekday plan, tagged with its semester. */
+  planAssignments?: { am: TeacherAssignmentResponse[]; pm: TeacherAssignmentResponse[] }
 }
 
 export interface GroupAssignment {

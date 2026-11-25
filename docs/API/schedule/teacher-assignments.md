@@ -6,6 +6,21 @@ The Teacher Assignments API manages teacher assignments for classes. This endpoi
 
 `/api/schedule/teacher-assignments`
 
+## Semesters
+
+The route lives at `/api/schedules/teacher-assignments`. Each row carries a `semester`
+(`full`, `first` or `second`), so a weekday plan can have different teachers in each half
+of the year.
+
+- `GET ...?classId=&selectedWeekday=&schoolYearId=&semester=first|second` — `amAssignments` /
+  `pmAssignments` are ONE teacher set: the requested semester's, or the one that applies
+  today when `semester` is omitted (whole-year rows apply to both). The response also has
+  `semester`, `semesterChangeDate` and `planAssignments: { am, pm }` — every row of the
+  weekday, each tagged with its `semester`.
+- `POST` accepts an optional `semester` (`first` | `second`; absent = whole year). A whole-year
+  save replaces every row of the weekday. A single-semester save replaces only that half;
+  existing whole-year rows become the other half's rows instead of being deleted.
+
 ## Endpoints
 
 ### GET /api/schedule/teacher-assignments

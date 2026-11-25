@@ -23,7 +23,7 @@ vi.mock('@/lib/prisma', () => ({
     teacherRotation: { findMany: vi.fn() },
     class: { findUnique: vi.fn() },
     schedule: { findFirst: vi.fn() },
-    schoolYear: { findFirst: vi.fn() },
+    schoolYear: { findFirst: vi.fn(), findUnique: vi.fn() },
     classMembership: { findMany: vi.fn() },
     student: { findMany: vi.fn() },
   },

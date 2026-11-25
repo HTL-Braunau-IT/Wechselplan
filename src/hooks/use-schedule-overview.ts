@@ -11,6 +11,9 @@ import type {
 } from '@/types/types'
 import { captureFrontendError } from '@/lib/frontend-error'
 import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
+import { buildRotationBlocks, type RotationBlock } from '@/lib/schedule-semester'
+
+export type AssignmentBlock = RotationBlock<TeacherAssignmentResponse>
 
 interface UseScheduleOverviewResult {
   groups: Group[]
@@ -22,6 +25,13 @@ interface UseScheduleOverviewResult {
   /** Per-lane Turnusse (AM and PM can have different counts). */
   amTurns: TurnSchedule
   pmTurns: TurnSchedule
+  /**
+   * Each lane's Turnusse grouped by the teachers who run them: one block for a
+   * whole-year plan, two when the teachers change at the semester. `amAssignments`
+   * / `pmAssignments` stay the set that applies today.
+   */
+  amBlocks: AssignmentBlock[]
+  pmBlocks: AssignmentBlock[]
   amEnabled: boolean
   pmEnabled: boolean
   classHead: string
@@ -60,6 +70,8 @@ export function useScheduleOverview(
   const [turns, setTurns] = useState<TurnSchedule>({})
   const [amTurns, setAmTurns] = useState<TurnSchedule>({})
   const [pmTurns, setPmTurns] = useState<TurnSchedule>({})
+  const [amBlocks, setAmBlocks] = useState<AssignmentBlock[]>([])
+  const [pmBlocks, setPmBlocks] = useState<AssignmentBlock[]>([])
   const [amEnabled, setAmEnabled] = useState(true)
   const [pmEnabled, setPmEnabled] = useState(true)
   const [classHead, setClassHead] = useState<string>('—')
@@ -251,15 +263,25 @@ export function useScheduleOverview(
             const teacherData: TeacherAssignmentsResponse = await teacherRes.json()
             setAmAssignments(teacherData.amAssignments)
             setPmAssignments(teacherData.pmAssignments)
+            const change = teacherData.semesterChangeDate
+              ? new Date(teacherData.semesterChangeDate)
+              : null
+            const plan = teacherData.planAssignments
+            setAmBlocks(buildRotationBlocks(amData, plan?.am ?? teacherData.amAssignments, change))
+            setPmBlocks(buildRotationBlocks(pmData, plan?.pm ?? teacherData.pmAssignments, change))
           } else {
             console.warn(`Failed to fetch teacher assignments for class ${classId}`)
             setAmAssignments([])
             setPmAssignments([])
+            setAmBlocks([])
+            setPmBlocks([])
           }
         } catch (err) {
           console.warn(`Error fetching teacher assignments for class ${classId}:`, err)
           setAmAssignments([])
           setPmAssignments([])
+          setAmBlocks([])
+          setPmBlocks([])
         }
 
         // Fetch class data
@@ -312,6 +334,8 @@ export function useScheduleOverview(
     turns,
     amTurns,
     pmTurns,
+    amBlocks,
+    pmBlocks,
     amEnabled,
     pmEnabled,
     classHead,

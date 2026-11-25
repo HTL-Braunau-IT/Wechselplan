@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { rotatedGroupIndex } from '@/lib/rotation'
-import { useScheduleOverview } from '@/hooks/use-schedule-overview'
+import { useScheduleOverview, type AssignmentBlock } from '@/hooks/use-schedule-overview'
 import { ScheduleOverview } from '@/components/schedule-overview'
 import { StudentGradingCriteria } from '@/components/overviews/student-grading-criteria'
 import { Spinner } from '@/components/ui/spinner'
@@ -150,6 +150,8 @@ function StudentCurrentAssignments({
   pmAssignments,
   amTurns,
   pmTurns,
+  amBlocks,
+  pmBlocks,
   groups,
   groupId,
 }: {
@@ -157,6 +159,8 @@ function StudentCurrentAssignments({
   pmAssignments: TeacherAssignmentResponse[]
   amTurns: TurnSchedule
   pmTurns: TurnSchedule
+  amBlocks: AssignmentBlock[]
+  pmBlocks: AssignmentBlock[]
   groups: Group[]
   groupId: number | null
 }) {
@@ -179,6 +183,7 @@ function StudentCurrentAssignments({
   const findTeacherForGroup = (
     assignments: TeacherAssignmentResponse[],
     turns: TurnSchedule,
+    blocks: AssignmentBlock[],
     studentGroupId: number,
   ): TeacherAssignmentResponse | null => {
     if (!studentGroupId || groups.length === 0) {
@@ -186,17 +191,24 @@ function StudentCurrentAssignments({
       return assignments.find(a => a.groupId === studentGroupId) ?? null
     }
 
+    const turnIndex = currentTurnIndex(turns)
+    // Teachers can change at the semester: the running Turnus belongs to one
+    // block, whose teachers rotate counting from that block's first Turnus.
+    const block = blocks.find(
+      b => turnIndex >= b.turnStart && turnIndex < b.turnStart + b.turnKeys.length,
+    )
+    const blockTurn = turnIndex - (block?.turnStart ?? 0)
+
     // Unique teachers in the order ScheduleOverview lists them.
-    const uniqueTeachers = assignments
+    const uniqueTeachers = (block?.assignments ?? assignments)
       .filter(a => a.teacherId !== 0)
       .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx)
 
-    const turnIndex = currentTurnIndex(turns)
     if (turnIndex >= 0) {
       // The teacher whose row shows the student's group this Turnus in ScheduleOverview.
       const teacher = uniqueTeachers.find(
         (_, teacherIdx) =>
-          groups[rotatedGroupIndex(teacherIdx, turnIndex, groups.length)]?.id === studentGroupId,
+          groups[rotatedGroupIndex(teacherIdx, blockTurn, groups.length)]?.id === studentGroupId,
       )
       if (teacher) return teacher
     }
@@ -205,8 +217,8 @@ function StudentCurrentAssignments({
     return assignments.find(a => a.groupId === studentGroupId) ?? null
   }
 
-  const amAssignment = findTeacherForGroup(amAssignments, amTurns, groupId ?? 0)
-  const pmAssignment = findTeacherForGroup(pmAssignments, pmTurns, groupId ?? 0)
+  const amAssignment = findTeacherForGroup(amAssignments, amTurns, amBlocks, groupId ?? 0)
+  const pmAssignment = findTeacherForGroup(pmAssignments, pmTurns, pmBlocks, groupId ?? 0)
 
   if (!amAssignment && !pmAssignment) {
     return null
@@ -337,6 +349,8 @@ function StudentPlanView({ plan }: { plan: StudentPlan }) {
         pmAssignments={overview.pmAssignments}
         amTurns={overview.amTurns}
         pmTurns={overview.pmTurns}
+        amBlocks={overview.amBlocks}
+        pmBlocks={overview.pmBlocks}
         groups={overview.groups}
         groupId={plan.groupId}
       />
@@ -349,6 +363,8 @@ function StudentPlanView({ plan }: { plan: StudentPlan }) {
         turns={overview.turns}
         amTurns={overview.amTurns}
         pmTurns={overview.pmTurns}
+        amBlocks={overview.amBlocks}
+        pmBlocks={overview.pmBlocks}
         classHead={overview.classHead}
         classLead={overview.classLead}
         additionalInfo={overview.additionalInfo}

@@ -9,6 +9,9 @@ vi.mock('@/lib/prisma', () => ({
     teacherAssignment: { findMany: vi.fn() },
     teacherRotation: { findMany: vi.fn() },
     schedule: { findFirst: vi.fn(), findMany: vi.fn() },
+    // The assignments are scoped to the semester of the requested date; with no
+    // year row that is the first semester.
+    schoolYear: { findUnique: vi.fn(async () => null) },
   },
 }))
 vi.mock('@/lib/sentry', () => ({ captureError: vi.fn() }))

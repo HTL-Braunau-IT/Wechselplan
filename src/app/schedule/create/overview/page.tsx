@@ -101,6 +101,8 @@ export default function OverviewPage() {
     turns,
     amTurns,
     pmTurns,
+    amBlocks,
+    pmBlocks,
     classHead,
     classLead,
     additionalInfo,
@@ -108,6 +110,14 @@ export default function OverviewPage() {
     loading: overviewLoading,
     error: overviewError,
   } = useScheduleOverview(classId, schoolYearId, urlWeekday)
+
+  // Teacher ids in the order the overview lists them, without repeats.
+  const uniqueTeachers = (assignments: { teacherId: number }[]) => [
+    ...new Set(assignments.map(a => a.teacherId).filter(id => id !== 0)),
+  ]
+  const planTeacherIds = new Set(
+    [...amBlocks, ...pmBlocks].flatMap(block => uniqueTeachers(block.assignments)),
+  )
 
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -132,19 +142,23 @@ export default function OverviewPage() {
     try {
       // Build round-robin teacher rotation for AM and PM using the shared helper,
       // so the persisted rotation always matches the on-screen preview. AM and PM
-      // are independent lanes, so each rotates over its OWN Turnus count.
-      const amTurnKeys = Object.keys(amTurns)
-      const pmTurnKeys = Object.keys(pmTurns)
-      const amRotation = buildRotationForSave(
-        groups,
-        uniqueAmTeachers.map(t => t.teacherId),
-        amTurnKeys.length,
-      )
-      const pmRotation = buildRotationForSave(
-        groups,
-        uniquePmTeachers.map(t => t.teacherId),
-        pmTurnKeys.length,
-      )
+      // are independent lanes, so each rotates over its OWN Turnus count — and a
+      // lane whose teachers change at the semester rotates each block on its own,
+      // so the whole year's rotation is rewritten consistently on every save.
+      const laneRotation = (blocks: typeof amBlocks) => {
+        const perBlock = blocks.map(block =>
+          buildRotationForSave(groups, uniqueTeachers(block.assignments), block.turnKeys.length),
+        )
+        return {
+          turnKeys: blocks.flatMap(block => block.turnKeys),
+          rotation: groups.map((group, groupIdx) => ({
+            groupId: group.id,
+            turns: perBlock.flatMap(rows => rows[groupIdx]?.turns ?? []),
+          })),
+        }
+      }
+      const { turnKeys: amTurnKeys, rotation: amRotation } = laneRotation(amBlocks)
+      const { turnKeys: pmTurnKeys, rotation: pmRotation } = laneRotation(pmBlocks)
 
       // Resolve className to classId if needed
       let resolvedClassId: number
@@ -188,10 +202,7 @@ export default function OverviewPage() {
 
       // Send email notifications to all teachers (don't block on this)
       try {
-        const allTeacherIds = [
-          ...uniqueAmTeachers.map(t => t.teacherId),
-          ...uniquePmTeachers.map(t => t.teacherId),
-        ].filter((id, index, arr) => arr.indexOf(id) === index) // Remove duplicates
+        const allTeacherIds = [...planTeacherIds] // both lanes, both semesters
 
         const scheduleLink = `${window.location.origin}/schedules?class=${classId}`
         const className = typeof classId === 'string' ? classId : ''
@@ -214,7 +225,7 @@ export default function OverviewPage() {
           type: 'notify-teachers',
           extra: {
             classId,
-            teacherCount: uniqueAmTeachers.length + uniquePmTeachers.length,
+            teacherCount: planTeacherIds.size,
           },
         })
       }
@@ -297,14 +308,6 @@ export default function OverviewPage() {
       </PageContainer>
     )
 
-  const uniqueAmTeachers = amAssignments
-    .filter(a => a.teacherId !== 0)
-    .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx)
-
-  const uniquePmTeachers = pmAssignments
-    .filter(a => a.teacherId !== 0)
-    .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx)
-
   const amTurnCount = Object.keys(amTurns).length
   const pmTurnCount = Object.keys(pmTurns).length
   const turnusValue =
@@ -335,6 +338,8 @@ export default function OverviewPage() {
         turns={turns}
         amTurns={amTurns}
         pmTurns={pmTurns}
+        amBlocks={amBlocks}
+        pmBlocks={pmBlocks}
         classHead={classHead}
         classLead={classLead}
         additionalInfo={additionalInfo}

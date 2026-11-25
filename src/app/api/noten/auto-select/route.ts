@@ -5,6 +5,7 @@ import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { toLocalDateString } from '@/lib/date-utils'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
+import { resolvePlanSemester, semesterScope } from '@/lib/assignment-semester'
 import {
   dateOfWeekdayInWeek,
   laneHasWeeks,
@@ -51,11 +52,17 @@ export async function GET(request: Request) {
     const today = parseYmd(todayLocal) ?? now
     const currentWeekday = today.getDay()
 
+    // Teachers can differ per semester: resolve against the set that applies on
+    // the day in question, or a teacher in both halves has two base groups.
+    const inSemester = semesterScope(
+      await resolvePlanSemester(schoolYearId, new Date(todayLocal + 'T12:00:00')),
+    )
+
     // When classId is provided: return groupId for that class's current turn (week-based), regardless of today's weekday
     const requestedClassId = classIdParam != null ? parseInt(classIdParam, 10) : NaN
     if (!Number.isNaN(requestedClassId)) {
       const allClassAssignments = await prisma.teacherAssignment.findMany({
-        where: { teacherId: teacher.id, schoolYearId, classId: requestedClassId },
+        where: { teacherId: teacher.id, schoolYearId, classId: requestedClassId, ...inSemester },
         select: { classId: true, groupId: true, selectedWeekday: true, period: true },
         orderBy: { selectedWeekday: 'asc' },
       })
@@ -124,7 +131,7 @@ export async function GET(request: Request) {
     }
 
     const assignments = await prisma.teacherAssignment.findMany({
-      where: { teacherId: teacher.id, schoolYearId },
+      where: { teacherId: teacher.id, schoolYearId, ...inSemester },
       select: { classId: true, groupId: true, selectedWeekday: true, period: true },
     })
     // Scope by year AND the weekday being resolved so a class with independent

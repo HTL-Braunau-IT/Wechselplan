@@ -32,6 +32,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { WizardFooter } from '@/components/schedule/wizard-footer'
 import { cn } from '@/lib/utils'
 import { computePeriodTurns, type PeriodCadence } from '@/lib/schedule-cadence'
+import { isPlanSemester, joinTurns, splitLaneBySemester } from '@/lib/schedule-semester'
 import { captureFrontendError } from '@/lib/frontend-error'
 import type { Holiday, ScheduleTerm } from '@/types/schedule'
 
@@ -63,6 +64,13 @@ interface TurnusEditorProps {
   schoolYearEnd: Date | null
   schoolYearMiddle: Date | null
 }
+
+/** The other semester's Turnusse around the half being planned. */
+interface KeptTurns {
+  before: ScheduleTerm[]
+  after: ScheduleTerm[]
+}
+const NO_KEPT: KeptTurns = { before: [], after: [] }
 
 const MAX_TERMS = 8
 
@@ -114,6 +122,10 @@ export function TurnusEditor({
   const [holidays, setHolidays] = useState<Holiday[]>([])
   const [am, setAm] = useState<LaneState>({ numberOfTerms: 4, customLengths: {} })
   const [pm, setPm] = useState<LaneState>({ numberOfTerms: 4, customLengths: {} })
+  // A single-semester plan edits only its own half: the other half's stored
+  // Turnusse are kept aside here, hidden from the band, and re-attached on save.
+  const [keptAm, setKeptAm] = useState<KeptTurns>(NO_KEPT)
+  const [keptPm, setKeptPm] = useState<KeptTurns>(NO_KEPT)
   // Dates ("dd.MM.yy") the class is not at school — whole-day, so both lanes skip
   // them. Toggled by clicking a teaching week in the band; treated like holidays.
   const [excludedDates, setExcludedDates] = useState<string[]>([])
@@ -121,6 +133,9 @@ export function TurnusEditor({
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // The parent hands in a fresh Date each render; key effects on the timestamp.
+  const middleMs = schoolYearMiddle?.getTime() ?? null
 
   useEffect(() => {
     let active = true
@@ -157,8 +172,22 @@ export function TurnusEditor({
               }
               return { numberOfTerms: names.length, customLengths }
             }
-            const amLane = toLane(s.amScheduleData)
-            const pmLane = toLane(s.pmScheduleData)
+            // Planning one semester edits only the Turnusse on its side of the
+            // semester change; the other side is carried through untouched.
+            const plan = isPlanSemester(s.semesterPlanning) ? s.semesterPlanning : null
+            const editable = (data?: Record<string, ScheduleTerm> | null) => {
+              if (plan == null || middleMs == null) return { kept: NO_KEPT, data }
+              const { first, second } = splitLaneBySemester(data, new Date(middleMs))
+              return plan === 'second'
+                ? { kept: { before: first, after: [] }, data: joinTurns(second) }
+                : { kept: { before: [], after: second }, data: joinTurns(first) }
+            }
+            const amPart = editable(s.amScheduleData)
+            const pmPart = editable(s.pmScheduleData)
+            setKeptAm(amPart.kept)
+            setKeptPm(pmPart.kept)
+            const amLane = toLane(amPart.data)
+            const pmLane = toLane(pmPart.data)
             if (amLane) setAm(amLane)
             if (pmLane) setPm(pmLane)
           }
@@ -179,7 +208,7 @@ export function TurnusEditor({
     return () => {
       active = false
     }
-  }, [className, weekday, schoolYearId, t])
+  }, [className, weekday, schoolYearId, middleMs, t])
 
   // Date window, narrowed by the semester scope chosen on the periods step.
   const { windowStart, windowEnd } = useMemo(() => {
@@ -289,8 +318,16 @@ export function TurnusEditor({
 
   // `allWeeks` is a display-only expansion (teaching + holiday weeks); it never
   // gets persisted, so drop it from the saved blob.
-  const toRecord = (terms: ScheduleTerm[]): Record<string, ScheduleTerm> =>
-    Object.fromEntries(terms.map(({ allWeeks: _allWeeks, ...term }) => [term.name, term]))
+  // `kept` is the other semester's Turnusse (empty for a whole-year plan); the
+  // planned ones slot in between and the lane is renumbered continuously.
+  const toRecord = (kept: KeptTurns, terms: ScheduleTerm[]): Record<string, ScheduleTerm> =>
+    joinTurns(
+      kept.before,
+      terms.map(({ allWeeks: _allWeeks, ...term }) => term),
+      kept.after,
+    )
+  const keptCount =
+    keptAm.before.length + keptAm.after.length + keptPm.before.length + keptPm.after.length
 
   // A day the class is not at school. Whole-day, so it drops out of both lanes;
   // recomputing the terms then shifts the following weeks (see computePeriodTurns).
@@ -312,8 +349,9 @@ export function TurnusEditor({
         body: JSON.stringify({
           name: `Wechselplan ${className}`,
           description: `Wechselplan für Klasse ${className}`,
-          startDate: (windowStart ?? new Date()).toISOString(),
-          endDate: (windowEnd ?? new Date()).toISOString(),
+          // With the other semester kept, the stored plan spans the whole year.
+          startDate: ((keptCount > 0 ? schoolYearStart : windowStart) ?? new Date()).toISOString(),
+          endDate: ((keptCount > 0 ? schoolYearEnd : windowEnd) ?? new Date()).toISOString(),
           selectedWeekday: weekday,
           classId: String(classId),
           ...(schoolYearId != null ? { schoolYearId } : {}),
@@ -326,8 +364,8 @@ export function TurnusEditor({
           amStartDate: shell?.amStartDate ?? null,
           pmStartDate: shell?.pmStartDate ?? null,
           excludedDates,
-          amScheduleData: shell?.amEnabled ? toRecord(amTerms) : null,
-          pmScheduleData: shell?.pmEnabled ? toRecord(pmTerms) : null,
+          amScheduleData: shell?.amEnabled ? toRecord(keptAm, amTerms) : null,
+          pmScheduleData: shell?.pmEnabled ? toRecord(keptPm, pmTerms) : null,
           additionalInfo,
           semesterPlanning: shell?.semesterPlanning ?? null,
         }),
@@ -368,6 +406,14 @@ export function TurnusEditor({
           <Badge variant="secondary">
             {shell.semesterPlanning === 'first' ? t('firstSemester') : t('secondSemester')}
           </Badge>
+        )}
+        {keptCount > 0 && (
+          <span className="text-muted-foreground text-sm">
+            {t('otherSemesterKept', {
+              semester:
+                shell?.semesterPlanning === 'second' ? t('firstSemester') : t('secondSemester'),
+            })}
+          </span>
         )}
         {summary && (
           <>
@@ -452,6 +498,7 @@ export function TurnusEditor({
               weekInterval={amCadence.weekInterval}
               lane={am}
               terms={amTerms}
+              numberOffset={keptAm.before.length}
               onChange={setAm}
               onToggleExclude={toggleExcluded}
             />
@@ -463,6 +510,7 @@ export function TurnusEditor({
               weekInterval={pmCadence.weekInterval}
               lane={pm}
               terms={pmTerms}
+              numberOffset={keptPm.before.length}
               onChange={setPm}
               onToggleExclude={toggleExcluded}
             />
@@ -510,6 +558,8 @@ interface LaneBandProps {
   weekInterval: number
   lane: LaneState
   terms: ScheduleTerm[]
+  /** First-semester Turnusse hidden before these; display numbering continues after them. */
+  numberOffset?: number
   onChange: (next: LaneState) => void
   /** Toggle a specific date ("dd.MM.yy") as a day the class is not at school. */
   onToggleExclude: (date: string) => void
@@ -535,6 +585,7 @@ function LaneBand({
   weekInterval,
   lane,
   terms,
+  numberOffset = 0,
   onChange,
   onToggleExclude,
 }: LaneBandProps) {
@@ -678,7 +729,7 @@ function LaneBand({
                 style={{ flexGrow: Math.max(1, cells.length), flexBasis: 0 }}
               >
                 <div className="mb-1 min-w-0 px-0.5">
-                  <div className="text-sm font-semibold">T{index + 1}</div>
+                  <div className="text-sm font-semibold">T{numberOffset + index + 1}</div>
                   <div className="text-muted-foreground truncate text-xs tabular-nums">
                     {firstKw && lastKw ? `${firstKw} – ${kwNumber(lastKw)}` : '—'}
                   </div>
@@ -727,7 +778,7 @@ function LaneBand({
                   <Input
                     type="number"
                     min={1}
-                    aria-label={`${title} · ${t('weeks')} · T${index + 1}`}
+                    aria-label={`${title} · ${t('weeks')} · T${numberOffset + index + 1}`}
                     value={isManual ? (lane.customLengths[term.name] ?? '') : ''}
                     placeholder={String(term.weeks.length)}
                     onChange={event => {

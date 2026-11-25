@@ -74,6 +74,7 @@
   "wholeYear": "Ganzes Jahr",
   "firstSemester": "1. Semester",
   "secondSemester": "2. Semester",
+  "otherSemesterKept": "Das {{semester}} bleibt unverändert – nur dieses Semester wird neu geplant.",
   "atLeastOnePeriod": "Mindestens eine Periode (Vormittag oder Nachmittag) muss aktiv sein.",
   "biweeklyBadge": "14-tägig",
   "everyNthWeekBadge": "alle {{count}} Wo.",

@@ -7,6 +7,8 @@ import { normalizeUsername } from '@/lib/username'
 import { requireAccess } from '@/lib/api-guard'
 import { overlayWeekdayGroups } from '@/lib/weekday-groups'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
+import { resolvePlanSemester } from '@/lib/assignment-semester'
+import { appliesToSemester } from '@/lib/schedule-semester'
 
 // The schedule/roster view only needs display + grouping fields. Selecting them
 // explicitly keeps PII columns (email, username, externalId, sokratesId,
@@ -245,11 +247,19 @@ export async function GET(req: Request) {
       }
     }
 
+    // A plan may hold different teachers per semester; this view is "now", so
+    // only the current semester's rows count — otherwise a teacher who is in both
+    // halves gets every slot twice and the parallel groups list both sets.
+    const semester = schoolYearId != null ? await resolvePlanSemester(schoolYearId) : null
+    const inSemester = (row: { semester: string }) =>
+      semester == null || appliesToSemester(row.semester, semester)
+
     // Filter assignments to only include those with valid schedules for this weekday
     const allClassAssignments = await prisma.teacherAssignment.findMany({
       where: {
         classId: { in: [...validClassIds] },
         ...(schoolYearId != null ? { schoolYearId } : {}),
+        ...(semester != null ? { semester: { in: ['full', semester] } } : {}),
         selectedWeekday: weekdayNum,
       },
       include: {
@@ -273,7 +283,9 @@ export async function GET(req: Request) {
       // repeat each (period, group) once per weekday).
       .filter(
         assignment =>
-          validClassIds.has(assignment.classId) && assignment.selectedWeekday === weekdayNum,
+          validClassIds.has(assignment.classId) &&
+          assignment.selectedWeekday === weekdayNum &&
+          inSemester(assignment),
       )
       .map(assignment => ({
         id: assignment.id,

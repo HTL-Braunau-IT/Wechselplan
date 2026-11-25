@@ -7,6 +7,7 @@ import { normalizeToJsonFormat } from '@/lib/schedule-data-helpers'
 import { denyUnlessAccess } from '@/lib/api-guard'
 import { overlayWeekdayGroups } from '@/lib/weekday-groups'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
+import { requestedPlanSemester, semesterScope } from '@/lib/assignment-semester'
 
 interface Week {
   date: string
@@ -126,9 +127,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Schedule not found' }, { status: 404 })
     }
 
-    // Fetch teacher assignments for this year
+    // Fetch teacher assignments for this year — one semester's set (`semester`
+    // param, else today's), since the sheet has a single teacher column.
+    const semester = await requestedPlanSemester(searchParams.get('semester'), schoolYearId)
     const teacherAssignments = await prisma.teacherAssignment.findMany({
-      where: { classId: class_response.id, schoolYearId, selectedWeekday: weekday },
+      where: {
+        classId: class_response.id,
+        schoolYearId,
+        selectedWeekday: weekday,
+        ...semesterScope(semester),
+      },
       include: {
         teacher: true,
       },

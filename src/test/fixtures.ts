@@ -112,6 +112,7 @@ export function makeTeacherAssignment(
     roomId: 1,
     period: '1',
     selectedWeekday: 1,
+    semester: 'full',
     schoolYearId: 1,
     ...timestamps,
     ...overrides,

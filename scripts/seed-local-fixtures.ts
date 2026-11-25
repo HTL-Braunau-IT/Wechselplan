@@ -311,12 +311,13 @@ async function seedAssignmentsAndRotations(
     for (const groupId of GROUPS) {
       await prisma.teacherAssignment.upsert({
         where: {
-          classId_period_groupId_schoolYearId_selectedWeekday: {
+          classId_period_groupId_schoolYearId_selectedWeekday_semester: {
             classId: klass.id,
             period: PERIOD,
             groupId,
             schoolYearId,
             selectedWeekday: WEEKDAY,
+            semester: 'full',
           },
         },
         update: {},

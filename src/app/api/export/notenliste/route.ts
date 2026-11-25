@@ -8,6 +8,7 @@ import { readFileSync } from 'fs'
 import { denyUnlessAccess } from '@/lib/api-guard'
 import { overlayWeekdayGroups } from '@/lib/weekday-groups'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
+import { requestedPlanSemester, semesterScope } from '@/lib/assignment-semester'
 
 interface Week {
   date: string
@@ -147,12 +148,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Schedule not found' }, { status: 404 })
     }
 
-    // Fetch teacher assignments for this year with optional period filtering
+    // Fetch teacher assignments for this year with optional period filtering —
+    // one semester's set (`semester` param, else today's).
+    const semester = await requestedPlanSemester(searchParams.get('semester'), schoolYearId)
     const teacherAssignments = await prisma.teacherAssignment.findMany({
       where: {
         classId: class_response.id,
         schoolYearId,
         selectedWeekday: weekday,
+        ...semesterScope(semester),
         ...(period && { period: period as 'AM' | 'PM' }),
       },
       include: {

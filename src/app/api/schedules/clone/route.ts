@@ -163,6 +163,7 @@ export async function POST(request: Request) {
             roomId: a.roomId,
             selectedWeekday: toWeekday,
             schoolYearId,
+            semester: a.semester,
           })),
         })
       }

@@ -163,6 +163,10 @@ export default function SchedulesPage() {
                   scheduleTimes={overview.scheduleTimes}
                   breakTimes={overview.breakTimes}
                   turns={overview.turns}
+                  amTurns={overview.amTurns}
+                  pmTurns={overview.pmTurns}
+                  amBlocks={overview.amBlocks}
+                  pmBlocks={overview.pmBlocks}
                   classHead={overview.classHead}
                   classLead={overview.classLead}
                   additionalInfo={overview.additionalInfo}

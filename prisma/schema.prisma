@@ -300,6 +300,11 @@ model TeacherAssignment {
   learningContentId Int
   roomId            Int
   selectedWeekday   Int             @default(1)
+  // Which half of the year the row applies to: "full" (whole year), "first" or
+  // "second". A weekday plan holds either "full" rows or a "first"/"second"
+  // split, so the teachers can change at the semester. Read through
+  // src/lib/assignment-semester.ts — never unscoped when ONE set is wanted.
+  semester          String          @default("full")
   schoolYearId      Int
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
@@ -310,7 +315,7 @@ model TeacherAssignment {
   teacher           Teacher         @relation(fields: [teacherId], references: [id])
   schoolYear        SchoolYear      @relation(fields: [schoolYearId], references: [id])
 
-  @@unique([classId, period, groupId, schoolYearId, selectedWeekday])
+  @@unique([classId, period, groupId, schoolYearId, selectedWeekday, semester])
   @@index([classId])
   @@index([teacherId])
   @@index([subjectId])

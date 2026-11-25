@@ -2,6 +2,8 @@ import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
 import { colors, fonts, groupColor, page } from '@/lib/pdf/theme'
 import { GroupBadge, Meta, PageFooter, PageHeader, SectionLabel } from './primitives'
 import { rotatedGroupIndex } from '@/lib/rotation'
+import { buildRotationBlocks, type RotationBlock } from '@/lib/schedule-semester'
+import type { TurnSchedule } from '@/types/schedule'
 import {
   formatDateGerman,
   getSchoolYear,
@@ -25,6 +27,11 @@ export interface WechselplanData {
   /** Meets every Nth week (1 = weekly). */
   amWeekInterval?: number
   pmWeekInterval?: number
+  /**
+   * Semester change day. With assignments tagged 'first' / 'second' it splits
+   * each lane where the teachers change; without it the plan is one block.
+   */
+  semesterChangeDate?: Date | null
   className: string
   classHead: string
   classLead: string
@@ -42,6 +49,8 @@ interface Assignment {
   learningContentName: string
   roomName: string
   groupId: number
+  /** 'full' (default), 'first' or 'second' — which half of the year the row is for. */
+  semester?: string
 }
 
 /**
@@ -364,20 +373,25 @@ function GroupCards({ groups }: { groups: WechselplanData['groups'] }) {
 }
 
 function PeriodRows({
-  assignments,
+  blocks,
   groups,
   turnusColumns,
   turnusWidth,
 }: {
-  assignments: Assignment[]
+  blocks: RotationBlock<Assignment>[]
   groups: WechselplanData['groups']
   turnusColumns: TurnusColumn[]
   turnusWidth: number
 }) {
+  // One row per teacher and block; a row is blank outside its own Turnusse, so
+  // second-semester teachers start where the first-semester ones end.
+  const rows = blocks.flatMap(block =>
+    block.assignments.map((assignment, teacherIdx) => ({ block, assignment, teacherIdx })),
+  )
   return (
     <>
-      {assignments.map((assignment, teacherIdx) => (
-        <View key={teacherIdx} style={styles.bodyRow}>
+      {rows.map(({ block, assignment, teacherIdx }, rowIdx) => (
+        <View key={rowIdx} style={styles.bodyRow}>
           <View style={[styles.cell, { width: COL_TEACHER }]}>
             <Text style={styles.teacherName}>
               {assignment.teacherLastName} {assignment.teacherFirstName}
@@ -396,7 +410,12 @@ function PeriodRows({
           {turnusColumns.map((_, turnIdx) => {
             // A deliberately empty group still takes its place in the rotation,
             // but the teacher has no one that turnus: the cell stays blank.
-            const rotated = getGroupForTeacherAndTurn(groups, teacherIdx, turnIdx, assignments)
+            // The round-robin counts from the block's first Turnus.
+            const blockTurn = turnIdx - block.turnStart
+            const rotated =
+              blockTurn >= 0 && blockTurn < block.turnKeys.length
+                ? getGroupForTeacherAndTurn(groups, teacherIdx, blockTurn, block.assignments)
+                : null
             const group = rotated && rotated.students.length > 0 ? rotated : null
             const palette = groupColor(group?.id)
             return (
@@ -555,7 +574,11 @@ export default function WechselplanDocument({ data }: { data: WechselplanData })
                         ))}
                       </View>
                       <PeriodRows
-                        assignments={period.assignments}
+                        blocks={buildRotationBlocks(
+                          period.turns as TurnSchedule,
+                          period.assignments,
+                          data.semesterChangeDate,
+                        )}
                         groups={data.groups}
                         turnusColumns={turnusColumns}
                         turnusWidth={turnusWidth}

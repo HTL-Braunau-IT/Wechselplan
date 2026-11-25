@@ -31,6 +31,7 @@ vi.mock('@/lib/prisma', () => ({
     // year and scopes students through ClassMembership before anything else,
     // so both must be mocked or every request 500s.
     schoolYear: {
+      findUnique: vi.fn(),
       findFirst: vi.fn(),
     },
     classMembership: {

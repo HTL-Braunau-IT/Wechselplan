@@ -99,6 +99,9 @@ export default function TeacherAssignmentPage() {
   // periods are shown for editing.
   const [amEnabled, setAmEnabled] = useState(true)
   const [pmEnabled, setPmEnabled] = useState(true)
+  // The semester this plan is being made for ("Tag & Perioden" step). Teachers
+  // are stored per semester, so a second-semester plan leaves the first's alone.
+  const [planSemester, setPlanSemester] = useState<'first' | 'second' | null>(null)
 
   const {
     rooms,
@@ -178,6 +181,7 @@ export default function TeacherAssignmentPage() {
 
         // Which lanes does this day run? Read the schedule shell saved on the
         // "Tag & Perioden" step; default to both if there is none yet.
+        let semester: 'first' | 'second' | null = null
         if (selectedClass) {
           try {
             const yearQ = schoolYearId != null ? `&schoolYearId=${schoolYearId}` : ''
@@ -189,10 +193,13 @@ export default function TeacherAssignmentPage() {
               const shells = (await shellRes.json()) as {
                 amEnabled: boolean
                 pmEnabled: boolean
+                semesterPlanning: string | null
               }[]
               if (shells[0]) {
                 setAmEnabled(shells[0].amEnabled)
                 setPmEnabled(shells[0].pmEnabled)
+                const planned = shells[0].semesterPlanning
+                semester = planned === 'first' || planned === 'second' ? planned : null
               }
             }
           } catch {
@@ -200,16 +207,35 @@ export default function TeacherAssignmentPage() {
           }
         }
 
-        // Fetch existing teacher assignments for this weekday + school year.
+        setPlanSemester(semester)
+
+        // Fetch existing teacher assignments for this weekday + school year — the
+        // set of the semester being planned (a whole-year plan reads today's).
         const weekdayQ = selectedWeekday != null ? `&selectedWeekday=${selectedWeekday}` : ''
-        const teacherAssignmentsUrl =
-          schoolYearId != null
-            ? `/api/schedules/teacher-assignments?classId=${selectedClassId}&schoolYearId=${schoolYearId}${weekdayQ}`
-            : `/api/schedules/teacher-assignments?classId=${selectedClassId}${weekdayQ}`
-        const teacherAssignmentsRes = await fetch(teacherAssignmentsUrl)
+        const yearParam = schoolYearId != null ? `&schoolYearId=${schoolYearId}` : ''
+        const assignmentsUrl = (forSemester: 'first' | 'second' | null) =>
+          `/api/schedules/teacher-assignments?classId=${selectedClassId}${yearParam}${weekdayQ}${
+            forSemester ? `&semester=${forSemester}` : ''
+          }`
+        const teacherAssignmentsRes = await fetch(assignmentsUrl(semester), { cache: 'no-store' })
         if (teacherAssignmentsRes.ok) {
-          const teacherAssignmentsData =
+          let teacherAssignmentsData =
             (await teacherAssignmentsRes.json()) as TeacherAssignmentsResponse
+          // A semester planned for the first time starts from the other half's
+          // teachers rather than from an empty table; saving stores it on its own.
+          if (
+            semester &&
+            teacherAssignmentsData.amAssignments.length === 0 &&
+            teacherAssignmentsData.pmAssignments.length === 0
+          ) {
+            const templateRes = await fetch(
+              assignmentsUrl(semester === 'second' ? 'first' : 'second'),
+              { cache: 'no-store' },
+            )
+            if (templateRes.ok) {
+              teacherAssignmentsData = (await templateRes.json()) as TeacherAssignmentsResponse
+            }
+          }
           const hasExistingAmAssignments = teacherAssignmentsData.amAssignments.some(
             a => a.teacherId !== 0,
           )
@@ -533,6 +559,7 @@ export default function TeacherAssignmentPage() {
           pmAssignments: mapAssignments(validPmAssignments),
           updateExisting: true,
           selectedWeekday: selectedWeekday ?? 1,
+          ...(planSemester ? { semester: planSemester } : {}),
         }),
       })
 
@@ -620,6 +647,11 @@ export default function TeacherAssignmentPage() {
           <span className="text-muted-foreground flex flex-wrap items-center gap-1.5 text-sm">
             {amEnabled && <Badge variant="secondary">{t('morning')}</Badge>}
             {pmEnabled && <Badge variant="secondary">{t('afternoon')}</Badge>}
+            {planSemester && (
+              <Badge variant="secondary">
+                {planSemester === 'first' ? t('firstSemester') : t('secondSemester')}
+              </Badge>
+            )}
           </span>
         </div>
 

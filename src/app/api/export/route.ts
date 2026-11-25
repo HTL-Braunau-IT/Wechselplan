@@ -7,6 +7,7 @@ import { denyUnlessAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { applyWeekdayGroups, designedGroupIds, weekdayGroupMap } from '@/lib/weekday-groups'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
+import { getSemesterChangeDate } from '@/lib/assignment-semester'
 
 /**
  * Handles HTTP POST requests to generate and return a PDF schedule for a specified class.
@@ -181,6 +182,7 @@ export async function POST(request: Request) {
       subjectId: number
       learningContentId: number
       roomId: number
+      semester: string
       createdAt: Date
       updatedAt: Date
       teacher?: { firstName?: string; lastName?: string }
@@ -201,6 +203,7 @@ export async function POST(request: Request) {
       learningContentName: string
       roomName: string
       groupId: number
+      semester: string
     } {
       return {
         teacherFirstName: a.teacher?.firstName ?? '',
@@ -209,6 +212,7 @@ export async function POST(request: Request) {
         learningContentName: a.learningContent?.name ?? '',
         roomName: a.room?.name ?? '',
         groupId: a.groupId,
+        semester: a.semester,
       }
     }
 
@@ -241,6 +245,8 @@ export async function POST(request: Request) {
       pmTurns,
       amWeekInterval: schedule?.amWeekInterval ?? 1,
       pmWeekInterval: schedule?.pmWeekInterval ?? 1,
+      // Lets the document split the plan where the teachers change.
+      semesterChangeDate: await getSemesterChangeDate(schoolYearId),
       className: class_response.name,
       classHead: class_response.classHead
         ? `${class_response.classHead.firstName} ${class_response.classHead.lastName}`

@@ -74,6 +74,7 @@
   "wholeYear": "Whole year",
   "firstSemester": "1st semester",
   "secondSemester": "2nd semester",
+  "otherSemesterKept": "The {{semester}} stays as it is – only this semester is re-planned.",
   "atLeastOnePeriod": "At least one period (morning or afternoon) must be active.",
   "biweeklyBadge": "biweekly",
   "everyNthWeekBadge": "every {{count}} wks",

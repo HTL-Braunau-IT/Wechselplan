@@ -11,6 +11,7 @@ import type {
 } from '@/types/types'
 import { cn } from '@/lib/utils'
 import { rotatedGroupIndex } from '@/lib/rotation'
+import type { RotationBlock } from '@/lib/schedule-semester'
 import { groupColor } from '@/lib/group-colors'
 
 interface ScheduleOverviewProps {
@@ -28,6 +29,13 @@ interface ScheduleOverviewProps {
    */
   amTurns?: TurnSchedule
   pmTurns?: TurnSchedule
+  /**
+   * Per-lane rotation blocks (see `buildRotationBlocks`). A plan whose teachers
+   * change at the semester has two per lane; each block's teachers rotate only
+   * over its own Turnusse. Omitted = one block: the assignments over every Turnus.
+   */
+  amBlocks?: RotationBlock<TeacherAssignmentResponse>[]
+  pmBlocks?: RotationBlock<TeacherAssignmentResponse>[]
   classHead: string
   classLead: string
   additionalInfo: string
@@ -108,6 +116,8 @@ export function ScheduleOverview({
   turns,
   amTurns,
   pmTurns,
+  amBlocks,
+  pmBlocks,
   classHead,
   classLead,
   additionalInfo,
@@ -138,8 +148,22 @@ export function ScheduleOverview({
       .filter(a => a.teacherId !== 0)
       .filter((a, idx, arr) => arr.findIndex(b => b.teacherId === a.teacherId) === idx)
 
-  const uniqueAmTeachers = uniqueTeachers(amAssignments)
-  const uniquePmTeachers = uniqueTeachers(pmAssignments)
+  // One table row per teacher and block. Outside its block a row stays blank,
+  // so a second-semester teacher simply starts where the first-semester one ends.
+  const rotationRows = (period: 'AM' | 'PM') => {
+    const blocks = (period === 'AM' ? amBlocks : pmBlocks) ?? [
+      {
+        semester: 'full' as const,
+        turnStart: 0,
+        turnKeys: Object.keys(turnsFor(period)),
+        assignments: period === 'AM' ? amAssignments : pmAssignments,
+      },
+    ]
+    return blocks.flatMap(block => {
+      const teachers = uniqueTeachers(block.assignments)
+      return teachers.map((assignment, teacherIdx) => ({ block, teachers, assignment, teacherIdx }))
+    })
+  }
 
   const amTime = scheduleTimes.find(time => time.period === 'AM')
   const pmTime = scheduleTimes.find(time => time.period === 'PM')
@@ -250,11 +274,11 @@ export function ScheduleOverview({
 
       {/* Rotation tables — each lane over its own Turnusse */}
       {[
-        { period: 'AM' as const, label: 'Vormittag', teachers: uniqueAmTeachers },
-        { period: 'PM' as const, label: 'Nachmittag', teachers: uniquePmTeachers },
+        { period: 'AM' as const, label: 'Vormittag', rows: rotationRows('AM') },
+        { period: 'PM' as const, label: 'Nachmittag', rows: rotationRows('PM') },
       ]
-        .filter(({ teachers }) => teachers.length > 0)
-        .map(({ period, label, teachers }) => {
+        .filter(({ rows }) => rows.length > 0)
+        .map(({ period, label, rows }) => {
           const periodTurns = turnsFor(period)
           const turnKeys = Object.keys(periodTurns)
           return (
@@ -289,21 +313,29 @@ export function ScheduleOverview({
                     </tr>
                   </thead>
                   <tbody>
-                    {teachers.map((assignment, teacherIdx) => (
-                      <tr key={assignment.teacherId} className="even:bg-muted/20">
+                    {rows.map(({ block, teachers, assignment, teacherIdx }) => (
+                      <tr
+                        key={`${block.semester}-${assignment.teacherId}`}
+                        className="even:bg-muted/20"
+                      >
                         <td className={cn(tdClass, 'font-medium whitespace-nowrap')}>
                           {assignment.teacherLastName}, {assignment.teacherFirstName}
+                          {block.semester !== 'full' && (
+                            <span className="text-muted-foreground ml-2 text-xs font-normal">
+                              {block.semester === 'first' ? '1. Sem.' : '2. Sem.'}
+                            </span>
+                          )}
                         </td>
                         <td className={tdClass}>{assignment.subject ?? ''}</td>
                         <td className={tdClass}>{assignment.learningContent ?? ''}</td>
                         <td className={tdClass}>{assignment.room ?? ''}</td>
                         {turnKeys.map((turn, turnIdx) => {
-                          const group = getGroupForTeacherAndTurn(
-                            groups,
-                            teacherIdx,
-                            turnIdx,
-                            teachers,
-                          )
+                          // The round-robin counts from the block's first Turnus.
+                          const blockTurn = turnIdx - block.turnStart
+                          const group =
+                            blockTurn >= 0 && blockTurn < block.turnKeys.length
+                              ? getGroupForTeacherAndTurn(groups, teacherIdx, blockTurn, teachers)
+                              : null
                           const colorIdx = group ? groups.findIndex(g => g.id === group.id) : -1
                           return (
                             <td key={turn} className={cn(tdClass, 'p-1.5 text-center')}>
