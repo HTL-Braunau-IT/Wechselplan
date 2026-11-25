@@ -2,7 +2,7 @@ import { entryKey } from '@/lib/grades'
 import type { NotenEntryRow, Student, TeachingDay, WeightConfig } from './types'
 
 /**
- * Per-student attendance counts and the weighted grade the Noten grid derives
+ * Per-student attendance counts (in calendar days) and the weighted grade the Noten grid derives
  * from the day-by-day marks.
  *
  * Extracted from the page so the weighting rules can be tested directly. Each
@@ -42,7 +42,12 @@ export function dayGradeValue(
   const avgMitarbeit = pairAverage(entry?.mitarbeit1, entry?.mitarbeit2)
   const avgPraktisch = pairAverage(entry?.praktischeArbeit1, entry?.praktischeArbeit2)
 
-  if (avgWiederholung == null && avgBericht == null && avgMitarbeit == null && avgPraktisch == null) {
+  if (
+    avgWiederholung == null &&
+    avgBericht == null &&
+    avgMitarbeit == null &&
+    avgPraktisch == null
+  ) {
     return null
   }
 
@@ -77,20 +82,21 @@ export function computeStudentSummary(
   const out: Record<number, StudentSummary> = {}
   // Attendance is only meaningful for days that have already happened.
   const elapsedDays = todayYmd ? teachingDays.filter(day => day.date <= todayYmd) : teachingDays
-  const totalDays = elapsedDays.length
+  // Attendance is counted per calendar date, not per half-day: a teacher who has
+  // the group both AM and PM must not score one missed day as two Fehltage.
+  const totalDays = new Set(elapsedDays.map(day => day.date)).size
 
   for (const student of students) {
-    let anwesend = 0
-    let nichtAnwesend = 0
+    const missedDates = new Set<string>()
     const dayGrades: number[] = []
 
     for (const day of elapsedDays) {
       const entry = entries[entryKey(student.id, day.date, day.period)]
 
-      // Anything that is not an explicit "Anwesend" — including a day with
-      // nothing recorded — counts as an absence.
-      if (entry?.attendance === 'Anwesend') anwesend++
-      else nichtAnwesend++
+      // Anything that is not an explicit "Anwesend" — including a half-day with
+      // nothing recorded — makes its date a missed day (once, however many
+      // half-days of that date were missed).
+      if (entry?.attendance !== 'Anwesend') missedDates.add(day.date)
 
       const dayGrade = dayGradeValue(entry, weights)
       if (dayGrade == null) continue
@@ -102,6 +108,8 @@ export function computeStudentSummary(
       dayGrades.length > 0
         ? Math.round((dayGrades.reduce((a, b) => a + b, 0) / dayGrades.length) * 2) / 2
         : null
+    const nichtAnwesend = missedDates.size
+    const anwesend = totalDays - nichtAnwesend
     const pct = totalDays > 0 ? Math.round((anwesend / totalDays) * 1000) / 10 : 0
 
     out[student.id] = { nichtAnwesend, anwesend, alle: totalDays, pct, calculatedGrade }

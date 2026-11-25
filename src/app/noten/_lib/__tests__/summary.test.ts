@@ -175,6 +175,40 @@ describe('computeStudentSummary', () => {
     expect(result[1]).toMatchObject({ anwesend: 1, nichtAnwesend: 1, alle: 2, pct: 50 })
   })
 
+  it('counts a date missed both AM and PM as one Fehltag', () => {
+    const bothHalves: TeachingDay[] = [
+      { date: '2026-02-02', period: 'AM' },
+      { date: '2026-02-02', period: 'PM' },
+      { date: '2026-02-09', period: 'AM' },
+      { date: '2026-02-09', period: 'PM' },
+    ]
+    const entries = index([
+      entry('2026-02-02', { attendance: 'Krank' }),
+      { ...emptyEntry(1, '2026-02-02', 'PM'), attendance: 'Krank' },
+      entry('2026-02-09', { attendance: 'Anwesend' }),
+      { ...emptyEntry(1, '2026-02-09', 'PM'), attendance: 'Anwesend' },
+    ])
+
+    const result = computeStudentSummary([student], bothHalves, entries, DEFAULT_WEIGHTS)
+
+    expect(result[1]).toMatchObject({ anwesend: 1, nichtAnwesend: 1, alle: 2, pct: 50 })
+  })
+
+  it('counts a date missed for only one half-day as one Fehltag', () => {
+    const bothHalves: TeachingDay[] = [
+      { date: '2026-02-02', period: 'AM' },
+      { date: '2026-02-02', period: 'PM' },
+    ]
+    const entries = index([
+      entry('2026-02-02', { attendance: 'Anwesend' }),
+      { ...emptyEntry(1, '2026-02-02', 'PM'), attendance: 'Entschuldigt' },
+    ])
+
+    const result = computeStudentSummary([student], bothHalves, entries, DEFAULT_WEIGHTS)
+
+    expect(result[1]).toMatchObject({ anwesend: 0, nichtAnwesend: 1, alle: 1 })
+  })
+
   it('reports zero percent when there are no teaching days at all', () => {
     const result = computeStudentSummary([student], [], {}, DEFAULT_WEIGHTS)
 

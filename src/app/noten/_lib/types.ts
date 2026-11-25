@@ -33,6 +33,17 @@ export type ClassItem = {
   weekdays?: number[]
   /** The class's groups on each of those weekdays. */
   groupIdsByWeekday?: Record<number, number[]>
+  /**
+   * The subset of `weekdays` the teacher is no longer on the plan for but
+   * recorded marks on — offered view-only so those marks stay reachable.
+   */
+  formerWeekdays?: number[]
+}
+
+/** Whether the teacher is off the plan for every day of the class (view-only throughout). */
+export function isFormerClass(cls: ClassItem | undefined): boolean {
+  const former = cls?.formerWeekdays ?? []
+  return former.length > 0 && (cls?.weekdays ?? []).every(day => former.includes(day))
 }
 
 /** The group tabs for a class on a weekday (all groups when the day is unknown). */
@@ -42,10 +53,15 @@ export function groupIdsOn(cls: ClassItem | undefined, weekday: number | null): 
   return cls.groupIds
 }
 
-/** A class's default day: today when the teacher teaches it today, else their first day. */
+/**
+ * A class's default day: today when the teacher teaches it today, else their
+ * first day. Days they are still on the plan for win over former ones.
+ */
 export function defaultWeekdayFor(cls: ClassItem | undefined, today = new Date().getDay()) {
   const days = cls?.weekdays ?? []
-  return days.includes(today) ? today : (days[0] ?? null)
+  const live = days.filter(day => !cls?.formerWeekdays?.includes(day))
+  if (live.includes(today)) return today
+  return live[0] ?? days[0] ?? null
 }
 
 export type NotenEntryRow = {

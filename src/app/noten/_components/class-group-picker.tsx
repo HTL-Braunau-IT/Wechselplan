@@ -1,10 +1,10 @@
 'use client'
 
 import { useTranslation } from 'react-i18next'
-import { CalendarDays, Layers, Users } from 'lucide-react'
+import { CalendarDays, History, Layers, Users } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { groupIdsOn, type ClassItem } from '../_lib/types'
+import { groupIdsOn, isFormerClass, type ClassItem } from '../_lib/types'
 
 const CHIP_CLASS =
   'focus-visible:ring-ring flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none'
@@ -54,6 +54,19 @@ export function ClassGroupPicker({
     (currentSlot.weekday == null || currentSlot.weekday === day)
   const nowLabel = t('noten.currentSlot', { defaultValue: 'Findet gerade statt' })
 
+  // Marks a class or day the teacher is off the plan for: recorded marks only.
+  const formerLabel = t('noten.formerPlan', { defaultValue: 'Nicht mehr im Plan – nur Ansicht' })
+  const formerMark = (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span role="img" aria-label={formerLabel} className="text-muted-foreground flex shrink-0">
+          <History className="h-3.5 w-3.5" aria-hidden />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{formerLabel}</TooltipContent>
+    </Tooltip>
+  )
+
   const nowDot = (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -88,6 +101,7 @@ export function ClassGroupPicker({
                 className={cn(CHIP_CLASS, active ? CHIP_ACTIVE : CHIP_IDLE)}
               >
                 <span className="font-semibold">{cls.name}</span>
+                {isFormerClass(cls) && formerMark}
                 {currentSlot.classId === cls.id && nowDot}
               </button>
             )
@@ -113,6 +127,7 @@ export function ClassGroupPicker({
                   className={cn(CHIP_CLASS, active ? CHIP_ACTIVE : CHIP_IDLE)}
                 >
                   <span className="font-semibold">{t(`raumplan.weekdays.${day}`)}</span>
+                  {selectedClass.formerWeekdays?.includes(day) && formerMark}
                   {currentSlot.classId === selectedClass.id &&
                     currentSlot.weekday === day &&
                     nowDot}

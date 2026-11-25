@@ -1,15 +1,21 @@
 import { NextResponse } from 'next/server'
 import { captureError } from '@/lib/sentry'
-import { prisma } from '@/lib/prisma'
 import { resolveSessionTeacher } from '@/lib/session-teacher'
 import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { gradeGroupDay } from '@/lib/weekday-groups'
 import { teachingDaysFor } from '@/lib/teaching-days'
+import {
+  distinctHalfDays,
+  parseWeekday,
+  recordedHalfDays,
+  resolveNotenAccess,
+} from '@/lib/noten-access'
 
 /**
  * GET: Returns array of { date, period, turn } for which the current teacher has this class+group.
- * Uses TeacherRotation + schedule turns/weeks; excludes holidays.
+ * Uses TeacherRotation + schedule turns/weeks; excludes holidays. A teacher who is no longer
+ * on the plan gets the half-days they recorded marks on instead (see src/lib/noten-access.ts).
  */
 export async function GET(request: Request) {
   const gate = await requireAccess('staff')
@@ -44,11 +50,27 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Teacher not found' }, { status: 403 })
     }
 
-    const isAssignedToClass = await prisma.teacherAssignment.findFirst({
-      where: { teacherId: teacher.id, classId, schoolYearId },
+    const access = await resolveNotenAccess({
+      teacherId: teacher.id,
+      classId,
+      schoolYearId,
+      weekday: searchParams.get('weekday'),
     })
-    if (!isAssignedToClass) {
+    if (!access) {
       return NextResponse.json({ error: 'Not assigned to this class' }, { status: 403 })
+    }
+
+    // Taken off the plan: there is no rotation left to derive the dates from, so
+    // the half-days are the ones the teacher recorded something on.
+    if (access === 'former') {
+      const recorded = await recordedHalfDays({
+        teacherId: teacher.id,
+        classId,
+        schoolYearId,
+        groupId,
+        weekday: parseWeekday(searchParams.get('weekday')),
+      })
+      return NextResponse.json({ teachingDays: distinctHalfDays(recorded) })
     }
 
     // Each weekday is its own plan with its own rotation and groups: the dates
@@ -67,6 +89,19 @@ export async function GET(request: Request) {
       schoolYearId,
       weekday: groupDay?.weekday ?? null,
     })
+    if (teachingDays.length === 0) {
+      // Still on the plan but no longer rotating through this group (moved to
+      // other groups, or the rotation was rebuilt without them): fall back to the
+      // half-days they recorded for it on this weekday, so those marks stay visible.
+      const recorded = await recordedHalfDays({
+        teacherId: teacher.id,
+        classId,
+        schoolYearId,
+        groupId,
+        weekday: groupDay?.weekday ?? null,
+      })
+      return NextResponse.json({ teachingDays: distinctHalfDays(recorded) })
+    }
 
     return NextResponse.json({ teachingDays })
   } catch (error) {

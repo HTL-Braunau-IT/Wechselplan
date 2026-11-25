@@ -32,6 +32,8 @@
   "noten": {
     "noSchoolYear": "No school year selected.",
     "noClasses": "No classes assigned.",
+    "formerPlanNotice": "You are no longer on this rotation plan. The grades and attendance you recorded stay visible here, but can no longer be changed.",
+    "formerPlan": "No longer on the plan – view only",
     "gruppe": "Gruppe",
     "weights": "Weights",
     "wiederholung": "Wiederholung",

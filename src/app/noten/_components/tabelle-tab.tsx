@@ -161,6 +161,12 @@ export function TabelleTab({
   // The cell the last digit went into, so a following "," can halve it even
   // though the selection has already moved on.
   const lastWrittenRef = useRef<TableCell | null>(null)
+  /**
+   * Set once "," has halved the last mark. Teachers type a half mark the way it
+   * is written — 1 , 5 — so the "5" that follows belongs to that mark and must
+   * not land in the next cell as a 5.
+   */
+  const awaitingDecimalRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
   const days = useMemo(
@@ -235,6 +241,19 @@ export function TabelleTab({
         return
       }
       const key = e.key
+      // The decimal of a mark typed as "1,5": already applied by the comma.
+      const awaitingDecimal = awaitingDecimalRef.current
+      awaitingDecimalRef.current = false
+      if (awaitingDecimal && (key === '5' || key === '0')) {
+        e.preventDefault()
+        const last = lastWrittenRef.current
+        // "1,0" is the whole mark again.
+        if (key === '0' && last) {
+          const value = valueOf(last)
+          if (value != null) write(last, Math.floor(value))
+        }
+        return
+      }
       if (key >= '1' && key <= '5' && key.length === 1) {
         e.preventDefault()
         enter(Number(key))
@@ -244,7 +263,10 @@ export function TabelleTab({
         e.preventDefault()
         const last = lastWrittenRef.current
         const half = last ? halfStep(valueOf(last)) : null
-        if (last && half != null) write(last, half)
+        if (last && half != null) {
+          write(last, half)
+          awaitingDecimalRef.current = true
+        }
         return
       }
       if (key === 'Backspace' || key === 'Delete') {

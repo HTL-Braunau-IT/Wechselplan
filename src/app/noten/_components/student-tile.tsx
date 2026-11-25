@@ -235,7 +235,7 @@ export function StudentTile({
           <span className="text-muted-foreground text-[10px]">
             {t('noten.digitPadHint', {
               defaultValue:
-                'Tastatur: 1–5 tippen, nochmal drücken ergibt die halbe Note. Backspace löscht.',
+                'Tastatur: 1–5 tippen, Komma (oder nochmal drücken) ergibt die halbe Note. Backspace löscht.',
             })}
           </span>
         </div>

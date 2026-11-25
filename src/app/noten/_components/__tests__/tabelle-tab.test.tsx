@@ -91,6 +91,25 @@ describe('TabelleTab', () => {
     expect(cell('Bauer, Lena', '15.09. NM', 1).getAttribute('aria-pressed')).toBe('true')
   })
 
+  it('takes "1 , 5" as one mark instead of putting a 5 in the next cell', () => {
+    const onMark = vi.fn()
+    render(<Harness onMark={onMark} />)
+
+    fireEvent.click(cell('Aigner, Lukas', '15.09. VM', 1))
+    fireEvent.keyDown(window, { key: '1' })
+    fireEvent.keyDown(window, { key: ',' })
+    fireEvent.keyDown(window, { key: '5' })
+    // The next digit is a new mark again, in the next cell.
+    fireEvent.keyDown(window, { key: '5' })
+
+    expect(onMark.mock.calls).toEqual([
+      [1, '2026-09-15', 'AM', 'bericht1', 1],
+      [1, '2026-09-15', 'AM', 'bericht1', 1.5],
+      [1, '2026-09-15', 'PM', 'bericht1', 5],
+    ])
+    expect(cell('Aigner, Lukas', '15.09. VM', 1).textContent).toBe('1,5')
+  })
+
   it('keeps a run of 2. Noten in the 2. Note column', () => {
     const onMark = vi.fn()
     render(<Harness onMark={onMark} />)

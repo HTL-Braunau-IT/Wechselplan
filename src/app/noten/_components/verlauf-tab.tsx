@@ -81,13 +81,14 @@ export function VerlaufTab({
           </div>
 
           {students.map(student => {
-            let absent = 0
+            // Missed calendar dates: absent AM and PM on one date is one day.
+            const absentDates = new Set<string>()
             const dayVals: number[] = []
             const cells = teachingDays.map(day => {
               const entry = entries[entryKey(student.id, day.date, day.period)]
               const att = entry?.attendance ?? null
               const isAbsent = att != null && att !== 'Anwesend'
-              if (isAbsent) absent++
+              if (isAbsent) absentDates.add(day.date)
               const avg = dayGradeValue(entry, weights)
               if (avg != null) dayVals.push(avg)
               const isToday = day.date === todayYmd
@@ -116,6 +117,7 @@ export function VerlaufTab({
                 </div>
               )
             })
+            const absent = absentDates.size
             const rowAvg = dayVals.length
               ? roundHalf(dayVals.reduce((a, b) => a + b, 0) / dayVals.length)
               : null

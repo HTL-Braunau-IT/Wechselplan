@@ -8,6 +8,7 @@ import {
   CalendarClock,
   CalendarX,
   GraduationCap,
+  History,
   Sun,
   Sunset,
   Users,
@@ -216,6 +217,7 @@ export default function NotenPage() {
 
   const handleCommitJahresstoff = useCallback(
     (value: string) => {
+      if (data.readOnly) return
       data.setJahresstoff(value)
       void data.saveJahresstoff(value)
     },
@@ -224,6 +226,7 @@ export default function NotenPage() {
 
   const handleCommitLehrstoff = useCallback(
     (date: string, period: string, value: string) => {
+      if (data.readOnly) return
       data.setLehrstoffByDay(prev => ({ ...prev, [`${date}-${period}`]: value }))
       void data.saveLehrstoff(date, period, value)
     },
@@ -260,7 +263,7 @@ export default function NotenPage() {
     )
   }
 
-  const canTransfer = notenmanagementEnabled && selectedClassId != null
+  const canTransfer = notenmanagementEnabled && selectedClassId != null && !data.readOnly
   const periods = Array.from(new Set(data.teachingDays.map(day => day.period)))
   const safeDayIndex = Math.min(dayIndex, Math.max(0, data.teachingDays.length - 1))
   const groupSelected = !!(selectedClass && selectedGroupId != null)
@@ -444,6 +447,18 @@ export default function NotenPage() {
                     />
                   </span>
                 </div>
+
+                {data.readOnly && (
+                  <Alert>
+                    <History className="h-4 w-4" />
+                    <AlertDescription>
+                      {t('noten.formerPlanNotice', {
+                        defaultValue:
+                          'Du bist in diesem Wechselplan nicht mehr eingetragen. Deine erfassten Noten und Anwesenheiten bleiben hier sichtbar, können aber nicht mehr geändert werden.',
+                      })}
+                    </AlertDescription>
+                  </Alert>
+                )}
 
                 <NotenViewTabs value={tab} onValueChange={setTab} tabs={tabs} />
 

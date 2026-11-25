@@ -8,6 +8,7 @@ import { resolveSchoolYearId } from '@/lib/school-year'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
 import { groupSettingsWeekday } from '@/lib/weekday-groups'
 import { type WeightConfig } from '@/lib/noten-weights'
+import { resolveNotenAccess } from '@/lib/noten-access'
 
 function dateToLocalString(d: Date | string): string {
   return d instanceof Date ? toLocalDateString(d) : String(d)
@@ -68,10 +69,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Teacher not found' }, { status: 403 })
     }
 
-    const isAssignedToClass = await prisma.teacherAssignment.findFirst({
-      where: { teacherId: teacher.id, classId, schoolYearId },
+    // A teacher taken off the plan keeps read access to what they recorded.
+    const access = await resolveNotenAccess({
+      teacherId: teacher.id,
+      classId,
+      schoolYearId,
+      weekday: searchParams.get('weekday'),
     })
-    if (!isAssignedToClass) {
+    if (!access) {
       return NextResponse.json({ error: 'Not assigned to this class' }, { status: 403 })
     }
 
@@ -198,6 +203,8 @@ export async function GET(request: Request) {
       lehrstoffByDay,
       jahresstoff: jahresstoffRow?.jahresstoff ?? '',
       finalGrades,
+      // No longer on this plan: the client shows the recorded marks view-only.
+      readOnly: access === 'former',
       teacherId: teacher.id,
       entries: entries.map(e => ({
         studentId: e.studentId,

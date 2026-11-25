@@ -367,12 +367,24 @@ export function ErfassenTab(props: ErfassenTabProps) {
     return () => document.removeEventListener('pointerdown', onPointerDown)
   }, [active])
 
+  // The cell whose mark "," just halved. Teachers type a half mark the way it
+  // is written — 1 , 5 — so the "5" that follows completes that mark instead of
+  // replacing it with a 5.
+  const awaitingDecimalRef = useRef<string | null>(null)
+
   // Keyboard entry for the focused cell. The listener re-subscribes when the
   // active cell or entries change so it always reads the current value; the
   // group is small enough that this costs nothing.
   useEffect(() => {
     if (!active || !day) return
+    const cellKey = `${active.studentId}-${active.category}-${active.slot}-${day.date}-${day.period}`
+    const currentMark = () => {
+      const entry = entries[entryKey(active.studentId, day.date, day.period)]
+      return entry ? (entry[categoryField(active.category, active.slot)] as number | null) : null
+    }
     const onKey = (e: KeyboardEvent) => {
+      const awaitingDecimal = awaitingDecimalRef.current === cellKey
+      awaitingDecimalRef.current = null
       if (e.key === 'Escape') {
         setActive(null)
         return
@@ -382,13 +394,28 @@ export function ErfassenTab(props: ErfassenTabProps) {
         setMark(active.studentId, active.category, active.slot, null)
         return
       }
+      // "1" then "," is 1,5 — and the "5" (or "0") typed after it is that
+      // mark's decimal, not a new mark.
+      if (e.key === ',' || e.key === '.') {
+        const current = currentMark()
+        if (current == null || !Number.isInteger(current) || current >= 5) return
+        e.preventDefault()
+        setMark(active.studentId, active.category, active.slot, current + 0.5)
+        awaitingDecimalRef.current = cellKey
+        return
+      }
+      if (awaitingDecimal && (e.key === '5' || e.key === '0')) {
+        e.preventDefault()
+        const current = currentMark()
+        if (e.key === '0' && current != null) {
+          setMark(active.studentId, active.category, active.slot, Math.floor(current))
+        }
+        return
+      }
       if (e.key >= '1' && e.key <= '5') {
         e.preventDefault()
         const n = Number(e.key)
-        const entry = entries[entryKey(active.studentId, day.date, day.period)]
-        const current = entry
-          ? (entry[categoryField(active.category, active.slot)] as number | null)
-          : null
+        const current = currentMark()
         setMark(
           active.studentId,
           active.category,

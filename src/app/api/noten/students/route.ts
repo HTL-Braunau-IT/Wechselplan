@@ -6,10 +6,12 @@ import { requireAccess } from '@/lib/api-guard'
 import { resolveSchoolYearId } from '@/lib/school-year'
 import { gradeGroupDay, overlayWeekdayGroups } from '@/lib/weekday-groups'
 import { resolveMemberClassIds } from '@/lib/combined-classes'
+import { parseWeekday, recordedHalfDays, resolveNotenAccess } from '@/lib/noten-access'
 
 /**
  * GET: Returns students in the given class (and optionally group). If groupId is omitted, returns all students in the class (all groups).
- * Only if current teacher is assigned to that class.
+ * Only if current teacher is assigned to that class — or was, and recorded marks for it
+ * (then the roster is the students they recorded marks for; see src/lib/noten-access.ts).
  */
 export async function GET(request: Request) {
   const gate = await requireAccess('staff')
@@ -44,11 +46,50 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Teacher not found' }, { status: 403 })
     }
 
-    const isAssignedToClass = await prisma.teacherAssignment.findFirst({
-      where: { teacherId: teacher.id, classId, schoolYearId },
+    const access = await resolveNotenAccess({
+      teacherId: teacher.id,
+      classId,
+      schoolYearId,
+      weekday: searchParams.get('weekday'),
     })
-    if (!isAssignedToClass) {
+    if (!access) {
       return NextResponse.json({ error: 'Not assigned to this class' }, { status: 403 })
+    }
+
+    // Taken off the plan: the roster is whoever the teacher recorded marks for.
+    // Today's grouping says nothing about the group they taught (the plan may
+    // have been regrouped or deleted since), and a student who has since left
+    // still belongs in the record — so no group overlay and no isActive filter.
+    if (access === 'former') {
+      const recorded = await recordedHalfDays({
+        teacherId: teacher.id,
+        classId,
+        schoolYearId,
+        groupId,
+        weekday: parseWeekday(searchParams.get('weekday')),
+      })
+      const groupByStudent = new Map(recorded.map(r => [r.studentId, r.groupId]))
+      const formerRoster = await prisma.student.findMany({
+        where: { id: { in: [...groupByStudent.keys()] } },
+        select: { id: true, firstName: true, lastName: true },
+        orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+      })
+      const seats = await prisma.notenSeatNumber.findMany({
+        where: {
+          teacherId: teacher.id,
+          schoolYearId,
+          studentId: { in: formerRoster.map(s => s.id) },
+        },
+        select: { studentId: true, seatNumber: true },
+      })
+      const seatOf = new Map(seats.map(s => [s.studentId, s.seatNumber]))
+      return NextResponse.json({
+        students: formerRoster.map(s => ({
+          ...s,
+          groupId: groupByStudent.get(s.id) ?? null,
+          sitzplatz: seatOf.get(s.id) ?? null,
+        })),
+      })
     }
 
     // The TeacherAssignment guard above stays on the selected class (the teacher

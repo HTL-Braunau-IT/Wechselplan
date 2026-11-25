@@ -18,7 +18,9 @@ vi.mock('@/lib/weekday-groups', () => ({
 }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    teacherAssignment: { findFirst: vi.fn(async () => ({ id: 1 })) },
+    teacherAssignment: { findFirst: vi.fn() },
+    notenEntry: { findMany: vi.fn() },
+    class: { findUnique: vi.fn(async () => ({ isCombined: false, combinedMembers: [] })) },
     teacherRotation: { findMany: vi.fn() },
     schedule: { findFirst: vi.fn() },
   },
@@ -39,6 +41,9 @@ const thursdayPlan = {
 
 describe('GET /api/noten/teaching-days (per weekday)', () => {
   beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(prisma.teacherAssignment.findFirst).mockResolvedValue({ id: 1 } as never)
+    vi.mocked(prisma.notenEntry.findMany).mockResolvedValue([])
     vi.mocked(prisma.teacherRotation.findMany).mockResolvedValue([
       { turnId: 'TURNUS 1', period: 'AM' },
     ] as never)
@@ -60,5 +65,36 @@ describe('GET /api/noten/teaching-days (per weekday)', () => {
     )
     // The holiday week is dropped.
     expect(data.teachingDays).toEqual([{ date: '2026-10-01', period: 'AM', turn: 'TURNUS 1' }])
+  })
+
+  it('serves a teacher taken off the plan the half-days they recorded marks on', async () => {
+    vi.mocked(prisma.teacherAssignment.findFirst).mockResolvedValue(null)
+    vi.mocked(prisma.notenEntry.findMany).mockResolvedValue([
+      { studentId: 1, groupId: 2, date: new Date('2026-10-01T00:00:00'), period: 'PM' },
+      { studentId: 2, groupId: 2, date: new Date('2026-10-01T00:00:00'), period: 'AM' },
+      { studentId: 1, groupId: 2, date: new Date('2026-10-01T00:00:00'), period: 'AM' },
+    ] as never)
+
+    const res = await GET(
+      new Request('http://localhost/api/noten/teaching-days?classId=3&groupId=2'),
+    )
+    const data = (await res.json()) as { teachingDays: { date: string; period: string }[] }
+
+    expect(res.status).toBe(200)
+    expect(prisma.teacherRotation.findMany).not.toHaveBeenCalled()
+    expect(data.teachingDays).toEqual([
+      { date: '2026-10-01', period: 'AM' },
+      { date: '2026-10-01', period: 'PM' },
+    ])
+  })
+
+  it('refuses a teacher with no plan and no recorded marks', async () => {
+    vi.mocked(prisma.teacherAssignment.findFirst).mockResolvedValue(null)
+
+    const res = await GET(
+      new Request('http://localhost/api/noten/teaching-days?classId=3&groupId=2'),
+    )
+
+    expect(res.status).toBe(403)
   })
 })

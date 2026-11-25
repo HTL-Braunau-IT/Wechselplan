@@ -74,6 +74,14 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
   const [seating, setSeating] = useState<SeatingLayout>({})
   const [finalGrades, setFinalGrades] = useState<Record<number, FinalGradePerStudent>>({})
   const [teacherId, setTeacherId] = useState<number | null>(null)
+  /**
+   * The teacher is no longer on this plan and is looking at what they recorded.
+   * The server refuses their writes, so every mutator below is a no-op rather
+   * than an optimistic edit that would then fail to save.
+   */
+  const [readOnly, setReadOnly] = useState(false)
+  const readOnlyRef = useRef(false)
+  readOnlyRef.current = readOnly
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saveState, setSaveState] = useState<SaveState>('idle')
@@ -167,6 +175,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
       setSeating({})
       setEntries({})
       setFinalGrades({})
+      setReadOnly(false)
       return
     }
 
@@ -212,6 +221,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
             jahresstoff?: string
             finalGrades?: Record<number, FinalGradePerStudent>
             teacherId?: number
+            readOnly?: boolean
             entries: NotenEntryRow[]
           }>,
         ])
@@ -229,6 +239,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
         setJahresstoff(notenData.jahresstoff ?? '')
         setFinalGrades(notenData.finalGrades ?? {})
         setTeacherId(notenData.teacherId ?? null)
+        setReadOnly(notenData.readOnly === true)
 
         // Positions come back keyed by string studentId; the grid keys by
         // number. Parse defensively and never let a bad payload break the load.
@@ -294,6 +305,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
 
   const updateEntry = useCallback(
     (studentId: number, date: string, period: string, patch: Partial<NotenEntryRow>) => {
+      if (readOnlyRef.current) return
       const key = entryKey(studentId, date, period)
       setEntries(prev => ({
         ...prev,
@@ -306,6 +318,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
 
   const saveEntries = useCallback(
     async (payload: NotenEntryRow[], options?: { silent?: boolean }) => {
+      if (readOnlyRef.current) return false
       if (classId == null || groupId == null || !schoolYearId) return false
       if (payload.length === 0) return true
       const keys = payload.map(e => entryKey(e.studentId, e.date, e.period))
@@ -350,6 +363,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
 
   const queueEntrySave = useCallback(
     (studentId: number, date: string, period: string, patch: Partial<NotenEntryRow>) => {
+      if (readOnlyRef.current) return
       updateEntry(studentId, date, period, patch)
       queuedEntryKeysRef.current.add(entryKey(studentId, date, period))
       schedule('entries', () => {
@@ -374,6 +388,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
   // so the other three fields are sensible rather than zero.
   const setWeightLevel = useCallback(
     (level: WeightLevel, key: keyof WeightConfig, value: number) => {
+      if (readOnlyRef.current) return
       setWeightLevels(prev => {
         const base = prev[level] ?? inheritedWeights(level, prev)
         return { ...prev, [level]: { ...base, [key]: value } }
@@ -386,6 +401,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
   // Turn on a class/group override, seeded with the value it currently inherits
   // so nothing visibly changes until the teacher edits it.
   const enableWeightOverride = useCallback((level: WeightLevel) => {
+    if (readOnlyRef.current) return
     setWeightLevels(prev =>
       prev[level] ? prev : { ...prev, [level]: inheritedWeights(level, prev) },
     )
@@ -396,6 +412,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
   // back to 25/25/25/25 — that is what the global "reset" does).
   const clearWeightOverride = useCallback(
     async (level: WeightLevel) => {
+      if (readOnlyRef.current) return false
       if (level !== 'global' && (classId == null || !schoolYearId)) return true
       if (level === 'group' && groupId == null) return true
       dirtyWeightsRef.current.delete(level)
@@ -431,6 +448,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
   // staying dirty so a later valid edit still gets written.
   const saveWeights = useCallback(
     async (options?: { silent?: boolean }) => {
+      if (readOnlyRef.current) return false
       const dirty = [...dirtyWeightsRef.current]
       const levelsNow = weightLevelsRef.current
       const toSave = dirty
@@ -478,6 +496,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
 
   const saveLehrstoff = useCallback(
     async (date: string, period: string, value: string, options?: { silent?: boolean }) => {
+      if (readOnlyRef.current) return false
       if (classId == null || groupId == null || !schoolYearId) return false
       if (!options?.silent) beginSave()
       try {
@@ -503,6 +522,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
 
   const saveJahresstoff = useCallback(
     async (value: string) => {
+      if (readOnlyRef.current) return false
       if (classId == null || !schoolYearId) return false
       beginSave()
       try {
@@ -532,6 +552,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
       field: 'grade' | 'conductNoteWish',
       value: number | string | null,
     ) => {
+      if (readOnlyRef.current) return
       setFinalGrades(prev => {
         const current = prev[studentId] ?? {
           first: { grade: null, conductNoteWish: null },
@@ -556,6 +577,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
       }>,
       options?: { silent?: boolean },
     ) => {
+      if (readOnlyRef.current) return false
       if (classId == null || !schoolYearId) return false
       if (!options?.silent) beginSave()
       try {
@@ -610,6 +632,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
 
   const setAllAnwesend = useCallback(
     async (date: string, period: string) => {
+      if (readOnlyRef.current) return
       if (classId == null || groupId == null || !schoolYearId) return
       beginSave()
       try {
@@ -669,6 +692,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
 
   const updateSitzplatz = useCallback(
     (studentId: number, sitzplatz: string | null) => {
+      if (readOnlyRef.current) return
       // Optimistic: the field should stay responsive while the request runs.
       setStudents(prev =>
         prev.map(student => (student.id === studentId ? { ...student, sitzplatz } : student)),
@@ -703,6 +727,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
 
   const updateSeat = useCallback(
     (studentId: number, position: SeatPosition) => {
+      if (readOnlyRef.current) return
       // Optimistic move; one debounced PATCH of the whole (small) layout coalesces
       // a drag's many pointer updates and, via the ref, always sends the latest.
       setSeating(prev => ({ ...prev, [studentId]: position }))
@@ -756,6 +781,7 @@ export function useNotenData({ classId, groupId, schoolYearId, weekday }: Params
     finalGradesRef,
     loading,
     loadError,
+    readOnly,
     saveState,
     saveError,
     setSaveError,
