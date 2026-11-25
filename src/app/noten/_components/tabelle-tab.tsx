@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next'
 import { Eye, EyeOff, Keyboard } from 'lucide-react'
 import { Hint } from '@/components/hint'
 import { entryKey, getGradeBoxClass } from '@/lib/grades'
+import { StudentPhoto } from '@/components/student-photo'
 import { cn } from '@/lib/utils'
 import {
   CATEGORIES,
@@ -600,15 +601,24 @@ export function TabelleTab({
               const name = `${student.lastName}, ${student.firstName}`
               return (
                 <div key={student.id} className="contents">
-                  <div className="bg-card border-border/60 sticky left-0 z-[2] flex h-9 flex-col items-start justify-center overflow-hidden border-b px-3 leading-tight shadow-[1px_0_0_0_var(--color-border)]">
-                    <span
-                      className="w-full truncate"
-                      title={`${student.lastName}, ${student.firstName}`}
-                    >
-                      {student.lastName}
-                    </span>
-                    <span className="text-muted-foreground w-full truncate text-xs">
-                      {student.firstName}
+                  <div className="bg-card border-border/60 sticky left-0 z-[2] flex h-9 items-center gap-2 overflow-hidden border-b px-3 leading-tight shadow-[1px_0_0_0_var(--color-border)]">
+                    <StudentPhoto
+                      studentId={student.id}
+                      firstName={student.firstName}
+                      lastName={student.lastName}
+                      size={26}
+                      avatarOnly
+                    />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span
+                        className="truncate"
+                        title={`${student.lastName}, ${student.firstName}`}
+                      >
+                        {student.lastName}
+                      </span>
+                      <span className="text-muted-foreground truncate text-xs">
+                        {student.firstName}
+                      </span>
                     </span>
                   </div>
                   {columns.map(col => {

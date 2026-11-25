@@ -3,6 +3,7 @@
 import { useTranslation } from 'react-i18next'
 import { CalendarRange } from 'lucide-react'
 import { entryKey, getGradeBoxClass } from '@/lib/grades'
+import { StudentPhoto } from '@/components/student-photo'
 import { cn } from '@/lib/utils'
 import { PERIOD_SHORT, fmtGrade, roundHalf } from '../_lib/erfassen'
 import { dayGradeValue } from '../_lib/summary'
@@ -123,15 +124,21 @@ export function VerlaufTab({
               : null
             return (
               <div key={student.id} className="contents">
-                <div className="bg-card border-border/60 sticky left-0 z-[2] flex h-10 flex-col items-start justify-center overflow-hidden border-b px-3 leading-tight shadow-[1px_0_0_0_var(--color-border)]">
-                  <span
-                    className="w-full truncate"
-                    title={`${student.lastName}, ${student.firstName}`}
-                  >
-                    {student.lastName}
-                  </span>
-                  <span className="text-muted-foreground w-full truncate text-xs">
-                    {student.firstName}
+                <div className="bg-card border-border/60 sticky left-0 z-[2] flex h-10 items-center gap-2 overflow-hidden border-b px-3 leading-tight shadow-[1px_0_0_0_var(--color-border)]">
+                  <StudentPhoto
+                    studentId={student.id}
+                    firstName={student.firstName}
+                    lastName={student.lastName}
+                    size={28}
+                    avatarOnly
+                  />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate" title={`${student.lastName}, ${student.firstName}`}>
+                      {student.lastName}
+                    </span>
+                    <span className="text-muted-foreground truncate text-xs">
+                      {student.firstName}
+                    </span>
                   </span>
                 </div>
                 {cells}
